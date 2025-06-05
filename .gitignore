@@ -63,3 +63,28 @@ coverage/
 **/config/secrets.json
 **/.env*
 **/api-keys.json
+
+# Memory databases (may contain sensitive user data)
+oneagent_gemini_memory/
+*.sqlite3
+chroma_db/
+mem0_data/
+mem0_gemini_data/
+
+# Python cache and compiled files
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+__pycache__/
+
+# Log files and temporary files
+*.log
+*.tmp
+debug_*.txt
+temp_*.txt
+
+# Additional security for sensitive configurations
+*config.json
+*secrets.json
+*credentials.json

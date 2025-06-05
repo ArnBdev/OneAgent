@@ -47,15 +47,14 @@ export class PerformanceProfiler {
   startOperation(operationId: string, operationType: string, metadata?: Record<string, any>): void {
     const startTime = Date.now();
     this.activeOperations.set(operationId, startTime);
-    
-    // Store initial metric entry
+      // Store initial metric entry
     this.metrics.push({
       operation: operationType,
       startTime,
       endTime: 0,
       duration: 0,
       success: false,
-      metadata
+      metadata: metadata || {}
     });
 
     // Cleanup old metrics to prevent memory issues
