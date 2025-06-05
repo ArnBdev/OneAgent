@@ -1,0 +1,379 @@
+/**
+ * OneAgent CoreAgent - Main Entry Point
+ * 
+ * Dette er startpunktet for CoreAgent, kjernen i OneAgent-plattformen.
+ * CoreAgent håndterer grunnleggende fellesfunksjonalitet som arbeidsflyter,
+ * brukeridentitet, minnehåndtering og MCP-kommunikasjon.
+ */
+
+import { listWorkflows, listUserWorkflows } from './tools/listWorkflows';
+import { createMCPAdapter, defaultMCPConfig } from './mcp/adapter';
+import { Mem0Client } from './tools/mem0Client';
+import { BraveSearchClient } from './tools/braveSearchClient';
+import { WebSearchTool } from './tools/webSearch';
+import { GeminiClient } from './tools/geminiClient';
+import { AIAssistantTool } from './tools/aiAssistant';
+import { GeminiEmbeddingsTool } from './tools/geminiEmbeddings';
+import { User } from './types/user';
+import * as dotenv from 'dotenv';
+
+// Load environment variables
+dotenv.config();
+
+/**
+ * CoreAgent klasse - hovedkjernen for OneAgent systemet
+ */
+class CoreAgent {
+  private currentUser: User | null = null;
+  private mcpAdapter: any;
+  private mem0Client: Mem0Client;
+  private braveSearchClient: BraveSearchClient;
+  private webSearchTool: WebSearchTool;
+  private geminiClient: GeminiClient;
+  private aiAssistant: AIAssistantTool;
+  private embeddingsTool: GeminiEmbeddingsTool;
+  
+  constructor() {
+    console.log("🚀 Hello CoreAgent!");
+    console.log("OneAgent CoreAgent is starting...");
+    
+    // Initialize clients
+    this.mem0Client = new Mem0Client();
+    
+    // Initialize Brave Search client
+    const braveConfig = {
+      apiKey: process.env.BRAVE_API_KEY || 'your_brave_search_api_key_here',
+      ...(process.env.BRAVE_API_URL && { baseUrl: process.env.BRAVE_API_URL })
+    };
+    this.braveSearchClient = new BraveSearchClient(braveConfig);
+    
+    // Initialize web search tool
+    this.webSearchTool = new WebSearchTool(this.braveSearchClient);
+    
+    // Initialize Gemini client
+    const geminiConfig = {
+      apiKey: process.env.GOOGLE_API_KEY || 'your_google_gemini_api_key_here',
+      model: process.env.GOOGLE_MODEL || 'gemini-pro'
+    };
+    this.geminiClient = new GeminiClient(geminiConfig);
+      // Initialize AI assistant
+    this.aiAssistant = new AIAssistantTool(this.geminiClient);
+    
+    // Initialize embeddings tool
+    this.embeddingsTool = new GeminiEmbeddingsTool(this.geminiClient, this.mem0Client);
+  }
+
+  /**
+   * Initialiser CoreAgent systemet
+   */
+  async initialize(): Promise<void> {
+    try {
+      console.log("\n⚙️  Initializing CoreAgent components...");
+      
+      // Initialize MCP adapter
+      this.mcpAdapter = createMCPAdapter(defaultMCPConfig);
+      console.log("✅ MCP Adapter initialized");
+      
+      // Set up demo user for testing
+      this.currentUser = {
+        id: 'user-123',
+        name: 'Demo User',
+        email: 'demo@oneagent.ai',
+        createdAt: new Date().toISOString(),
+        lastActiveAt: new Date().toISOString(),
+        preferences: {
+          language: 'no',
+          timezone: 'Europe/Oslo'
+        }
+      };
+      console.log(`👤 Demo user session: ${this.currentUser.name}`);      // Test basic functionality
+      await this.testWorkflowSystem();
+      await this.testMCPCommunication();
+      await this.testMem0Integration();
+      await this.testWebSearchIntegration();
+      await this.testAIAssistantIntegration();
+      await this.testEmbeddingsIntegration();
+      
+      console.log("\n✅ CoreAgent initialized successfully");
+      
+    } catch (error) {
+      console.error("❌ Error during CoreAgent initialization:", error);
+      throw error;
+    }
+  }
+
+  /**
+   * Test workflow system functionality
+   */
+  private async testWorkflowSystem(): Promise<void> {
+    console.log("\n📋 Testing workflow functionality:");
+    
+    // List all workflows
+    const allWorkflows = await listWorkflows();
+    console.log(`📊 Total workflows found: ${allWorkflows.length}`);
+    
+    // List workflows for current user
+    if (this.currentUser) {
+      const userWorkflows = await listUserWorkflows(this.currentUser.id);
+      console.log(`👤 Workflows for ${this.currentUser.name}: ${userWorkflows.length}`);
+      
+      // Show brief summary of each workflow
+      if (userWorkflows.length > 0) {
+        userWorkflows.forEach(workflow => {
+          console.log(`  • ${workflow.metadata.name} (${workflow.status.status}) - ${workflow.metadata.agentType}`);
+        });
+      }
+    }
+    
+    // Test filtering by agent type
+    const codeWorkflows = await listWorkflows({ agentType: 'code' });
+    console.log(`🔧 Code agent workflows: ${codeWorkflows.length}`);
+  }  /**
+   * Test MCP communication
+   */
+  private async testMCPCommunication(): Promise<void> {
+    console.log("\n🔗 Testing MCP communication:");
+    
+    try {
+      // Test local MCP adapter
+      const response = await this.mcpAdapter.sendRequest('ping', { 
+        timestamp: new Date().toISOString() 
+      });
+      console.log(`✅ Local MCP Response: ${response.result?.message}`);
+      
+      // Test HTTP MCP adapter (demonstration)
+      console.log("\n🌐 Testing HTTP MCP adapter (demo):");
+      const httpConfig = {
+        name: 'Demo-HTTP-MCP',
+        type: 'http' as const,
+        endpoint: 'http://localhost:8080/mcp'
+      };
+      
+      const httpAdapter = createMCPAdapter(httpConfig);
+      console.log("✅ HTTP MCP Adapter created (endpoint: localhost:8080/mcp)");
+      console.log("   Note: HTTP adapter ready for external MCP server connections");
+      
+    } catch (error) {
+      console.warn(`⚠️  MCP communication test failed: ${error}`);
+    }
+  }
+
+  /**
+   * Test Mem0 integration
+   */
+  private async testMem0Integration(): Promise<void> {
+    console.log("\n🧠 Testing Mem0 integration:");
+    
+    try {
+      // Test connection
+      const connectionOk = await this.mem0Client.testConnection();
+      if (!connectionOk) {
+        console.warn("⚠️  Mem0 connection test failed - using mock mode");
+      }
+
+      // Test create memory
+      const createResult = await this.mem0Client.createMemory(
+        "OneAgent CoreAgent initialization test", 
+        { type: 'system', event: 'startup' },
+        this.currentUser?.id,
+        'coreagent'
+      );
+      
+      if (createResult.success) {
+        console.log(`✅ Memory created: ${createResult.data?.id}`);
+          // Test search memories
+        const searchResult = await this.mem0Client.searchMemories({
+          userId: this.currentUser?.id || 'demo-user',
+          agentId: 'coreagent'
+        });
+        
+        if (searchResult.success) {
+          console.log(`🔍 Found ${searchResult.data?.length} memories for user`);
+        }
+      }    } catch (error) {
+      console.warn(`⚠️  Mem0 integration test failed: ${error}`);
+    }
+  }
+
+  /**
+   * Test Web Search integration
+   */
+  private async testWebSearchIntegration(): Promise<void> {
+    console.log("\n🔍 Testing Web Search integration:");
+    
+    try {
+      // Test connection
+      const connectionOk = await this.webSearchTool.testSearch();
+      if (!connectionOk) {
+        console.warn("⚠️  Web search connection test failed - using mock mode");
+      }
+
+      // Test quick search
+      const searchResult = await this.webSearchTool.quickSearch("OpenAI ChatGPT", 3);
+      
+      if (searchResult.totalResults > 0) {
+        console.log(`✅ Search successful: Found ${searchResult.totalResults} results in ${searchResult.searchTime}ms`);
+        console.log(`🔍 Top result: "${searchResult.results[0]?.title}"`);
+      } else {
+        console.log("✅ Search completed (mock mode - no real results)");
+      }
+
+    } catch (error) {
+      console.warn(`⚠️  Web search integration test failed: ${error}`);
+    }
+  }
+  /**
+   * Test AI Assistant integration
+   */
+  private async testAIAssistantIntegration(): Promise<void> {
+    console.log("\n🤖 Testing AI Assistant integration:");
+    
+    try {
+      // Test connection
+      const connectionOk = await this.aiAssistant.testAssistant();
+      if (!connectionOk) {
+        console.warn("⚠️  AI Assistant connection test failed - using mock mode");
+      }
+
+      // Test simple question
+      const questionResult = await this.aiAssistant.ask("What is artificial intelligence?", {
+        temperature: 0.3,
+        maxTokens: 200
+      });
+      
+      if (questionResult.success) {
+        console.log(`✅ AI question answered successfully in ${questionResult.processingTime}ms`);
+        console.log(`🤖 Response preview: "${questionResult.result.substring(0, 100)}..."`);
+      } else {
+        console.log("✅ AI question completed (mock mode)");
+      }
+
+      // Test summarization
+      const testText = "OneAgent is a modular AI agent platform built with TypeScript. It features CoreAgent as the foundation, providing workflow management, user identity, memory integration with Mem0, web search through Brave API, and AI assistance via Google Gemini. The system is designed to be scalable and extensible with specialized agent modules.";
+      
+      const summaryResult = await this.aiAssistant.summarize(testText, {
+        maxLength: 50,
+        style: 'brief'
+      });
+      
+      if (summaryResult.success) {
+        console.log(`✅ Text summarization successful in ${summaryResult.processingTime}ms`);
+        console.log(`📝 Summary: "${summaryResult.result}"`);
+      } else {
+        console.log("✅ Text summarization completed (mock mode)");
+      }
+
+    } catch (error) {
+      console.warn(`⚠️  AI Assistant integration test failed: ${error}`);
+    }
+  }
+
+  /**
+   * Test Embeddings integration
+   */
+  private async testEmbeddingsIntegration(): Promise<void> {
+    console.log("\n🔢 Testing Gemini Embeddings integration:");
+    
+    try {
+      // Test basic embeddings functionality
+      const embeddingsOk = await this.embeddingsTool.testEmbeddings();
+      if (!embeddingsOk) {
+        console.warn("⚠️  Embeddings basic test failed - using mock mode");
+      }
+
+      // Test semantic memory storage
+      const memoryResult = await this.embeddingsTool.storeMemoryWithEmbedding(
+        "OneAgent CoreAgent supports semantic search and similarity matching through Gemini embeddings",
+        { 
+          type: 'system_capability', 
+          feature: 'embeddings',
+          tags: ['semantic-search', 'ai', 'memory'] 
+        },
+        this.currentUser?.id,
+        'coreagent',
+        undefined,
+        'long_term',
+        { taskType: 'RETRIEVAL_DOCUMENT' }
+      );
+
+      if (memoryResult.memory.id) {
+        console.log(`✅ Memory with embedding stored: ${memoryResult.memory.id}`);
+        console.log(`🔢 Embedding dimensions: ${memoryResult.embedding.dimensions}`);        // Test semantic search
+        const searchResults = await this.embeddingsTool.semanticSearch(
+          "AI platform with intelligent memory features",
+          {
+            userId: this.currentUser?.id || 'demo-user',
+            agentId: 'coreagent'
+          },
+          {
+            taskType: 'RETRIEVAL_QUERY',
+            topK: 3,
+            similarityThreshold: 0.3
+          }
+        );
+
+        console.log(`🔍 Semantic search found ${searchResults.results.length} relevant memories`);
+        if (searchResults.results.length > 0) {
+          const topResult = searchResults.results[0];
+          console.log(`📊 Top result similarity: ${topResult.similarity.toFixed(4)}`);
+          console.log(`⚡ Search completed in ${searchResults.analytics.processingTime}ms`);
+        }
+
+        // Test similar memory finding
+        const similarResults = await this.embeddingsTool.findSimilarMemories(
+          memoryResult.memory.id,
+          {
+            topK: 2,
+            similarityThreshold: 0.2
+          }
+        );
+
+        console.log(`🎯 Found ${similarResults.results.length} similar memories`);
+      }
+
+      // Test embedding cache stats
+      const cacheStats = this.embeddingsTool.getCacheStats();
+      console.log(`💾 Embedding cache: ${cacheStats.cacheSize} entries (${cacheStats.memoryUsage})`);
+
+    } catch (error) {
+      console.warn(`⚠️  Embeddings integration test failed: ${error}`);
+    }
+  }
+  /**
+   * Start CLI interface (placeholder for future implementation)
+   */  startCLI(): void {
+    console.log("\n💬 CLI interface - Coming soon!");
+    console.log("Future features:");
+    console.log("  - Interactive workflow management");
+    console.log("  - User session handling");
+    console.log("  - Real-time MCP communication");
+    console.log("  - Memory integration with mem0");
+    console.log("  - Web search capabilities with Brave Search");
+    console.log("  - AI assistance with Google Gemini");
+    console.log("  - 🆕 Semantic search with Gemini embeddings");
+    console.log("  - 🆕 Memory clustering and similarity analysis");
+    console.log("  - 🆕 Intelligent memory retrieval and context awareness");
+  }
+}
+
+/**
+ * Main entry point
+ */
+async function main() {
+  try {
+    const coreAgent = new CoreAgent();
+    await coreAgent.initialize();
+    
+    // For now, just show CLI placeholder
+    coreAgent.startCLI();
+    
+  } catch (error) {
+    console.error("❌ Fatal error in CoreAgent:", error);
+    process.exit(1);
+  }
+}
+
+// Start the application
+if (require.main === module) {
+  main().catch(console.error);
+}
