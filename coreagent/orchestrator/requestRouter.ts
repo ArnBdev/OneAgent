@@ -32,7 +32,7 @@ export class RequestRouter implements IRequestRouter {
   /**
    * Route a user request to the most appropriate agent
    */
-  async routeRequest(request: string, context: AgentContext): Promise<RouteResult> {
+  async routeRequest(request: string, _context: AgentContext): Promise<RouteResult> {
     try {
       // Analyze the request
       const analysis = await this.analyzeRequest(request);
@@ -76,7 +76,7 @@ export class RequestRouter implements IRequestRouter {
         confidence: selectedAgent.score,
         reasoning: selectedAgent.reasoning,
         alternatives,
-        fallbackStrategy: selectedAgent.score <= 0.3 ? 'general_agent' : undefined
+        fallbackStrategy: selectedAgent.score <= 0.3 ? 'general_agent' : 'direct_routing'
       };
 
     } catch (error) {
@@ -84,7 +84,7 @@ export class RequestRouter implements IRequestRouter {
       return {
         selectedAgent: null,
         confidence: 0,
-        reasoning: `Routing error: ${error.message}`,
+        reasoning: `Routing error: ${error instanceof Error ? error.message : 'Unknown error'}`,
         alternatives: [],
         fallbackStrategy: 'error_handling'
       };
@@ -270,7 +270,7 @@ export class RequestRouter implements IRequestRouter {
   /**
    * Evaluate a routing condition
    */
-  private evaluateCondition(condition: any, analysis: RequestAnalysis, request: string): boolean {
+  private evaluateCondition(condition: any, analysis: RequestAnalysis, _request: string): boolean {
     // Implementation would depend on condition type
     // This is a simplified version
     switch (condition.type) {
@@ -380,7 +380,7 @@ export class RequestRouter implements IRequestRouter {
   /**
    * Determine request intent
    */
-  private determineIntent(request: string, keywords: string[]): RequestIntent {
+  private determineIntent(_request: string, keywords: string[]): RequestIntent {
     // Simplified intent detection
     let category: any = 'general';
     let confidence = 0.5;

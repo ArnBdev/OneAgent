@@ -33,6 +33,7 @@ export interface MemoryImportanceScore {
 export interface MemoryAnalytics {
   totalMemories: number;
   categoryCounts: Record<string, number>;
+  categoryBreakdown: Record<string, number>; // Alias for categoryCounts
   averageImportance: number;
   topCategories: Array<{ category: string; count: number; avgImportance: number }>;
   memoryGrowthRate: number; // memories per day
@@ -285,23 +286,20 @@ export class MemoryIntelligence {
       }
       if (options.memoryType) {
         filter.memoryType = options.memoryType;
-      }
-
-      // Get memories from Mem0
-      const memories = await this.mem0Client.searchMemories(filter);
-      if (!memories || memories.length === 0) {
+      }      // Get memories from Mem0
+      const memoriesResponse = await this.mem0Client.searchMemories(filter);
+      if (!memoriesResponse.success || !memoriesResponse.data || memoriesResponse.data.length === 0) {
         globalProfiler.endOperation(operationId, true);
         return [];
       }
-
-      // Use GeminiEmbeddingsTool for semantic search
-      const semanticResults = await this.embeddingsClient.searchMemories(queryText, {
+      const memories = memoriesResponse.data;      // Use GeminiEmbeddingsTool for semantic search
+      const semanticSearchResult = await this.embeddingsClient.semanticSearch(queryText, {}, {
         topK: options.topK || 10,
         similarityThreshold: options.similarityThreshold || 0.7
       });
 
       globalProfiler.endOperation(operationId, true);
-      return semanticResults;
+      return semanticSearchResult.results;
 
     } catch (error) {
       globalProfiler.endOperation(operationId, false, error instanceof Error ? error.message : 'Unknown error');
@@ -309,22 +307,21 @@ export class MemoryIntelligence {
       return [];
     }
   }
-
   /**
    * Generate analytics for memory usage patterns
    */
   async generateMemoryAnalytics(): Promise<MemoryAnalytics> {
     const operationId = `analytics_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
     globalProfiler.startOperation(operationId, 'memory_analytics');
-
+    
     try {
       // Get all memories
-      const allMemories = await this.mem0Client.searchMemories({ limit: 10000 });
+      const allMemoriesResponse = await this.mem0Client.searchMemories({ limit: 10000 });
       
-      if (!allMemories || allMemories.length === 0) {
-        return {
+      if (!allMemoriesResponse.success || !allMemoriesResponse.data || allMemoriesResponse.data.length === 0) {        return {
           totalMemories: 0,
           categoryCounts: {},
+          categoryBreakdown: {},
           averageImportance: 0,
           topCategories: [],
           memoryGrowthRate: 0,
@@ -333,31 +330,31 @@ export class MemoryIntelligence {
         };
       }
 
+      const allMemories = allMemoriesResponse.data;
+
       // Categorize all memories
-      const categoryPromises = allMemories.map(memory => this.categorizeMemory(memory));
+      const categoryPromises = allMemories.map((memory: Mem0Memory) => this.categorizeMemory(memory));
       const categories = await Promise.all(categoryPromises);
       
       // Count categories
       const categoryCounts: Record<string, number> = {};
-      categories.forEach(category => {
+      categories.forEach((category: string) => {
         categoryCounts[category] = (categoryCounts[category] || 0) + 1;
       });
 
       // Calculate importance scores
-      const importancePromises = allMemories.slice(0, 50).map(memory => // Limit for performance
+      const importancePromises = allMemories.slice(0, 50).map((memory: Mem0Memory) => // Limit for performance
         this.calculateImportanceScore(memory)
       );
       const importanceScores = await Promise.all(importancePromises);
-      const averageImportance = importanceScores.reduce((sum, score) => sum + score.overall, 0) / importanceScores.length;
-
-      // Top categories
+      const averageImportance = importanceScores.reduce((sum: number, score: MemoryImportanceScore) => sum + score.overall, 0) / importanceScores.length;      // Top categories
       const topCategories = Object.entries(categoryCounts)
         .map(([category, count]) => ({
           category,
           count,
           avgImportance: importanceScores
-            .filter((_, index) => categories[index] === category)
-            .reduce((sum, score) => sum + score.overall, 0) / Math.max(1, importanceScores.filter((_, index) => categories[index] === category).length)
+            .filter((_: MemoryImportanceScore, index: number) => categories[index] === category)
+            .reduce((sum: number, score: MemoryImportanceScore) => sum + score.overall, 0) / Math.max(1, importanceScores.filter((_: MemoryImportanceScore, index: number) => categories[index] === category).length)
         }))
         .sort((a, b) => b.count - a.count)
         .slice(0, 5);
@@ -365,7 +362,7 @@ export class MemoryIntelligence {
       // Calculate growth rate (memories per day)
       const now = new Date();
       const oneWeekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
-      const recentMemories = allMemories.filter(memory => 
+      const recentMemories = allMemories.filter((memory: Mem0Memory) => 
         new Date(memory.createdAt) > oneWeekAgo
       );
       const memoryGrowthRate = recentMemories.length / 7;
@@ -377,17 +374,16 @@ export class MemoryIntelligence {
       }));
 
       // Similarity networks (basic implementation)
-      const similarityNetworks = allMemories.slice(0, 10).map(memory => ({
+      const similarityNetworks = allMemories.slice(0, 10).map((memory: Mem0Memory) => ({
         memoryId: memory.id,
         connectedMemories: allMemories
-          .filter(m => m.id !== memory.id)
+          .filter((m: Mem0Memory) => m.id !== memory.id)
           .slice(0, 3) // Top 3 similar
-          .map(m => m.id)
-      }));
-
-      const analytics: MemoryAnalytics = {
+          .map((m: Mem0Memory) => m.id)
+      }));      const analytics: MemoryAnalytics = {
         totalMemories: allMemories.length,
         categoryCounts,
+        categoryBreakdown: categoryCounts, // Alias for categoryCounts
         averageImportance,
         topCategories,
         memoryGrowthRate,
@@ -398,12 +394,12 @@ export class MemoryIntelligence {
       globalProfiler.endOperation(operationId, true);
       return analytics;
 
-    } catch (error) {
-      globalProfiler.endOperation(operationId, false, error instanceof Error ? error.message : 'Unknown error');
+    } catch (error) {      globalProfiler.endOperation(operationId, false, error instanceof Error ? error.message : 'Unknown error');
       console.error('❌ Memory analytics generation failed:', error);
       return {
         totalMemories: 0,
         categoryCounts: {},
+        categoryBreakdown: {},
         averageImportance: 0,
         topCategories: [],
         memoryGrowthRate: 0,

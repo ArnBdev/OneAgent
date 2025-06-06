@@ -67,16 +67,14 @@ export class PerformanceAPI {
       const report = globalProfiler.generateReport();
       
       // Get memory analytics
-      const memories = await this.mem0Client.searchMemories({});
-      const memoryData = memories.success && memories.data ? memories.data : [];
+      const memories = await this.mem0Client.searchMemories({});      const memoryData = memories.success && memories.data ? memories.data : [];
       
-      const analytics = await this.memoryIntelligence.generateAnalytics(memoryData);
-      
-      // Test service connections
-      const services = {
-        gemini: 'unknown' as const,
-        mem0: 'unknown' as const,
-        embedding: 'unknown' as const
+      const analytics = await this.memoryIntelligence.generateMemoryAnalytics();
+        // Test service connections
+      const services: SystemStatus['services'] = {
+        gemini: 'unknown',
+        mem0: 'unknown',
+        embedding: 'unknown'
       };
 
       try {
@@ -105,9 +103,8 @@ export class PerformanceAPI {
         memory: {
           totalMemories: memoryData.length,
           categoryBreakdown: analytics.categoryBreakdown,
-          avgImportanceScore: analytics.averageImportance,
-          topCategories: Object.entries(analytics.categoryBreakdown)
-            .sort(([,a], [,b]) => b - a)
+          avgImportanceScore: analytics.averageImportance,          topCategories: Object.entries(analytics.categoryBreakdown)
+            .sort(([, a], [, b]) => (b as number) - (a as number))
             .slice(0, 5)
             .map(([category]) => category)
         },
@@ -158,8 +155,7 @@ export class PerformanceAPI {
     try {
       const memories = await this.mem0Client.searchMemories(filter || {});
       const memoryData = memories.success && memories.data ? memories.data : [];
-      
-      const analytics = await this.memoryIntelligence.generateAnalytics(memoryData);
+        const analytics = await this.memoryIntelligence.generateMemoryAnalytics();
       
       return {
         success: true,
@@ -225,22 +221,24 @@ export class PerformanceAPI {
     agentId?: string,
     workflowId?: string
   ): Promise<PerformanceAPIResponse> {
-    try {
-      // Categorize and score the memory
-      const category = await this.memoryIntelligence.categorizeMemory(content, metadata);
-      const importance = await this.memoryIntelligence.scoreMemoryImportance(
-        { content, metadata } as any,
-        []
-      );
+    try {      // Categorize and score the memory (create temporary memory object)
+      const tempMemory = { 
+        id: 'temp', 
+        content, 
+        metadata: metadata || {},
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString()
+      };
+      
+      const category = await this.memoryIntelligence.categorizeMemory(tempMemory);
+      const importance = await this.memoryIntelligence.calculateImportanceScore(tempMemory);
 
       // Store with embedding and intelligence
       const result = await this.embeddingsTool.storeMemoryWithEmbedding(
-        content,
-        {
+        content,        {
           ...metadata,
-          category: category.category,
-          confidence: category.confidence,
-          importance_score: importance
+          category: category,
+          importance_score: importance.overall
         },
         userId,
         agentId,
@@ -251,10 +249,8 @@ export class PerformanceAPI {
         success: true,
         data: {
           memory: result.memory,
-          embedding: result.embedding,
-          intelligence: {
-            category: category.category,
-            confidence: category.confidence,
+          embedding: result.embedding,          intelligence: {
+            category: category,
             importance: importance
           }
         },
