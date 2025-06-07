@@ -1,4 +1,4 @@
-﻿#!/usr/bin/env python3
+#!/usr/bin/env python3
 """
 Test Mem0 Local OSS Installation
 This test creates a local memory client without requiring API keys

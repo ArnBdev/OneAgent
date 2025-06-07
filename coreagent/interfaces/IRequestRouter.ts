@@ -6,9 +6,16 @@
 
 export type { 
     IRequestRouter,
-    RoutingRequest,
-    RoutingResult,
-    IntentAnalysis,
+    RouteResult as RoutingResult,
+    RequestAnalysis as IntentAnalysis,
     ConfidenceScore,
-    RoutingContext
+    RoutingContext,
+    RoutingRequest,
+    RequestIntent,
+    IntentCategory,
+    Entity,
+    RoutingRule,
+    RoutingCondition,
+    AlternativeAgent,
+    PerformanceMetrics
 } from '../orchestrator/interfaces/IRequestRouter';

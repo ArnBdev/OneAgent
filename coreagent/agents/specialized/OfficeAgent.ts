@@ -5,23 +5,27 @@
  * email assistance, and general office productivity tasks.
  */
 
-import { BaseAgent, AgentConfig, AgentContext, AgentResponse, AgentAction } from '../base/BaseAgent_new';
-import { ISpecializedAgent, AgentStatus } from '../base/ISpecializedAgent';
+import { BaseAgent, AgentConfig, AgentContext, AgentResponse, AgentAction } from '../base/BaseAgent';
+import { ISpecializedAgent, AgentStatus, AgentHealthStatus } from '../base/ISpecializedAgent';
 
 export class OfficeAgent extends BaseAgent implements ISpecializedAgent {
+  public readonly id: string;
+  public readonly config: AgentConfig;
   private processedMessages: number = 0;
   private errors: string[] = [];
 
   constructor(config: AgentConfig) {
     super(config);
+    this.id = config.id || `office-agent-${Date.now()}`;
+    this.config = config;
   }
 
   /**
    * Initialize the office agent
    */
-  async initialize(config: AgentConfig): Promise<void> {
+  async initialize(): Promise<void> {
     await super.initialize();
-    console.log(`OfficeAgent ${config.id} initialized successfully`);
+    console.log(`OfficeAgent ${this.id} initialized successfully`);
   }
 
   /**
@@ -49,10 +53,9 @@ export class OfficeAgent extends BaseAgent implements ISpecializedAgent {
       const prompt = this.buildOfficePrompt(message, relevantMemories, context);
       const aiResponse = await this.generateResponse(prompt, relevantMemories);
 
-      return this.createResponse(aiResponse, actions, relevantMemories);
-
-    } catch (error) {
-      this.errors.push(`Processing error: ${error.message}`);
+      return this.createResponse(aiResponse, actions, relevantMemories);    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      this.errors.push(`Processing error: ${errorMessage}`);
       console.error('OfficeAgent processing error:', error);
       
       return this.createResponse(
@@ -115,7 +118,6 @@ export class OfficeAgent extends BaseAgent implements ISpecializedAgent {
         throw new Error(`Unknown action type: ${action.type}`);
     }
   }
-
   /**
    * Get agent status
    */
@@ -127,6 +129,33 @@ export class OfficeAgent extends BaseAgent implements ISpecializedAgent {
       processedMessages: this.processedMessages,
       errors: [...this.errors]
     };
+  }
+
+  /**
+   * Get agent name
+   */
+  getName(): string {
+    return this.config.name || `OfficeAgent-${this.id}`;
+  }
+  /**
+   * Get detailed health status
+   */
+  async getHealthStatus(): Promise<AgentHealthStatus> {
+    return {
+      status: this.isReady() && this.errors.length < 5 ? 'healthy' : 'degraded',
+      uptime: Date.now(),
+      memoryUsage: 0, // Mock value
+      responseTime: 50, // Mock value
+      errorRate: this.processedMessages > 0 ? this.errors.length / this.processedMessages : 0
+    };
+  }
+
+  /**
+   * Cleanup resources
+   */
+  async cleanup(): Promise<void> {
+    this.errors = [];
+    console.log(`OfficeAgent ${this.id} cleaned up`);
   }
 
   /**
@@ -191,7 +220,7 @@ Be professional, efficient, and actionable in your responses.
   /**
    * Office action implementations
    */
-  private async createDocument(params: any, context: AgentContext): Promise<any> {
+  private async createDocument(params: any, _context: AgentContext): Promise<any> {
     // Mock document creation
     return {
       success: true,
@@ -200,7 +229,7 @@ Be professional, efficient, and actionable in your responses.
     };
   }
 
-  private async scheduleEvent(params: any, context: AgentContext): Promise<any> {
+  private async scheduleEvent(params: any, _context: AgentContext): Promise<any> {
     // Mock calendar scheduling
     return {
       success: true,
@@ -209,7 +238,7 @@ Be professional, efficient, and actionable in your responses.
     };
   }
 
-  private async draftEmail(params: any, context: AgentContext): Promise<any> {
+  private async draftEmail(params: any, _context: AgentContext): Promise<any> {
     // Mock email drafting
     return {
       success: true,
@@ -218,7 +247,7 @@ Be professional, efficient, and actionable in your responses.
     };
   }
 
-  private async organizeTasks(params: any, context: AgentContext): Promise<any> {
+  private async organizeTasks(_params: any, _context: AgentContext): Promise<any> {
     // Mock task organization
     return {
       success: true,
@@ -227,7 +256,7 @@ Be professional, efficient, and actionable in your responses.
     };
   }
 
-  private async summarizeMeeting(params: any, context: AgentContext): Promise<any> {
+  private async summarizeMeeting(_params: any, _context: AgentContext): Promise<any> {
     // Mock meeting summarization
     return {
       success: true,

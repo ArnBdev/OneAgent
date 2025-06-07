@@ -9,6 +9,8 @@
  * - Chat Interface Coordination
  */
 
+import { Mem0Client } from '../tools/mem0Client';
+
 // Core Orchestrator Components
 export { AgentRegistry } from './agentRegistry';
 export { RequestRouter } from './requestRouter';
@@ -22,35 +24,20 @@ export type { IChatInterface } from './interfaces/IChatInterface';
 
 // Type exports for external usage
 export type {
-    AgentRegistrationRequest,
-    AgentStatus,
-    RegistryStatistics,
-    AgentHealthCheck
+    AgentHealthReport,
+    AgentRegistryConfig,
+    AgentMatchCriteria
 } from './interfaces/IAgentRegistry';
 
 export type {
-    RoutingRequest,
-    RoutingResult,
-    IntentAnalysis,
-    ConfidenceScore,
-    RoutingContext
+    RoutingRule,
+    RouteResult
 } from './interfaces/IRequestRouter';
 
-export type {
-    ConversationContext,
-    ContextualMemory,
-    MemoryBridgeRequest,
-    MemoryBridgeResponse,
-    ConversationState
-} from './interfaces/IMemoryContextBridge';
-
-export type {
-    ChatMessage,
-    ChatResponse,
-    ChatSession,
-    MessageType,
-    ChatStatus
-} from './interfaces/IChatInterface';
+// Import the concrete implementations
+import { AgentRegistry } from './agentRegistry';
+import { RequestRouter } from './requestRouter';
+import { MemoryContextBridge } from './memoryContextBridge';
 
 /**
  * Initialize the complete orchestrator system
@@ -59,16 +46,11 @@ export type {
 export async function initializeOrchestrator() {
     console.log('🚀 Initializing OneAgent Level 2 Orchestrator...');
     
-    try {
-        // Initialize core components
+    try {        // Initialize core components
         const agentRegistry = new AgentRegistry();
-        const memoryBridge = new MemoryContextBridge();
-        const requestRouter = new RequestRouter(agentRegistry, memoryBridge);
-        
-        // Verify all components are ready
-        await agentRegistry.initialize();
-        await memoryBridge.initialize();
-        await requestRouter.initialize();
+        const memoryClient = new Mem0Client({ deploymentType: 'local' });
+        const memoryBridge = new MemoryContextBridge(memoryClient);
+        const requestRouter = new RequestRouter(agentRegistry);
         
         console.log('✅ Orchestrator initialized successfully');
         

@@ -101,3 +101,52 @@ export interface PerformanceMetrics {
   taskCompletion: number;
   errorRate: number;
 }
+
+// Additional type definitions for complete routing functionality
+export interface RoutingRequest {
+  content: string;
+  userId: string;
+  sessionId: string;
+  context: AgentContext;
+  timestamp: Date;
+  priority?: number;
+  metadata?: Record<string, any>;
+}
+
+export interface RoutingResult {
+  selectedAgent: ISpecializedAgent | null;
+  confidence: number;
+  reasoning: string;
+  alternatives: AlternativeAgent[];
+  processingTime: number;
+  fallbackStrategy?: string;
+}
+
+export interface IntentAnalysis {
+  primaryIntent: string;
+  secondaryIntents: string[];
+  confidence: number;
+  keywords: string[];
+  entities: Entity[];
+  sentiment: number;
+  urgency: number;
+  complexity: number;
+}
+
+export interface ConfidenceScore {
+  overall: number;
+  intentMatch: number;
+  keywordMatch: number;
+  contextMatch: number;
+  historicalPerformance: number;
+}
+
+export interface RoutingContext {
+  userId: string;
+  sessionId: string;
+  conversationHistory: any[];
+  userPreferences?: Record<string, any>;
+  previousAgents?: string[];
+  timeOfDay: number;
+  deviceType?: string;
+}

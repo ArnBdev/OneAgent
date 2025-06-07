@@ -58,7 +58,6 @@ export abstract class BaseAgent {
   constructor(config: AgentConfig) {
     this.config = config;
   }
-
   /**
    * Initialize the agent with necessary clients and resources
    */
@@ -66,14 +65,20 @@ export abstract class BaseAgent {
     try {
       // Initialize memory client if enabled
       if (this.config.memoryEnabled) {
-        this.memoryClient = new Mem0Client();
-        await this.memoryClient.initialize();
+        this.memoryClient = new Mem0Client({
+          deploymentType: 'local',
+          preferLocal: true
+        });
+        // Mem0Client doesn't require explicit initialization
       }
 
       // Initialize AI client if enabled
       if (this.config.aiEnabled) {
-        this.aiClient = new GeminiClient();
-        await this.aiClient.initialize();
+        this.aiClient = new GeminiClient({
+          apiKey: process.env.GOOGLE_GEMINI_API_KEY || 'your_google_gemini_api_key_here',
+          model: 'gemini-2.5-pro-preview-05-06'
+        });
+        // GeminiClient doesn't require explicit initialization
       }
 
       this.isInitialized = true;
@@ -87,7 +92,6 @@ export abstract class BaseAgent {
    * Process a user message and generate a response
    */
   abstract processMessage(context: AgentContext, message: string): Promise<AgentResponse>;
-
   /**
    * Add memory for the user
    */
@@ -96,9 +100,11 @@ export abstract class BaseAgent {
       throw new Error('Memory client not initialized');
     }
 
-    await this.memoryClient.addMemory(userId, content, metadata);
+    const response = await this.memoryClient.createMemory(content, metadata, userId, this.config.id);
+    if (!response.success) {
+      throw new Error(`Failed to create memory: ${response.error}`);
+    }
   }
-
   /**
    * Search for relevant memories
    */
@@ -107,11 +113,15 @@ export abstract class BaseAgent {
       return [];
     }
 
-    const results = await this.memoryClient.searchMemory(userId, query, limit);
-    return results;
-  }
-
-  /**
+    const response = await this.memoryClient.searchMemories({
+      userId,
+      query,
+      limit,
+      agentId: this.config.id
+    });
+    
+    return response.success && response.data ? response.data : [];
+  }  /**
    * Generate AI response using Gemini
    */
   protected async generateResponse(prompt: string, context?: any[]): Promise<string> {
@@ -119,7 +129,15 @@ export abstract class BaseAgent {
       throw new Error('AI client not initialized');
     }
 
-    return await this.aiClient.generateResponse(prompt, context);
+    // Incorporate context into the prompt if provided
+    let enhancedPrompt = prompt;
+    if (context && context.length > 0) {
+      const contextStr = context.map(c => typeof c === 'string' ? c : JSON.stringify(c)).join('\n');
+      enhancedPrompt = `Context:\n${contextStr}\n\nQuery: ${prompt}`;
+    }
+
+    const response = await this.aiClient.chat(enhancedPrompt);
+    return response.response || '';
   }
 
   /**

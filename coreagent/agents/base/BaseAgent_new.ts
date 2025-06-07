@@ -153,26 +153,23 @@ export abstract class BaseAgent {
   getCapabilities(): string[] {
     return [...this.config.capabilities];
   }
-
   /**
    * Generate AI response using Gemini if available
    */
   protected async generateAIResponse(
-    prompt: string, 
-    context?: Record<string, any>
+    prompt: string
   ): Promise<string> {
     if (!this.geminiClient) {
       throw new Error('AI client not available');
     }
 
     try {
-      const response = await this.geminiClient.generateText({
-        prompt,
+      const response = await this.geminiClient.chat(prompt, {
         temperature: 0.7,
         maxTokens: 1000
       });
 
-      return response.text || 'I apologize, but I could not generate a response.';
+      return response.response || 'I apologize, but I could not generate a response.';
     } catch (error) {
       console.error('AI generation error:', error);
       return 'I encountered an error while processing your request.';

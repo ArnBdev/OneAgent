@@ -5,23 +5,27 @@
  * progress monitoring, and health-related goal setting.
  */
 
-import { BaseAgent, AgentConfig, AgentContext, AgentResponse, AgentAction } from '../base/BaseAgent_new';
-import { ISpecializedAgent, AgentStatus } from '../base/ISpecializedAgent';
+import { BaseAgent, AgentConfig, AgentContext, AgentResponse, AgentAction } from '../base/BaseAgent';
+import { ISpecializedAgent, AgentStatus, AgentHealthStatus } from '../base/ISpecializedAgent';
 
 export class FitnessAgent extends BaseAgent implements ISpecializedAgent {
+  public readonly id: string;
+  public readonly config: AgentConfig;
   private processedMessages: number = 0;
   private errors: string[] = [];
 
   constructor(config: AgentConfig) {
     super(config);
+    this.id = config.id || `fitness-agent-${Date.now()}`;
+    this.config = config;
   }
 
   /**
    * Initialize the fitness agent
    */
-  async initialize(config: AgentConfig): Promise<void> {
+  async initialize(): Promise<void> {
     await super.initialize();
-    console.log(`FitnessAgent ${config.id} initialized successfully`);
+    console.log(`FitnessAgent ${this.id} initialized successfully`);
   }
 
   /**
@@ -49,10 +53,9 @@ export class FitnessAgent extends BaseAgent implements ISpecializedAgent {
       const prompt = this.buildFitnessPrompt(message, relevantMemories, context);
       const aiResponse = await this.generateResponse(prompt, relevantMemories);
 
-      return this.createResponse(aiResponse, actions, relevantMemories);
-
-    } catch (error) {
-      this.errors.push(`Processing error: ${error.message}`);
+      return this.createResponse(aiResponse, actions, relevantMemories);    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      this.errors.push(`Processing error: ${errorMessage}`);
       console.error('FitnessAgent processing error:', error);
       
       return this.createResponse(
@@ -115,7 +118,6 @@ export class FitnessAgent extends BaseAgent implements ISpecializedAgent {
         throw new Error(`Unknown action type: ${action.type}`);
     }
   }
-
   /**
    * Get agent status
    */
@@ -127,6 +129,34 @@ export class FitnessAgent extends BaseAgent implements ISpecializedAgent {
       processedMessages: this.processedMessages,
       errors: [...this.errors]
     };
+  }
+
+  /**
+   * Get agent name
+   */
+  getName(): string {
+    return this.config.name || `FitnessAgent-${this.id}`;
+  }
+
+  /**
+   * Get detailed health status
+   */
+  async getHealthStatus(): Promise<AgentHealthStatus> {
+    return {
+      status: this.isReady() && this.errors.length < 5 ? 'healthy' : 'degraded',
+      uptime: Date.now(),
+      memoryUsage: 0, // Mock value
+      responseTime: 45, // Mock value
+      errorRate: this.processedMessages > 0 ? this.errors.length / this.processedMessages : 0
+    };
+  }
+
+  /**
+   * Cleanup resources
+   */
+  async cleanup(): Promise<void> {
+    this.errors = [];
+    console.log(`FitnessAgent ${this.id} cleaned up`);
   }
 
   /**
@@ -200,7 +230,7 @@ Always remind users to consult healthcare professionals for medical advice.
   /**
    * Fitness action implementations
    */
-  private async createWorkoutPlan(params: any, context: AgentContext): Promise<any> {
+  private async createWorkoutPlan(params: any, _context: AgentContext): Promise<any> {
     // Mock workout plan creation
     return {
       success: true,
@@ -214,7 +244,7 @@ Always remind users to consult healthcare professionals for medical advice.
     };
   }
 
-  private async trackNutrition(params: any, context: AgentContext): Promise<any> {
+  private async trackNutrition(params: any, _context: AgentContext): Promise<any> {
     // Mock nutrition tracking
     return {
       success: true,
@@ -225,7 +255,7 @@ Always remind users to consult healthcare professionals for medical advice.
     };
   }
 
-  private async monitorProgress(params: any, context: AgentContext): Promise<any> {
+  private async monitorProgress(params: any, _context: AgentContext): Promise<any> {
     // Mock progress monitoring
     return {
       success: true,
@@ -235,7 +265,7 @@ Always remind users to consult healthcare professionals for medical advice.
     };
   }
 
-  private async setGoal(params: any, context: AgentContext): Promise<any> {
+  private async setGoal(params: any, _context: AgentContext): Promise<any> {
     // Mock goal setting
     return {
       success: true,
@@ -245,7 +275,7 @@ Always remind users to consult healthcare professionals for medical advice.
     };
   }
 
-  private async recommendExercises(params: any, context: AgentContext): Promise<any> {
+  private async recommendExercises(params: any, _context: AgentContext): Promise<any> {
     // Mock exercise recommendations
     return {
       success: true,

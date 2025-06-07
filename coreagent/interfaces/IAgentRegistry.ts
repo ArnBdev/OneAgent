@@ -9,5 +9,8 @@ export type {
     AgentRegistrationRequest,
     AgentStatus,
     RegistryStatistics,
-    AgentHealthCheck
+    AgentHealthCheck,
+    AgentHealthReport,
+    AgentRegistryConfig,
+    AgentMatchCriteria
 } from '../orchestrator/interfaces/IAgentRegistry';

@@ -5,7 +5,7 @@
  * Specialized agents extend the base agent functionality with domain-specific capabilities.
  */
 
-import { AgentConfig, AgentContext, AgentResponse, AgentAction } from './BaseAgent_new';
+import { AgentConfig, AgentContext, AgentResponse, AgentAction } from './BaseAgent';
 
 export interface ISpecializedAgent {
   /** Unique identifier for the agent */
@@ -14,8 +14,8 @@ export interface ISpecializedAgent {
   /** Agent configuration */
   config: AgentConfig;
   
-  /** Initialize the specialized agent with configuration */
-  initialize(config: AgentConfig): Promise<void>;
+  /** Initialize the specialized agent */
+  initialize(): Promise<void>;
   
   /** Process a user message and generate a response */
   processMessage(context: AgentContext, message: string): Promise<AgentResponse>;
@@ -25,9 +25,14 @@ export interface ISpecializedAgent {
   
   /** Execute a specific action */
   executeAction(action: AgentAction, context: AgentContext): Promise<any>;
-  
-  /** Get agent status and health */
+    /** Get agent status and health */
   getStatus(): AgentStatus;
+  
+  /** Get agent name */
+  getName(): string;
+  
+  /** Get detailed health status */
+  getHealthStatus(): Promise<AgentHealthStatus>;
   
   /** Cleanup resources */
   cleanup(): Promise<void>;
@@ -39,6 +44,14 @@ export interface AgentStatus {
   memoryCount: number;
   processedMessages: number;
   errors: string[];
+}
+
+export interface AgentHealthStatus {
+  status: 'healthy' | 'degraded' | 'critical' | 'offline';
+  uptime: number;
+  memoryUsage: number;
+  responseTime: number;
+  errorRate: number;
 }
 
 export interface AgentCapability {

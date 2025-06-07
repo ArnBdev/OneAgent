@@ -80,3 +80,43 @@ export interface AgentMatchCriteria {
   requiredCapabilities: string[];
   priority: number;
 }
+
+// Additional type definitions for complete agent registry functionality
+export interface AgentRegistrationRequest {
+  agent: ISpecializedAgent;
+  metadata?: Record<string, any>;
+  priority?: number;
+  capabilities?: string[];
+}
+
+export interface AgentStatus {
+  id: string;
+  type: string;
+  isActive: boolean;
+  lastActivity: Date;
+  registrationTime: Date;
+  processedRequests: number;
+  averageResponseTime: number;
+  successRate: number;
+}
+
+export interface RegistryStatistics {
+  totalAgents: number;
+  activeAgents: number;
+  agentsByType: Record<string, number>;
+  totalProcessedRequests: number;
+  averageResponseTime: number;
+  systemUptime: number;
+  memoryUsage: number;
+}
+
+export interface AgentHealthCheck {
+  agentId: string;
+  timestamp: Date;
+  isHealthy: boolean;
+  responseTime: number;
+  memoryUsage: number;
+  cpuUsage: number;
+  errorCount: number;
+  lastError?: string;
+}

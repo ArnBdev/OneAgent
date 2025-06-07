@@ -100,7 +100,7 @@ export class AgentRegistry implements IAgentRegistry {
   /**
    * Find the best agent for a given request
    */
-  async findBestAgent(request: string, context?: any): Promise<ISpecializedAgent | undefined> {
+  async findBestAgent(request: string, _context?: any): Promise<ISpecializedAgent | undefined> {
     if (this.agents.size === 0) {
       return undefined;
     }

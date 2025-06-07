@@ -6,7 +6,7 @@
  */
 
 import { ISpecializedAgent } from './ISpecializedAgent';
-import { AgentConfig } from './BaseAgent_new';
+import { AgentConfig } from './BaseAgent';
 import { OfficeAgent } from '../specialized/OfficeAgent';
 import { FitnessAgent } from '../specialized/FitnessAgent';
 
@@ -52,12 +52,11 @@ export class AgentFactory {
         break;
       case 'fitness':
         agent = new FitnessAgent(agentConfig);
-        break;
-      default:
+        break;    default:
         throw new Error(`Unknown agent type: ${factoryConfig.type}`);
     }
 
-    await agent.initialize(agentConfig);
+    await agent.initialize();
     return agent;
   }
 

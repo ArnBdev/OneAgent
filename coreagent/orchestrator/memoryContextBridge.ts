@@ -39,7 +39,7 @@ export class MemoryContextBridge implements IMemoryContextBridge {
       // Get base conversation context
       const conversationHistory = this.getSessionConversations(sessionId);
       const baseContext: AgentContext = {
-        user: { id: userId, name: 'User' }, // Simplified user object
+        user: { id: userId, name: 'User', createdAt: new Date().toISOString(), lastActiveAt: new Date().toISOString() },
         sessionId,
         conversationHistory: conversationHistory.map(turn => turn.userMessage),
         memoryContext: []
@@ -83,24 +83,24 @@ export class MemoryContextBridge implements IMemoryContextBridge {
       this.conversationTurns.get(turn.sessionId)!.push(turn);
 
       // Store user message in memory
-      await this.memoryClient.addMemory(turn.userId, turn.userMessage.content, {
+      const response1 = await this.memoryClient.createMemory(turn.userMessage.content, {
         type: 'conversation',
         sessionId: turn.sessionId,
         messageId: turn.userMessage.id,
         timestamp: turn.timestamp.toISOString(),
         agentId: turn.agentId
-      });
+      }, turn.userId, 'memory-bridge', turn.sessionId, 'session');
 
       // Store agent response in memory if significant
       if (this.isSignificantResponse(turn.agentResponse)) {
-        await this.memoryClient.addMemory(turn.userId, turn.agentResponse.content, {
+        await this.memoryClient.createMemory(turn.agentResponse.content, {
           type: 'conversation',
           sessionId: turn.sessionId,
           messageId: turn.agentResponse.id,
           timestamp: turn.timestamp.toISOString(),
           agentId: turn.agentId,
           isAgentResponse: true
-        });
+        }, turn.userId, 'memory-bridge', turn.sessionId, 'session');
       }
 
       // Update session metadata
@@ -115,7 +115,7 @@ export class MemoryContextBridge implements IMemoryContextBridge {
   /**
    * Retrieve conversation history with memory context
    */
-  async getConversationHistory(userId: string, sessionId: string, limit?: number): Promise<ConversationTurn[]> {
+  async getConversationHistory(_userId: string, sessionId: string, limit?: number): Promise<ConversationTurn[]> {
     const turns = this.conversationTurns.get(sessionId) || [];
     
     if (limit) {
@@ -135,17 +135,23 @@ export class MemoryContextBridge implements IMemoryContextBridge {
 
       // Search memories
       if (options?.includeMemories !== false) {
-        const memoryResults = await this.memoryClient.searchMemory(userId, query, searchLimit);
+        const memoryResults = await this.memoryClient.searchMemories({
+          userId,
+          query,
+          limit: searchLimit
+        });
         
-        for (const memory of memoryResults) {
-          results.push({
-            type: 'memory',
-            content: memory.content || memory.text || memory.memory,
-            relevanceScore: memory.score || 0.5,
-            timestamp: new Date(memory.created_at || memory.timestamp || Date.now()),
-            context: memory.metadata || {},
-            id: memory.id || memory.memory_id || Math.random().toString()
-          });
+        if (memoryResults.success && memoryResults.data) {
+          for (const memory of memoryResults.data) {
+            results.push({
+              type: 'memory',
+              content: memory.content,
+              relevanceScore: 0.5, // Default relevance score
+              timestamp: new Date(memory.createdAt),
+              context: memory.metadata || {},
+              id: memory.id
+            });
+          }
         }
       }
 
@@ -181,7 +187,7 @@ export class MemoryContextBridge implements IMemoryContextBridge {
   /**
    * Get memory context for a specific conversation turn
    */
-  async getMemoryContext(userId: string, messageId: string): Promise<MemoryContext> {
+  async getMemoryContext(_userId: string, messageId: string): Promise<MemoryContext> {
     try {
       // Find the conversation turn with this message
       for (const turns of this.conversationTurns.values()) {
@@ -246,17 +252,23 @@ export class MemoryContextBridge implements IMemoryContextBridge {
 
     try {
       // Search based on current message
-      const directResults = await this.memoryClient.searchMemory(userId, currentMessage, 5);
+      const directResults = await this.memoryClient.searchMemories({
+        userId,
+        query: currentMessage,
+        limit: 5
+      });
       
-      for (const memory of directResults) {
-        memoryContexts.push({
-          memoryId: memory.id || memory.memory_id || Math.random().toString(),
-          content: memory.content || memory.text || memory.memory,
-          relevanceScore: memory.score || 0.5,
-          memoryType: this.determineMemoryType(memory.metadata),
-          timestamp: new Date(memory.created_at || memory.timestamp || Date.now()),
-          metadata: memory.metadata || {}
-        });
+      if (directResults.success && directResults.data) {
+        for (const memory of directResults.data) {
+          memoryContexts.push({
+            memoryId: memory.id,
+            content: memory.content,
+            relevanceScore: 0.5, // Default relevance score
+            memoryType: this.determineMemoryType(memory.metadata),
+            timestamp: new Date(memory.createdAt),
+            metadata: memory.metadata || {}
+          });
+        }
       }
 
       // Search based on conversation context if we have history
@@ -266,19 +278,25 @@ export class MemoryContextBridge implements IMemoryContextBridge {
           .map(turn => turn.userMessage.content)
           .join(' ');
         
-        const contextResults = await this.memoryClient.searchMemory(userId, recentMessages, 3);
+        const contextResults = await this.memoryClient.searchMemories({
+          userId,
+          query: recentMessages,
+          limit: 3
+        });
         
-        for (const memory of contextResults) {
-          // Avoid duplicates
-          if (!memoryContexts.some(ctx => ctx.memoryId === (memory.id || memory.memory_id))) {
-            memoryContexts.push({
-              memoryId: memory.id || memory.memory_id || Math.random().toString(),
-              content: memory.content || memory.text || memory.memory,
-              relevanceScore: (memory.score || 0.5) * 0.8, // Slightly lower score for context matches
-              memoryType: this.determineMemoryType(memory.metadata),
-              timestamp: new Date(memory.created_at || memory.timestamp || Date.now()),
-              metadata: memory.metadata || {}
-            });
+        if (contextResults.success && contextResults.data) {
+          for (const memory of contextResults.data) {
+            // Avoid duplicates
+            if (!memoryContexts.some(ctx => ctx.memoryId === memory.id)) {
+              memoryContexts.push({
+                memoryId: memory.id,
+                content: memory.content,
+                relevanceScore: 0.4, // Slightly lower score for context matches
+                memoryType: this.determineMemoryType(memory.metadata),
+                timestamp: new Date(memory.createdAt),
+                metadata: memory.metadata || {}
+              });
+            }
           }
         }
       }
@@ -416,7 +434,7 @@ export class MemoryContextBridge implements IMemoryContextBridge {
   /**
    * Search local conversations
    */
-  private searchLocalConversations(userId: string, query: string, options?: SearchOptions): MemorySearchResult[] {
+  private searchLocalConversations(userId: string, query: string, _options?: SearchOptions): MemorySearchResult[] {
     const results: MemorySearchResult[] = [];
     const queryLower = query.toLowerCase();
 

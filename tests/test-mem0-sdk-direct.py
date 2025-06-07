@@ -1,4 +1,4 @@
-﻿#!/usr/bin/env python3
+#!/usr/bin/env python3
 """
 Test Mem0 SDK Direct Integration
 This demonstrates using Mem0 as an embedded SDK, not a server
