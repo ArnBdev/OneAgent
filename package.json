@@ -7,10 +7,10 @@
   "scripts": {
     "build": "tsc",
     "dev": "tsc --watch",
-    "start": "node dist/coreagent/main.js",
-    "server": "ts-node coreagent/server/index-simple.ts",
+    "start": "node dist/coreagent/main.js",    "server": "ts-node coreagent/server/index-simple.ts",
     "server:dev": "npx nodemon --exec ts-node coreagent/server/index-simple.ts",
     "server:build": "tsc && node dist/coreagent/server/index-simple.js",
+    "server:mcp": "ts-node coreagent/server/index-simple-mcp.ts",
     "test": "node scripts/dev-utils.js test",
     "test:api": "ts-node tests/test-real-api.ts",
     "test:key": "ts-node tests/test-api-key.ts",

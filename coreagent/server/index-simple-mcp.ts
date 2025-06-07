@@ -1,13 +1,12 @@
 /**
- * Simplified OneAgent Server for testing UI integration
- * Provides mock data and basic functionality for Milestone 1.4 testing
+ * OneAgent Server with MCP HTTP Transport Implementation
+ * Implements the MCP specification for Streamable HTTP transport
  */
 
-import express from 'express';
-import http from 'http';
-import WebSocket from 'ws';
-import cors from 'cors';
-import path from 'path';
+import express = require('express');
+import http = require('http');
+import WebSocket = require('ws');
+import cors = require('cors');
 import { randomUUID } from 'crypto';
 
 const app = express();
@@ -20,8 +19,6 @@ app.use(cors({
   credentials: true
 }));
 app.use(express.json());
-
-// Only serve API routes, not static files (UI runs on separate port with Vite)
 
 // Mock configuration
 let systemConfig: any = {
@@ -44,6 +41,16 @@ let systemConfig: any = {
   PERFORMANCE_ALERTS: true,
   NOTIFICATION_LEVEL: 'normal' as const
 };
+
+// MCP Session Management
+const mcpSessions = new Map<string, {
+  id: string;
+  createdAt: Date;
+  lastActivity: Date;
+}>();
+
+// MCP Message ID tracking for SSE streams
+let mcpMessageIdCounter = 0;
 
 // Mock data generators
 function generateMockSystemStatus() {
@@ -132,7 +139,7 @@ function generateMockMemories() {
 // WebSocket handling
 const clients = new Set<WebSocket>();
 
-wss.on('connection', (ws) => {
+wss.on('connection', (ws: WebSocket) => {
   console.log('New WebSocket connection established');
   clients.add(ws);
 
@@ -141,7 +148,7 @@ wss.on('connection', (ws) => {
     console.log('WebSocket connection closed');
   });
 
-  ws.on('error', (error) => {
+  ws.on('error', (error: Error) => {
     console.error('WebSocket error:', error);
     clients.delete(ws);
   });
@@ -155,283 +162,6 @@ function broadcastToClients(data: any) {
     }
   });
 }
-
-// Periodic updates
-setInterval(() => {
-  const systemStatus = generateMockSystemStatus();
-  broadcastToClients({
-    type: 'system_status_update',
-    data: systemStatus,
-    timestamp: new Date().toISOString()
-  });
-}, 5000);
-
-// API Routes
-
-/**
- * System Status Endpoints
- */
-app.get('/api/system/status', async (_req, res) => {
-  try {
-    const status = generateMockSystemStatus();
-    res.json({
-      success: true,
-      data: status,
-      timestamp: new Date().toISOString()
-    });
-  } catch (error) {
-    res.status(500).json({
-      success: false,
-      error: error instanceof Error ? error.message : 'Unknown error',
-      timestamp: new Date().toISOString()
-    });
-  }
-});
-
-app.get('/api/system/health', async (_req, res) => {
-  try {
-    const health = {
-      status: 'healthy',
-      uptime: process.uptime(),
-      memory: process.memoryUsage(),
-      timestamp: new Date().toISOString()
-    };
-    
-    res.json({
-      success: true,
-      data: health,
-      timestamp: new Date().toISOString()
-    });
-  } catch (error) {
-    res.status(500).json({
-      success: false,
-      error: error instanceof Error ? error.message : 'Unknown error',
-      timestamp: new Date().toISOString()
-    });
-  }
-});
-
-/**
- * Performance Endpoints
- */
-app.get('/api/performance/metrics', async (_req, res) => {
-  try {
-    const metrics = generateMockPerformanceMetrics();
-    res.json({
-      success: true,
-      data: metrics,
-      timestamp: new Date().toISOString()
-    });
-  } catch (error) {
-    res.status(500).json({
-      success: false,
-      error: error instanceof Error ? error.message : 'Unknown error',
-      timestamp: new Date().toISOString()
-    });
-  }
-});
-
-app.delete('/api/performance/metrics', async (_req, res) => {
-  try {
-    res.json({
-      success: true,
-      data: { message: 'Performance metrics cleared' },
-      timestamp: new Date().toISOString()
-    });
-  } catch (error) {
-    res.status(500).json({
-      success: false,
-      error: error instanceof Error ? error.message : 'Unknown error',
-      timestamp: new Date().toISOString()
-    });
-  }
-});
-
-/**
- * Memory Endpoints
- */
-app.get('/api/memory/search', async (req, res) => {
-  try {
-    const { query, filter } = req.query;
-    let memories = generateMockMemories();
-    
-    if (query) {
-      const searchTerm = (query as string).toLowerCase();
-      memories = memories.filter(m => 
-        m.content.toLowerCase().includes(searchTerm)
-      );
-    }
-    
-    res.json({
-      success: true,
-      data: {
-        memories,
-        total: memories.length,
-        searchType: query ? 'semantic' : 'basic'
-      },
-      timestamp: new Date().toISOString()
-    });
-  } catch (error) {
-    res.status(500).json({
-      success: false,
-      error: error instanceof Error ? error.message : 'Unknown error',
-      timestamp: new Date().toISOString()
-    });
-  }
-});
-
-app.post('/api/memory/create', async (req, res) => {
-  try {
-    const { content, metadata } = req.body;
-    
-    const newMemory = {
-      id: Date.now().toString(),
-      content,
-      metadata: {
-        category: 'misc',
-        importance: Math.random() * 0.5 + 0.5,
-        ...metadata
-      },
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString()
-    };
-    
-    res.json({
-      success: true,
-      data: {
-        memory: newMemory,
-        intelligence: {
-          category: 'misc',
-          confidence: 0.75,
-          importance: newMemory.metadata.importance
-        }
-      },
-      timestamp: new Date().toISOString()
-    });
-  } catch (error) {
-    res.status(500).json({
-      success: false,
-      error: error instanceof Error ? error.message : 'Unknown error',
-      timestamp: new Date().toISOString()
-    });
-  }
-});
-
-app.get('/api/memory/analytics', async (_req, res) => {
-  try {
-    const analytics = {
-      totalMemories: 150,
-      categoryBreakdown: {
-        'personal': 45,
-        'work': 35,
-        'technical': 25,
-        'misc': 45
-      },
-      averageImportance: 0.72,
-      topCategories: ['personal', 'misc', 'work', 'technical'],
-      recentActivity: {
-        created: 12,
-        updated: 8,
-        accessed: 34
-      }
-    };
-    
-    res.json({
-      success: true,
-      data: analytics,
-      timestamp: new Date().toISOString()
-    });
-  } catch (error) {
-    res.status(500).json({
-      success: false,
-      error: error instanceof Error ? error.message : 'Unknown error',
-      timestamp: new Date().toISOString()
-    });
-  }
-});
-
-/**
- * Configuration Endpoints
- */
-app.get('/api/config', (_req, res) => {
-  const maskedConfig = {
-    ...systemConfig,
-    GEMINI_API_KEY: systemConfig.GEMINI_API_KEY ? '***masked***' : undefined,
-    BRAVE_API_KEY: systemConfig.BRAVE_API_KEY ? '***masked***' : undefined,
-    MEM0_API_KEY: systemConfig.MEM0_API_KEY ? '***masked***' : undefined
-  };
-  
-  res.json({
-    success: true,
-    data: maskedConfig,
-    timestamp: new Date().toISOString()
-  });
-});
-
-app.post('/api/config', (req, res) => {
-  try {
-    const updates = req.body;
-    
-    // Update configuration (excluding API keys in this mock)
-    Object.keys(updates).forEach(key => {
-      if (key !== 'GEMINI_API_KEY' && key !== 'BRAVE_API_KEY' && key !== 'MEM0_API_KEY') {
-        (systemConfig as any)[key] = updates[key];
-      }
-    });
-    
-    res.json({
-      success: true,
-      data: { message: 'Configuration updated successfully' },
-      timestamp: new Date().toISOString()
-    });
-  } catch (error) {
-    res.status(500).json({
-      success: false,
-      error: error instanceof Error ? error.message : 'Unknown error',
-      timestamp: new Date().toISOString()
-    });
-  }
-});
-
-// Catch-all for non-API routes - redirect to frontend
-app.get('*', (req, res) => {
-  if (req.path.startsWith('/api')) {
-    res.status(404).json({ error: 'API endpoint not found' });
-  } else {
-    res.status(200).json({ 
-      message: 'OneAgent API Server', 
-      frontend: 'http://localhost:3000',
-      api: 'http://localhost:8080/api'
-    });
-  }
-});
-
-const PORT = process.env.PORT || 8081;
-server.listen(PORT, () => {
-  console.log(`🚀 OneAgent Server running on port ${PORT}`);
-  console.log(`📊 API available at http://localhost:${PORT}/api`);
-  console.log(`🔌 WebSocket server running on ws://localhost:${PORT}`);
-  console.log(`🎯 Frontend running on http://localhost:3000`);
-});
-
-// Handle shutdown gracefully
-process.on('SIGTERM', () => {
-  console.log('🛑 Server shutting down...');
-  server.close(() => {
-    console.log('✅ Server stopped');
-    process.exit(0);
-  });
-});
-
-// MCP Session Management
-const mcpSessions = new Map<string, {
-  id: string;
-  createdAt: Date;
-  lastActivity: Date;
-}>();
-
-// MCP Message ID tracking for SSE streams
-let mcpMessageIdCounter = 0;
 
 // Helper function to validate JSON-RPC message
 function isValidJsonRpcMessage(message: any): boolean {
@@ -470,7 +200,7 @@ function createJsonRpcError(code: number, message: string, data?: any) {
  * MCP Endpoint - Streamable HTTP Transport
  * Implements the MCP specification for HTTP transport
  */
-app.post('/mcp', async (req, res) => {
+app.post('/mcp', async (req: express.Request, res: express.Response) => {
   try {
     // Validate Origin header for security (localhost only)
     const origin = req.get('origin');
@@ -493,16 +223,18 @@ app.post('/mcp', async (req, res) => {
       }
       // Update last activity
       session.lastActivity = new Date();
-    }
-
-    const body = req.body;
+    }    const body = req.body;
+    console.log('MCP POST request body:', JSON.stringify(body, null, 2));
     
     // Handle single message or batch
     const messages = Array.isArray(body) ? body : [body];
+    console.log('Processing messages:', messages.length);
     
     // Validate all messages are valid JSON-RPC
     for (const message of messages) {
+      console.log('Validating message:', JSON.stringify(message, null, 2));
       if (!isValidJsonRpcMessage(message)) {
+        console.log('Invalid JSON-RPC message:', message);
         return res.status(400).json(createJsonRpcError(
           -32600, 
           'Invalid Request',
@@ -533,7 +265,7 @@ app.post('/mcp', async (req, res) => {
           const response = await processMcpMethod(message, session);
           
           // Handle initialization specially
-          if (message.method === 'initialize' && response.result) {
+          if (message.method === 'initialize' && response?.result) {
             // Create new session for initialization
             const newSessionId = randomUUID();
             const newSession = {
@@ -547,7 +279,9 @@ app.post('/mcp', async (req, res) => {
             res.set('Mcp-Session-Id', newSessionId);
           }
           
-          responses.push(response);
+          if (response) {
+            responses.push(response);
+          }
         }
       }
 
@@ -574,7 +308,7 @@ app.post('/mcp', async (req, res) => {
 });
 
 // GET endpoint for SSE streams (optional)
-app.get('/mcp', async (req, res) => {
+app.get('/mcp', async (req: express.Request, res: express.Response) => {
   try {
     // Validate Accept header
     const acceptHeader = req.get('accept');
@@ -610,14 +344,16 @@ app.get('/mcp', async (req, res) => {
       clearInterval(keepAlive);
     });
 
+    return;
+
   } catch (error) {
     console.error('MCP SSE endpoint error:', error);
-    res.status(500).json({ error: 'Internal server error' });
+    return res.status(500).json({ error: 'Internal server error' });
   }
 });
 
 // DELETE endpoint for session termination
-app.delete('/mcp', async (req, res) => {
+app.delete('/mcp', async (req: express.Request, res: express.Response) => {
   try {
     const sessionId = req.get('Mcp-Session-Id');
     
@@ -633,14 +369,14 @@ app.delete('/mcp', async (req, res) => {
     }
   } catch (error) {
     console.error('MCP session termination error:', error);
-    res.status(500).json({ error: 'Internal server error' });
+    return res.status(500).json({ error: 'Internal server error' });
   }
 });
 
 /**
  * Process MCP method calls
  */
-async function processMcpMethod(message: any, session: any) {
+async function processMcpMethod(message: any, _session: any) {
   const { method, params, id } = message;
 
   try {
@@ -706,7 +442,8 @@ async function processMcpMethod(message: any, session: any) {
                     type: 'object',
                     description: 'Optional metadata for the memory'
                   }
-                },                required: ['content']
+                },
+                required: ['content']
               }
             },
             {
@@ -935,7 +672,7 @@ async function handlePromptGet(params: any, id: any) {
 /**
  * Helper functions for tool implementations
  */
-async function handleMemorySearch(query: string, filter?: any) {
+async function handleMemorySearch(query: string, _filter?: any) {
   const memories = generateMockMemories();
   const searchTerm = query.toLowerCase();
   
@@ -973,3 +710,45 @@ async function handleMemoryCreate(content: string, metadata?: any) {
     }
   };
 }
+
+// API Routes (basic endpoints)
+app.get('/api/health', (_req: express.Request, res: express.Response) => {
+  res.json({
+    status: 'healthy',
+    mcp: {
+      endpoint: '/mcp',
+      protocol: '2025-03-26',
+      capabilities: ['tools', 'resources', 'prompts']
+    },
+    timestamp: new Date().toISOString()
+  });
+});
+
+// Catch-all for non-API routes
+app.get('*', (req: express.Request, res: express.Response) => {
+  if (req.path.startsWith('/api')) {
+    res.status(404).json({ error: 'API endpoint not found' });
+  } else {
+    res.status(200).json({ 
+      message: 'OneAgent MCP Server',
+      mcp_endpoint: '/mcp',
+      health_check: '/api/health'
+    });
+  }
+});
+
+const PORT = process.env.PORT || 8081;
+server.listen(PORT, () => {
+  console.log(`🚀 OneAgent MCP Server running on port ${PORT}`);
+  console.log(`🔗 MCP endpoint available at http://localhost:${PORT}/mcp`);
+  console.log(`💊 Health check at http://localhost:${PORT}/api/health`);
+});
+
+// Handle shutdown gracefully
+process.on('SIGTERM', () => {
+  console.log('🛑 Server shutting down...');
+  server.close(() => {
+    console.log('✅ Server stopped');
+    process.exit(0);
+  });
+});
