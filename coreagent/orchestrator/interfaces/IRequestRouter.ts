@@ -18,11 +18,10 @@ export interface IRequestRouter {
    * Analyze request intent and determine routing strategy
    */
   analyzeRequest(request: string): Promise<RequestAnalysis>;
-
   /**
    * Get routing confidence score for a specific agent
    */
-  getRoutingConfidence(request: string, agent: ISpecializedAgent): Promise<number>;
+  getRoutingConfidence(request: string, agent: ISpecializedAgent, context?: AgentContext): Promise<number>;
 
   /**
    * Register routing rules for specific patterns

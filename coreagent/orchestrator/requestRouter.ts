@@ -28,11 +28,10 @@ export class RequestRouter implements IRequestRouter {
     this.registry = registry;
     this.initializeDefaultRules();
   }
-
   /**
    * Route a user request to the most appropriate agent
    */
-  async routeRequest(request: string, _context: AgentContext): Promise<RouteResult> {
+  async routeRequest(request: string, context: AgentContext): Promise<RouteResult> {
     try {
       // Analyze the request
       const analysis = await this.analyzeRequest(request);
@@ -54,8 +53,8 @@ export class RequestRouter implements IRequestRouter {
       const scoredAgents: Array<{ agent: ISpecializedAgent; score: number; reasoning: string }> = [];
       
       for (const agent of agents) {
-        const score = await this.scoreAgent(agent, analysis, request);
-        const reasoning = this.generateReasoning(agent, analysis, score);
+        const score = await this.scoreAgent(agent, analysis, request, context);
+        const reasoning = this.generateReasoning(agent, analysis, score, context);
         scoredAgents.push({ agent, score, reasoning });
       }
 
@@ -124,13 +123,12 @@ export class RequestRouter implements IRequestRouter {
       complexity
     };
   }
-
   /**
    * Get routing confidence score for a specific agent
    */
-  async getRoutingConfidence(request: string, agent: ISpecializedAgent): Promise<number> {
+  async getRoutingConfidence(request: string, agent: ISpecializedAgent, context?: AgentContext): Promise<number> {
     const analysis = await this.analyzeRequest(request);
-    return await this.scoreAgent(agent, analysis, request);
+    return await this.scoreAgent(agent, analysis, request, context);
   }
 
   /**
@@ -164,20 +162,19 @@ export class RequestRouter implements IRequestRouter {
       }
     }
   }
-
   /**
    * Score an agent for a given request analysis
    */
-  private async scoreAgent(agent: ISpecializedAgent, analysis: RequestAnalysis, request: string): Promise<number> {
+  private async scoreAgent(agent: ISpecializedAgent, analysis: RequestAnalysis, request: string, context?: AgentContext): Promise<number> {
     let score = 0;
 
     // Base capability matching
     const capabilityScore = this.scoreAgentCapabilities(agent, analysis);
-    score += capabilityScore * 0.4;
+    score += capabilityScore * 0.35; // Reduced weight to accommodate custom instructions
 
     // Rule-based scoring
     const ruleScore = this.scoreAgentRules(agent, request, analysis);
-    score += ruleScore * 0.3;
+    score += ruleScore * 0.25; // Reduced weight
 
     // Performance-based scoring
     const performanceScore = this.getAgentPerformanceScore(agent.id);
@@ -186,6 +183,16 @@ export class RequestRouter implements IRequestRouter {
     // Health-based scoring
     const healthScore = agent.getStatus().isHealthy ? 1.0 : 0.5;
     score += healthScore * 0.1;
+
+    // Custom instructions scoring (new)
+    if (context?.enrichedContext?.userProfile?.customInstructions) {
+      const customInstructionsScore = this.scoreAgentByCustomInstructions(
+        agent, 
+        context.enrichedContext.userProfile.customInstructions, 
+        request
+      );
+      score += customInstructionsScore * 0.1; // 10% weight for user preferences
+    }
 
     return Math.min(score, 1.0);
   }
@@ -319,8 +326,7 @@ export class RequestRouter implements IRequestRouter {
 
   /**
    * Generate reasoning for agent selection
-   */
-  private generateReasoning(agent: ISpecializedAgent, analysis: RequestAnalysis, score: number): string {
+   */  private generateReasoning(agent: ISpecializedAgent, analysis: RequestAnalysis, score: number, context?: AgentContext): string {
     const reasons: string[] = [];
 
     if (score > 0.7) {
@@ -335,7 +341,70 @@ export class RequestRouter implements IRequestRouter {
       reasons.push('Agent is healthy and responsive');
     }
 
+    // Add custom instructions consideration
+    if (context?.enrichedContext?.userProfile?.customInstructions) {
+      const customScore = this.scoreAgentByCustomInstructions(
+        agent, 
+        context.enrichedContext.userProfile.customInstructions, 
+        ''
+      );
+      if (customScore > 0.5) {
+        reasons.push('Aligns well with user preferences');
+      } else if (customScore > 0.2) {
+        reasons.push('Partially matches user preferences');
+      }
+    }
+
     return reasons.join(', ');
+  }
+  /**
+   * Score agent based on user's custom instructions
+   */
+  private scoreAgentByCustomInstructions(agent: ISpecializedAgent, customInstructions: string, _request: string): number {
+    let score = 0;
+    const instructions = customInstructions.toLowerCase();
+    const agentType = agent.id.toLowerCase();
+    
+    // Check if custom instructions mention specific agent types
+    if (instructions.includes('office') || instructions.includes('document') || instructions.includes('calendar')) {
+      if (agentType.includes('office')) {
+        score += 0.6;
+      } else {
+        score -= 0.2; // Penalize if user prefers office but this isn't office agent
+      }
+    }
+    
+    if (instructions.includes('fitness') || instructions.includes('workout') || instructions.includes('health')) {
+      if (agentType.includes('fitness')) {
+        score += 0.6;
+      } else {
+        score -= 0.2; // Penalize if user prefers fitness but this isn't fitness agent
+      }
+    }
+    
+    // Check for communication style preferences
+    if (instructions.includes('formal') || instructions.includes('professional')) {
+      if (agentType.includes('office')) {
+        score += 0.2;
+      }
+    }
+    
+    if (instructions.includes('casual') || instructions.includes('friendly') || instructions.includes('motivational')) {
+      if (agentType.includes('fitness')) {
+        score += 0.2;
+      }
+    }
+    
+    // Check for specific capability preferences mentioned in instructions
+    const capabilities = agent.config.capabilities;
+    for (const capability of capabilities) {
+      if (instructions.includes(capability.replace('_', ' '))) {
+        score += 0.1;
+      }
+    }
+    
+    // Ensure score is between 0 and 1
+    return Math.max(0, Math.min(1, score));
   }
 
   /**

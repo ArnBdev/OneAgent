@@ -20,6 +20,7 @@ import {
 } from './interfaces/IMemoryContextBridge';
 import { AgentContext, Message } from '../agents/base/BaseAgent_new';
 import { Mem0Client } from '../tools/mem0Client';
+import { userService } from './userService';
 
 export class MemoryContextBridge implements IMemoryContextBridge {
   private memoryClient: Mem0Client;
@@ -365,9 +366,7 @@ export class MemoryContextBridge implements IMemoryContextBridge {
       lastActivity,
       keyPoints: [] // Would be extracted in full implementation
     };
-  }
-
-  /**
+  }  /**
    * Get or create user profile
    */
   private async getUserProfile(userId: string): Promise<UserProfile> {
@@ -375,18 +374,33 @@ export class MemoryContextBridge implements IMemoryContextBridge {
       return this.userProfiles.get(userId)!;
     }
 
-    // Create new profile
+    // Create new profile with User object integration
+    const customInstructions = await this.getUserCustomInstructions(userId);
     const profile: UserProfile = {
       userId,
       preferences: {},
       goals: [],
       commonTopics: [],
       communicationStyle: 'conversational',
-      lastSeen: new Date()
+      lastSeen: new Date(),
+      ...(customInstructions && { customInstructions })
     };
 
     this.userProfiles.set(userId, profile);
     return profile;
+  }
+  /**
+   * Fetch customInstructions from User object via UserService
+   */
+  private async getUserCustomInstructions(userId: string): Promise<string | undefined> {
+    try {
+      // Use UserService to fetch customInstructions
+      const customInstructions = await userService.getUserCustomInstructions(userId);
+      return customInstructions || undefined;
+    } catch (error) {
+      console.warn(`Failed to fetch customInstructions for user ${userId}:`, error);
+      return undefined;
+    }
   }
 
   /**

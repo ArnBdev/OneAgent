@@ -8,6 +8,7 @@
 import { Mem0Client } from '../../tools/mem0Client';
 import { GeminiClient } from '../../tools/geminiClient';
 import { User } from '../../types/user';
+import { EnrichedContext } from '../../orchestrator/interfaces/IMemoryContextBridge';
 
 export interface AgentConfig {
   id: string;
@@ -23,6 +24,7 @@ export interface AgentContext {
   sessionId: string;
   conversationHistory: Message[];
   memoryContext?: any[];
+  enrichedContext?: EnrichedContext;  // Optional enriched context from MemoryContextBridge
 }
 
 export interface Message {

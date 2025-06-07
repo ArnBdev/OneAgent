@@ -153,6 +153,53 @@ OneAgent er en modulær, pragmatisk og kraftig AI-agentplattform utviklet av Arn
   - `performanceBridge.ts`: Spesialisert ytelsesbro mellom komponenter
   - `contextManager.ts`: Samlet request- og bruker-kontekst på tvers av systemer
   - `enhancedRequestRouter.ts`: Forbedret routing med sikkerhet og kontekst
+* [x] **User Enhancement - Data Layer** ✅ COMPLETE
+  - Added `customInstructions` to User interface
+  - Added `customInstructions` to UserProfile interface
+  - Enables per-user agent behavior without architectural bloat
+* [x] **User Enhancement - Integration Layer** ✅ COMPLETE
+  - ✅ Integrate `customInstructions` into MemoryContextBridge.getUserProfile()
+  - ✅ Incorporate `customInstructions` into Agent.processMessage() prompts
+  - ✅ Add optional `customInstructions` consideration in RequestRouter  - ✅ Create UserService for User object management and persistence ✅ COMPLETE
+  - [ ] Implement UUID-based userId standards across system 🔄 IN PROGRESS
+
+**🔧 CustomInstructions Implementation Details (Juni 8, 2025):**
+- **Architecture**: Hybrid approach (Orchestration + Individual Agents)
+- **Access Pattern**: `context.enrichedContext?.userProfile?.customInstructions`
+- **Integration Points**: MemoryContextBridge, Agent prompts, RequestRouter scoring
+- **Mock Data**: Demo users have test customInstructions for development/testing
+- **Graceful Degradation**: System works with or without customInstructions present
+
+**🔄 IMMEDIATE NEXT STEPS (Juni 8, 2025):**
+* [x] **Priority 1**: Create Arne's Custom Instructions Profile (Real-world validation) ✅ COMPLETE
+  - ✅ Added Arne's custom instructions to MemoryContextBridge for user IDs: 'arne', 'arne-oneagent', 'arne-dev'
+  - ✅ Created comprehensive test suite validation (test_arne_custom_instructions.js)
+  - ✅ Validated MemoryContextBridge implementation (test_memory_context_bridge.js)
+  - ✅ Confirmed structured workflow preferences and TypeScript best practices
+* [x] **Priority 2**: UserService creation for User object management ✅ COMPLETE
+  - ✅ Created UserService interface (IUserService) with CRUD operations
+  - ✅ Implemented MemoryUserService with in-memory storage for development
+  - ✅ Added UUID generation utilities with v4 standards
+  - ✅ Integrated UserService with MemoryContextBridge (replaced mock data)
+  - ✅ Enhanced User interface with proper TypeScript strict mode support
+  - ✅ Established data layer foundation for production UserService implementations
+* [x] **Priority 3**: UUID standards implementation across system ✅ COMPLETE
+  - ✅ Analyzed all userId/sessionId usage patterns across codebase
+  - ✅ Replaced Math.random() based request ID generation with crypto.randomUUID()
+  - ✅ Implemented consistent UUID v4 validation in all user/session interfaces
+  - ✅ Created UUID migration utilities for existing data
+  - ✅ Updated MCP adapters to use proper UUID standards
+  - ✅ Enhanced session management with UUID validation
+  - ✅ Added comprehensive UUID documentation to interfaces
+  - ✅ Created UUID validation middleware and utilities
+* [x] **Priority 4**: Agent Creation Template for developers ✅ COMPLETE
+  - ✅ Created comprehensive developer template and documentation
+  - ✅ Added step-by-step agent creation guide with examples
+  - ✅ Provided complete code templates for new specialized agents
+  - ✅ Created AgentTemplate with validation and best practices
+  - ✅ Enhanced AgentFactory to support custom agent types
+  - ✅ Added comprehensive testing examples and integration patterns
+* [x] **Priority 5**: Git updates - commit all integration changes 🔄 IN PROGRESS
 * [ ] **Cross-system koordinering**
   - Unified error handling på tvers av moduler
   - Performance-aware memory operations
@@ -161,12 +208,25 @@ OneAgent er en modulær, pragmatisk og kraftig AI-agentplattform utviklet av Arn
 
 ### 🌜 **LEVEL 3: Robusthet og brukergrensesnitt**
 
-* [ ] Minimal web UI med logg og request/reply visning
-* [ ] Visualisering av flows og agenter
-* [ ] `TriageAgent.ts`: Gjenoppretter flows etter feil
-* [ ] `AgentFactory.ts`: Dynamisk lasting av flows og agenter
-* [ ] Adminpanel (senere)
-* [ ] WebSocket live-feedback (allerede delvis implementert)
+* [ ] **Basic Web UI Foundation**
+  - Minimal web UI med logg og request/reply visning
+  - Visualisering av flows og agenter
+  - WebSocket live-feedback (allerede delvis implementert)
+* [ ] **Agent Management UI**
+  - `TriageAgent.ts`: Gjenoppretter flows etter feil
+  - `AgentFactory.ts`: Dynamisk lasting av flows og agenter
+  - Basic agent status and health monitoring interface
+* [ ] **Advanced User Features** (UI-DRIVEN)
+  - User profile management interface
+  - **Custom Instructions Editor**: Rich text editor for `customInstructions`
+  - User preferences and settings management
+  - Session and conversation history viewer
+  - Memory analytics and insights dashboard
+* [ ] **Administrative Interface**
+  - System configuration management
+  - Agent performance analytics
+  - Memory system administration
+  - Security and access control management
 
 ### 🌟 **LEVEL 4: OfficeAgent + OCR**
 
@@ -345,6 +405,70 @@ coreagent/orchestrator/enhancedRequestRouter.ts // Integrated security + context
 * [ ] **Context-aware error handling** - Feil håndteres med full forståelse av request context
 * [ ] **Seamless system coordination** - Alle komponenter fungerer som ett system
 
+---
+
+## 🎨 UI FEATURES & CUSTOM INSTRUCTIONS (Level 3+)
+
+### **✅ BACKEND INTEGRATION COMPLETE:**
+* **MemoryContextBridge Integration** - getUserProfile() fetches customInstructions from User object ✅
+* **Agent Integration** - OfficeAgent & FitnessAgent incorporate customInstructions into prompts ✅  
+* **RequestRouter Integration** - Router considers customInstructions for agent selection scoring ✅
+
+### **🔜 FUTURE UI DEVELOPMENT (Level 3-4):**
+
+#### **Custom Instructions Editor UI**
+* [ ] **Settings Panel**: User-friendly custom instructions editor
+  - Rich text editor with markdown support
+  - Preset templates for common preferences
+  - Agent-specific instruction categories
+  - Real-time preview of how instructions affect responses
+
+#### **User Preference Management**
+* [ ] **Preference Dashboard**: Centralized user settings management
+  - Communication style preferences (formal/casual/technical)
+  - Domain-specific preferences (office workflows, fitness goals)
+  - Agent behavior customization per use case
+  - Import/export preference profiles
+
+#### **Agent Customization Interface**
+* [ ] **Agent Behavior Tuning**: Fine-tune agent responses
+  - Slider controls for response length, detail level, formality
+  - Preferred data sources and information types
+  - Frequency of proactive suggestions
+  - Learning rate and adaptation speed
+
+#### **Feedback & Learning System**
+* [ ] **Preference Learning**: UI for capturing user feedback
+  - Thumbs up/down on responses with preference attribution
+  - "Adjust my preferences" quick actions
+  - Learning dashboard showing preference evolution
+  - A/B testing different instruction sets
+
+#### **Integration Features**
+* [ ] **Profile Sync**: Cross-device preference synchronization
+  - Cloud backup of custom instructions
+  - Team/organization shared preference templates
+  - Version control for instruction sets
+  - Rollback to previous preference versions
+
+### **🛠️ TECHNICAL IMPLEMENTATION NOTES:**
+```typescript
+// UI Component Structure (Future)
+ui/
+  ├── components/
+  │   ├── CustomInstructionsEditor.tsx
+  │   ├── PreferencesDashboard.tsx
+  │   ├── AgentTuningPanel.tsx
+  │   └── FeedbackCapture.tsx
+  ├── services/
+  │   ├── userPreferencesAPI.ts
+  │   ├── instructionsValidator.ts
+  │   └── preferenceSyncService.ts
+  └── types/
+      ├── uiTypes.ts
+      └── preferenceTypes.ts
+```
+
 ### **Hybrid Success Metrics (ChatGPT + Copilot):**
 * [ ] **Security Implementation**: All security <0.06% latency impact individuelt
 * [ ] **Integration Quality**: Zero cross-system integration failures
@@ -393,7 +517,7 @@ coreagent/orchestrator/enhancedRequestRouter.ts // Integrated security + context
 **🔺 Dette dokumentet representerer hele strategien bak OneAgent juni 2025**  
 **Endringer skal speiles i roadmap og godkjennes før kode skrives**  
 
-### **📈 PROJECT STATUS OPPDATERING (JUNI 7, 2025):**
+### **📈 PROJECT STATUS OPPDATERING (JUNI 8, 2025):**
 ✅ **Prosjektstruktur**: KOMPLETT oppryddet (25+ filer organisert)  
 ✅ **Eksisterende systemer**: Memory Intelligence + Performance API produksjonsklar  
 ✅ **MCP HTTP Transport**: PRODUKSJONSKLAR - Full JSON-RPC 2.0 implementering (755 lines)
@@ -401,12 +525,17 @@ coreagent/orchestrator/enhancedRequestRouter.ts // Integrated security + context
 ✅ **Production Server**: Operativ på port 8081, alle MCP metoder implementert
 ✅ **Security Layer**: Origin validation, session validation, comprehensive error handling
 ✅ **Testing & Validation**: All MCP functionality tested og validated
+✅ **CustomInstructions Integration**: KOMPLETT - All 3 integration points implemented
+  - MemoryContextBridge.getUserProfile() fetches customInstructions ✅
+  - Agent.processMessage() incorporates customInstructions into prompts ✅  
+  - RequestRouter considers customInstructions for routing decisions ✅
 ✅ **Documentation**: Complete status reports og implementation learnings
 🔜 **Phase 1a + 1b**: Security Foundation + Integration Bridges klar for implementering  
 🔜 **Level 2.5**: Seamless Integration Layer definert som neste milestone
+🔜 **Level 3+ UI Features**: Custom Instructions Editor og user preference management
 
 ---
 
 **🧭 Dette dokumentet er den autoritative roadmap for OneAgent. Endringer skal speiles her.**
 
-*Roadmap sist oppdatert: Juni 7, 2025 - ChatGPT autoritative versjon med Copilot integration layer*
+*Roadmap sist oppdatert: Juni 8, 2025 - CustomInstructions integration status updated, implementation details added*

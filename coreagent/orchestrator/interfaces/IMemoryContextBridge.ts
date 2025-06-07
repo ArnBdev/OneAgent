@@ -90,6 +90,7 @@ export interface UserProfile {
   commonTopics: string[];
   communicationStyle: string;
   lastSeen: Date;
+  customInstructions?: string;  // User-specific agent behavior instructions
 }
 
 export interface SessionMetadata {

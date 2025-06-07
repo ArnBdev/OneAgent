@@ -200,18 +200,28 @@ export class FitnessAgent extends BaseAgent implements ISpecializedAgent {
 
     return actions;
   }
-
   /**
    * Build fitness-specific prompt for AI
    */
   private buildFitnessPrompt(message: string, memories: any[], context: AgentContext): string {
-    return `
+    // Extract customInstructions from enriched context userProfile
+    const customInstructions = context.enrichedContext?.userProfile?.customInstructions;
+    
+    let prompt = `
 You are a Fitness and Wellness Coach AI specialized in health, exercise, and nutrition.
 
 Context:
 - User: ${context.user.name || 'User'}
 - Session: ${context.sessionId}
-- Previous interactions: ${memories.length} relevant fitness memories
+- Previous interactions: ${memories.length} relevant fitness memories`;
+
+    // Add custom instructions if available
+    if (customInstructions) {
+      prompt += `
+- User Preferences: ${customInstructions}`;
+    }
+
+    prompt += `
 
 User Request: ${message}
 
@@ -225,6 +235,8 @@ Please provide helpful fitness guidance including:
 Be encouraging, knowledgeable, and safety-focused in your responses.
 Always remind users to consult healthcare professionals for medical advice.
 `;
+
+    return prompt;
   }
 
   /**

@@ -4,6 +4,8 @@
  * Handles communication with MCP servers, supporting both local and HTTP communication.
  */
 
+import { randomUUID } from 'crypto';
+
 export interface MCPRequest {
   id: string;
   method: string;
@@ -70,12 +72,11 @@ export class LocalMCPAdapter {
 
     return response;
   }
-
   /**
-   * Generate unique request ID
+   * Generate unique request ID using crypto.randomUUID()
    */
   private generateRequestId(): string {
-    return `mcp_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    return `mcp_${randomUUID()}`;
   }
 }
 
@@ -160,12 +161,11 @@ export class HttpMCPAdapter {
       return errorResponse;
     }
   }
-
   /**
-   * Generate unique request ID
+   * Generate unique request ID using crypto.randomUUID()
    */
   private generateRequestId(): string {
-    return `mcp_http_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    return `mcp_http_${randomUUID()}`;
   }
 
   /**

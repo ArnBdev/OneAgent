@@ -190,19 +190,28 @@ export class OfficeAgent extends BaseAgent implements ISpecializedAgent {
     }
 
     return actions;
-  }
-
-  /**
+  }  /**
    * Build office-specific prompt for AI
    */
   private buildOfficePrompt(message: string, memories: any[], context: AgentContext): string {
-    return `
+    // Extract customInstructions from enriched context userProfile
+    const customInstructions = context.enrichedContext?.userProfile?.customInstructions;
+    
+    let prompt = `
 You are an Office Assistant AI specialized in productivity and office tasks.
 
 Context:
 - User: ${context.user.name || 'User'}
 - Session: ${context.sessionId}
-- Previous interactions: ${memories.length} relevant memories
+- Previous interactions: ${memories.length} relevant memories`;
+
+    // Add custom instructions if available
+    if (customInstructions) {
+      prompt += `
+- User Preferences: ${customInstructions}`;
+    }
+
+    prompt += `
 
 User Request: ${message}
 
@@ -213,8 +222,9 @@ Please provide helpful office assistance including:
 - Task organization and prioritization
 - Meeting planning and summarization
 
-Be professional, efficient, and actionable in your responses.
-`;
+Be professional, efficient, and actionable in your responses.`;
+
+    return prompt;
   }
 
   /**

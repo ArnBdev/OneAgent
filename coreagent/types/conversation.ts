@@ -7,13 +7,16 @@
  * Represents a single message in a conversation
  */
 export interface ConversationMessage {
+    /** Message ID (UUID v4 format) */
     id: string;
     timestamp: Date;
     sender: 'user' | 'agent' | 'system';
     content: string;
     type: MessageType;
     metadata?: MessageMetadata;
+    /** Agent ID (UUID v4 format if applicable) */
     agentId?: string;
+    /** Session ID (UUID v4 format) */
     sessionId: string;
 }
 
@@ -50,13 +53,16 @@ export interface MessageMetadata {
  * Represents a complete conversation session
  */
 export interface ConversationSession {
+    /** Session ID (UUID v4 format) */
     id: string;
+    /** User ID (UUID v4 format) */
     userId: string;
     startTime: Date;
     lastActivity: Date;
     status: ConversationStatus;
     messages: ConversationMessage[];
     context: ConversationContext;
+    /** Active agent IDs (UUID v4 format if applicable) */
     activeAgents: string[];
     settings: ConversationSettings;
 }
@@ -176,10 +182,12 @@ export interface ConversationAnalytics {
  * Request to create a new conversation
  */
 export interface CreateConversationRequest {
+    /** User ID (UUID v4 format) */
     userId: string;
     initialMessage?: string;
     context?: Partial<ConversationContext>;
     settings?: Partial<ConversationSettings>;
+    /** Preferred agent IDs (UUID v4 format if applicable) */
     preferredAgents?: string[];
 }
 
