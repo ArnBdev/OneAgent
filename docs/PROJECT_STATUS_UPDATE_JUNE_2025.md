@@ -322,3 +322,40 @@ coreagent/orchestrator/enhancedRequestRouter.ts // Integrated security + context
 *Status Update Created: June 7, 2025*  
 *Next Review: Upon completion of Phase 1a + 1b*  
 *Document Authority: OneAgent Development Team*
+
+---
+
+## 🛠 **Development Infrastructure Enhancements (June 7, 2025)**
+
+### **Terminal-Server Integration Solution** ✅
+**Problem Solved:** MCP server blocking terminal functionality
+
+**Root Cause:** Long-running `npm run server:mcp` occupied terminal session, preventing `run_in_terminal` tool usage
+
+**Solutions Implemented:**
+1. **Background Server Management** - `scripts/start-background-server.js`
+   - Detached process spawning with PID tracking
+   - Comprehensive logging to `temp/mcp-server.log`
+   - Clean shutdown and status checking
+
+2. **Enhanced npm Scripts** - New commands for server lifecycle
+   ```bash
+   npm run server:bg      # Start in background (non-blocking)
+   npm run server:stop    # Stop background server
+   npm run server:status  # Check server status
+   npm run server:restart # Restart server
+   ```
+
+3. **PowerShell Integration** - Native Windows solution
+   ```powershell
+   Start-Process powershell -ArgumentList "-Command", "cd '$PWD'; npm run server:mcp" -WindowStyle Hidden
+   ```
+
+**Verified Results:**
+- ✅ Terminal tools remain fully functional
+- ✅ MCP server runs simultaneously on port 8081
+- ✅ Both systems can be used concurrently
+- ✅ No blocking or interference between systems
+
+### **Architecture Clarification** ✅
+**OneAgent System Components:**

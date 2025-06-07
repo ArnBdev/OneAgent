@@ -9,7 +9,14 @@
 
 ### **Start Production MCP Server**
 ```bash
+# Foreground (blocks terminal - for testing only)
 npm run server:mcp    # Port 8081 - PRODUCTION READY
+
+# Background (recommended - frees terminal)
+npm run server:bg     # Start in background
+npm run server:stop   # Stop background server
+npm run server:status # Check server status
+npm run server:restart # Restart server
 ```
 
 ### **Start Memory System**
@@ -205,3 +212,55 @@ npm run check-structure
 **Last Updated:** June 7, 2025  
 **Status:** Production Ready - MCP System Complete ✅  
 **Next Milestone:** Security Foundation + Integration Bridges
+
+---
+
+## 🤔 **OneAgent System Relationship**
+
+### **Can OneAgent work without the MCP server?**
+**Yes and No** - it depends on what you're doing:
+
+#### **✅ Works WITHOUT MCP Server:**
+- **Core Development** - TypeScript compilation, testing, file operations
+- **Terminal Tools** - All `run_in_terminal` functionality remains available
+- **Documentation** - Reading/writing docs, project management
+- **Local Operations** - Code generation, file editing, structure validation
+
+#### **❌ Requires MCP Server:**
+- **Memory Operations** - Accessing the memory system via MCP protocol
+- **Tool Execution** - `memory_search`, `memory_create`, `system_status` tools
+- **Real-time Data** - Live system metrics and performance data
+- **External Integrations** - When OneAgent needs to call external APIs through MCP
+
+### **Recommended Development Pattern:**
+```bash
+# 1. Start server in background (doesn't block terminal)
+npm run server:bg
+
+# 2. Verify it's running
+npm run server:status
+
+# 3. Now you can use both:
+#    - Terminal tools (run_in_terminal works)
+#    - MCP functionality (memory, tools, etc.)
+
+# 4. When done, stop cleanly
+npm run server:stop
+```
+
+### **Architecture Overview:**
+- **OneAgent Core** = TypeScript development agent (always available)
+- **MCP Server** = Memory + tools endpoint (optional for basic operations)
+- **Memory Server** = Python backend for embeddings (independent)
+
+### **Emergency Commands:**
+```bash
+# If server is stuck or blocking terminal:
+npm run server:stop
+
+# Check what's running:
+npm run server:status
+
+# Full restart:
+npm run server:restart
+```
