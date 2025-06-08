@@ -9,6 +9,15 @@ import WebSocket = require('ws');
 import cors = require('cors');
 import { randomUUID } from 'crypto';
 
+// Import OneAgent tools
+import { BraveSearchClient } from '../tools/braveSearchClient';
+import { WebSearchTool } from '../tools/webSearch';
+import { GeminiClient } from '../tools/geminiClient';
+import { AIAssistantTool } from '../tools/aiAssistant';
+import { GeminiEmbeddingsTool } from '../tools/geminiEmbeddings';
+import { Mem0Client } from '../tools/mem0Client';
+import { listWorkflows } from '../tools/listWorkflows';
+
 const app = express();
 const server = http.createServer(app);
 const wss = new WebSocket.Server({ server });
@@ -38,9 +47,26 @@ let systemConfig: any = {
   SESSION_TIMEOUT: 60,
   ENABLE_NOTIFICATIONS: true,
   ERROR_NOTIFICATIONS: true,
-  PERFORMANCE_ALERTS: true,
-  NOTIFICATION_LEVEL: 'normal' as const
+  PERFORMANCE_ALERTS: true,  NOTIFICATION_LEVEL: 'normal' as const
 };
+
+// Initialize OneAgent tools
+const mem0Client = new Mem0Client();
+
+const braveConfig = {
+  apiKey: process.env.BRAVE_API_KEY || 'your_brave_search_api_key_here',
+  ...(process.env.BRAVE_API_URL && { baseUrl: process.env.BRAVE_API_URL })
+};
+const braveSearchClient = new BraveSearchClient(braveConfig);
+const webSearchTool = new WebSearchTool(braveSearchClient);
+
+const geminiConfig = {
+  apiKey: process.env.GEMINI_API_KEY || 'your_gemini_api_key_here',
+  ...(process.env.GEMINI_API_URL && { baseUrl: process.env.GEMINI_API_URL })
+};
+const geminiClient = new GeminiClient(geminiConfig);
+const aiAssistantTool = new AIAssistantTool(geminiClient);
+const embeddingsTool = new GeminiEmbeddingsTool(geminiClient, mem0Client);
 
 // MCP Session Management
 const mcpSessions = new Map<string, {
@@ -405,11 +431,10 @@ async function processMcpMethod(message: any, _session: any) {
 
       case 'notifications/initialized':
         // No response for notifications
-        return null;
-
-      case 'tools/list':
+        return null;      case 'tools/list':
         return createJsonRpcResponse(id, {
           tools: [
+            // Memory Tools
             {
               name: 'memory_search',
               description: 'Search memories in the OneAgent memory system',
@@ -446,6 +471,176 @@ async function processMcpMethod(message: any, _session: any) {
                 required: ['content']
               }
             },
+            // Web Search Tools
+            {
+              name: 'web_search',
+              description: 'Search the web using Brave Search API',
+              inputSchema: {
+                type: 'object',
+                properties: {
+                  query: {
+                    type: 'string',
+                    description: 'Search query'
+                  },
+                  count: {
+                    type: 'number',
+                    description: 'Number of results to return (default: 5)'
+                  },
+                  country: {
+                    type: 'string',
+                    description: 'Country code for localized results (default: US)'
+                  },
+                  includeRecent: {
+                    type: 'boolean',
+                    description: 'Include recent results from last week'
+                  }
+                },
+                required: ['query']
+              }
+            },
+            // AI Assistant Tools
+            {
+              name: 'ai_chat',
+              description: 'Chat with Gemini AI for intelligent responses',
+              inputSchema: {
+                type: 'object',
+                properties: {
+                  message: {
+                    type: 'string',
+                    description: 'Message to send to AI'
+                  },
+                  context: {
+                    type: 'string',
+                    description: 'Optional context for the conversation'
+                  },
+                  temperature: {
+                    type: 'number',
+                    description: 'Response creativity (0-1, default: 0.7)'
+                  },
+                  maxTokens: {
+                    type: 'number',
+                    description: 'Maximum tokens in response (default: 1000)'
+                  }
+                },
+                required: ['message']
+              }
+            },
+            {
+              name: 'ai_summarize',
+              description: 'Summarize text using Gemini AI',
+              inputSchema: {
+                type: 'object',
+                properties: {
+                  text: {
+                    type: 'string',
+                    description: 'Text to summarize'
+                  },
+                  maxLength: {
+                    type: 'number',
+                    description: 'Maximum summary length in characters'
+                  },
+                  style: {
+                    type: 'string',
+                    enum: ['brief', 'detailed', 'bullet-points'],
+                    description: 'Summary style (default: brief)'
+                  }
+                },
+                required: ['text']
+              }
+            },
+            {
+              name: 'ai_analyze',
+              description: 'Analyze text with specific instructions using Gemini AI',
+              inputSchema: {
+                type: 'object',
+                properties: {
+                  text: {
+                    type: 'string',
+                    description: 'Text to analyze'
+                  },
+                  instruction: {
+                    type: 'string',
+                    description: 'Analysis instruction or question'
+                  },
+                  context: {
+                    type: 'string',
+                    description: 'Optional additional context'
+                  }
+                },
+                required: ['text', 'instruction']
+              }
+            },
+            // Semantic Tools
+            {
+              name: 'embedding_generate',
+              description: 'Generate semantic embeddings for text',
+              inputSchema: {
+                type: 'object',
+                properties: {
+                  text: {
+                    type: 'string',
+                    description: 'Text to generate embeddings for'
+                  },
+                  taskType: {
+                    type: 'string',
+                    enum: ['SEMANTIC_SIMILARITY', 'CLASSIFICATION', 'CLUSTERING'],
+                    description: 'Task type for embedding optimization'
+                  }
+                },
+                required: ['text']
+              }
+            },
+            {
+              name: 'similarity_search',
+              description: 'Find similar texts using semantic embeddings',
+              inputSchema: {
+                type: 'object',
+                properties: {
+                  query: {
+                    type: 'string',
+                    description: 'Query text to find similarities for'
+                  },
+                  candidates: {
+                    type: 'array',
+                    items: { type: 'string' },
+                    description: 'Array of candidate texts to compare against'
+                  },
+                  threshold: {
+                    type: 'number',
+                    description: 'Similarity threshold (0-1, default: 0.7)'
+                  },
+                  maxResults: {
+                    type: 'number',
+                    description: 'Maximum number of results to return (default: 5)'
+                  }
+                },
+                required: ['query', 'candidates']
+              }
+            },
+            // Workflow Tools
+            {
+              name: 'workflow_help',
+              description: 'Get AI assistance with workflow tasks',
+              inputSchema: {
+                type: 'object',
+                properties: {
+                  workflowName: {
+                    type: 'string',
+                    description: 'Name of the workflow'
+                  },
+                  currentStep: {
+                    type: 'string',
+                    description: 'Current step in the workflow'
+                  },
+                  context: {
+                    type: 'string',
+                    description: 'Workflow context and current situation'
+                  }
+                },
+                required: ['workflowName', 'currentStep', 'context']
+              }
+            },
+            // System Tools
             {
               name: 'system_status',
               description: 'Get current system status and health metrics',
@@ -542,6 +737,109 @@ async function handleToolCall(params: any, id: any) {
           content: [{
             type: 'text', 
             text: JSON.stringify(createResult, null, 2)
+          }],
+          isError: false
+        });
+
+      case 'web_search':
+        const webSearchResults = await webSearchTool.search({
+          query: args.query,
+          count: args.count || 5,
+          safesearch: args.safesearch || 'moderate',
+          country: args.country || 'US',
+          includeRecent: args.includeRecent || false
+        });
+        return createJsonRpcResponse(id, {
+          content: [{
+            type: 'text',
+            text: JSON.stringify(webSearchResults, null, 2)
+          }],
+          isError: false
+        });
+
+      case 'ai_chat':
+        const chatResult = await aiAssistantTool.ask(args.question, {
+          temperature: args.temperature,
+          maxTokens: args.maxTokens,
+          context: args.context,
+          format: args.format
+        });
+        return createJsonRpcResponse(id, {
+          content: [{
+            type: 'text',
+            text: JSON.stringify(chatResult, null, 2)
+          }],
+          isError: false
+        });      case 'ai_summarize':
+        const summarizeResult = await aiAssistantTool.summarize(args.text, {
+          maxLength: args.maxLength,
+          style: args.style
+        });
+        return createJsonRpcResponse(id, {
+          content: [{
+            type: 'text',
+            text: JSON.stringify(summarizeResult, null, 2)
+          }],
+          isError: false
+        });
+
+      case 'ai_analyze':
+        const analyzeResult = await aiAssistantTool.analyze(args.text, args.instruction, {
+          temperature: args.temperature,
+          maxTokens: args.maxTokens,
+          context: args.context,
+          format: args.format
+        });
+        return createJsonRpcResponse(id, {
+          content: [{
+            type: 'text',
+            text: JSON.stringify(analyzeResult, null, 2)
+          }],
+          isError: false
+        });
+
+      case 'embedding_generate':
+        const embeddingResult = await geminiClient.generateEmbedding(args.text, {
+          taskType: args.taskType || 'RETRIEVAL_DOCUMENT',
+          model: args.model
+        });
+        return createJsonRpcResponse(id, {
+          content: [{
+            type: 'text',
+            text: JSON.stringify(embeddingResult, null, 2)
+          }],
+          isError: false
+        });
+
+      case 'similarity_search':
+        const similarityResults = await embeddingsTool.semanticSearch(
+          args.query,
+          args.filter,
+          {
+            taskType: args.taskType,
+            topK: args.topK || 5,
+            similarityThreshold: args.similarityThreshold || 0.7,
+            model: args.model
+          }
+        );
+        return createJsonRpcResponse(id, {
+          content: [{
+            type: 'text',
+            text: JSON.stringify(similarityResults, null, 2)
+          }],
+          isError: false
+        });
+
+      case 'workflow_help':
+        const workflows = await listWorkflows();
+        return createJsonRpcResponse(id, {
+          content: [{
+            type: 'text',
+            text: JSON.stringify({
+              availableWorkflows: workflows,
+              description: 'Available OneAgent workflows and their capabilities',
+              timestamp: new Date().toISOString()
+            }, null, 2)
           }],
           isError: false
         });
@@ -737,7 +1035,7 @@ app.get('*', (req: express.Request, res: express.Response) => {
   }
 });
 
-const PORT = process.env.PORT || 8081;
+const PORT = process.env.PORT || 8082;
 server.listen(PORT, () => {
   console.log(`🚀 OneAgent MCP Server running on port ${PORT}`);
   console.log(`🔗 MCP endpoint available at http://localhost:${PORT}/mcp`);

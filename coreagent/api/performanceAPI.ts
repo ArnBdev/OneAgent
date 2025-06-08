@@ -31,6 +31,13 @@ export interface SystemStatus {
     avgImportanceScore: number;
     topCategories: string[];
   };
+  security: {
+    validationErrors: number;
+    rateLimitViolations: number;
+    authenticationFailures: number;
+    securityAlertsActive: number;
+    lastSecurityScan: string;
+  };
   services: {
     gemini: 'connected' | 'error' | 'unknown';
     mem0: 'connected' | 'error' | 'unknown';
@@ -91,9 +98,7 @@ export class PerformanceAPI {
       } catch {
         services.embedding = 'error';
         services.gemini = 'error';
-      }
-
-      const status: SystemStatus = {
+      }      const status: SystemStatus = {
         performance: {
           totalOperations: report.totalOperations,
           averageLatency: report.averageLatency,
@@ -103,10 +108,18 @@ export class PerformanceAPI {
         memory: {
           totalMemories: memoryData.length,
           categoryBreakdown: analytics.categoryBreakdown,
-          avgImportanceScore: analytics.averageImportance,          topCategories: Object.entries(analytics.categoryBreakdown)
+          avgImportanceScore: analytics.averageImportance,
+          topCategories: Object.entries(analytics.categoryBreakdown)
             .sort(([, a], [, b]) => (b as number) - (a as number))
             .slice(0, 5)
             .map(([category]) => category)
+        },
+        security: {
+          validationErrors: 0,
+          rateLimitViolations: 0,
+          authenticationFailures: 0,
+          securityAlertsActive: 0,
+          lastSecurityScan: new Date().toISOString()
         },
         services
       };
@@ -298,6 +311,59 @@ export class PerformanceAPI {
       return {
         success: true,
         data: { message: 'Performance data cleared' },
+        timestamp: new Date().toISOString()
+      };
+
+    } catch (error) {
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Unknown error',
+        timestamp: new Date().toISOString()
+      };
+    }
+  }
+
+  /**
+   * Record a performance event with metadata
+   */
+  async recordEvent(eventType: string, data: Record<string, any>): Promise<void> {
+    try {
+      const operationId = `${eventType}_${Date.now()}`;
+      globalProfiler.startOperation(operationId, eventType, data);
+      globalProfiler.endOperation(operationId, true);
+    } catch (error) {
+      // Silently handle errors to prevent disrupting main operations
+      console.warn(`Failed to record event ${eventType}:`, error);
+    }
+  }
+
+  /**
+   * Record security-related events and metrics
+   */
+  async recordSecurityEvent(eventType: string, metadata: Record<string, any>): Promise<void> {
+    const operationId = `security_${eventType}_${Date.now()}`;
+    globalProfiler.startOperation(operationId, `security_${eventType}`, metadata);
+    globalProfiler.endOperation(operationId, true);
+  }
+
+  /**
+   * Get security metrics and status
+   */
+  async getSecurityMetrics(): Promise<PerformanceAPIResponse> {
+    try {
+      // This would integrate with actual security tracking systems
+      const securityStatus = {
+        validationErrors: 0, // Would be tracked by RequestValidator
+        rateLimitViolations: 0, // Would be tracked by ContextManager
+        authenticationFailures: 0, // Would be tracked by authentication system
+        securityAlertsActive: 0, // Would be tracked by PerformanceBridge
+        lastSecurityScan: new Date().toISOString(),
+        securityLevel: 'operational' as 'secure' | 'operational' | 'warning' | 'critical'
+      };
+
+      return {
+        success: true,
+        data: securityStatus,
         timestamp: new Date().toISOString()
       };
 

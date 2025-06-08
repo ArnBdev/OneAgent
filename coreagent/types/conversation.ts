@@ -4,6 +4,50 @@
  */
 
 /**
+ * Interface for incoming requests
+ */
+export interface IRequest {
+    /** Request content/message */
+    content: string;
+    /** User ID making the request */
+    userId: string;
+    /** Session ID for the conversation */
+    sessionId: string;
+    /** Request type/intent */
+    type?: string;
+    /** Additional metadata */
+    metadata?: Record<string, any>;
+    /** Timestamp of the request */
+    timestamp?: Date;
+    /** Unique request identifier */
+    requestId?: string;
+    /** Specific agent type requested */
+    agentType?: string;
+    /** Request prompt/query content */
+    prompt?: string;
+    /** Operation type being requested */
+    operation?: string;
+}
+
+/**
+ * Interface for outgoing responses
+ */
+export interface IResponse {
+    /** Response content */
+    content: string;
+    /** Success status */
+    success: boolean;
+    /** Response type */
+    type?: string;
+    /** Additional metadata */
+    metadata?: Record<string, any>;
+    /** Error information if applicable */
+    error?: string;
+    /** Timestamp of the response */
+    timestamp?: Date;
+}
+
+/**
  * Represents a single message in a conversation
  */
 export interface ConversationMessage {

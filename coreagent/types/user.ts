@@ -15,6 +15,8 @@ export interface User {
   customInstructions?: string | undefined;
   /** Account status */
   status?: 'active' | 'inactive' | 'suspended' | undefined;
+  /** User permissions for authorization */
+  permissions?: string[];
 }
 
 export interface UserSession {
@@ -33,6 +35,28 @@ export interface UserPreferences {
   theme?: 'light' | 'dark';
   notifications?: boolean;
   [key: string]: any;
+}
+
+/**
+ * UserProfile - Extended user information for context management
+ */
+export interface UserProfile {
+  /** User basic information */
+  user: User;
+  /** User session information */
+  session?: UserSession;
+  /** User activity metrics */
+  activityLevel?: 'low' | 'medium' | 'high';
+  /** User interaction history summary */
+  interactionHistory?: {
+    totalInteractions: number;
+    lastInteractionType: string;
+    preferredAgents: string[];
+  };
+  /** User capabilities and restrictions */
+  capabilities?: string[];
+  /** Custom user instructions and preferences */
+  customInstructions?: string;
 }
 
 /**

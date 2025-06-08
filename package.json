@@ -7,9 +7,12 @@
   "scripts": {
     "build": "tsc",
     "dev": "tsc --watch",
-    "start": "node dist/coreagent/main.js",    "server": "ts-node coreagent/server/index-simple.ts",
+    "start": "node dist/coreagent/main.js",
+    "server": "ts-node coreagent/server/index-simple.ts",
     "server:dev": "npx nodemon --exec ts-node coreagent/server/index-simple.ts",
-    "server:build": "tsc && node dist/coreagent/server/index-simple.js",    "server:mcp": "ts-node coreagent/server/index-simple-mcp.ts",
+    "server:build": "tsc && node dist/coreagent/server/index-simple.js",
+    "server:mcp": "ts-node coreagent/server/index-simple-mcp.ts",
+    "server:mcp:dev": "npx nodemon --exec ts-node coreagent/server/index-simple-mcp.ts",
     "server:bg": "node scripts/start-background-server.js start",
     "server:stop": "node scripts/start-background-server.js stop",
     "server:status": "node scripts/start-background-server.js status",
@@ -53,13 +56,13 @@
     "node": ">=18.0.0"
   },
   "dependencies": {
-    "axios": "^1.9.0",
     "class-variance-authority": "^0.7.0",
     "clsx": "^2.0.0",
     "cors": "^2.8.5",
     "dotenv": "^16.5.0",
     "express": "^4.18.2",
     "lucide-react": "^0.263.1",
+    "node-fetch": "^3.3.2",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
     "ws": "^8.14.2"
@@ -74,6 +77,7 @@
     "@types/ws": "^8.5.8",
     "@vitejs/plugin-react": "^4.0.3",
     "autoprefixer": "^10.4.14",
+    "axios": "^1.9.0",
     "nodemon": "^3.1.10",
     "postcss": "^8.4.24",
     "tailwindcss": "^3.3.0",

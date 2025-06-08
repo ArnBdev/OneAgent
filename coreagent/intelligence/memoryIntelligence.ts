@@ -524,4 +524,69 @@ export class MemoryIntelligence {
     this.categories.push(category);
     console.log(`📁 Added memory category: ${category.name}`);
   }
+
+  /**
+   * Semantic search alias for findSimilarMemories (compatibility)
+   */
+  async semanticSearch(
+    queryText: string,
+    filter?: Mem0SearchFilter,
+    options?: { topK?: number; similarityThreshold?: number; }
+  ): Promise<SemanticSearchResult[]> {
+    return this.findSimilarMemories(queryText, {
+      topK: options?.topK,
+      similarityThreshold: options?.similarityThreshold,
+      category: filter?.metadata?.category,
+      memoryType: filter?.memoryType
+    });
+  }
+
+  /**
+   * Get memory by ID (compatibility alias)
+   */
+  async getMemory(memoryId: string, userId?: string): Promise<Mem0Memory | null> {
+    try {
+      const response = await this.mem0Client.getMemory(memoryId);
+      if (response.success && response.data) {
+        // Optionally filter by userId if provided
+        if (userId && response.data.userId !== userId) {
+          return null;
+        }
+        return response.data;
+      }
+      return null;
+    } catch (error) {
+      console.error('❌ Failed to get memory:', error);
+      return null;
+    }
+  }
+
+  /**
+   * Store memory (compatibility alias)
+   */
+  async storeMemory(
+    content: string,
+    metadata?: Record<string, any>,
+    userId?: string,
+    memoryType: 'short_term' | 'long_term' | 'workflow' | 'session' = 'long_term'
+  ): Promise<string> {
+    try {
+      const response = await this.mem0Client.createMemory(content, metadata, userId, undefined, undefined, memoryType);
+      if (response.success && response.data) {
+        return response.data.id;
+      }
+      throw new Error('Failed to store memory');
+    } catch (error) {
+      console.error('❌ Failed to store memory:', error);
+      throw error;
+    }
+  }
+  /**
+   * Get analytics (alias for generateMemoryAnalytics)
+   */
+  async getAnalytics(_userId?: string): Promise<MemoryAnalytics> {
+    // For now, return general analytics. In a full implementation,
+    // this would filter by userId
+    return this.generateMemoryAnalytics();
+  }
 }
