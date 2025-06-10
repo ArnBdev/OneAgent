@@ -9,8 +9,10 @@ import { ISpecializedAgent } from './ISpecializedAgent';
 import { AgentConfig } from './BaseAgent';
 import { OfficeAgent } from '../specialized/OfficeAgent';
 import { FitnessAgent } from '../specialized/FitnessAgent';
+import { TriageAgent } from '../specialized/TriageAgent';
+import { DevAgent } from '../specialized/DevAgent';
 
-export type AgentType = 'office' | 'fitness' | 'general' | 'coach' | 'advisor';
+export type AgentType = 'office' | 'fitness' | 'general' | 'coach' | 'advisor' | 'triage' | 'development';
 
 export interface AgentFactoryConfig {
   type: AgentType;
@@ -22,13 +24,14 @@ export interface AgentFactoryConfig {
   aiEnabled?: boolean;
 }
 
-export class AgentFactory {
-  private static readonly DEFAULT_CAPABILITIES = {
+export class AgentFactory {  private static readonly DEFAULT_CAPABILITIES = {
     office: ['document_processing', 'calendar_management', 'email_assistance', 'task_organization'],
     fitness: ['workout_planning', 'nutrition_tracking', 'progress_monitoring', 'goal_setting'],
     general: ['conversation', 'information_retrieval', 'task_assistance'],
     coach: ['goal_setting', 'progress_tracking', 'motivation', 'feedback'],
-    advisor: ['analysis', 'recommendations', 'strategic_planning', 'consultation']
+    advisor: ['analysis', 'recommendations', 'strategic_planning', 'consultation'],
+    triage: ['task_routing', 'error_recovery', 'agent_health_monitoring', 'workload_balancing'],
+    development: ['code_analysis', 'test_generation', 'documentation_sync', 'refactoring', 'performance_optimization', 'security_scanning', 'git_workflow', 'dependency_management']
   };
 
   /**
@@ -44,15 +47,26 @@ export class AgentFactory {
       aiEnabled: factoryConfig.aiEnabled ?? true
     };
 
-    let agent: ISpecializedAgent;
-
-    switch (factoryConfig.type) {
+    let agent: ISpecializedAgent;    switch (factoryConfig.type) {
       case 'office':
         agent = new OfficeAgent(agentConfig);
         break;
       case 'fitness':
         agent = new FitnessAgent(agentConfig);
-        break;    default:
+        break;
+      case 'triage':
+        agent = new TriageAgent(agentConfig);
+        break;
+      case 'development':
+        agent = new DevAgent(agentConfig);
+        break;
+      case 'general':
+      case 'coach':
+      case 'advisor':
+        // For now, these use a placeholder implementation
+        // TODO: Implement GeneralAgent, CoachAgent, AdvisorAgent
+        throw new Error(`Agent type '${factoryConfig.type}' not yet implemented`);
+      default:
         throw new Error(`Unknown agent type: ${factoryConfig.type}`);
     }
 

@@ -530,7 +530,7 @@ app.post('/mcp', async (req, res) => {
       for (const message of messages) {
         if (message.method) {
           // Process MCP method
-          const response = await processMcpMethod(message, session);
+          const response = await processMcpMethod(message);
           
           // Handle initialization specially
           if (message.method === 'initialize' && response.result) {
@@ -603,16 +603,17 @@ app.get('/mcp', async (req, res) => {
       res.write(`id: ${eventId}\n`);
       res.write(`event: ping\n`);
       res.write(`data: {"type": "ping", "timestamp": "${new Date().toISOString()}"}\n\n`);
-    }, 30000);
-
-    // Handle client disconnect
+    }, 30000);    // Handle client disconnect
     req.on('close', () => {
       clearInterval(keepAlive);
     });
 
+    // SSE stream established - connection remains open
+    return;
+    
   } catch (error) {
     console.error('MCP SSE endpoint error:', error);
-    res.status(500).json({ error: 'Internal server error' });
+    return res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -630,17 +631,16 @@ app.delete('/mcp', async (req, res) => {
       return res.status(200).json({ message: 'Session terminated' });
     } else {
       return res.status(404).json({ error: 'Session not found' });
-    }
-  } catch (error) {
+    }  } catch (error) {
     console.error('MCP session termination error:', error);
-    res.status(500).json({ error: 'Internal server error' });
+    return res.status(500).json({ error: 'Internal server error' });
   }
 });
 
 /**
  * Process MCP method calls
  */
-async function processMcpMethod(message: any, session: any) {
+async function processMcpMethod(message: any) {
   const { method, params, id } = message;
 
   try {
@@ -790,7 +790,7 @@ async function handleToolCall(params: any, id: any) {
   try {
     switch (name) {
       case 'memory_search':
-        const searchResults = await handleMemorySearch(args.query, args.filter);
+        const searchResults = await handleMemorySearch(args.query);
         return createJsonRpcResponse(id, {
           content: [{
             type: 'text',
@@ -935,7 +935,7 @@ async function handlePromptGet(params: any, id: any) {
 /**
  * Helper functions for tool implementations
  */
-async function handleMemorySearch(query: string, filter?: any) {
+async function handleMemorySearch(query: string) {
   const memories = generateMockMemories();
   const searchTerm = query.toLowerCase();
   

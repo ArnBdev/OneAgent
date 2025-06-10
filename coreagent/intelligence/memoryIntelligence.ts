@@ -524,7 +524,6 @@ export class MemoryIntelligence {
     this.categories.push(category);
     console.log(`📁 Added memory category: ${category.name}`);
   }
-
   /**
    * Semantic search alias for findSimilarMemories (compatibility)
    */
@@ -534,10 +533,10 @@ export class MemoryIntelligence {
     options?: { topK?: number; similarityThreshold?: number; }
   ): Promise<SemanticSearchResult[]> {
     return this.findSimilarMemories(queryText, {
-      topK: options?.topK,
-      similarityThreshold: options?.similarityThreshold,
-      category: filter?.metadata?.category,
-      memoryType: filter?.memoryType
+      ...(options?.topK !== undefined && { topK: options.topK }),
+      ...(options?.similarityThreshold !== undefined && { similarityThreshold: options.similarityThreshold }),
+      ...(filter?.metadata?.category !== undefined && { category: filter.metadata.category }),
+      ...(filter?.memoryType !== undefined && { memoryType: filter.memoryType })
     });
   }
 

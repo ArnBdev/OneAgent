@@ -1,24 +1,27 @@
 import React, { useState } from 'react'
-import { Brain, Workflow, Settings, Activity } from 'lucide-react'
+import { Brain, Workflow, Settings, Activity, MessageCircle } from 'lucide-react'
 import MemoryViewer from './components/MemoryViewer'
 import WorkflowEditor from './components/WorkflowEditor'
 import ConfigPanel from './components/ConfigPanel'
 import PerformanceMonitor from './components/PerformanceMonitor'
+import ChatInterface from './components/chat/ChatInterface'
 
-type TabType = 'memory' | 'workflow' | 'config' | 'performance'
+type TabType = 'chat' | 'memory' | 'workflow' | 'config' | 'performance'
 
 function App() {
-  const [activeTab, setActiveTab] = useState<TabType>('memory')
+  const [activeTab, setActiveTab] = useState<TabType>('chat')
 
   const tabs = [
+    { id: 'chat' as TabType, label: 'AI Chat', icon: MessageCircle },
     { id: 'memory' as TabType, label: 'Memory Intelligence', icon: Brain },
     { id: 'workflow' as TabType, label: 'Workflow Editor', icon: Workflow },
     { id: 'performance' as TabType, label: 'Performance', icon: Activity },
     { id: 'config' as TabType, label: 'Configuration', icon: Settings },
   ]
-
   const renderContent = () => {
     switch (activeTab) {
+      case 'chat':
+        return <ChatInterface userId="default-user" agentType="general" />
       case 'memory':
         return <MemoryViewer />
       case 'workflow':
@@ -28,7 +31,7 @@ function App() {
       case 'config':
         return <ConfigPanel />
       default:
-        return <MemoryViewer />
+        return <ChatInterface userId="default-user" agentType="general" />
     }
   }
 

@@ -182,11 +182,16 @@ export class AgentRegistry implements IAgentRegistry {
     
     console.log('Agent registry cleanup completed');
   }
-
   /**
    * Initialize matching criteria for different agent types
    */
   private initializeMatchingCriteria(): void {
+    this.matchingCriteria.set('development', {
+      keywords: ['code', 'develop', 'programming', 'debug', 'test', 'refactor', 'optimize', 'security', 'git', 'dependency', 'analyze', 'performance', 'documentation', 'technical'],
+      requiredCapabilities: ['code_analysis', 'test_generation', 'documentation_sync', 'refactoring'],
+      priority: 2
+    });
+
     this.matchingCriteria.set('office', {
       keywords: ['document', 'email', 'calendar', 'schedule', 'meeting', 'task', 'office', 'work'],
       requiredCapabilities: ['document_processing'],
@@ -205,12 +210,22 @@ export class AgentRegistry implements IAgentRegistry {
       priority: 0
     });
   }
-
   /**
    * Determine agent type from its capabilities
    */
   private determineAgentType(agent: ISpecializedAgent): AgentType {
     const capabilities = agent.config.capabilities;
+    
+    // Check for development capabilities first (highest priority)
+    if (capabilities.includes('code_analysis') || 
+        capabilities.includes('test_generation') || 
+        capabilities.includes('refactoring') || 
+        capabilities.includes('performance_optimization') ||
+        capabilities.includes('security_scanning') ||
+        capabilities.includes('git_workflow') ||
+        capabilities.includes('dependency_management')) {
+      return 'development';
+    }
     
     if (capabilities.includes('document_processing') || capabilities.includes('calendar_management')) {
       return 'office';

@@ -14,6 +14,7 @@ import { WebSearchTool } from './tools/webSearch';
 import { GeminiClient } from './tools/geminiClient';
 import { AIAssistantTool } from './tools/aiAssistant';
 import { GeminiEmbeddingsTool } from './tools/geminiEmbeddings';
+import { TriageAgent } from './agents/specialized/TriageAgent';
 import { User } from './types/user';
 import * as dotenv from 'dotenv';
 
@@ -32,6 +33,7 @@ class CoreAgent {
   private geminiClient: GeminiClient;
   private aiAssistant: AIAssistantTool;
   private embeddingsTool: GeminiEmbeddingsTool;
+  private triageAgent: TriageAgent;
   
   constructor() {
     console.log("🚀 Hello CoreAgent!");
@@ -57,10 +59,18 @@ class CoreAgent {
     };
     this.geminiClient = new GeminiClient(geminiConfig);
       // Initialize AI assistant
-    this.aiAssistant = new AIAssistantTool(this.geminiClient);
-    
-    // Initialize embeddings tool
+    this.aiAssistant = new AIAssistantTool(this.geminiClient);    // Initialize embeddings tool
     this.embeddingsTool = new GeminiEmbeddingsTool(this.geminiClient, this.mem0Client);
+    
+    // Initialize TriageAgent for intelligent task routing
+    this.triageAgent = new TriageAgent({
+      id: 'triage-agent-001',
+      name: 'Main Triage Agent',
+      description: 'Intelligent task routing and error recovery agent',
+      capabilities: ['task_routing', 'error_recovery', 'agent_health_monitoring'],
+      memoryEnabled: true,
+      aiEnabled: false
+    });
   }
 
   /**
@@ -85,14 +95,20 @@ class CoreAgent {
           language: 'no',
           timezone: 'Europe/Oslo'
         }
-      };
-      console.log(`👤 Demo user session: ${this.currentUser.name}`);      // Test basic functionality
+      };      console.log(`👤 Demo user session: ${this.currentUser.name}`);
+      
+      // Initialize TriageAgent
+      await this.triageAgent.initialize();
+      console.log("✅ TriageAgent initialized");
+      
+      // Test basic functionality
       await this.testWorkflowSystem();
       await this.testMCPCommunication();
       await this.testMem0Integration();
       await this.testWebSearchIntegration();
       await this.testAIAssistantIntegration();
       await this.testEmbeddingsIntegration();
+      await this.testTriageAgentIntegration();
       
       console.log("\n✅ CoreAgent initialized successfully");
       
@@ -333,12 +349,99 @@ class CoreAgent {
 
       // Test embedding cache stats
       const cacheStats = this.embeddingsTool.getCacheStats();
-      console.log(`💾 Embedding cache: ${cacheStats.cacheSize} entries (${cacheStats.memoryUsage})`);
-
-    } catch (error) {
+      console.log(`💾 Embedding cache: ${cacheStats.cacheSize} entries (${cacheStats.memoryUsage})`);    } catch (error) {
       console.warn(`⚠️  Embeddings integration test failed: ${error}`);
     }
   }
+
+  /**
+   * Test TriageAgent integration
+   */
+  private async testTriageAgentIntegration(): Promise<void> {
+    console.log("\n🎯 Testing TriageAgent integration:");
+    
+    try {
+      // Test context setup
+      const testContext = {
+        user: this.currentUser!,
+        sessionId: 'test-session-001',
+        conversationHistory: []
+      };
+
+      // Test document processing task routing
+      const officeTask = "Please help me create a meeting agenda for tomorrow's project review";
+      const officeResult = await this.triageAgent.processMessage(testContext, officeTask);
+      
+      console.log(`✅ Office task routed successfully`);
+      console.log(`🎯 Selected agent: ${officeResult.metadata?.selectedAgent}`);
+      console.log(`💬 Response preview: "${officeResult.content.substring(0, 100)}..."`);
+
+      // Test fitness task routing
+      const fitnessTask = "I want to start a new workout routine for building muscle";
+      const fitnessResult = await this.triageAgent.processMessage(testContext, fitnessTask);
+      
+      console.log(`✅ Fitness task routed successfully`);
+      console.log(`🎯 Selected agent: ${fitnessResult.metadata?.selectedAgent}`);
+      console.log(`💬 Response preview: "${fitnessResult.content.substring(0, 100)}..."`);
+
+      // Test agent health monitoring
+      const agentStatus = this.triageAgent.getStatus();
+      console.log(`📊 TriageAgent processed ${agentStatus.processedMessages} messages`);
+      console.log(`❤️ Agent health: ${agentStatus.isHealthy ? 'Healthy' : 'Degraded'}`);
+
+      // Test error recovery simulation
+      const invalidTask = ""; // Empty task to trigger error handling
+      const errorResult = await this.triageAgent.processMessage(testContext, invalidTask);
+      
+      if (errorResult.metadata?.recoveryAttempted) {
+        console.log(`🛡️ Error recovery system activated successfully`);
+      }
+
+    } catch (error) {
+      console.warn(`⚠️  TriageAgent integration test failed: ${error}`);
+    }
+  }  /**
+   * Process a message through the TriageAgent routing system
+   * Main entry point for external task processing
+   */
+  async processMessage(message: string, userId?: string): Promise<any> {
+    if (!this.triageAgent) {
+      throw new Error('TriageAgent not initialized');
+    }
+
+    // Create context for the task
+    const context = {
+      user: this.currentUser || {
+        id: userId || 'anonymous-user',
+        name: 'Anonymous User',
+        email: 'anonymous@oneagent.ai',
+        createdAt: new Date().toISOString(),
+        lastActiveAt: new Date().toISOString(),
+        preferences: { language: 'en', timezone: 'UTC' }
+      },
+      sessionId: `session-${Date.now()}`,
+      conversationHistory: []
+    };
+
+    // Route through TriageAgent
+    return await this.triageAgent.processMessage(context, message);
+  }
+
+  /**
+   * Get TriageAgent status and health information
+   */
+  getTriageStatus() {
+    if (!this.triageAgent) {
+      return { error: 'TriageAgent not initialized' };
+    }
+    
+    return {
+      status: this.triageAgent.getStatus(),
+      health: this.triageAgent.getHealthStatus(),
+      availableActions: this.triageAgent.getAvailableActions()
+    };
+  }
+
   /**
    * Start CLI interface (placeholder for future implementation)
    */  startCLI(): void {
@@ -353,6 +456,10 @@ class CoreAgent {
     console.log("  - 🆕 Semantic search with Gemini embeddings");
     console.log("  - 🆕 Memory clustering and similarity analysis");
     console.log("  - 🆕 Intelligent memory retrieval and context awareness");
+    console.log("  - 🎯 Intelligent task routing with TriageAgent");
+    console.log("  - 🛡️ Error recovery and flow restoration");
+    console.log("  - 📊 Agent health monitoring and failover");
+    console.log("  - ⚖️ Dynamic workload balancing");
   }
 }
 
@@ -377,3 +484,6 @@ async function main() {
 if (require.main === module) {
   main().catch(console.error);
 }
+
+// Export CoreAgent for external use
+export { CoreAgent };

@@ -257,8 +257,7 @@ Be [PERSONALITY TRAITS: professional, friendly, expert, etc.] in your responses.
       }
     };
   }
-
-  private async performAction3(params: any, _context: AgentContext): Promise<any> {
+  private async performAction3(_params: any, _context: AgentContext): Promise<any> {
     // TODO: Implement your third action
     return {
       success: true,
