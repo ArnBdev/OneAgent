@@ -181,11 +181,16 @@ export class AgentRegistry implements IAgentRegistry {
     this.agentTypes.clear();
     
     console.log('Agent registry cleanup completed');
-  }
-  /**
+  }  /**
    * Initialize matching criteria for different agent types
    */
   private initializeMatchingCriteria(): void {
+    this.matchingCriteria.set('enhanced-development', {
+      keywords: ['revolutionary', 'constitutional', 'bmad', 'quality', 'enhanced', 'advanced', 'code', 'develop', 'programming', 'debug', 'test', 'refactor', 'optimize', 'security', 'git', 'dependency', 'analyze', 'performance', 'documentation', 'technical', 'prompt', 'ai', 'verification'],
+      requiredCapabilities: ['revolutionary_prompting', 'constitutional_ai', 'bmad_elicitation'],
+      priority: 3  // Highest priority - revolutionary prompt engineering
+    });
+
     this.matchingCriteria.set('development', {
       keywords: ['code', 'develop', 'programming', 'debug', 'test', 'refactor', 'optimize', 'security', 'git', 'dependency', 'analyze', 'performance', 'documentation', 'technical'],
       requiredCapabilities: ['code_analysis', 'test_generation', 'documentation_sync', 'refactoring'],
@@ -209,14 +214,24 @@ export class AgentRegistry implements IAgentRegistry {
       requiredCapabilities: ['conversation'],
       priority: 0
     });
-  }
-  /**
+  }  /**
    * Determine agent type from its capabilities
    */
   private determineAgentType(agent: ISpecializedAgent): AgentType {
     const capabilities = agent.config.capabilities;
     
-    // Check for development capabilities first (highest priority)
+    // Check for enhanced development capabilities first (highest priority - revolutionary prompt engineering)
+    if (capabilities.includes('revolutionary_prompting') || 
+        capabilities.includes('constitutional_ai') || 
+        capabilities.includes('bmad_elicitation') || 
+        capabilities.includes('chain_of_verification') ||
+        capabilities.includes('quality_validation') ||
+        capabilities.includes('self_correction') ||
+        capabilities.includes('adaptive_prompting')) {
+      return 'enhanced-development';
+    }
+    
+    // Check for standard development capabilities (high priority)
     if (capabilities.includes('code_analysis') || 
         capabilities.includes('test_generation') || 
         capabilities.includes('refactoring') || 

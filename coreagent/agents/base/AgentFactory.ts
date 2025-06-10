@@ -11,8 +11,9 @@ import { OfficeAgent } from '../specialized/OfficeAgent';
 import { FitnessAgent } from '../specialized/FitnessAgent';
 import { TriageAgent } from '../specialized/TriageAgent';
 import { DevAgent } from '../specialized/DevAgent';
+import { EnhancedDevAgent } from '../specialized/EnhancedDevAgent';
 
-export type AgentType = 'office' | 'fitness' | 'general' | 'coach' | 'advisor' | 'triage' | 'development';
+export type AgentType = 'office' | 'fitness' | 'general' | 'coach' | 'advisor' | 'triage' | 'development' | 'enhanced-development';
 
 export interface AgentFactoryConfig {
   type: AgentType;
@@ -31,7 +32,8 @@ export class AgentFactory {  private static readonly DEFAULT_CAPABILITIES = {
     coach: ['goal_setting', 'progress_tracking', 'motivation', 'feedback'],
     advisor: ['analysis', 'recommendations', 'strategic_planning', 'consultation'],
     triage: ['task_routing', 'error_recovery', 'agent_health_monitoring', 'workload_balancing'],
-    development: ['code_analysis', 'test_generation', 'documentation_sync', 'refactoring', 'performance_optimization', 'security_scanning', 'git_workflow', 'dependency_management']
+    development: ['code_analysis', 'test_generation', 'documentation_sync', 'refactoring', 'performance_optimization', 'security_scanning', 'git_workflow', 'dependency_management'],
+    'enhanced-development': ['revolutionary_prompting', 'constitutional_ai', 'bmad_elicitation', 'chain_of_verification', 'quality_validation', 'self_correction', 'adaptive_prompting', 'code_analysis', 'test_generation', 'documentation_sync', 'refactoring', 'performance_optimization', 'security_scanning', 'git_workflow', 'dependency_management']
   };
 
   /**
@@ -59,6 +61,9 @@ export class AgentFactory {  private static readonly DEFAULT_CAPABILITIES = {
         break;
       case 'development':
         agent = new DevAgent(agentConfig);
+        break;
+      case 'enhanced-development':
+        agent = new EnhancedDevAgent(agentConfig);
         break;
       case 'general':
       case 'coach':

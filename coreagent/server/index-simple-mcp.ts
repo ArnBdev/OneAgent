@@ -12,15 +12,12 @@ import { randomUUID } from 'crypto';
 // Import OneAgent tools
 import { BraveSearchClient } from '../tools/braveSearchClient';
 import { WebSearchTool } from '../tools/webSearch';
-import { WebFetchTool } from '../tools/webFetch';
 import { GeminiClient } from '../tools/geminiClient';
 import { AIAssistantTool } from '../tools/aiAssistant';
 import { GeminiEmbeddingsTool } from '../tools/geminiEmbeddings';
 import { Mem0Client } from '../tools/mem0Client';
 import { listWorkflows } from '../tools/listWorkflows';
 import { AgentFactory } from '../agents/base/AgentFactory';
-import { WebFindingsManager } from '../intelligence/webFindingsManager';
-import { EnhancedWebTools } from '../integration/webToolsIntegration';
 
 const app = express();
 const server = http.createServer(app);
@@ -29,15 +26,13 @@ const wss = new WebSocket.Server({ server });
 // Middleware
 app.use(cors({
   origin: ['http://localhost:3000', 'http://localhost:5173'],
-  credentials: true,
-  allowedHeaders: ['Content-Type', 'User-Agent', 'Authorization', 'X-Requested-With'],
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS']
+  credentials: true
 }));
 app.use(express.json());
 
 // Mock configuration
 let systemConfig: any = {
-  GEMINI_API_KEY: process.env.GOOGLE_API_KEY,
+  GEMINI_API_KEY: process.env.GEMINI_API_KEY,
   BRAVE_API_KEY: process.env.BRAVE_API_KEY,
   MEM0_API_KEY: process.env.MEM0_API_KEY,
   MEMORY_RETENTION_DAYS: 30,
@@ -65,54 +60,14 @@ const braveConfig = {
 };
 const braveSearchClient = new BraveSearchClient(braveConfig);
 const webSearchTool = new WebSearchTool(braveSearchClient);
-const webFetchTool = new WebFetchTool({
-  defaultUserAgent: 'OneAgent-WebFetchTool/1.0 (https://github.com/oneagent)',
-  maxContentSize: 5 * 1024 * 1024, // 5MB limit for MCP usage
-  rateLimit: {
-    requestsPerSecond: 1,
-    requestsPerMinute: 30
-  }
-});
 
 const geminiConfig = {
-  apiKey: process.env.GOOGLE_API_KEY || 'your_gemini_api_key_here',
+  apiKey: process.env.GEMINI_API_KEY || 'your_gemini_api_key_here',
   ...(process.env.GEMINI_API_URL && { baseUrl: process.env.GEMINI_API_URL })
 };
 const geminiClient = new GeminiClient(geminiConfig);
 const aiAssistantTool = new AIAssistantTool(geminiClient);
 const embeddingsTool = new GeminiEmbeddingsTool(geminiClient, mem0Client);
-
-// Initialize WebFindingsManager and EnhancedWebTools
-const webFindingsManager = new WebFindingsManager({
-  storage: {
-    enableCaching: true,
-    enablePersistence: true,
-    maxCacheSize: 100, // MB
-    defaultTTL: 30 * 60 * 1000, // 30 minutes
-    compressionThreshold: 50 * 1024, // 50KB
-    autoCleanupInterval: 60 * 60 * 1000 // 1 hour
-  },
-  classification: {
-    autoClassify: true,
-    importanceThreshold: 0.6,
-    devAgentRelevanceBoost: 1.5
-  },
-  privacy: {
-    obfuscateUrls: false,
-    excludePatterns: [
-      '**/login/**',
-      '**/auth/**',
-      '**/admin/**',
-      '**/private/**'
-    ],
-    maxPersonalDataRetention: 30 // days
-  }
-});
-
-const enhancedWebTools = new EnhancedWebTools(
-  webSearchTool,
-  webFetchTool
-);
 
 // MCP Session Management
 const mcpSessions = new Map<string, {
@@ -515,10 +470,12 @@ async function processMcpMethod(message: any, _session: any) {
                   }
                 },
                 required: ['content']
-              }            },            // Enhanced Web Search Tools (with intelligent storage)
+              }
+            },
+            // Web Search Tools
             {
               name: 'web_search',
-              description: 'Search the web using Brave Search API with intelligent findings storage',
+              description: 'Search the web using Brave Search API',
               inputSchema: {
                 type: 'object',
                 properties: {
@@ -537,87 +494,9 @@ async function processMcpMethod(message: any, _session: any) {
                   includeRecent: {
                     type: 'boolean',
                     description: 'Include recent results from last week'
-                  },
-                  userContext: {
-                    type: 'string',
-                    description: 'Context about the user or session for relevance scoring'
                   }
                 },
                 required: ['query']
-              }
-            },
-            {
-              name: 'web_fetch',
-              description: 'Fetch and extract content from web pages with intelligent storage',
-              inputSchema: {
-                type: 'object',
-                properties: {
-                  url: {
-                    type: 'string',
-                    description: 'URL to fetch content from'
-                  },
-                  extractContent: {
-                    type: 'boolean',
-                    description: 'Extract and clean HTML content (default: true)'
-                  },
-                  extractMetadata: {
-                    type: 'boolean',
-                    description: 'Extract page metadata including Open Graph and Twitter Cards (default: true)'
-                  },
-                  timeout: {
-                    type: 'number',
-                    description: 'Request timeout in milliseconds (default: 10000)'
-                  },
-                  followRedirects: {
-                    type: 'boolean',
-                    description: 'Follow HTTP redirects (default: true)'
-                  },
-                  userContext: {
-                    type: 'string',
-                    description: 'Context about the user or session for relevance scoring'
-                  }
-                },
-                required: ['url']
-              }
-            },
-            // Web Findings Management Tools
-            {
-              name: 'web_findings_search',
-              description: 'Search through previously collected web findings with filtering',
-              inputSchema: {
-                type: 'object',
-                properties: {
-                  query: {
-                    type: 'string',
-                    description: 'Search query to find relevant findings'
-                  },
-                  type: {
-                    type: 'string',
-                    enum: ['search', 'fetch'],
-                    description: 'Type of findings to search (search or fetch)'
-                  },
-                  minRelevance: {
-                    type: 'number',
-                    description: 'Minimum relevance score (0-1, default: 0.1)'
-                  },
-                  maxAge: {
-                    type: 'number',
-                    description: 'Maximum age in hours (default: 168 for 1 week)'
-                  },
-                  limit: {
-                    type: 'number',
-                    description: 'Maximum number of results (default: 10)'
-                  }
-                },
-                required: ['query']
-              }
-            },
-            {
-              name: 'web_findings_stats',
-              description: 'Get statistics about stored web findings',
-              inputSchema: {
-                type: 'object',
-                properties: {}
               }
             },
             // AI Assistant Tools
@@ -861,82 +740,26 @@ async function handleToolCall(params: any, id: any) {
             text: JSON.stringify(createResult, null, 2)
           }],
           isError: false
-        });      case 'web_search':
-        const searchOptions: any = {
+        });
+
+      case 'web_search':
+        const webSearchResults = await webSearchTool.search({
           query: args.query,
           count: args.count || 5,
+          safesearch: args.safesearch || 'moderate',
           country: args.country || 'US',
-          includeRecent: args.includeRecent || false,
-          sessionId: `session-${Date.now()}`,
-          storeFindings: true
-        };
-        
-        if (args.userContext) {
-          searchOptions.userId = `user-${args.userContext}`;
-        }
-        
-        const webSearchResults = await enhancedWebTools.search(searchOptions);
+          includeRecent: args.includeRecent || false
+        });
         return createJsonRpcResponse(id, {
           content: [{
             type: 'text',
             text: JSON.stringify(webSearchResults, null, 2)
           }],
           isError: false
-        });      case 'web_fetch':
-        const fetchOptions: any = {
-          extractContent: args.extractContent !== false,
-          extractMetadata: args.extractMetadata !== false,
-          timeout: args.timeout || 10000,
-          followRedirects: args.followRedirects !== false,
-          sessionId: `session-${Date.now()}`,
-          storeFindings: true
-        };
-        
-        if (args.userContext) {
-          fetchOptions.userId = `user-${args.userContext}`;
-        }
-        
-        const webFetchResult = await enhancedWebTools.fetch(args.url, fetchOptions);
-        return createJsonRpcResponse(id, {
-          content: [{
-            type: 'text',
-            text: JSON.stringify(webFetchResult, null, 2)
-          }],
-          isError: false
-        });      case 'web_findings_search':
-        const findingsOptions: any = {
-          query: args.query,
-          category: args.type === 'search' ? 'research' : 'documentation',
-          limit: args.limit || 10,
-          sortBy: 'relevance',
-          sortOrder: 'desc'
-        };
-        
-        if (args.userContext) {
-          findingsOptions.userId = `user-${args.userContext}`;
-        }
-        
-        const findingsResults = await webFindingsManager.searchFindings(findingsOptions);
-        return createJsonRpcResponse(id, {
-          content: [{
-            type: 'text',
-            text: JSON.stringify(findingsResults, null, 2)
-          }],
-          isError: false
-        });
-
-      case 'web_findings_stats':
-        const stats = await webFindingsManager.getStorageStats();
-        return createJsonRpcResponse(id, {
-          content: [{
-            type: 'text',
-            text: JSON.stringify(stats, null, 2)
-          }],
-          isError: false
         });
 
       case 'ai_chat':
-        const chatResult = await aiAssistantTool.ask(args.message, {
+        const chatResult = await aiAssistantTool.ask(args.question, {
           temperature: args.temperature,
           maxTokens: args.maxTokens,
           context: args.context,
@@ -1204,6 +1027,7 @@ app.get('/api/health', (_req: express.Request, res: express.Response) => {
 app.post('/api/chat', async (req: express.Request, res: express.Response): Promise<void> => {
   try {
     const { message, userId, agentType = 'general', memoryContext } = req.body;
+
     if (!message || !userId) {
       res.status(400).json({
         error: 'Missing required fields: message and userId'
@@ -1353,7 +1177,7 @@ app.get('*', (req: express.Request, res: express.Response) => {
   }
 });
 
-const PORT = process.env.PORT || 8082;
+const PORT = process.env.PORT || 8080;
 server.listen(PORT, () => {
   console.log(`🚀 OneAgent MCP Server running on port ${PORT}`);
   console.log(`🔗 MCP endpoint available at http://localhost:${PORT}/mcp`);

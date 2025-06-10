@@ -9,6 +9,13 @@
 import { BaseAgent, AgentConfig, AgentContext, AgentResponse, AgentAction } from '../base/BaseAgent';
 import { ISpecializedAgent, AgentStatus, AgentHealthStatus } from '../base/ISpecializedAgent';
 import { Context7MCPIntegration, DocumentationQuery, DocumentationResult } from '../../mcp/Context7MCPIntegration';
+import { 
+  EnhancedContext7MCPIntegration, 
+  EnhancedDocumentationQuery, 
+  EnhancedDocumentationResult,
+  DevelopmentContext,
+  PredictiveCacheConfig
+} from '../../mcp/EnhancedContext7MCPIntegration';
 
 /**
  * Development action types supported by DevAgent
@@ -34,6 +41,8 @@ export class DevAgent extends BaseAgent implements ISpecializedAgent {
   private cacheHits: number = 0;
   private cacheMisses: number = 0;
   private context7Integration: Context7MCPIntegration;
+  private enhancedContext7: EnhancedContext7MCPIntegration;
+  private developmentContext: DevelopmentContext;
 
   // BMAD v4 configuration following research patterns
   private readonly devPersona = {
@@ -47,12 +56,46 @@ export class DevAgent extends BaseAgent implements ISpecializedAgent {
       "Performance optimization follows measurement",
       "Security considerations are integrated, not retrofitted"
     ]
-  };
-  constructor(config: AgentConfig) {
+  };  constructor(config: AgentConfig) {
     super(config);
     this.id = config.id || `dev-agent-${Date.now()}`;
     this.config = config;
+    
+    // Initialize Context7 integration (backward compatibility)
     this.context7Integration = new Context7MCPIntegration();
+    
+    // Initialize Enhanced Context7 with optimized configuration
+    const enhancedConfig: PredictiveCacheConfig = {
+      machineLearning: {
+        queryPatternAnalysis: true,
+        contextualPrediction: true,
+        relevanceOptimization: true,
+        userBehaviorLearning: true
+      },
+      performance: {
+        targetResponseTime: 100, // Sub-100ms target
+        cacheHitRatio: 0.95, // 95% target hit ratio
+        predictiveAccuracy: 0.85, // 85% prediction accuracy
+        parallelQueryLimit: 5 // Concurrent query limit
+      },
+      intelligence: {
+        semanticSearchEnabled: true,
+        autoLibraryDetection: true,
+        contextAwareRanking: true,
+        learningRateAdjustment: true
+      }
+    };
+    
+    this.enhancedContext7 = new EnhancedContext7MCPIntegration(enhancedConfig);
+    
+    // Initialize development context
+    this.developmentContext = {
+      projectType: 'fullstack',
+      technologies: ['typescript', 'react', 'node.js'],
+      experience: 'advanced',
+      currentPhase: 'development',
+      timeConstraints: 'normal'
+    };
   }
 
   /**
@@ -400,34 +443,79 @@ Enhanced request based on analysis:`;
         
         devMemories.push(...filteredAdditional);
       }
-    }
-      // Try Context7 MCP integration for external documentation
+    }      // Try Enhanced Context7 MCP integration for superior external documentation
     if (devMemories.length < limit) {
       try {
-        const relevantLibraries = this.detectRelevantLibraries(message);        const externalDocs = await this.context7Integration.queryDocumentation({
-          source: relevantLibraries[0] || 'TypeScript',
-          query: message,
-          maxResults: limit - devMemories.length
-        });
+        const relevantLibraries = this.detectRelevantLibraries(message);
         
-        if (externalDocs && externalDocs.length > 0) {
-          // Convert external docs to memory format
-          const externalMemories = externalDocs.slice(0, limit - devMemories.length).map((doc: DocumentationResult) => ({
-            content: doc.content,
+        // Use Enhanced Context7 for superior documentation retrieval
+        const enhancedDocs = await this.enhancedContext7.queryDocumentationAdvanced(
+          message,
+          this.developmentContext,
+          {
+            source: relevantLibraries[0],
+            maxResults: limit - devMemories.length,
+            priority: 'high',
+            depth: 'comprehensive',
+            preferredSources: relevantLibraries
+          }
+        );
+        
+        if (enhancedDocs && enhancedDocs.length > 0) {
+          // Convert enhanced docs to memory format with additional intelligence
+          const enhancedMemories = enhancedDocs.slice(0, limit - devMemories.length).map((doc: EnhancedDocumentationResult) => ({
+            content: `${doc.content}\n\n### Code Examples:\n${doc.codeExamples.map(ex => `\`\`\`${ex.language}\n${ex.code}\n\`\`\``).join('\n\n')}\n\n### Related Topics: ${doc.relatedTopics.join(', ')}\n\n### Predicted Follow-ups: ${doc.predictedNextQueries.join(', ')}`,
             metadata: {
-              source: 'external',
+              source: 'enhanced_external',
               library: doc.source,
               url: doc.url,
               folder: `dev/libraries/${doc.source.toLowerCase().includes('react') || doc.source.toLowerCase().includes('vue') ? 'popular' : 'specialized'}`,
-              confidence: doc.relevanceScore,
-              cached: doc.cached
+              confidence: doc.confidenceLevel,
+              sourceQuality: doc.sourceQuality,
+              cached: doc.cached,
+              enhancement: 'enhanced_context7',
+              codeExamples: doc.codeExamples.length,
+              relatedTopics: doc.relatedTopics.length,
+              predictedQueries: doc.predictedNextQueries.length
             }
           }));
           
-          devMemories.push(...externalMemories);
+          devMemories.push(...enhancedMemories);
+          
+          // Track enhanced performance
+          console.log(`🚀 Enhanced Context7: Retrieved ${enhancedDocs.length} enhanced docs with ${enhancedDocs.reduce((sum, doc) => sum + doc.codeExamples.length, 0)} code examples`);
         }
       } catch (error) {
-        console.warn('⚠️  Context7 integration failed:', error);
+        console.warn('⚠️  Enhanced Context7 integration failed, falling back to basic Context7:', error);
+        
+        // Fallback to basic Context7 integration
+        try {
+          const relevantLibraries = this.detectRelevantLibraries(message);
+          const externalDocs = await this.context7Integration.queryDocumentation({
+            source: relevantLibraries[0] || 'TypeScript',
+            query: message,
+            maxResults: limit - devMemories.length
+          });
+          
+          if (externalDocs && externalDocs.length > 0) {
+            // Convert external docs to memory format
+            const externalMemories = externalDocs.slice(0, limit - devMemories.length).map((doc: DocumentationResult) => ({
+              content: doc.content,
+              metadata: {
+                source: 'external_fallback',
+                library: doc.source,
+                url: doc.url,
+                folder: `dev/libraries/${doc.source.toLowerCase().includes('react') || doc.source.toLowerCase().includes('vue') ? 'popular' : 'specialized'}`,
+                confidence: doc.relevanceScore,
+                cached: doc.cached
+              }
+            }));
+            
+            devMemories.push(...externalMemories);
+          }
+        } catch (fallbackError) {
+          console.warn('⚠️  Both Enhanced and basic Context7 integration failed:', fallbackError);
+        }
       }
     }
     
@@ -527,14 +615,16 @@ Enhanced request based on analysis:`;
 
     return actions;
   }
-
   /**
-   * Build development-specific prompt with BMAD persona integration
+   * Build development-specific prompt with BMAD persona integration and Enhanced Context7 insights
    */
   private buildDevPrompt(message: string, memories: any[], context: AgentContext): string {
     const memoryContext = memories.length > 0 
-      ? `\nRelevant development patterns and history:\n${memories.map(m => `- ${m.content}`).join('\n')}`
+      ? `\nRelevant development patterns and history:\n${memories.map(m => this.formatMemoryContext(m)).join('\n')}`
       : '';
+
+    // Extract Enhanced Context7 insights
+    const enhancedInsights = this.extractEnhancedInsights(memories);
 
     return `${this.devPersona.role}
 
@@ -545,8 +635,14 @@ Development Context:
 - User: ${context.user.name}
 - Session: ${context.sessionId}
 - Communication Style: ${this.devPersona.style}
+- Project Type: ${this.developmentContext.projectType}
+- Technologies: ${this.developmentContext.technologies.join(', ')}
+- Experience Level: ${this.developmentContext.experience}
+- Current Phase: ${this.developmentContext.currentPhase}
 
 ${memoryContext}
+
+${enhancedInsights}
 
 User Request: ${message}
 
@@ -556,6 +652,7 @@ Provide a comprehensive development response that:
 3. Suggests best practices and patterns
 4. Includes actionable next steps
 5. References relevant documentation when helpful
+6. Leverages enhanced documentation insights for superior guidance
 
 Response:`;
   }
@@ -1816,5 +1913,63 @@ Response:`;
       this.logError(`Failed to synchronize documentation: ${error}`);
       return this.createErrorResponse('documentation_sync', error);
     }
+  }
+
+  /**
+   * Format memory context with enhanced insights
+   */
+  private formatMemoryContext(memory: any): string {
+    let formatted = `- ${memory.content}`;
+    
+    // Add enhanced metadata if available
+    if (memory.metadata?.enhancement === 'enhanced_context7') {
+      const enhancements = [];
+      if (memory.metadata.codeExamples > 0) {
+        enhancements.push(`${memory.metadata.codeExamples} code examples`);
+      }
+      if (memory.metadata.relatedTopics > 0) {
+        enhancements.push(`${memory.metadata.relatedTopics} related topics`);
+      }
+      if (memory.metadata.predictedQueries > 0) {
+        enhancements.push(`${memory.metadata.predictedQueries} predicted follow-ups`);
+      }
+      
+      if (enhancements.length > 0) {
+        formatted += ` [Enhanced: ${enhancements.join(', ')}]`;
+      }
+    }
+    
+    if (memory.metadata?.confidence) {
+      formatted += ` (Confidence: ${Math.round(memory.metadata.confidence * 100)}%)`;
+    }
+    
+    return formatted;
+  }
+
+  /**
+   * Extract Enhanced Context7 insights from memories
+   */
+  private extractEnhancedInsights(memories: any[]): string {
+    const enhancedMemories = memories.filter(m => m.metadata?.enhancement === 'enhanced_context7');
+    
+    if (enhancedMemories.length === 0) {
+      return '';
+    }
+
+    const totalCodeExamples = enhancedMemories.reduce((sum, m) => sum + (m.metadata?.codeExamples || 0), 0);
+    const totalRelatedTopics = enhancedMemories.reduce((sum, m) => sum + (m.metadata?.relatedTopics || 0), 0);
+    const totalPredictions = enhancedMemories.reduce((sum, m) => sum + (m.metadata?.predictedQueries || 0), 0);
+    const avgConfidence = enhancedMemories.reduce((sum, m) => sum + (m.metadata?.confidence || 0), 0) / enhancedMemories.length;
+    const avgSourceQuality = enhancedMemories.reduce((sum, m) => sum + (m.metadata?.sourceQuality || 0), 0) / enhancedMemories.length;
+
+    return `
+Enhanced Documentation Intelligence (Context7):
+- Sources: ${enhancedMemories.length} enhanced documentation sources
+- Code Examples: ${totalCodeExamples} available for reference
+- Related Topics: ${totalRelatedTopics} connected concepts identified
+- Predictive Insights: ${totalPredictions} potential follow-up queries
+- Average Confidence: ${Math.round(avgConfidence * 100)}%
+- Source Quality: ${Math.round(avgSourceQuality * 100)}%
+- Enhancement Level: Superior documentation coverage with predictive caching`;
   }
 }

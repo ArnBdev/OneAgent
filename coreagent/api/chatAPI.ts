@@ -1,6 +1,6 @@
 import { Request, Response } from 'express';
 import { CoreAgent } from '../main';
-import { userService, IUserService } from '../orchestrator/userService';
+import { MemoryUserService } from '../orchestrator/userService';
 import { Mem0Client } from '../tools/mem0Client';
 
 interface ChatRequest {
@@ -22,10 +22,10 @@ interface ChatResponse {
 
 export class ChatAPI {
   private coreAgent: CoreAgent;
-  private userService: IUserService;
+  private userService: MemoryUserService;
   private mem0Client: Mem0Client;
 
-  constructor(coreAgent: CoreAgent, userService: IUserService, mem0Client: Mem0Client) {
+  constructor(coreAgent: CoreAgent, userService: MemoryUserService, mem0Client: Mem0Client) {
     this.coreAgent = coreAgent;
     this.userService = userService;
     this.mem0Client = mem0Client;
@@ -49,10 +49,11 @@ export class ChatAPI {
       if (!user) {
         user = await this.userService.createUser({
           name: `User ${userId}`,
-          email: `${userId}@example.com`,
-          customInstructions: 'Be helpful and concise.'
+          email: `${userId}@oneagent.ai`,
+          customInstructions: 'Be helpful and concise.',
+          preferences: { language: 'en', timezone: 'UTC' }
         });
-      }      // Store user message in memory
+      }// Store user message in memory
       await this.mem0Client.createMemory(
         `User message: ${message}`,
         {
@@ -62,29 +63,35 @@ export class ChatAPI {
           agentType
         },
         userId
-      );// Process the message through CoreAgent
-      const agentResponse = await this.coreAgent.processMessage(message, userId);      // Store agent response in memory
+      );
+
+      // Process the message through CoreAgent
+      const agentResponse = await this.coreAgent.processMessage(message, userId);
+
+      // Store agent response in memory
       await this.mem0Client.createMemory(
-        `Agent response: ${agentResponse.response}`,
+        `Agent response: ${agentResponse.content}`,
         {
           source: 'chat',
           role: 'assistant',
           timestamp: new Date().toISOString(),
           agentType,
-          confidence: agentResponse.confidence || 0.8
+          confidence: agentResponse.metadata?.confidence || 0.8
         },
         userId
-      );      // Get relevant memory context for response
+      );
+
+      // Get relevant memory context for response
       const relevantMemories = memoryContext ? 
         await this.mem0Client.searchMemories({
+          userId: userId,
           query: message,
-          userId,
           limit: 3
         }) : 
         undefined;      const response: ChatResponse = {
-        response: agentResponse.response,
-        agentType: agentResponse.agentType || agentType,
-        memoryContext: relevantMemories && relevantMemories.success && relevantMemories.data ? {
+        response: agentResponse.content,
+        agentType: agentResponse.metadata?.agentType || agentType,
+        memoryContext: relevantMemories?.success && relevantMemories.data ? {
           relevantMemories: relevantMemories.data.length,
           searchTerms: [message]
         } : undefined
@@ -118,23 +125,25 @@ export class ChatAPI {
         return;
       }      // Search for chat messages in memory
       const memories = await this.mem0Client.searchMemories({
+        userId: userId,
         query: 'chat message',
-        userId,
         limit: parseInt(limit as string),
         offset: parseInt(offset as string)
       });
 
       // Filter and format chat messages
-      const chatHistory = memories.success && memories.data ? memories.data
-        .filter((memory: any) => memory.metadata?.source === 'chat')
-        .map((memory: any) => ({
-          id: memory.id,
-          content: memory.content,
-          role: memory.metadata?.role,
-          timestamp: memory.metadata?.timestamp,
-          agentType: memory.metadata?.agentType
-        }))
-        .sort((a: any, b: any) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()) : [];
+      const chatHistory = memories.success && memories.data ? 
+        memories.data
+          .filter((memory: any) => memory.metadata?.source === 'chat')
+          .map((memory: any) => ({
+            id: memory.id,
+            content: memory.text,
+            role: memory.metadata?.role,
+            timestamp: memory.metadata?.timestamp,
+            agentType: memory.metadata?.agentType
+          }))
+          .sort((a: any, b: any) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime())
+        : [];
 
       res.json({
         messages: chatHistory,

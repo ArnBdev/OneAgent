@@ -110,13 +110,14 @@ export class TriageAgent implements ISpecializedAgent {
       console.error(`❌ TriageAgent failed to process task:`, error);
       
       // Attempt error recovery
-      const recoveryResult = await this.attemptRecovery(message, context, error as Error);        return {
+      const recoveryResult = await this.attemptRecovery(message, context, error as Error);
+        return {
         content: recoveryResult.content || `I encountered an error but attempted recovery: ${(error as Error).message}`,
         metadata: {
           error: (error as Error).message,
           recoveryAttempted: true,
           recoverySuccess: recoveryResult.success,
-          selectedAgent: 'office'
+          selectedAgent: 'general'
         }
       };
     }
@@ -157,12 +158,14 @@ export class TriageAgent implements ISpecializedAgent {
           };
         }
       }
-    }    // Default to office agent as most general implemented agent
+    }
+
+    // Default to general agent
     return {
-      selectedAgent: 'office',
+      selectedAgent: 'general',
       confidence: 0.7,
-      reasoning: 'General task, using office agent as default',
-      fallbackAgents: ['fitness'],
+      reasoning: 'General task, using default agent',
+      fallbackAgents: [],
       estimatedComplexity: this.estimateComplexity(task)
     };
   }
@@ -485,7 +488,9 @@ export class TriageAgent implements ISpecializedAgent {
       maxRetries: 1,
       timeoutMs: 3000
     });
-  }  private delay(ms: number): Promise<void> {
+  }
+
+  private delay(ms: number): Promise<void> {
     return new Promise(resolve => setTimeout(resolve, ms));
   }
 }
