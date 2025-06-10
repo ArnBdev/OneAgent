@@ -1024,8 +1024,7 @@ app.get('/api/health', (_req: express.Request, res: express.Response) => {
 });
 
 // Chat API endpoints
-app.post('/api/chat', async (req: express.Request, res: express.Response): Promise<void> => {
-  try {
+app.post('/api/chat', async (req: express.Request, res: express.Response): Promise<void> => {  try {
     const { message, userId, agentType = 'general', memoryContext } = req.body;
 
     if (!message || !userId) {
@@ -1035,19 +1034,47 @@ app.post('/api/chat', async (req: express.Request, res: express.Response): Promi
       return;
     }
 
-    let response: string;
+    let response: string = "I'm here to help you!"; // Default response
     let responseAgentType = agentType;
-    let actualMemoryContext: any = undefined;
-
-    try {
+    let actualMemoryContext: any = undefined;try {
       // Try to use the AgentFactory to determine the best agent for this message
-      const agent = AgentFactory.createAgent(agentType);
-      
-      // Check if we can use AI Assistant for a more intelligent response
+      const agentConfig = {
+        type: agentType as any,
+        id: `chat-agent-${Date.now()}`,
+        name: `Chat Agent (${agentType})`,
+        description: `Agent for handling chat messages with type: ${agentType}`
+      };
+      const agent = await AgentFactory.createAgent(agentConfig);
+        // Check if we can use AI Assistant for a more intelligent response
       if (geminiClient && aiAssistantTool) {
-        console.log(`🤖 Processing chat message with AI Assistant: "${message}"`);
-        const aiResponse = await aiAssistantTool.ask(message);
-        response = aiResponse.result;
+        console.log(`🤖 Processing chat message with AI Assistant: "${message}"`);        try {
+          const aiResponse = await aiAssistantTool.ask(message);
+          if (aiResponse.success && aiResponse.result && aiResponse.result.trim()) {
+            response = aiResponse.result;
+            console.log('✅ AI Assistant response received');
+          } else {
+            console.log('❌ AI Assistant returned empty or failed response');
+            // Fallback to a helpful response when AI fails
+            const fallbackResponses = [
+              "I understand you're asking about that. While I'm having some technical difficulties with my AI capabilities, I'm still here to help!",
+              "That's an interesting question! I'm currently operating with limited AI capabilities, but let me try to assist you.",
+              "I can help you with that! Though I'm experiencing some technical issues with my advanced AI features right now.",
+              "Let me help you with that. I'm currently in a simplified mode but still ready to assist!"
+            ];
+            response = fallbackResponses[Math.floor(Math.random() * fallbackResponses.length)] + ` (You asked: "${message}")`;
+            console.log('🔧 Set fallback response:', response);
+          }
+        } catch (aiError) {
+          console.error('❌ AI Assistant failed:', aiError);
+          // Fallback to a helpful response when AI fails
+          const fallbackResponses = [
+            "I understand you're asking about that. While I'm having some technical difficulties with my AI capabilities, I'm still here to help!",
+            "That's an interesting question! I'm currently operating with limited AI capabilities, but let me try to assist you.",
+            "I can help you with that! Though I'm experiencing some technical issues with my advanced AI features right now.",
+            "Let me help you with that. I'm currently in a simplified mode but still ready to assist!"
+          ];          response = fallbackResponses[Math.floor(Math.random() * fallbackResponses.length)] + ` (You asked: "${message}")`;
+          console.log('🔧 Set fallback response:', response);
+        }
         
         // Try to search memory for context
         if (mem0Client) {
@@ -1087,14 +1114,15 @@ app.post('/api/chat', async (req: express.Request, res: express.Response): Promi
       console.error('Agent processing error:', agentError);
       response = "I apologize, but I encountered an issue processing your request. Let me try to help you anyway.";
     }
-    
-    res.json({
+      res.json({
       response,
       agentType: responseAgentType,
       memoryContext: actualMemoryContext,
       timestamp: new Date().toISOString(),
       processed: true
     });
+    
+    console.log('📤 Sending response:', response);
 
   } catch (error) {
     console.error('Chat API error:', error);

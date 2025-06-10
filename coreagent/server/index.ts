@@ -353,7 +353,7 @@ app.get('*', (_req, res) => {
 });
 
 // Start server
-const PORT = process.env.PORT || 8080;
+const PORT = process.env.PORT || 8081;
 server.listen(PORT, () => {
   console.log(`OneAgent server running on port ${PORT}`);
   console.log(`UI available at http://localhost:${PORT}`);
