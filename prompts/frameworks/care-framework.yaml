@@ -1,0 +1,58 @@
+# C-A-R-E Framework (Connect-Assess-Recommend-Evaluate)
+# Systematic prompting framework for personalized service delivery
+
+name: "C-A-R-E Framework"
+type: "personalized_service"
+version: "1.0.0"
+description: "Human-centered approach for personalized assistance and coaching"
+
+structure:
+  C_connect:
+    purpose: "Establish personal connection and understanding"
+    questions:
+      - "What are the individual's specific needs and preferences?"
+      - "What is their current situation and context?"
+      - "What motivates and concerns them?"
+    validation: "Ensure genuine understanding and rapport"
+    
+  A_assess:
+    purpose: "Comprehensive situation analysis"
+    questions:
+      - "What is the current state and baseline?"
+      - "What are the strengths and areas for improvement?"
+      - "What constraints or limitations exist?"
+    validation: "Accurate and fair assessment completed"
+    
+  R_recommend:
+    purpose: "Personalized recommendations and planning"
+    questions:
+      - "What specific recommendations fit this individual?"
+      - "How can recommendations be adapted to their preferences?"
+      - "What is the optimal implementation approach?"
+    validation: "Recommendations are personalized and actionable"
+    
+  E_evaluate:
+    purpose: "Progress monitoring and continuous improvement"
+    questions:
+      - "How is progress being measured and tracked?"
+      - "What adjustments are needed based on results?"
+      - "How can the approach be continuously improved?"
+    validation: "Effective evaluation and adaptation process"
+
+application_contexts:
+  - "fitness_coaching"
+  - "wellness_guidance"
+  - "personal_development"
+  - "individualized_support"
+
+quality_standards:
+  personalization: "Solutions must be tailored to individual needs"
+  empathy: "Genuine care and understanding demonstrated"
+  effectiveness: "Measurable positive outcomes achieved"
+  sustainability: "Long-term success and habit formation"
+
+integration:
+  constitutional_ai: true
+  bmad_enhancement: false
+  quality_validation: true
+  safety_focus: true

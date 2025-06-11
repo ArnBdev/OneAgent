@@ -83,11 +83,10 @@ export class Mem0Client {
   private localClient?: AxiosInstance;
   private cloudClient?: AxiosInstance;
   private mockMode: boolean = false;
-
   constructor(config?: Partial<Mem0Config>) {
     this.config = {
       deploymentType: 'local',
-      localEndpoint: 'http://localhost:8000',
+      localEndpoint: 'http://127.0.0.1:8000',
       cloudEndpoint: 'https://api.mem0.ai',
       preferLocal: true,
       ...config,

@@ -9,11 +9,8 @@ import { ISpecializedAgent } from './ISpecializedAgent';
 import { AgentConfig } from './BaseAgent';
 import { OfficeAgent } from '../specialized/OfficeAgent';
 import { FitnessAgent } from '../specialized/FitnessAgent';
-import { TriageAgent } from '../specialized/TriageAgent';
-import { DevAgent } from '../specialized/DevAgent';
-import { EnhancedDevAgent } from '../specialized/EnhancedDevAgent';
 
-export type AgentType = 'office' | 'fitness' | 'general' | 'coach' | 'advisor' | 'triage' | 'development' | 'enhanced-development';
+export type AgentType = 'enhanced-development' | 'development' | 'office' | 'fitness' | 'general' | 'coach' | 'advisor';
 
 export interface AgentFactoryConfig {
   type: AgentType;
@@ -26,14 +23,13 @@ export interface AgentFactoryConfig {
 }
 
 export class AgentFactory {  private static readonly DEFAULT_CAPABILITIES = {
+    'enhanced-development': ['revolutionary_prompting', 'constitutional_ai', 'bmad_elicitation', 'chain_of_verification', 'quality_validation', 'self_correction', 'adaptive_prompting', 'code_analysis', 'test_generation', 'documentation_sync', 'refactoring'],
+    'development': ['code_analysis', 'test_generation', 'documentation_sync', 'refactoring', 'performance_optimization', 'security_scanning', 'git_workflow', 'dependency_management'],
     office: ['document_processing', 'calendar_management', 'email_assistance', 'task_organization'],
     fitness: ['workout_planning', 'nutrition_tracking', 'progress_monitoring', 'goal_setting'],
     general: ['conversation', 'information_retrieval', 'task_assistance'],
     coach: ['goal_setting', 'progress_tracking', 'motivation', 'feedback'],
-    advisor: ['analysis', 'recommendations', 'strategic_planning', 'consultation'],
-    triage: ['task_routing', 'error_recovery', 'agent_health_monitoring', 'workload_balancing'],
-    development: ['code_analysis', 'test_generation', 'documentation_sync', 'refactoring', 'performance_optimization', 'security_scanning', 'git_workflow', 'dependency_management'],
-    'enhanced-development': ['revolutionary_prompting', 'constitutional_ai', 'bmad_elicitation', 'chain_of_verification', 'quality_validation', 'self_correction', 'adaptive_prompting', 'code_analysis', 'test_generation', 'documentation_sync', 'refactoring', 'performance_optimization', 'security_scanning', 'git_workflow', 'dependency_management']
+    advisor: ['analysis', 'recommendations', 'strategic_planning', 'consultation']
   };
 
   /**
@@ -49,29 +45,15 @@ export class AgentFactory {  private static readonly DEFAULT_CAPABILITIES = {
       aiEnabled: factoryConfig.aiEnabled ?? true
     };
 
-    let agent: ISpecializedAgent;    switch (factoryConfig.type) {
+    let agent: ISpecializedAgent;
+
+    switch (factoryConfig.type) {
       case 'office':
         agent = new OfficeAgent(agentConfig);
         break;
       case 'fitness':
         agent = new FitnessAgent(agentConfig);
-        break;
-      case 'triage':
-        agent = new TriageAgent(agentConfig);
-        break;
-      case 'development':
-        agent = new DevAgent(agentConfig);
-        break;
-      case 'enhanced-development':
-        agent = new EnhancedDevAgent(agentConfig);
-        break;
-      case 'general':
-      case 'coach':
-      case 'advisor':
-        // For now, these use a placeholder implementation
-        // TODO: Implement GeneralAgent, CoachAgent, AdvisorAgent
-        throw new Error(`Agent type '${factoryConfig.type}' not yet implemented`);
-      default:
+        break;    default:
         throw new Error(`Unknown agent type: ${factoryConfig.type}`);
     }
 

@@ -1,0 +1,49 @@
+# T-A-G Framework (Task-Action-Goal)
+# Systematic prompting framework for task-oriented workflows
+
+name: "T-A-G Framework"
+type: "task_oriented"
+version: "1.0.0"
+description: "Systematic approach for task analysis, action planning, and goal alignment"
+
+structure:
+  T_task:
+    purpose: "Clear task identification and analysis"
+    questions:
+      - "What specific task needs to be accomplished?"
+      - "What are the key requirements and constraints?"
+      - "What information is available and what is missing?"
+    validation: "Ensure task clarity and completeness"
+    
+  A_action:
+    purpose: "Strategic action planning and execution"
+    questions:
+      - "What specific actions will accomplish this task?"
+      - "What is the optimal sequence of steps?"
+      - "What resources and tools are required?"
+    validation: "Confirm action feasibility and efficiency"
+    
+  G_goal:
+    purpose: "Goal alignment and success measurement"
+    questions:
+      - "How does this align with broader objectives?"
+      - "What defines successful completion?"
+      - "How will results be measured and validated?"
+    validation: "Verify goal alignment and success criteria"
+
+application_contexts:
+  - "office_productivity"
+  - "task_management"
+  - "workflow_optimization"
+  - "project_coordination"
+
+quality_standards:
+  clarity: "Each phase must be clearly defined and actionable"
+  alignment: "Actions must directly serve goal achievement"
+  efficiency: "Optimal resource utilization and time management"
+  measurability: "Clear success criteria and progress indicators"
+
+integration:
+  constitutional_ai: true
+  bmad_enhancement: false
+  quality_validation: true

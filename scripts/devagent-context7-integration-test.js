@@ -23,13 +23,14 @@ async function testDevAgentEnhancedContext7Integration() {
 
   try {
     // Phase 1: DevAgent Base Performance
-    console.log('📊 Phase 1: DevAgent Base Performance Assessment');
-    const devAgentConfig = {
+    console.log('📊 Phase 1: DevAgent Base Performance Assessment');    const devAgentConfig = {
       id: 'test-devagent',
       name: 'Test DevAgent',
       description: 'Testing DevAgent performance',
       userId: 'test-user',
-      capabilities: ['code_analysis', 'documentation', 'testing']
+      capabilities: ['code_analysis', 'documentation', 'testing'],
+      memoryEnabled: true,
+      aiEnabled: true
     };
 
     const devAgent = new DevAgent(devAgentConfig);

@@ -1,14 +1,36 @@
-# OneAgent Tests
+# OneAgent Test Suite
 
-This directory contains all test files for the OneAgent project.
+This directory contains all test files and verification scripts for OneAgent.
 
-## 🧪 Test Files
+## Structure
 
-### API Integration Tests
+- **Unit Tests**: Component-level testing
+- **Integration Tests**: System integration validation  
+- **MCP Tests**: MCP server and tool testing
+- **Performance Tests**: Performance benchmarking
+- **Verification Scripts**: System verification and health checks
+
+## Test Files
+
+### Core System Tests
+- `test_all_oneagent_features.js` - Comprehensive feature testing
+- `test_mcp_connection.js` - MCP server connection tests
+- `test_new_mcp_tools.js` - New MCP tools validation
+- `test-mcp-copilot-server.ts` - MCP Copilot server testing
+
+### Web and API Tests
+- `test_webfetch_tool.js` - Web fetch tool testing
+- `test_webfetch_compiled.js` - Compiled web fetch validation
+- `test-chat-api.js` - Chat API integration tests
+- `webfetch_verification.js` - Web fetch verification
 - **`test-real-api.ts`** - Comprehensive API integration test with real Google AI Studio API key
 - **`test-api-key.ts`** - Validates Google API key format and basic functionality
 
-### Component Tests  
+### Debug and Development
+- `debug_test.js` - Debug utilities and testing
+- `simple_test.js` - Simple system validation
+
+### Component Tests
 - **`test-import.ts`** - Tests module imports and basic instantiation
 - **`test-gemini.ts`** - Specific Gemini client testing
 
