@@ -9,6 +9,7 @@ import { ISpecializedAgent } from './ISpecializedAgent';
 import { AgentConfig } from './BaseAgent';
 import { OfficeAgent } from '../specialized/OfficeAgent';
 import { FitnessAgent } from '../specialized/FitnessAgent';
+import { DevAgent } from '../specialized/DevAgent';
 
 export type AgentType = 'enhanced-development' | 'development' | 'office' | 'fitness' | 'general' | 'coach' | 'advisor';
 
@@ -45,15 +46,29 @@ export class AgentFactory {  private static readonly DEFAULT_CAPABILITIES = {
       aiEnabled: factoryConfig.aiEnabled ?? true
     };
 
-    let agent: ISpecializedAgent;
-
-    switch (factoryConfig.type) {
+    let agent: ISpecializedAgent;    switch (factoryConfig.type) {
+      case 'enhanced-development':
+        // Enhanced development agent with Revolutionary Prompt Engineering
+        agent = new DevAgent({
+          ...agentConfig,
+          capabilities: [
+            ...agentConfig.capabilities,
+            'revolutionary_prompting',
+            'constitutional_ai',
+            'bmad_elicitation',
+            'quality_validation'
+          ]
+        });
+        break;
+      case 'development':
+        agent = new DevAgent(agentConfig);
+        break;
       case 'office':
         agent = new OfficeAgent(agentConfig);
         break;
       case 'fitness':
         agent = new FitnessAgent(agentConfig);
-        break;    default:
+        break;default:
         throw new Error(`Unknown agent type: ${factoryConfig.type}`);
     }
 

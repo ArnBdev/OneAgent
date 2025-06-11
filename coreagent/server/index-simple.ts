@@ -25,7 +25,7 @@ app.use(express.json());
 
 // Mock configuration
 let systemConfig: any = {
-  GEMINI_API_KEY: process.env.GEMINI_API_KEY,
+  GOOGLE_API_KEY: process.env.GOOGLE_API_KEY || process.env.GEMINI_API_KEY,
   BRAVE_API_KEY: process.env.BRAVE_API_KEY,
   MEM0_API_KEY: process.env.MEM0_API_KEY,
   MEMORY_RETENTION_DAYS: 30,
@@ -356,7 +356,7 @@ app.get('/api/memory/analytics', async (_req, res) => {
 app.get('/api/config', (_req, res) => {
   const maskedConfig = {
     ...systemConfig,
-    GEMINI_API_KEY: systemConfig.GEMINI_API_KEY ? '***masked***' : undefined,
+    GOOGLE_API_KEY: systemConfig.GOOGLE_API_KEY ? '***masked***' : undefined,
     BRAVE_API_KEY: systemConfig.BRAVE_API_KEY ? '***masked***' : undefined,
     MEM0_API_KEY: systemConfig.MEM0_API_KEY ? '***masked***' : undefined
   };
@@ -374,7 +374,7 @@ app.post('/api/config', (req, res) => {
     
     // Update configuration (excluding API keys in this mock)
     Object.keys(updates).forEach(key => {
-      if (key !== 'GEMINI_API_KEY' && key !== 'BRAVE_API_KEY' && key !== 'MEM0_API_KEY') {
+      if (key !== 'GOOGLE_API_KEY' && key !== 'BRAVE_API_KEY' && key !== 'MEM0_API_KEY') {
         (systemConfig as any)[key] = updates[key];
       }
     });

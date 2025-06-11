@@ -9,6 +9,7 @@
  */
 
 import { EnhancedPromptConfig, ConstitutionalPrinciple, QualityValidation } from './EnhancedPromptEngine';
+import { getTimeContextString } from '../../utils/timeContext';
 
 export interface ValidationResult {
   isValid: boolean;
@@ -56,7 +57,6 @@ export class ConstitutionalAI {
     this.principles = config.principles;
     this.qualityThreshold = config.qualityThreshold;
   }
-
   /**
    * Validate response against all constitutional principles
    */
@@ -69,15 +69,19 @@ export class ConstitutionalAI {
     const violations: Violation[] = [];
     let totalScore = 100;
 
+    // Add time context for accuracy validation
+    const timeContext = getTimeContextString();
+    const enhancedContext = { ...context, timeContext };
+
     // Validate against each constitutional principle
     for (const principle of this.principles) {
-      const violation = await this.checkPrincipleCompliance(response, principle, userMessage, context);
+      const violation = await this.checkPrincipleCompliance(response, principle, userMessage, enhancedContext);
       
       if (violation) {
         violations.push(violation);
         totalScore -= this.calculatePenalty(violation.severity);
       }
-    }    // Generate improvement suggestions
+    }// Generate improvement suggestions
     const suggestions = violations.map(v => v.suggestion);
 
     // Generate refined response if violations exist
@@ -203,7 +207,6 @@ Response:`;
         return this.checkGenericPrinciple(response, principle);
     }
   }
-
   private checkAccuracyPrinciple(response: string, principle: ConstitutionalPrinciple): Violation | null {
     // Check for speculation without uncertainty acknowledgment
     const speculationPatterns = [
@@ -223,6 +226,15 @@ Response:`;
 
     const hasSpeculation = speculationPatterns.some(pattern => pattern.test(response));
 
+    // Check for obvious date/time errors (simplified patterns)
+    const dateErrorPatterns = [
+      /december 2024/i,
+      /dec 2024/i,
+      /2024.*december/i
+    ];
+
+    const hasDateError = dateErrorPatterns.some(pattern => pattern.test(response));
+
     if (hasSpeculation && !hasUncertaintyMarkers) {
       return {
         principleId: principle.id,
@@ -230,6 +242,16 @@ Response:`;
         severity: principle.severityLevel,
         description: 'Response contains speculation without proper uncertainty acknowledgment',
         suggestion: 'Add uncertainty markers like "according to" or "I\'m not certain" when making claims without clear evidence'
+      };
+    }
+
+    if (hasDateError) {
+      return {
+        principleId: principle.id,
+        principleName: principle.name,
+        severity: 'high' as const,
+        description: 'Response contains outdated date references that may be inaccurate',
+        suggestion: 'Use current date context to ensure temporal accuracy'
       };
     }
 

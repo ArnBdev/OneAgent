@@ -305,7 +305,7 @@ const metrics = {
 ```bash
 # Production environment variables
 OPENAI_API_KEY=your_openai_key
-GEMINI_API_KEY=your_gemini_key
+GOOGLE_API_KEY=your_google_gemini_key
 MCP_PORT=8083
 NODE_ENV=production
 QUALITY_THRESHOLD=85

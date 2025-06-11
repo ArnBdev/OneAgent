@@ -40,13 +40,12 @@ const ConfigPanel: React.FC = () => {
       title: 'API Keys',
       description: 'Configure API keys for external services',
       icon: Key,
-      settings: [
-        {
-          key: 'GEMINI_API_KEY',
-          label: 'Gemini API Key',
+      settings: [        {
+          key: 'GOOGLE_API_KEY',
+          label: 'Google AI API Key',
           type: 'password',
-          value: localConfig.GEMINI_API_KEY || '',
-          description: 'API key for Google Gemini AI services',
+          value: localConfig.GOOGLE_API_KEY || '',
+          description: 'API key for Google AI/Gemini services',
           required: true
         },
         {

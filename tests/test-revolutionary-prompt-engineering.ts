@@ -26,7 +26,14 @@ interface TestResult {
 const results: TestResult[] = [];
 
 function logTest(name: string, passed: boolean, error?: string, data?: any, performance?: any) {
-  results.push({ name, passed, error, data, performance });
+  const result: TestResult = { 
+    name, 
+    passed, 
+    ...(error !== undefined && { error }),
+    ...(data !== undefined && { data }),
+    ...(performance !== undefined && { performance })
+  };
+  results.push(result);
   const status = passed ? '✅' : '❌';
   const perfInfo = performance ? ` (${performance.duration}ms${performance.qualityScore ? `, Quality: ${performance.qualityScore}` : ''})` : '';
   console.log(`${status} ${name}${error ? ` - ${error}` : ''}${perfInfo}`);

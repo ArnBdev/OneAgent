@@ -82,7 +82,7 @@ export interface MemoryAnalytics {
 
 // Configuration interface
 export interface SystemConfig {
-  GEMINI_API_KEY?: string;
+  GOOGLE_API_KEY?: string;
   BRAVE_API_KEY?: string;
   MEM0_API_KEY?: string;
   MEMORY_RETENTION_DAYS: number;

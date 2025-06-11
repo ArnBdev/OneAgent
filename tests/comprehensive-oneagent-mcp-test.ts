@@ -190,9 +190,8 @@ class ComprehensiveOneAgentTest {
    */
   async testGeminiEmbeddingsIntegration(): Promise<any> {
     // Create proper client instances for GeminiEmbeddingsTool
-    const { GeminiClient } = await import('../coreagent/tools/geminiClient');
-    const geminiClient = new GeminiClient({
-      apiKey: process.env.GOOGLE_GEMINI_API_KEY || 'mock_key'
+    const { GeminiClient } = await import('../coreagent/tools/geminiClient');    const geminiClient = new GeminiClient({
+      apiKey: process.env.GOOGLE_API_KEY || process.env.GEMINI_API_KEY || 'mock_key'
     });
     
     const mem0Client = new Mem0Client({
@@ -259,10 +258,8 @@ class ComprehensiveOneAgentTest {
     const response = await axios.get(`${ONEAGENT_API_BASE}/config`);
     if (response.status !== 200 || !response.data.success) {
       throw new Error(`Configuration retrieval failed: ${response.data.error || 'Unknown error'}`);
-    }
-
-    return {
-      hasGeminiKey: !!response.data.data.GEMINI_API_KEY,
+    }    return {
+      hasGoogleApiKey: !!response.data.data.GOOGLE_API_KEY,
       hasBraveKey: !!response.data.data.BRAVE_API_KEY,
       hasMem0Key: !!response.data.data.MEM0_API_KEY,
       memoryRetentionDays: response.data.data.MEMORY_RETENTION_DAYS,

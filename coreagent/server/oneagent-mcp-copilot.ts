@@ -24,6 +24,11 @@ import { AIAssistantTool } from '../tools/aiAssistant';
 import { GeminiEmbeddingsTool } from '../tools/geminiEmbeddings';
 import { Mem0Client } from '../tools/mem0Client';
 
+// Import OneAgent Monitoring and Error Handling
+import { ErrorMonitoringService } from '../monitoring/ErrorMonitoringService';
+import { TriageAgent } from '../agents/specialized/TriageAgent';
+import { SimpleAuditLogger } from '../audit/auditLogger';
+
 const app = express();
 app.use(express.json());
 
@@ -78,18 +83,167 @@ const webSearchTool = new WebSearchTool(braveSearchClient);
 const webFetchTool = new WebFetchTool();
 
 const geminiConfig = {
-  apiKey: process.env.GEMINI_API_KEY || 'your_gemini_api_key_here',
+  apiKey: process.env.GOOGLE_API_KEY || process.env.GEMINI_API_KEY || 'your_google_gemini_api_key_here',
   ...(process.env.GEMINI_API_URL && { baseUrl: process.env.GEMINI_API_URL })
 };
 const geminiClient = new GeminiClient(geminiConfig);
 const aiAssistantTool = new AIAssistantTool(geminiClient);
 const embeddingsTool = new GeminiEmbeddingsTool(geminiClient, mem0Client);
 
+// Initialize OneAgent Error Monitoring and Recovery System
+const auditLogger = new SimpleAuditLogger({
+  logDirectory: 'logs/mcp-server',
+  enableConsoleOutput: true,
+  bufferSize: 50,
+  flushInterval: 3000
+});
+
+const triageAgent = new TriageAgent({
+  id: 'mcp-triage-agent',
+  name: 'MCP Server Triage Agent',
+  description: 'Automatic error recovery and system health monitoring for MCP server',
+  capabilities: ['task_routing', 'error_recovery', 'agent_health_monitoring'],
+  memoryEnabled: false,
+  aiEnabled: false
+});
+
+const errorMonitoringService = new ErrorMonitoringService(
+  constitutionalAI,
+  auditLogger,
+  triageAgent
+);
+
 // Session management for MCP
 const sessions = new Map<string, { id: string; createdAt: Date; lastActivity: Date }>();
 
 /**
- * Main MCP endpoint - handles all MCP requests
+ * Test memory system health and connection status with enhanced error monitoring
+ * Includes TriageAgent memory validation for complete transparency
+ */
+async function testMemorySystemHealth() {
+  try {
+    // Get comprehensive memory validation from TriageAgent using public method
+    const memoryValidation = triageAgent.getMemoryValidationResults();
+    
+    // Attempt to test memory connection
+    const testResult = await mem0Client.searchMemories({
+      userId: 'system_health_test',
+      query: 'test',
+      limit: 1
+    });
+
+    // Build comprehensive status with transparency data
+    const baseStatus = {
+      port: 8000,
+      basicConnection: testResult.success,
+      validation: memoryValidation ? {
+        systemType: memoryValidation.systemType.type,
+        isReal: memoryValidation.systemType.isReal,
+        hasPersistence: memoryValidation.systemType.hasPersistence,
+        hasEmbeddings: memoryValidation.systemType.hasEmbeddings,
+        capabilities: memoryValidation.systemType.capabilities,
+        dataQuality: memoryValidation.dataQuality,
+        connectionStatus: memoryValidation.connectionStatus,
+        userImpact: memoryValidation.userImpact,
+        transparency: {
+          isDeceptive: memoryValidation.transparency.isDeceptive,
+          actualCapabilities: memoryValidation.transparency.actualCapabilities,
+          reportedCapabilities: memoryValidation.transparency.reportedCapabilities
+        },
+        lastValidated: new Date().toISOString()
+      } : null
+    };
+
+    if (testResult.success) {
+      // Check for deceptive mock systems
+      if (memoryValidation?.transparency.isDeceptive) {
+        await errorMonitoringService.reportError(
+          new Error('Memory system deception detected - mock system reporting as real'),
+          {
+            agentId: 'mcp-server',
+            taskType: 'transparency_check',
+            severity: 'high',
+            metadata: { validation: memoryValidation }
+          }
+        );
+        
+        return {
+          ...baseStatus,
+          status: 'mock_deception_detected',
+          connectionStatus: 'mock_fallback',
+          performance: 'degraded',
+          issue: 'Mock memory system detected masquerading as real system',
+          transparency: {
+            warning: 'DECEPTIVE MOCK SYSTEM DETECTED',
+            actualType: memoryValidation.systemType.type,
+            reported: memoryValidation.transparency.reportedCapabilities,
+            actual: memoryValidation.transparency.actualCapabilities
+          }
+        };
+      }
+
+      // Determine status based on validation
+      if (memoryValidation?.systemType.type === 'MockMemory') {
+        return {
+          ...baseStatus,
+          status: 'mock_transparent',
+          connectionStatus: 'mock_fallback',
+          performance: 'mock',
+          note: 'Using transparent mock memory system - data will not persist'
+        };
+      }
+
+      return {
+        ...baseStatus,
+        status: 'active',
+        connectionStatus: 'connected',
+        performance: memoryValidation?.systemType.isReal ? 'optimal' : 'degraded'
+      };
+    } else {
+      // Report memory system degradation to error monitoring
+      await errorMonitoringService.reportError(
+        new Error('Memory system returning unsuccessful results'),
+        {
+          agentId: 'mcp-server',
+          taskType: 'health_check',
+          severity: 'medium',
+          metadata: { testResult, validation: memoryValidation }
+        }
+      );
+      
+      return {
+        ...baseStatus,
+        status: 'active_with_fallback',
+        connectionStatus: 'degraded',
+        issue: 'Memory queries failing, using fallback mechanisms',
+        performance: 'degraded'
+      };
+    }
+  } catch (error) {
+    // Report memory system error to error monitoring
+    await errorMonitoringService.reportError(
+      error instanceof Error ? error : new Error('Unknown memory system error'),
+      {
+        agentId: 'mcp-server',
+        taskType: 'health_check',
+        severity: 'high',
+        metadata: { operation: 'memory_health_test' }
+      }
+    );
+    
+    return {
+      status: 'fallback',
+      connectionStatus: 'disconnected',
+      port: 8000,
+      issue: error instanceof Error ? error.message : 'Unknown error',
+      performance: 'degraded',
+      validation: null
+    };
+  }
+}
+
+/**
+ * Main MCP endpoint - handles all MCP requests with error monitoring
  */
 app.post('/mcp', async (req, res) => {
   try {
@@ -114,7 +268,26 @@ app.post('/mcp', async (req, res) => {
     return res.status(202).send();
   } catch (error) {
     console.error('MCP request processing error:', error);
-    return res.status(500).json({ error: 'Internal server error' });
+    
+    // Report MCP processing error to error monitoring service
+    await errorMonitoringService.reportError(
+      error instanceof Error ? error : new Error('Unknown MCP processing error'),
+      {
+        agentId: 'mcp-server',
+        taskType: 'mcp_request_processing',
+        severity: 'high',
+        metadata: { 
+          requestBody: req.body,
+          headers: req.headers,
+          url: req.url 
+        }
+      }
+    );
+    
+    return res.status(500).json({ 
+      error: 'Internal server error',
+      message: 'Request processing failed with error monitoring active'
+    });
   }
 });
 
@@ -225,15 +398,15 @@ async function processMcpMethod(message: any) {
             },
             {
               name: 'oneagent_semantic_analysis',
-              description: 'Advanced semantic analysis with embeddings',
-              inputSchema: {
+              description: 'Advanced semantic analysis with embeddings',              inputSchema: {
                 type: 'object',
                 properties: {
                   text: { type: 'string', description: 'Text for semantic analysis' },
                   analysisType: { type: 'string', enum: ['similarity', 'classification', 'clustering'], description: 'Type of semantic analysis' }
                 },
                 required: ['text']
-              }            },
+              }
+            },
             {
               name: 'oneagent_system_health',
               description: 'Get comprehensive OneAgent system health and performance metrics',
@@ -577,8 +750,17 @@ async function handleToolCall(params: any, id: any) {
           }],
           isError: false
         });      case 'oneagent_semantic_analysis':
+        // Map analysis types to valid Google AI Studio API task types
+        const taskTypeMapping: Record<string, string> = {
+          'similarity': 'SEMANTIC_SIMILARITY',
+          'classification': 'CLASSIFICATION',
+          'clustering': 'CLUSTERING'
+        };
+        
+        const taskType = taskTypeMapping[args.analysisType?.toLowerCase()] || 'SEMANTIC_SIMILARITY';
+        
         const embedding = await geminiClient.generateEmbedding(args.text, {
-          taskType: args.analysisType?.toUpperCase() || 'SEMANTIC_SIMILARITY'
+          taskType: taskType as any
         });
 
         return createJsonRpcResponse(id, {
@@ -593,13 +775,15 @@ async function handleToolCall(params: any, id: any) {
                 vectorSpace: '768-dimensional',
                 model: 'text-embedding-004',
                 capabilities: ['similarity', 'classification', 'clustering']
-              }
-            }, null, 2)
+              }            }, null, 2)
           }],
           isError: false
         });
-
+        
       case 'oneagent_system_health':
+        // Test memory system connection status
+        const memoryStatus = await testMemorySystemHealth();
+        
         return createJsonRpcResponse(id, {
           content: [{
             type: 'text',
@@ -609,7 +793,7 @@ async function handleToolCall(params: any, id: any) {
               components: {
                 constitutionalAI: { status: 'active', principles: constitutionalPrinciples.length },
                 bmadFramework: { status: 'active', version: '1.0' },
-                memorySystem: { status: 'active', type: 'Mem0Local' },
+                memorySystem: memoryStatus,
                 aiAssistant: { status: 'active', provider: 'Gemini' },
                 webSearch: { status: 'active', provider: 'Brave' },
                 semanticSearch: { status: 'active', dimensions: 768 }
@@ -619,7 +803,8 @@ async function handleToolCall(params: any, id: any) {
                 averageLatency: Math.floor(Math.random() * 100) + 50,
                 errorRate: Math.random() * 0.01,
                 qualityScore: 85 + Math.random() * 10
-              },              capabilities: [
+              },
+              capabilities: [
                 'Constitutional AI Validation',
                 'BMAD Framework Analysis',
                 'Quality Scoring',
@@ -629,10 +814,11 @@ async function handleToolCall(params: any, id: any) {
                 'Web Content Fetching',
                 'Semantic Analysis'
               ]
-            }, null, 2)
-          }],
+            }, null, 2)          }],
           isError: false
-        });      // Memory Management Tools
+        });
+        
+        // Memory Management Tools
       case 'oneagent_memory_create':
         const createResult = await mem0Client.createMemory(
           args.content,

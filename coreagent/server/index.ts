@@ -31,7 +31,7 @@ app.use(express.static(path.join(__dirname, '../../ui/dist')));
 
 // Initialize services
 const geminiClient = new GeminiClient({
-  apiKey: process.env.GEMINI_API_KEY || '',
+  apiKey: process.env.GOOGLE_API_KEY || process.env.GEMINI_API_KEY || '',
   model: 'gemini-2.5-pro-preview-05-06'
 });
 const mem0Client = new Mem0Client();
@@ -47,7 +47,7 @@ const performanceAPI = new PerformanceAPI(
 
 // Configuration management
 interface SystemConfig {
-  GEMINI_API_KEY?: string;
+  GOOGLE_API_KEY?: string;
   BRAVE_API_KEY?: string;
   MEM0_API_KEY?: string;
   MEMORY_RETENTION_DAYS: number;
@@ -87,8 +87,9 @@ let systemConfig: SystemConfig = {
 };
 
 // Add API keys if available
-if (process.env.GEMINI_API_KEY) {
-  systemConfig.GEMINI_API_KEY = process.env.GEMINI_API_KEY;
+const googleApiKey = process.env.GOOGLE_API_KEY || process.env.GEMINI_API_KEY;
+if (googleApiKey) {
+  systemConfig.GOOGLE_API_KEY = googleApiKey;
 }
 if (process.env.BRAVE_API_KEY) {
   systemConfig.BRAVE_API_KEY = process.env.BRAVE_API_KEY;
@@ -302,7 +303,7 @@ app.get('/api/memories/:id/similar', async (req, res) => {
 app.get('/api/config', (_req, res) => {
   // Don't send sensitive data like API keys
   const safeConfig = { ...systemConfig };
-  if (safeConfig.GEMINI_API_KEY) safeConfig.GEMINI_API_KEY = '***';
+  if (safeConfig.GOOGLE_API_KEY) safeConfig.GOOGLE_API_KEY = '***';
   if (safeConfig.BRAVE_API_KEY) safeConfig.BRAVE_API_KEY = '***';
   if (safeConfig.MEM0_API_KEY) safeConfig.MEM0_API_KEY = '***';
   
@@ -321,8 +322,10 @@ app.put('/api/config', (req, res) => {
     systemConfig = { ...systemConfig, ...updates };
     
     // Update environment variables for API keys
-    if (updates.GEMINI_API_KEY && updates.GEMINI_API_KEY !== '***') {
-      process.env.GEMINI_API_KEY = updates.GEMINI_API_KEY;
+    if (updates.GOOGLE_API_KEY && updates.GOOGLE_API_KEY !== '***') {
+      process.env.GOOGLE_API_KEY = updates.GOOGLE_API_KEY;
+      // Also update legacy env var for backward compatibility
+      process.env.GEMINI_API_KEY = updates.GOOGLE_API_KEY;
     }
     if (updates.BRAVE_API_KEY && updates.BRAVE_API_KEY !== '***') {
       process.env.BRAVE_API_KEY = updates.BRAVE_API_KEY;

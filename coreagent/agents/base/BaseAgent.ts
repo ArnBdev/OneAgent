@@ -93,12 +93,10 @@ export abstract class BaseAgent {
           deploymentType: 'local',
           preferLocal: true
         });
-      }
-
-      // Initialize AI client if enabled
+      }      // Initialize AI client if enabled
       if (this.config.aiEnabled) {
         this.aiClient = new GeminiClient({
-          apiKey: process.env.GOOGLE_GEMINI_API_KEY || 'your_google_gemini_api_key_here',
+          apiKey: process.env.GOOGLE_API_KEY || process.env.GEMINI_API_KEY || 'your_google_gemini_api_key_here',
           model: 'gemini-2.5-pro-preview-05-06'
         });
       }

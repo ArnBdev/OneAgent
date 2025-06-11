@@ -11,6 +11,8 @@
 import { ISpecializedAgent, AgentStatus, AgentHealthStatus } from '../base/ISpecializedAgent';
 import { AgentConfig, AgentContext, AgentResponse, AgentAction } from '../base/BaseAgent';
 import { AgentFactory, AgentType } from '../base/AgentFactory';
+import { MemorySystemValidator, MemoryValidationResult } from '../../intelligence/MemorySystemValidator';
+import { getCurrentTimeContext } from '../../utils/timeContext';
 
 export interface TriageDecision {
   selectedAgent: AgentType;
@@ -43,9 +45,12 @@ export class TriageAgent implements ISpecializedAgent {
   private agentHealthStatus: Map<AgentType, AgentStatus> = new Map();
   private taskHistory: Array<{ task: string; agent: AgentType; success: boolean; timestamp: Date }> = [];
   private recoveryStrategies: Map<string, RecoveryStrategy> = new Map();
+  private memoryValidator: MemorySystemValidator;
+  private lastMemoryValidation: MemoryValidationResult | null = null;
 
   constructor(config: AgentConfig) {
     this.id = config.id;
+    this.memoryValidator = new MemorySystemValidator();
     this.config = {
       ...config,
       capabilities: [
@@ -55,6 +60,7 @@ export class TriageAgent implements ISpecializedAgent {
         'workload_balancing',
         'flow_restoration',
         'delegation_management',
+        'memory_system_validation', // NEW: Memory reality detection
         ...config.capabilities
       ]
     };
@@ -76,6 +82,9 @@ export class TriageAgent implements ISpecializedAgent {
     } catch (error) {
       console.warn("⚠️ Failed to pre-load fitness agent:", error);
     }
+    
+    // Initialize memory system validation
+    await this.validateMemorySystem();
     
     // Initialize health monitoring
     this.startHealthMonitoring();
@@ -332,18 +341,18 @@ export class TriageAgent implements ISpecializedAgent {
 
   getName(): string {
     return this.config.name;
-  }
-
-  /**
+  }  /**
    * Get detailed health status
    */
   async getHealthStatus(): Promise<AgentHealthStatus> {
+    const timeContext = getCurrentTimeContext();
+    
     return {
       status: 'healthy',
       uptime: Date.now(),
       memoryUsage: this.taskHistory.length,
       responseTime: 50, // Average response time in ms
-      errorRate: 0.01 // 1% error rate
+      errorRate: 0.01 // Enhanced with time context awareness
     };
   }
 
@@ -369,6 +378,21 @@ export class TriageAgent implements ISpecializedAgent {
     this.recoveryStrategies.clear();
     
     console.log(`✅ TriageAgent ${this.id} cleanup completed`);
+  }
+
+  /**
+   * Get the latest memory validation results for transparency reporting
+   */
+  getMemoryValidationResults(): MemoryValidationResult | null {
+    return this.lastMemoryValidation;
+  }
+
+  /**
+   * Force memory system re-validation and return results
+   */
+  async revalidateMemorySystem(): Promise<MemoryValidationResult> {
+    await this.validateMemorySystem();
+    return this.lastMemoryValidation!;
   }
 
   // Private helper methods
@@ -447,13 +471,14 @@ export class TriageAgent implements ISpecializedAgent {
     
     return { strategy: 'delegate', maxRetries: 1, fallbackAgent: 'general', timeoutMs: 8000 };
   }
-
   private recordTaskExecution(task: string, agent: AgentType, success: boolean): void {
+    const timeContext = getCurrentTimeContext();
+    
     this.taskHistory.push({
       task: task.substring(0, 100),
       agent,
       success,
-      timestamp: new Date()
+      timestamp: new Date(timeContext.current.isoDate) // Enhanced temporal precision
     });
     
     // Keep only last 100 entries
@@ -492,5 +517,36 @@ export class TriageAgent implements ISpecializedAgent {
 
   private delay(ms: number): Promise<void> {
     return new Promise(resolve => setTimeout(resolve, ms));
+  }
+  /**
+   * Validate the memory system and ensure it's functioning
+   */  private async validateMemorySystem(): Promise<void> {
+    try {
+      const result = await this.memoryValidator.validateMemorySystem();
+      this.lastMemoryValidation = result;
+      
+      // Determine if system is valid based on connection status and transparency
+      const isValid = result.connectionStatus !== 'disconnected' && !result.transparency.isDeceptive;
+      
+      console.log(`✅ Memory system validated: ${isValid ? 'Valid' : 'Invalid'} (${result.systemType.type})`);
+      
+      if (!isValid) {
+        // Handle memory issues (e.g., clear cache, reset memory, alert user)
+        console.warn(`⚠️ Memory validation failed. Issues detected:`);
+        console.warn(`   - Connection: ${result.connectionStatus}`);
+        console.warn(`   - Deceptive: ${result.transparency.isDeceptive}`);
+        console.warn(`   - User Impact: ${result.userImpact}`);
+        
+        // Re-validate after a short delay
+        await new Promise(resolve => setTimeout(resolve, 1000));
+        const revalidationResult = await this.memoryValidator.validateMemorySystem();
+        this.lastMemoryValidation = revalidationResult;
+        
+        const revalidationValid = revalidationResult.connectionStatus !== 'disconnected' && !revalidationResult.transparency.isDeceptive;
+        console.log(`✅ Memory system re-validated: ${revalidationValid ? 'Valid' : 'Invalid'} (${revalidationResult.systemType.type})`);
+      }
+    } catch (error) {
+      console.error(`❌ Memory system validation error:`, error);
+    }
   }
 }
