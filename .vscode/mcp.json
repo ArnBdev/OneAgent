@@ -1,0 +1,11 @@
+{
+  "servers": {
+    "oneAgent": {
+      "type": "http",
+      "url": "http://localhost:8083/mcp",
+      "headers": {
+        "Content-Type": "application/json"
+      }
+    }
+  }
+}
