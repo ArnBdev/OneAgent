@@ -132,8 +132,9 @@ const sessions = new Map<string, { id: string; createdAt: Date; lastActivity: Da
  */
 async function testMemorySystemHealth() {
   try {
-    // Get comprehensive memory validation from TriageAgent using public method
-    const memoryValidation = triageAgent.getMemoryValidationResults();
+    // IMPLEMENTATION: Real-time memory validation (Phase 2A Priority #1)
+    // Force real-time memory system validation through TriageAgent
+    const memoryValidation = await triageAgent.revalidateMemorySystem();
     
     // Attempt to test memory connection
     const testResult = await mem0Client.searchMemories({

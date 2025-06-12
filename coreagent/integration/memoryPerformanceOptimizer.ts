@@ -10,7 +10,7 @@
 
 import { MemoryBridge } from './memoryBridge';
 import { Mem0Client } from '../tools/mem0Client';
-import { SimpleAuditLogger } from '../tools/auditLogger';
+import { SimpleAuditLogger } from '../audit/auditLogger';
 
 export interface PerformanceOptimizationConfig {
   // Cache optimizations
@@ -105,7 +105,7 @@ export class MemoryPerformanceOptimizer {
       appliedOptimizations.push('Enhanced caching configuration');      await this.auditLogger.logInfo(
         'MEMORY_OPTIMIZATION',
         `Applied performance optimizations to memory bridge at ${new Date().toISOString()}`,
-        'MemoryPerformanceOptimizer'
+        { source: 'MemoryPerformanceOptimizer' }
       );
 
       return {
@@ -117,11 +117,10 @@ export class MemoryPerformanceOptimizer {
           errorRate: '-50% (optimized connection pooling)',
           systemStability: '+40% (reduced monitoring overhead)'
         }
-      };    } catch (error) {
-      await this.auditLogger.logError(
+      };    } catch (error) {      await this.auditLogger.logError(
         'MEMORY_OPTIMIZATION',
         `Failed to optimize memory bridge: ${error instanceof Error ? error.message : 'Unknown error'} at ${new Date().toISOString()}`,
-        'MemoryPerformanceOptimizer'
+        { source: 'MemoryPerformanceOptimizer' }
       );
 
       return {
@@ -133,20 +132,19 @@ export class MemoryPerformanceOptimizer {
   }
   /**
    * Optimize Mem0Client with connection pooling and timeouts
-   */
-  async optimizeMem0Client(mem0Client: Mem0Client): Promise<{
+   */  async optimizeMem0Client(_mem0Client: Mem0Client): Promise<{
     success: boolean;
     optimizations: string[];
   }> {
     const appliedOptimizations: string[] = [];
-    
-    try {
+      try {
       // Note: This would require enhancing Mem0Client with configuration update methods
       // For now, we log the optimization intent
+      // mem0Client parameter reserved for future optimization implementation
       await this.auditLogger.logInfo(
         'MEMORY_OPTIMIZATION',
         `Mem0Client optimization recommended - timeout: ${this.config.connectionPooling.timeout}ms, maxConnections: ${this.config.connectionPooling.maxConnections} at ${new Date().toISOString()}`,
-        'MemoryPerformanceOptimizer'
+        { source: 'MemoryPerformanceOptimizer' }
       );
 
       appliedOptimizations.push('Connection pooling optimization planned');
@@ -156,11 +154,10 @@ export class MemoryPerformanceOptimizer {
         optimizations: appliedOptimizations
       };
 
-    } catch (error) {
-      await this.auditLogger.logError(
+    } catch (error) {      await this.auditLogger.logError(
         'MEMORY_OPTIMIZATION',
         `Failed to optimize Mem0Client: ${error instanceof Error ? error.message : 'Unknown error'} at ${new Date().toISOString()}`,
-        'MemoryPerformanceOptimizer'
+        { source: 'MemoryPerformanceOptimizer' }
       );
 
       return {
@@ -218,7 +215,7 @@ export class MemoryPerformanceOptimizer {
     };    await this.auditLogger.logInfo(
       'MEMORY_OPTIMIZATION',
       `Performance impact measurement completed - Cache hit rate: ${mockMetrics.cacheHitRate}%, Avg latency: ${mockMetrics.averageLatency}ms at ${new Date().toISOString()}`,
-      'MemoryPerformanceOptimizer'
+      { source: 'MemoryPerformanceOptimizer' }
     );
 
     return mockMetrics;

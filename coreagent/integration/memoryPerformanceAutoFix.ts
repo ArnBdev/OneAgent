@@ -1,7 +1,7 @@
 
 // Auto-apply memory performance optimizations
 import { MemorySystemPerformanceFix } from './memorySystemPerformanceFix';
-import { SimpleAuditLogger } from '../tools/auditLogger';
+import { SimpleAuditLogger } from '../audit/auditLogger';
 
 const auditLogger = new SimpleAuditLogger({
   logDirectory: 'logs/memory-performance',
