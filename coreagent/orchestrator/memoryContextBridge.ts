@@ -142,13 +142,12 @@ export class MemoryContextBridge implements IMemoryContextBridge {
           limit: searchLimit
         });
         
-        if (memoryResults.success && memoryResults.data) {
-          for (const memory of memoryResults.data) {
+        if (memoryResults.success && memoryResults.data) {        for (const memory of memoryResults.data) {
             results.push({
               type: 'memory',
               content: memory.content,
               relevanceScore: 0.5, // Default relevance score
-              timestamp: new Date(memory.createdAt),
+              timestamp: memory.createdAt ? new Date(memory.createdAt) : new Date(),
               context: memory.metadata || {},
               id: memory.id
             });
@@ -263,10 +262,9 @@ export class MemoryContextBridge implements IMemoryContextBridge {
         for (const memory of directResults.data) {
           memoryContexts.push({
             memoryId: memory.id,
-            content: memory.content,
-            relevanceScore: 0.5, // Default relevance score
+            content: memory.content,            relevanceScore: 0.5, // Default relevance score
             memoryType: this.determineMemoryType(memory.metadata),
-            timestamp: new Date(memory.createdAt),
+            timestamp: memory.createdAt ? new Date(memory.createdAt) : new Date(),
             metadata: memory.metadata || {}
           });
         }
@@ -289,12 +287,11 @@ export class MemoryContextBridge implements IMemoryContextBridge {
           for (const memory of contextResults.data) {
             // Avoid duplicates
             if (!memoryContexts.some(ctx => ctx.memoryId === memory.id)) {
-              memoryContexts.push({
-                memoryId: memory.id,
+              memoryContexts.push({                memoryId: memory.id,
                 content: memory.content,
                 relevanceScore: 0.4, // Slightly lower score for context matches
                 memoryType: this.determineMemoryType(memory.metadata),
-                timestamp: new Date(memory.createdAt),
+                timestamp: memory.createdAt ? new Date(memory.createdAt) : new Date(),
                 metadata: memory.metadata || {}
               });
             }

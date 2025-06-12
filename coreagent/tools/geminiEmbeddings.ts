@@ -233,16 +233,21 @@ export class GeminiEmbeddingsTool {
       }
 
       const referenceMemory = memoryResponse.data;
-      
-      // Use the memory content for semantic search
-      return this.semanticSearch(referenceMemory.content, {
+        // Use the memory content for semantic search
+      const searchFilter: any = {
         // Exclude the reference memory from results
         userId: referenceMemory.userId,
         agentId: referenceMemory.agentId,
         workflowId: options?.workflowId || referenceMemory.workflowId,
-        sessionId: options?.sessionId || referenceMemory.sessionId,
-        memoryType: options?.memoryType || referenceMemory.memoryType
-      }, options);
+        sessionId: options?.sessionId || referenceMemory.sessionId
+      };
+      
+      // Only add memoryType if it's defined
+      if (options?.memoryType || referenceMemory.memoryType) {
+        searchFilter.memoryType = options?.memoryType || referenceMemory.memoryType;
+      }
+      
+      return this.semanticSearch(referenceMemory.content, searchFilter, options);
 
     } catch (error) {
       console.error('❌ Failed to find similar memories:', error);

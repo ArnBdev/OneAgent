@@ -9,7 +9,7 @@
  * - Memory summarization
  */
 
-import { Mem0Client, Mem0Memory, Mem0SearchFilter } from '../tools/mem0Client';
+import { Mem0Client, Mem0Memory, Mem0SearchFilter, MemoryType } from '../tools/mem0Client';
 import { GeminiEmbeddingsTool, SemanticSearchResult } from '../tools/geminiEmbeddings';
 import { globalProfiler } from '../performance/profiler';
 import { EmbeddingResult } from '../types/gemini';
@@ -199,12 +199,10 @@ export class MemoryIntelligence {
     const operationId = `importance_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
     globalProfiler.startOperation(operationId, 'importance_calculation', {
       memoryId: memory.id
-    });
-
-    try {
+    });    try {
       const now = new Date();
-      const createdAt = new Date(memory.createdAt);
-      const updatedAt = new Date(memory.updatedAt);
+      const createdAt = memory.createdAt ? new Date(memory.createdAt) : now;
+      const updatedAt = memory.updatedAt ? new Date(memory.updatedAt) : now;
       
       // Recency score (0-100)
       const daysSinceCreated = (now.getTime() - createdAt.getTime()) / (1000 * 60 * 60 * 24);
@@ -259,14 +257,13 @@ export class MemoryIntelligence {
 
   /**
    * Semantic similarity search using embeddings
-   */
-  async findSimilarMemories(
+   */  async findSimilarMemories(
     queryText: string, 
     options: {
       topK?: number;
       similarityThreshold?: number;
       category?: string;
-      memoryType?: string;
+      memoryType?: MemoryType;
     } = {}
   ): Promise<SemanticSearchResult[]> {
     const operationId = `similarity_search_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
@@ -355,15 +352,14 @@ export class MemoryIntelligence {
           avgImportance: importanceScores
             .filter((_: MemoryImportanceScore, index: number) => categories[index] === category)
             .reduce((sum: number, score: MemoryImportanceScore) => sum + score.overall, 0) / Math.max(1, importanceScores.filter((_: MemoryImportanceScore, index: number) => categories[index] === category).length)
-        }))
-        .sort((a, b) => b.count - a.count)
+        }))        .sort((a, b) => b.count - a.count)
         .slice(0, 5);
 
       // Calculate growth rate (memories per day)
       const now = new Date();
       const oneWeekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
       const recentMemories = allMemories.filter((memory: Mem0Memory) => 
-        new Date(memory.createdAt) > oneWeekAgo
+        memory.createdAt ? new Date(memory.createdAt) > oneWeekAgo : false
       );
       const memoryGrowthRate = recentMemories.length / 7;
 

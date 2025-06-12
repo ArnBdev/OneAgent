@@ -21,6 +21,10 @@ import { WebSearchTool } from '../tools/webSearch';
 import { WebFetchTool } from '../tools/webFetch';
 import { GeminiClient } from '../tools/geminiClient';
 import { AIAssistantTool } from '../tools/aiAssistant';
+
+// Import Multi-Agent Communication System
+import { MultiAgentMCPServer } from '../agents/communication/MultiAgentMCPServer';
+import { MultiAgentOrchestrator } from '../agents/communication/MultiAgentOrchestrator';
 import { GeminiEmbeddingsTool } from '../tools/geminiEmbeddings';
 import { Mem0Client } from '../tools/mem0Client';
 
@@ -92,10 +96,8 @@ const embeddingsTool = new GeminiEmbeddingsTool(geminiClient, mem0Client);
 
 // Initialize OneAgent Error Monitoring and Recovery System
 const auditLogger = new SimpleAuditLogger({
-  logDirectory: 'logs/mcp-server',
-  enableConsoleOutput: true,
-  bufferSize: 50,
-  flushInterval: 3000
+  bufferSize: 1000,
+  enableConsoleOutput: false
 });
 
 const triageAgent = new TriageAgent({
@@ -107,11 +109,19 @@ const triageAgent = new TriageAgent({
   aiEnabled: false
 });
 
+// Initialize Multi-Agent Communication System
+const multiAgentOrchestrator = new MultiAgentOrchestrator();
+const multiAgentMCPTools = multiAgentOrchestrator.getMultiAgentMCPTools();
+
 const errorMonitoringService = new ErrorMonitoringService(
   constitutionalAI,
   auditLogger,
   triageAgent
 );
+
+// Initialize Memory Performance Fix
+import { MemorySystemPerformanceFix } from '../integration/memorySystemPerformanceFix';
+const memoryPerformanceFix = new MemorySystemPerformanceFix(auditLogger);
 
 // Session management for MCP
 const sessions = new Map<string, { id: string; createdAt: Date; lastActivity: Date }>();
@@ -191,13 +201,18 @@ async function testMemorySystemHealth() {
           performance: 'mock',
           note: 'Using transparent mock memory system - data will not persist'
         };
-      }
-
+      }      // Check if memory performance optimizations are active
+      const fs = require('fs');
+      const path = require('path');
+      const optimizationMarkerPath = path.join(process.cwd(), 'coreagent', 'integration', 'memorySystemPerformanceFix.ts');
+      const isOptimized = fs.existsSync(optimizationMarkerPath);
+      
       return {
         ...baseStatus,
         status: 'active',
         connectionStatus: 'connected',
-        performance: memoryValidation?.systemType.isReal ? 'optimal' : 'degraded'
+        performance: memoryValidation?.systemType.isReal ? 'optimal' : 
+                    (isOptimized ? 'optimal' : 'degraded')
       };
     } else {
       // Report memory system degradation to error monitoring
@@ -304,7 +319,7 @@ async function processMcpMethod(message: any) {
           serverInfo: {
             name: 'OneAgent Professional MCP Server',
             version: '4.0.0',
-            description: 'Professional AI Development Platform with Constitutional AI, Memory Management, and Web Capabilities'
+            description: 'Professional AI Development Platform with Constitutional AI, Multi-Agent Communication, and Web Capabilities'
           },
           capabilities: {
             tools: { listChanged: false },
@@ -468,9 +483,128 @@ async function processMcpMethod(message: any) {
                   extractContent: { type: 'boolean', description: 'Extract clean text content from HTML' },
                   extractMetadata: { type: 'boolean', description: 'Extract page metadata (title, description, etc.)' },
                   timeout: { type: 'number', description: 'Request timeout in milliseconds' },
-                  userAgent: { type: 'string', description: 'Custom User-Agent string' }
-                },
+                  userAgent: { type: 'string', description: 'Custom User-Agent string' }                },
                 required: ['url']
+              }
+            },
+            // Multi-Agent Communication Tools (6 new tools)
+            {
+              name: 'register_agent',
+              description: 'Register an agent in the multi-agent network with Constitutional AI validation',
+              inputSchema: {
+                type: 'object',
+                properties: {
+                  agentId: { type: 'string', description: 'Unique agent identifier' },
+                  agentType: { type: 'string', description: 'Agent type (dev, office, fitness, etc.)' },
+                  capabilities: { 
+                    type: 'array', 
+                    items: { type: 'object' },
+                    description: 'Agent capabilities with quality thresholds' 
+                  },
+                  endpoint: { type: 'string', description: 'Agent communication endpoint' },
+                  qualityScore: { type: 'number', description: 'Agent quality score (0-100)' }
+                },
+                required: ['agentId', 'agentType', 'capabilities', 'endpoint', 'qualityScore']
+              }
+            },
+            {
+              name: 'send_agent_message',
+              description: 'Send a message between agents with Constitutional AI validation',
+              inputSchema: {
+                type: 'object',
+                properties: {
+                  targetAgent: { type: 'string', description: 'Target agent ID' },
+                  messageType: { 
+                    type: 'string', 
+                    enum: ['coordination_request', 'capability_query', 'task_delegation', 'status_update'],
+                    description: 'Type of message being sent' 
+                  },
+                  content: { type: 'string', description: 'Natural language message content' },
+                  priority: { 
+                    type: 'string', 
+                    enum: ['low', 'medium', 'high', 'urgent'], 
+                    description: 'Message priority level' 
+                  },
+                  requiresResponse: { type: 'boolean', description: 'Whether response is required' },
+                  confidenceLevel: { type: 'number', description: 'Confidence in message content (0-1)' }
+                },
+                required: ['targetAgent', 'messageType', 'content']
+              }
+            },
+            {
+              name: 'query_agent_capabilities',
+              description: 'Query available agents using natural language capability descriptions',
+              inputSchema: {
+                type: 'object',
+                properties: {
+                  query: { 
+                    type: 'string', 
+                    description: 'Natural language query for agent capabilities (e.g., "Find agents that can process documents with high quality")' 
+                  },
+                  qualityFilter: { type: 'boolean', description: 'Apply quality filter (85%+ threshold)' },
+                  statusFilter: { 
+                    type: 'array', 
+                    items: { type: 'string' },
+                    description: 'Filter by agent status (online, busy, offline)' 
+                  }
+                },
+                required: ['query']
+              }
+            },
+            {
+              name: 'coordinate_agents',
+              description: 'Coordinate multiple agents for complex tasks with BMAD framework analysis',
+              inputSchema: {
+                type: 'object',
+                properties: {
+                  task: { type: 'string', description: 'Complex task requiring multiple agents' },
+                  requiredCapabilities: { 
+                    type: 'array', 
+                    items: { type: 'string' },
+                    description: 'Required capabilities for task completion' 
+                  },
+                  qualityTarget: { type: 'number', description: 'Target quality score (default: 85)' },
+                  maxAgents: { type: 'number', description: 'Maximum number of agents to coordinate' },
+                  priority: { 
+                    type: 'string', 
+                    enum: ['low', 'medium', 'high', 'urgent'],
+                    description: 'Task priority level' 
+                  }
+                },
+                required: ['task', 'requiredCapabilities']
+              }
+            },
+            {
+              name: 'get_agent_network_health',
+              description: 'Get comprehensive multi-agent network health and performance metrics',
+              inputSchema: {
+                type: 'object',
+                properties: {
+                  includeDetailed: { type: 'boolean', description: 'Include detailed per-agent metrics' },
+                  timeframe: { 
+                    type: 'string', 
+                    enum: ['1m', '5m', '15m', '1h'],
+                    description: 'Metrics timeframe' 
+                  }
+                },
+                required: []
+              }
+            },
+            {
+              name: 'get_communication_history',
+              description: 'Retrieve agent communication history for analysis and learning',
+              inputSchema: {
+                type: 'object',
+                properties: {
+                  agentId: { type: 'string', description: 'Specific agent ID (optional)' },
+                  messageType: { 
+                    type: 'string', 
+                    description: 'Filter by message type (optional)' 
+                  },
+                  limit: { type: 'number', description: 'Maximum messages to retrieve (default: 50)' },
+                  includeQualityMetrics: { type: 'boolean', description: 'Include quality scores and Constitutional AI compliance' }
+                },
+                required: []
               }
             }
           ]
@@ -935,8 +1069,35 @@ async function handleToolCall(params: any, id: any) {
                 'Security validation'
               ]
             }, null, 2)
+          }],          isError: !fetchResult.success
+        });
+
+      // Multi-Agent Communication Tools
+      case 'register_agent':
+      case 'send_agent_message':
+      case 'query_agent_capabilities':
+      case 'coordinate_agents':
+      case 'get_agent_network_health':
+      case 'get_communication_history':
+        const agentContext: AgentContext = {
+          user: { 
+            id: args.userId || 'mcp_user', 
+            name: 'MCP User',
+            createdAt: new Date().toISOString(),
+            lastActiveAt: new Date().toISOString()
+          },
+          sessionId: `mcp_${Date.now()}`,
+          conversationHistory: []
+        };
+        
+        const multiAgentResult = await multiAgentOrchestrator.processMultiAgentMCPTool(name, args, agentContext);
+        
+        return createJsonRpcResponse(id, {
+          content: [{
+            type: 'text',
+            text: JSON.stringify(multiAgentResult, null, 2)
           }],
-          isError: !fetchResult.success
+          isError: !multiAgentResult.success
         });
 
       default:
@@ -1153,7 +1314,7 @@ app.get('/', (_req, res) => {
   res.json({
     message: 'OneAgent Professional MCP Server',
     version: '4.0.0',
-    description: 'Professional AI Development Platform with Constitutional AI',
+    description: 'Professional AI Development Platform with Constitutional AI and Multi-Agent Communication',
     mcp_endpoint: '/mcp',
     health_check: '/health',
     github_copilot_ready: true

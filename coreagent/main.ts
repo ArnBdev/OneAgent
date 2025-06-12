@@ -196,9 +196,7 @@ class CoreAgent {
       );
       
       if (createResult.success) {
-        console.log(`✅ Memory created: ${createResult.data?.id}`);
-          // Test search memories
-        const searchResult = await this.mem0Client.searchMemories({
+        console.log(`✅ Memory created: ${createResult.data?.id}`);        const searchResult = await this.mem0Client.searchMemories({
           userId: this.currentUser?.id || 'demo-user',
           agentId: 'coreagent'
         });

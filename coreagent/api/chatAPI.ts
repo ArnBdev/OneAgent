@@ -84,7 +84,7 @@ export class ChatAPI {
       // Get relevant memory context for response
       const relevantMemories = memoryContext ? 
         await this.mem0Client.searchMemories({
-          userId: userId,
+          user_id: userId,
           query: message,
           limit: 3
         }) : 
@@ -125,7 +125,7 @@ export class ChatAPI {
         return;
       }      // Search for chat messages in memory
       const memories = await this.mem0Client.searchMemories({
-        userId: userId,
+        user_id: userId,
         query: 'chat message',
         limit: parseInt(limit as string),
         offset: parseInt(offset as string)

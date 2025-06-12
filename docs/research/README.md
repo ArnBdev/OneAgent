@@ -5,8 +5,10 @@ This directory contains research notes, analysis, and learnings from OneAgent de
 ## Files
 
 - **MCP_IMPLEMENTATION_LEARNINGS.md** - Technical learnings and insights from MCP integration
-- **AGENT_TO_AGENT_COMMUNICATION_RESEARCH_STUDY.md** - Comprehensive analysis of agent communication protocols
+- **AGENT_TO_AGENT_COMMUNICATION_RESEARCH_STUDY.md** - Comprehensive analysis of agent communication protocols (50+ pages)
 - **AGENT_COMMUNICATION_RESEARCH_SUMMARY.md** - Executive summary of agent communication research findings
+- **STRATEGIC_INSTRUCTION_MODIFICATION_PLAN.md** - Enterprise strategy for instruction enhancement (BMAD analyzed)
+- **EXECUTIVE_SUMMARY_INSTRUCTION_MODIFICATION.md** - Action plan and decision document (Constitutional AI validated)
 
 ## Recent Research
 
