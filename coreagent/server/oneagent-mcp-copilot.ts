@@ -6,6 +6,10 @@
  * enabling direct integration with VS Code's native AI assistant.
  */
 
+// Load environment variables first
+import * as dotenv from 'dotenv';
+dotenv.config();
+
 import express = require('express');
 import { randomUUID } from 'crypto';
 
@@ -75,8 +79,13 @@ const constitutionalAI = new ConstitutionalAI({
 
 const bmadElicitation = new BMADElicitationEngine();
 
-// Initialize OneAgent tools
-const mem0Client = new Mem0Client();
+// Initialize OneAgent tools with proper configuration
+const mem0Client = new Mem0Client({
+  deploymentType: 'local',
+  localEndpoint: 'http://127.0.0.1:8000',
+  preferLocal: true,
+  timeout: 30000
+});
 
 const braveConfig = {
   apiKey: process.env.BRAVE_API_KEY || 'your_brave_search_api_key_here',
