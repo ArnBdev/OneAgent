@@ -83,13 +83,17 @@ export class Mem0Client {
 
     console.log(`🧠 Mem0Client initialized (${this.config.deploymentType} mode)${this.mockMode ? ' - MOCK' : ''}`);
   }
-
   private shouldUseMockMode(): boolean {
     if (this.config.deploymentType === 'cloud' && !this.config.cloudApiKey) {
       return true;
     }
     
-    if (process.env.NODE_ENV === 'test' || process.env.NODE_ENV === 'development') {
+    // Allow local connections in development mode when local endpoint is configured
+    if (process.env.NODE_ENV === 'test') {
+      return true;
+    }
+    
+    if (process.env.NODE_ENV === 'development' && this.config.deploymentType !== 'local') {
       return true;
     }
 
@@ -174,9 +178,7 @@ export class Mem0Client {
     memoryType: MemoryType = 'long_term'
   ): Promise<Mem0Response<Mem0Memory>> {
     const operationId = `mem0_create_${Date.now()}_${Math.random()}`;
-    globalProfiler.startOperation(operationId, 'mem0_create_memory', { memoryType, userId, agentId });
-
-    try {
+    globalProfiler.startOperation(operationId, 'mem0_create_memory', { memoryType, userId, agentId });    try {
       console.log('📝 Creating new Mem0 memory...');
 
       if (this.mockMode) {        const mockMemory: Mem0Memory = {
@@ -205,6 +207,55 @@ export class Mem0Client {
           message: 'Memory created successfully (mock mode)',
           timestamp: new Date().toISOString()
         };
+      }
+
+      // Try local client first
+      if (this.localClient) {
+        console.log('🔌 Using local memory server...');
+        const response = await this.localClient.post('/v1/memories', {
+          content,
+          user_id: userId,
+          agent_id: agentId,
+          workflow_id: workflowId,
+          memory_type: memoryType,
+          metadata
+        });
+
+        if (response.data && response.data.success) {
+          const memoryData = response.data.data;
+          globalProfiler.endOperation(operationId, true);
+          
+          return {
+            success: true,
+            data: this.formatMemoryResponse(memoryData),
+            message: 'Memory created successfully',
+            timestamp: new Date().toISOString()
+          };
+        }
+      }
+
+      // Try cloud client if available
+      if (this.cloudClient) {
+        console.log('☁️ Using cloud memory service...');
+        const response = await this.cloudClient.post('/v1/memories', {
+          content,
+          user_id: userId,
+          agent_id: agentId,
+          workflow_id: workflowId,
+          memory_type: memoryType,
+          metadata
+        });
+
+        if (response.data) {
+          globalProfiler.endOperation(operationId, true);
+          
+          return {
+            success: true,
+            data: this.formatMemoryResponse(response.data),
+            message: 'Memory created successfully',
+            timestamp: new Date().toISOString()
+          };
+        }
       }
 
       throw new Error('No available Mem0 client configured');
