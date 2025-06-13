@@ -16,6 +16,15 @@ import {
   DevelopmentContext,
   PredictiveCacheConfig
 } from '../../mcp/EnhancedContext7MCPIntegration';
+import { UnifiedContext7MCPIntegration } from '../../mcp/UnifiedContext7MCPIntegration';
+import { UnifiedMemoryClient } from '../../memory/UnifiedMemoryClient';
+import { 
+  ConversationMemory, 
+  LearningMemory, 
+  ConversationOutcome, 
+  LearningType,
+  AgentContext as UnifiedAgentContext 
+} from '../../memory/UnifiedMemoryInterface';
 
 /**
  * Development action types supported by DevAgent
@@ -39,11 +48,12 @@ export class DevAgent extends BaseAgent implements ISpecializedAgent {
   private processedMessages: number = 0;
   private errors: string[] = [];
   private cacheHits: number = 0;
-  private cacheMisses: number = 0;
-  private context7Integration: Context7MCPIntegration;
+  private cacheMisses: number = 0;  private context7Integration: Context7MCPIntegration;
   private enhancedContext7: EnhancedContext7MCPIntegration;
+  private unifiedContext7: UnifiedContext7MCPIntegration;
   private developmentContext: DevelopmentContext;
   private startTime: number;
+  private unifiedMemoryClient: UnifiedMemoryClient;
 
   // BMAD v4 configuration following research patterns
   private readonly devPersona = {
@@ -58,12 +68,14 @@ export class DevAgent extends BaseAgent implements ISpecializedAgent {
       "Security considerations are integrated, not retrofitted"
     ]
   };
-
   constructor(config: AgentConfig) {
     super(config);
     this.id = config.id || `dev-agent-${Date.now()}`;
     this.config = config;
     this.startTime = Date.now();
+    
+    // Initialize Unified Memory Client
+    this.unifiedMemoryClient = new UnifiedMemoryClient();
     
     // Initialize Context7 integration (backward compatibility)
     this.context7Integration = new Context7MCPIntegration();
@@ -91,6 +103,8 @@ export class DevAgent extends BaseAgent implements ISpecializedAgent {
     };
     
     this.enhancedContext7 = new EnhancedContext7MCPIntegration(enhancedConfig);
+      // Initialize Unified Context7 integration with memory-enabled cross-agent learning
+    this.unifiedContext7 = new UnifiedContext7MCPIntegration('devagent-001');
     
     // Initialize development context
     this.developmentContext = {
@@ -162,57 +176,78 @@ export class DevAgent extends BaseAgent implements ISpecializedAgent {
       errorRate: errorRate
     };
   }
-
   /**
-   * Initialize the DevAgent with enhanced documentation capabilities
+   * Initialize the DevAgent with enhanced documentation capabilities and unified memory
    */
   async initialize(): Promise<void> {
     await super.initialize();
     
-    // Initialize dev/ memory structure safely
-    await this.initializeDevMemoryStructure();
+    // Initialize unified memory system
+    await this.initializeUnifiedMemorySystem();
     
     console.log(`🚀 DevAgent ${this.id} initialized successfully`);
     console.log(`📚 Documentation cache system ready`);
     console.log(`🧠 BMAD v4 prompting patterns active`);
+    console.log(`💾 Unified memory system connected`);
   }
 
   /**
-   * Initialize dev/ folder structure safely with memory client check
+   * Initialize unified memory system with development structure
    */
-  private async initializeDevMemoryStructure(): Promise<void> {
-    // Only initialize if memory is enabled
-    if (!this.memoryClient) {
-      console.log('📁 Dev/ folder structure skipped - memory client not available');
-      return;
-    }
-
-    const devFolders = [
-      'dev/patterns/architectural',
-      'dev/patterns/testing',
-      'dev/patterns/performance',
-      'dev/patterns/security',
-      'dev/libraries/popular',
-      'dev/libraries/specialized',
-      'dev/workflows/git',
-      'dev/workflows/cicd',
-      'dev/solutions/custom',
-      'dev/solutions/integrations'
-    ];
-
-    for (const folder of devFolders) {
-      try {
-        await this.addMemory('system', `Dev folder: ${folder}`, {
-          folder,
-          category: 'dev_structure',
-          agentType: 'development'
-        });
-      } catch (error) {
-        console.log(`⚠️ Failed to initialize dev/ folder ${folder}: ${error}`);
+  private async initializeUnifiedMemorySystem(): Promise<void> {
+    try {
+      const isConnected = await this.unifiedMemoryClient.testConnection();
+      if (!isConnected) {
+        console.warn('⚠️ Unified memory system not healthy, continuing without persistent memory');
+        return;
       }
+
+      // Initialize development memory structure
+      const devStructure = [
+        'dev/patterns/architectural',
+        'dev/patterns/testing',
+        'dev/patterns/performance',
+        'dev/patterns/security',
+        'dev/libraries/popular',
+        'dev/libraries/specialized',
+        'dev/workflows/git',
+        'dev/workflows/cicd',
+        'dev/solutions/custom',
+        'dev/solutions/integrations'
+      ];
+
+      // Store initial structure memories
+      for (const category of devStructure) {        const conversationMemory: ConversationMemory = {
+          id: `dev-init-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+          agentId: this.id,
+          userId: 'system',
+          timestamp: new Date(),
+          content: `Development memory structure: ${category}`,
+          context: {
+            user: { id: 'system', name: 'System' },
+            sessionId: 'init',
+            conversationHistory: []
+          },
+          outcome: {
+            success: true,
+            confidence: 1.0,
+            responseTime: 0,
+            actionsPerformed: []
+          },
+          metadata: {
+            category: 'dev_structure',
+            folder: category,
+            isInitialization: true
+          }
+        };
+
+        await this.unifiedMemoryClient.storeConversation(conversationMemory);
+      }
+
+      console.log(`� Unified memory initialized with ${devStructure.length} development categories`);
+    } catch (error) {
+      console.warn(`⚠️ Failed to initialize unified memory: ${error}`);
     }
-    
-    console.log(`📁 Dev/ folder structure ready: ${devFolders.length} categories`);
   }
 
   /**
@@ -234,27 +269,17 @@ export class DevAgent extends BaseAgent implements ISpecializedAgent {
   /**
    * Process a user message and generate a response
    */
-  async processMessage(context: AgentContext, message: string): Promise<AgentResponse> {
-    console.log(`🔍 DevAgent processing: ${message.substring(0, 100)}...`);
+  async processMessage(context: AgentContext, message: string): Promise<AgentResponse> {    console.log(`🔍 DevAgent processing: ${message.substring(0, 100)}...`);
     
     this.processedMessages++;
+    const startTime = Date.now();
     
     try {
-      // Store development context in memory (safely)
-      if (this.memoryClient) {
-        await this.addMemory(context.user.id, message, {
-          agentType: 'development',
-          sessionId: context.sessionId,
-          timestamp: new Date().toISOString(),
-          category: 'dev_request'
-        });
-      }
-
       // Apply BMAD 9-point elicitation framework for quality
       const enhancedMessage = this.applyBMADElicitation(message, context);
 
-      // Search for relevant development memories and patterns
-      const relevantMemories = await this.searchDevMemories(context.user.id, enhancedMessage, 8);
+      // Search for relevant development memories and patterns using unified memory
+      const relevantMemories = await this.searchDevMemoriesUnified(context.user.id, enhancedMessage, 8);
 
       // Analyze message for development actions
       const actions = this.analyzeDevTask(enhancedMessage);
@@ -263,8 +288,11 @@ export class DevAgent extends BaseAgent implements ISpecializedAgent {
       const prompt = this.buildDevPrompt(enhancedMessage, relevantMemories, context);
       const aiResponse = await this.generateResponse(prompt, relevantMemories);
 
-      // Store the interaction for learning (safely)
-      await this.storeDevLearning(enhancedMessage, aiResponse, actions, context);
+      // Calculate response time
+      const responseTime = Date.now() - startTime;
+
+      // Store the complete interaction in unified memory for learning
+      await this.storeDevInteractionUnified(message, aiResponse, actions, context, responseTime);
 
       return this.createResponse(aiResponse, actions, relevantMemories);
     } catch (error) {
@@ -311,10 +339,9 @@ export class DevAgent extends BaseAgent implements ISpecializedAgent {
 
     // If we need more context, search related categories
     if (devMemories.length < limit) {
-      try {
-        // Use standard Context7 for external documentation
+      try {        // Use Unified Context7 for external documentation with cross-agent learning
         const relevantLibraries = this.extractRelevantLibraries(message);
-        const externalDocs = await this.context7Integration.queryDocumentation({
+        const externalDocs = await this.unifiedContext7.queryDocumentation({
           source: 'mixed',
           query: message,
           maxResults: limit - devMemories.length
@@ -346,6 +373,231 @@ export class DevAgent extends BaseAgent implements ISpecializedAgent {
     }
 
     return devMemories.slice(0, limit);
+  }
+
+  /**
+   * Search for relevant development memories using unified memory system
+   */
+  private async searchDevMemoriesUnified(userId: string, message: string, limit: number): Promise<any[]> {
+    try {
+      // Search using unified memory client with development-specific query
+      const searchQuery = {
+        query: message,
+        agentId: this.id,
+        userId: userId,
+        category: 'development',
+        limit: Math.ceil(limit / 2)
+      };      const memories = await this.unifiedMemoryClient.searchMemories({
+        query: message,
+        agentIds: [this.id],
+        memoryTypes: ['conversation', 'learning'],
+        maxResults: Math.ceil(limit / 2),
+        semanticSearch: true
+      });
+      
+      // Transform to expected format
+      const devMemories = memories.map(memory => ({
+        content: memory.content,
+        metadata: {
+          ...memory.metadata,
+          source: 'unified_memory',
+          confidence: 0.9,
+          timestamp: memory.timestamp
+        }
+      }));
+
+      // If we need more context, supplement with Context7 external docs
+      if (devMemories.length < limit) {
+        try {          const externalDocs = await this.unifiedContext7.queryDocumentation({
+            source: 'mixed',
+            query: message,
+            maxResults: limit - devMemories.length
+          });
+
+          if (externalDocs && externalDocs.length > 0) {
+            const externalMemories = externalDocs.slice(0, limit - devMemories.length).map((doc: DocumentationResult) => ({
+              content: doc.content,
+              metadata: {
+                source: 'external_docs',
+                confidence: doc.relevanceScore || 0.8,
+                timestamp: new Date()
+              }
+            }));
+            
+            devMemories.push(...externalMemories);
+            console.log(`📚 Context7: Retrieved ${externalDocs.length} external docs`);
+            this.cacheHits++;
+          }
+        } catch (error) {
+          console.log('📚 External documentation not available');
+          this.cacheMisses++;
+        }
+      }
+
+      console.log(`💾 Unified Memory: Retrieved ${devMemories.length} development memories`);
+      return devMemories.slice(0, limit);
+    } catch (error) {
+      console.warn(`⚠️ Unified memory search failed: ${error}`);
+      // Fallback to old method if unified memory fails
+      return await this.searchDevMemories(userId, message, limit);
+    }
+  }
+
+  /**
+   * Store development interaction in unified memory system for learning
+   */
+  private async storeDevInteractionUnified(
+    message: string, 
+    response: string, 
+    actions: AgentAction[], 
+    context: AgentContext, 
+    responseTime: number
+  ): Promise<void> {
+    try {
+      // Create conversation memory
+      const conversationMemory: ConversationMemory = {
+        id: `dev-conv-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+        agentId: this.id,
+        userId: context.user.id,
+        timestamp: new Date(),
+        content: `User: ${message}\n\nAssistant: ${response}`,
+        context: context,
+        outcome: {
+          success: true,
+          confidence: 0.9,
+          responseTime: responseTime,
+          actionsPerformed: actions.map(a => a.type)
+        },
+        metadata: {
+          category: this.categorizeDevRequest(message),
+          folder: `dev/${this.categorizeDevRequest(message)}`,
+          sessionId: context.sessionId,
+          actionsCount: actions.length,
+          userRequest: message,
+          assistantResponse: response
+        }
+      };
+
+      await this.unifiedMemoryClient.storeConversation(conversationMemory);
+
+      // Extract and store learning if significant patterns detected
+      await this.extractAndStoreLearning(message, response, actions, context);
+
+      console.log(`💾 Stored development interaction in unified memory`);
+    } catch (error) {
+      console.warn(`⚠️ Failed to store interaction in unified memory: ${error}`);
+    }
+  }
+
+  /**
+   * Extract learning patterns and store them in unified memory
+   */  private async extractAndStoreLearning(
+    message: string, 
+    response: string, 
+    actions: AgentAction[], 
+    _context: AgentContext
+  ): Promise<void> {
+    try {
+      // Identify learning patterns
+      const category = this.categorizeDevRequest(message);
+      const hasCodeSample = response.includes('```') || response.includes('function') || response.includes('class');
+      const hasRecommendations = response.includes('recommend') || response.includes('suggest') || response.includes('consider');
+      
+      if (hasCodeSample || hasRecommendations || actions.length > 0) {
+        // Create learning memory
+        const learningMemory: LearningMemory = {
+          id: `dev-learning-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+          agentId: this.id,
+          learningType: this.determineLearningType(message, response, actions),
+          content: `Category: ${category}\nRequest Pattern: ${this.extractRequestPattern(message)}\nSolution Pattern: ${this.extractSolutionPattern(response)}`,
+          confidence: 0.8,
+          applicationCount: 1,
+          lastApplied: new Date(),
+          sourceConversations: [], // Will be populated by server
+          metadata: {
+            category: category,
+            hasCodeSample: hasCodeSample,
+            hasRecommendations: hasRecommendations,
+            actionsCount: actions.length,
+            requestPattern: this.extractRequestPattern(message),
+            solutionPattern: this.extractSolutionPattern(response)
+          }
+        };
+
+        await this.unifiedMemoryClient.storeLearning(learningMemory);
+        console.log(`🧠 Extracted and stored learning pattern for ${category}`);
+      }
+    } catch (error) {
+      console.warn(`⚠️ Failed to extract learning: ${error}`);
+    }
+  }
+  /**
+   * Determine learning type from interaction
+   */
+  private determineLearningType(message: string, response: string, actions: AgentAction[]): LearningType {
+    const lowerMessage = message.toLowerCase();
+    const lowerResponse = response.toLowerCase();
+    
+    if (lowerMessage.includes('pattern') || lowerResponse.includes('pattern')) {
+      return 'pattern';
+    }
+    if (lowerMessage.includes('solve') || lowerMessage.includes('fix') || lowerMessage.includes('debug')) {
+      return 'solution';
+    }
+    if (actions.length > 0) {
+      return 'optimization';
+    }
+    if (lowerResponse.includes('best practice') || lowerResponse.includes('recommend')) {
+      return 'code_analysis';
+    }
+    
+    return 'documentation_context';
+  }
+
+  /**
+   * Extract request pattern for learning
+   */
+  private extractRequestPattern(message: string): string {
+    const patterns = [
+      { pattern: /how to (.+)/i, template: 'how_to_X' },
+      { pattern: /what is (.+)/i, template: 'what_is_X' },
+      { pattern: /why (.+)/i, template: 'why_X' },
+      { pattern: /can you (.+)/i, template: 'help_with_X' },
+      { pattern: /help (.+)/i, template: 'help_with_X' },
+      { pattern: /implement (.+)/i, template: 'implement_X' },
+      { pattern: /create (.+)/i, template: 'create_X' },
+      { pattern: /fix (.+)/i, template: 'fix_X' }
+    ];
+
+    for (const { pattern, template } of patterns) {
+      if (pattern.test(message)) {
+        return template;
+      }
+    }
+
+    return 'general_inquiry';
+  }
+
+  /**
+   * Extract solution pattern for learning
+   */
+  private extractSolutionPattern(response: string): string {
+    const lowerResponse = response.toLowerCase();
+    
+    if (response.includes('```')) {
+      return 'code_solution';
+    }
+    if (lowerResponse.includes('step') || lowerResponse.includes('first') || lowerResponse.includes('then')) {
+      return 'step_by_step';
+    }
+    if (lowerResponse.includes('recommend') || lowerResponse.includes('suggest')) {
+      return 'recommendation';
+    }
+    if (lowerResponse.includes('consider') || lowerResponse.includes('alternative')) {
+      return 'analysis_with_options';
+    }
+    
+    return 'explanatory';
   }
 
   /**
@@ -411,35 +663,6 @@ Please provide comprehensive development assistance following these principles:
 ${this.devPersona.principles.map(p => `- ${p}`).join('\n')}
 
 Response should be actionable, technically accurate, and include specific next steps.`;
-  }
-
-  /**
-   * Store development learning for future reference (safely)
-   */
-  private async storeDevLearning(message: string, response: string, actions: AgentAction[], context: AgentContext): Promise<void> {
-    if (!this.memoryClient) {
-      return; // Skip if memory not available
-    }
-
-    const learningEntry = {
-      request: message,
-      response: response,
-      actions: actions.map(a => a.type),
-      sessionId: context.sessionId,
-      timestamp: new Date().toISOString(),
-      category: this.categorizeDevRequest(message)
-    };
-
-    try {
-      await this.addMemory(context.user.id, JSON.stringify(learningEntry), {
-        agentType: 'development',
-        category: learningEntry.category,
-        folder: `dev/${learningEntry.category}`,
-        sessionId: context.sessionId
-      });
-    } catch (error) {
-      console.log(`⚠️ Failed to store dev learning: ${error}`);
-    }
   }
 
   /**

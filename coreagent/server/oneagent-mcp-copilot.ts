@@ -29,8 +29,10 @@ import { AIAssistantTool } from '../tools/aiAssistant';
 // Import Multi-Agent Communication System
 import { MultiAgentMCPServer } from '../agents/communication/MultiAgentMCPServer';
 import { MultiAgentOrchestrator } from '../agents/communication/MultiAgentOrchestrator';
+import { AgentCommunicationProtocol } from '../agents/communication/AgentCommunicationProtocol';
+import { agentBootstrap } from '../agents/communication/AgentBootstrapService';
 import { GeminiEmbeddingsTool } from '../tools/geminiEmbeddings';
-import { Mem0Client } from '../tools/mem0Client';
+import { UnifiedMemoryClient } from '../memory/UnifiedMemoryClient';
 
 // Import OneAgent Monitoring and Error Handling
 import { ErrorMonitoringService } from '../monitoring/ErrorMonitoringService';
@@ -80,10 +82,8 @@ const constitutionalAI = new ConstitutionalAI({
 const bmadElicitation = new BMADElicitationEngine();
 
 // Initialize OneAgent tools with proper configuration
-const mem0Client = new Mem0Client({
-  deploymentType: 'local',
-  localEndpoint: 'http://127.0.0.1:8000',
-  preferLocal: true,
+const unifiedMemoryClient = new UnifiedMemoryClient({
+  serverUrl: 'http://127.0.0.1:8000',
   timeout: 30000
 });
 
@@ -101,7 +101,7 @@ const geminiConfig = {
 };
 const geminiClient = new GeminiClient(geminiConfig);
 const aiAssistantTool = new AIAssistantTool(geminiClient);
-const embeddingsTool = new GeminiEmbeddingsTool(geminiClient, mem0Client);
+// const embeddingsTool = new GeminiEmbeddingsTool(geminiClient, unifiedMemoryClient);
 
 // Initialize OneAgent Error Monitoring and Recovery System
 const auditLogger = new SimpleAuditLogger({
@@ -119,7 +119,13 @@ const triageAgent = new TriageAgent({
 });
 
 // Initialize Multi-Agent Communication System
+AgentCommunicationProtocol.resetSingleton(); // HARD RESET to clear phantom agents
 const multiAgentOrchestrator = new MultiAgentOrchestrator();
+// Initialize the agent network properly
+multiAgentOrchestrator.initialize().catch(err => {
+  console.error('⚠️ Error initializing agent network, manual initialization may be required:', err);
+  console.log('📌 Run initialize-agents.ps1 script to manually initialize agents');
+});
 const multiAgentMCPTools = multiAgentOrchestrator.getMultiAgentMCPTools();
 
 const errorMonitoringService = new ErrorMonitoringService(
@@ -143,14 +149,21 @@ async function testMemorySystemHealth() {
   try {
     // IMPLEMENTATION: Real-time memory validation (Phase 2A Priority #1)
     // Force real-time memory system validation through TriageAgent
-    const memoryValidation = await triageAgent.revalidateMemorySystem();
+    const memoryValidation = await triageAgent.revalidateMemorySystem();    // Attempt to test memory connection
+    let connectionSuccessful = false;
+    let testResult: any = { success: false };
     
-    // Attempt to test memory connection
-    const testResult = await mem0Client.searchMemories({
-      userId: 'system_health_test',
-      query: 'test',
-      limit: 1
-    });
+    try {
+      const testResults = await unifiedMemoryClient.searchMemories({
+        query: 'test',
+        maxResults: 1
+      });
+      connectionSuccessful = true;
+      testResult = { success: true, results: testResults };
+    } catch (error) {
+      connectionSuccessful = false;
+      testResult = { success: false, error: error };
+    }
 
     // Build comprehensive status with transparency data
     const baseStatus = {
@@ -781,22 +794,18 @@ async function handleToolCall(params: any, id: any) {
           isError: false
         });
 
-      case 'oneagent_memory_context':
-        try {
-          const memories = await mem0Client.searchMemories({
-            userId: args.userId,
+      case 'oneagent_memory_context':        try {
+          const memories = await unifiedMemoryClient.searchMemories({
             query: args.query,
-            limit: args.limit || 5
-          });
-
-          return createJsonRpcResponse(id, {
+            maxResults: args.limit || 5
+          });          return createJsonRpcResponse(id, {
             content: [{
               type: 'text',
               text: JSON.stringify({
                 query: args.query,
                 userId: args.userId,
-                memories: memories.success ? memories.data : [],
-                totalFound: memories.success ? memories.data?.length || 0 : 0,
+                memories: memories || [],
+                totalFound: memories ? memories.length : 0,
                 contextEnhancement: {
                   semantic: true,
                   temporal: true,
@@ -960,92 +969,87 @@ async function handleToolCall(params: any, id: any) {
               ]
             }, null, 2)          }],
           isError: false
-        });
-        
-        // Memory Management Tools
+        });        // Memory Management Tools
       case 'oneagent_memory_create':
-        const createResult = await mem0Client.createMemory(
-          args.content,
-          {
-            ...args.metadata,
-            memoryType: args.memoryType || 'long_term',
-            createdBy: 'oneagent_mcp_copilot',
-            createdAt: new Date().toISOString()
-          },
-          args.userId,
-          'oneagent_mcp_copilot'
-        );
-
-        return createJsonRpcResponse(id, {
-          content: [{
-            type: 'text',
-            text: JSON.stringify({
-              success: createResult.success,
-              memoryId: createResult.data?.id,
-              content: args.content,
-              userId: args.userId,
-              memoryType: args.memoryType || 'long_term',
-              metadata: createResult.data?.metadata,
-              message: createResult.success ? 'Memory created successfully with real-time learning capability' : createResult.error
-            }, null, 2)
-          }],
-          isError: !createResult.success
-        });
-
-      case 'oneagent_memory_edit':
-        const editResult = await mem0Client.updateMemory(
-          args.memoryId,
-          args.content,
-          {
-            ...args.metadata,
-            updatedBy: 'oneagent_mcp_copilot',
-            updatedAt: new Date().toISOString()
-          }
-        );
-
-        return createJsonRpcResponse(id, {
-          content: [{
-            type: 'text',
-            text: JSON.stringify({
-              success: editResult.success,
-              memoryId: args.memoryId,
-              content: args.content,
-              userId: args.userId,
-              metadata: editResult.data?.metadata,
-              message: editResult.success ? 'Memory updated successfully' : editResult.error
-            }, null, 2)
-          }],
-          isError: !editResult.success
-        });
-
-      case 'oneagent_memory_delete':
-        if (!args.confirm) {
-          return createJsonRpcResponse(id, {
-            content: [{
-              type: 'text',
-              text: JSON.stringify({
-                success: false,
-                error: 'Deletion requires confirmation flag',
-                message: 'Please set confirm: true to proceed with deletion'
-              }, null, 2)
-            }],
-            isError: true
+        // Determine which type of memory to create based on content and metadata
+        const memoryType = args.memoryType || 'learning';
+        let createResult: string;
+        
+        if (memoryType === 'conversation') {
+          createResult = await unifiedMemoryClient.storeConversation({
+            id: '', // Will be generated
+            agentId: args.userId || 'oneagent_mcp_copilot',
+            userId: args.userId || 'mcp_user',
+            timestamp: new Date(),
+            content: args.content,
+            context: args.metadata?.context || {},            outcome: {
+              success: true,
+              qualityScore: args.metadata?.qualityScore || 0.8,
+              learningsExtracted: 1
+            },
+            metadata: args.metadata || {}
           });
-        }
-
-        const deleteResult = await mem0Client.deleteMemory(args.memoryId);
-
+        } else if (memoryType === 'pattern') {
+          createResult = await unifiedMemoryClient.storePattern({
+            id: '', // Will be generated
+            agentId: args.userId || 'oneagent_mcp_copilot',
+            patternType: 'functional',
+            description: args.content,
+            frequency: args.metadata?.frequency || 1,
+            strength: args.metadata?.strength || 0.8,
+            conditions: args.metadata?.conditions || [],
+            outcomes: args.metadata?.outcomes || [],
+            metadata: args.metadata || {}
+          });
+        } else {
+          // Default to learning
+          createResult = await unifiedMemoryClient.storeLearning({
+            id: '', // Will be generated
+            agentId: args.userId || 'oneagent_mcp_copilot',
+            learningType: 'documentation_context',
+            content: args.content,
+            confidence: args.metadata?.confidence || 0.8,
+            applicationCount: 0,
+            lastApplied: new Date(),
+            sourceConversations: [],
+            metadata: args.metadata || {}
+          });
+        }        return createJsonRpcResponse(id, {
+          content: [{
+            type: 'text',
+            text: JSON.stringify({
+              success: true,
+              memoryId: createResult,
+              content: args.content,
+              userId: args.userId,
+              memoryType: args.memoryType || 'learning',
+              metadata: args.metadata,
+              message: 'Memory created successfully with real-time learning capability'
+            }, null, 2)
+          }],
+          isError: false
+        });      case 'oneagent_memory_edit':
+        // TODO: Implement memory editing when interface supports it
         return createJsonRpcResponse(id, {
           content: [{
             type: 'text',
             text: JSON.stringify({
-              success: deleteResult.success,
-              memoryId: args.memoryId,
-              userId: args.userId,
-              message: deleteResult.success ? 'Memory deleted successfully with cleanup operations completed' : deleteResult.error
+              success: false,
+              message: 'Memory editing not yet implemented in unified memory system'
             }, null, 2)
           }],
-          isError: !deleteResult.success
+          isError: true
+        });      case 'oneagent_memory_delete':
+        // TODO: Implement memory deletion when interface supports it
+        return createJsonRpcResponse(id, {
+          content: [{
+            type: 'text',
+            text: JSON.stringify({
+              success: false,
+              message: 'Memory deletion not yet implemented in unified memory system'
+            }, null, 2)
+          }],
+          isError: true
         });
 
       // Web Feature Completion
@@ -1334,7 +1338,7 @@ app.get('/', (_req, res) => {
 const PORT = process.env.ONEAGENT_MCP_PORT || 8083;
 
 if (require.main === module) {
-  app.listen(PORT, () => {
+  app.listen(PORT, async () => {
     console.log(`🚀 OneAgent Professional MCP Server running on port ${PORT}`);
     console.log(`🔗 MCP endpoint: http://localhost:${PORT}/mcp`);
     console.log(`💊 Health check: http://localhost:${PORT}/health`);
@@ -1343,6 +1347,20 @@ if (require.main === module) {
     console.log(`✅ GitHub Copilot Agent Mode: READY`);
     console.log(`📚 Memory System: Mem0Local`);
     console.log(`🔍 Enhanced Search: Brave + Quality Scoring`);
+      // Bootstrap all specialized agents for automatic discovery
+    console.log('🤖 Starting automatic agent initialization...');
+    try {
+      // Connect the shared discovery service from the orchestrator
+      const sharedDiscoveryService = multiAgentOrchestrator.getDiscoveryService();
+      agentBootstrap.setSharedDiscoveryService(sharedDiscoveryService);
+      
+      await agentBootstrap.bootstrapAllAgents();
+      console.log('✅ All agents initialized and ready for discovery!');
+      console.log('📡 Agents will automatically respond to CoreAgent "Who\'s awake?" broadcasts');
+    } catch (error) {
+      console.error('❌ Failed to bootstrap agents:', error);
+      console.log('⚠️  Manual agent registration may be required via MCP tools');
+    }
   });
 }
 

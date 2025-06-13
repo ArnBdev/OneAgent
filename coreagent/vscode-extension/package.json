@@ -1,0 +1,139 @@
+{
+  "name": "oneagent-professional",
+  "displayName": "OneAgent Professional",
+  "description": "Professional AI Development Platform with Constitutional AI",
+  "version": "1.0.0",
+  "publisher": "oneagent",
+  "engines": {
+    "vscode": "^1.74.0"
+  },
+  "categories": [
+    "AI",
+    "Chat",
+    "Data Science",
+    "Debuggers",
+    "Other"
+  ],
+  "activationEvents": [
+    "onStartupFinished"
+  ],
+  "main": "./out/extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "oneagent.openDashboard",
+        "title": "Open Dashboard",
+        "category": "OneAgent"
+      },
+      {
+        "command": "oneagent.constitutionalValidate",
+        "title": "Constitutional Validate Selection",
+        "category": "OneAgent"
+      },
+      {
+        "command": "oneagent.bmadAnalyze",
+        "title": "BMAD Framework Analysis",
+        "category": "OneAgent"
+      },
+      {
+        "command": "oneagent.qualityScore",
+        "title": "Quality Score Selection",
+        "category": "OneAgent"
+      },
+      {
+        "command": "oneagent.memorySearch",
+        "title": "Search Memory Context",
+        "category": "OneAgent"
+      }
+    ],
+    "chatParticipants": [
+      {
+        "id": "oneagent",
+        "name": "OneAgent",
+        "description": "Professional AI Development Assistant with Constitutional AI",
+        "isSticky": true
+      }
+    ],
+    "menus": {
+      "editor/context": [
+        {
+          "command": "oneagent.constitutionalValidate",
+          "when": "editorTextFocus",
+          "group": "oneagent@1"
+        },
+        {
+          "command": "oneagent.qualityScore",
+          "when": "editorTextFocus",
+          "group": "oneagent@2"
+        },
+        {
+          "command": "oneagent.bmadAnalyze",
+          "when": "editorTextFocus",
+          "group": "oneagent@3"
+        }
+      ],
+      "commandPalette": [
+        {
+          "command": "oneagent.openDashboard"
+        }
+      ]
+    },
+    "configuration": {
+      "title": "OneAgent Professional",
+      "properties": {
+        "oneagent.serverUrl": {
+          "type": "string",
+          "default": "http://localhost:8083",
+          "description": "OneAgent MCP Server URL"
+        },
+        "oneagent.enableConstitutionalAI": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enable Constitutional AI validation"
+        },
+        "oneagent.qualityThreshold": {
+          "type": "number",
+          "default": 80,
+          "minimum": 0,
+          "maximum": 100,
+          "description": "Minimum quality score threshold"
+        }
+      }
+    },
+    "views": {
+      "explorer": [
+        {
+          "id": "oneagent.dashboard",
+          "name": "OneAgent Dashboard",
+          "when": "true"
+        }
+      ]
+    }
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run compile",
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./",
+    "pretest": "npm run compile && npm run lint",
+    "lint": "eslint src --ext ts",
+    "test": "node ./out/test/runTest.js"
+  },
+  "devDependencies": {
+    "@types/node": "16.x",
+    "@types/vscode": "^1.74.0",
+    "@typescript-eslint/eslint-plugin": "^5.45.0",
+    "@typescript-eslint/parser": "^5.45.0",
+    "eslint": "^8.28.0",
+    "typescript": "^4.9.4"
+  },  "dependencies": {
+    "node-fetch": "^2.7.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/oneagent/professional"
+  },
+  "homepage": "https://github.com/oneagent/professional#readme",
+  "bugs": {
+    "url": "https://github.com/oneagent/professional/issues"
+  }
+}

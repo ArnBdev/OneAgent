@@ -76,7 +76,8 @@ export interface AgentRegistration {
 }
 
 /**
- * Multi-Agent Communication Protocol Implementation
+ * OneAgent Multi-Agent Communication Protocol
+ * Enables secure, Constitutional AI-validated communication between OneAgent specialized agents
  * 
  * Integrates with existing OneAgent infrastructure:
  * - CoreAgent orchestration
@@ -86,6 +87,7 @@ export interface AgentRegistration {
  * - Quality threshold enforcement
  */
 export class AgentCommunicationProtocol {
+  private static instance: AgentCommunicationProtocol | null = null;
   private agentRegistry: Map<string, AgentRegistration> = new Map();
   private messageQueue: Map<string, A2AMessage[]> = new Map();
   private activeConversations: Map<string, A2AMessage[]> = new Map();
@@ -94,7 +96,38 @@ export class AgentCommunicationProtocol {
   constructor(
     private coreAgentId: string,
     private validateWithConstitutionalAI: boolean = true
-  ) {}
+  ) {
+    // Singleton pattern to prevent multiple instances with separate registries
+    if (AgentCommunicationProtocol.instance) {
+      console.log(`⚠️ WARNING: Multiple AgentCommunicationProtocol instances detected. Using singleton.`);
+      return AgentCommunicationProtocol.instance;
+    }
+    AgentCommunicationProtocol.instance = this;
+  }
+
+  /**
+   * Get the singleton instance of AgentCommunicationProtocol
+   */
+  public static getInstance(coreAgentId?: string, validateWithConstitutionalAI?: boolean): AgentCommunicationProtocol {
+    if (!AgentCommunicationProtocol.instance) {
+      AgentCommunicationProtocol.instance = new AgentCommunicationProtocol(
+        coreAgentId || 'OneAgent-Core-v4.0.0',
+        validateWithConstitutionalAI ?? true
+      );
+    }
+    return AgentCommunicationProtocol.instance;
+  }
+
+  /**
+   * Force reset the singleton instance (for debugging phantom agents)
+   */
+  public static resetSingleton(): void {
+    if (AgentCommunicationProtocol.instance) {
+      console.log(`🔄 HARD RESET: Destroying singleton AgentCommunicationProtocol instance`);
+      AgentCommunicationProtocol.instance.agentRegistry.clear();
+      AgentCommunicationProtocol.instance = null;
+    }
+  }
 
   /**
    * Register an agent in the multi-agent network
@@ -130,6 +163,20 @@ export class AgentCommunicationProtocol {
       console.error(`❌ Agent registration failed: ${registration.agentId}`, error);
       return false;
     }
+  }
+
+  /**
+   * Unregister an agent from the network
+   */
+  unregisterAgent(agentId: string): boolean {
+    const existed = this.agentRegistry.has(agentId);
+    if (existed) {
+      this.agentRegistry.delete(agentId);
+      // Also clean up message queues
+      this.messageQueue.delete(agentId);
+      console.log(`🗑️ Agent ${agentId} unregistered from network`);
+    }
+    return existed;
   }
 
   /**
@@ -310,8 +357,7 @@ export class AgentCommunicationProtocol {
 
   /**
    * Get network health and performance metrics
-   */
-  getNetworkHealth(): {
+   */  getNetworkHealth(): {
     totalAgents: number;
     onlineAgents: number;
     averageQuality: number;
@@ -321,12 +367,40 @@ export class AgentCommunicationProtocol {
     const agents = Array.from(this.agentRegistry.values());
     const onlineAgents = agents.filter(a => a.status === 'online');
     
+    // DEBUG: Log all agents to find the phantom ones
+    console.log(`🔍 DEBUG: Agent Registry contents (${agents.length} total):`);
+    agents.forEach((agent, index) => {
+      console.log(`  ${index + 1}. ${agent.agentId} (${agent.agentType}) - Quality: ${agent.qualityScore}% - Endpoint: ${agent.endpoint}`);
+    });
+    
     return {
       totalAgents: agents.length,
       onlineAgents: onlineAgents.length,
       averageQuality: agents.reduce((sum, a) => sum + a.qualityScore, 0) / agents.length || 0,
       averageLoad: onlineAgents.reduce((sum, a) => sum + a.loadLevel, 0) / onlineAgents.length || 0,
       messagesThroughput: this.calculateMessageThroughput()
+    };
+  }
+  /**
+   * Clear phantom/mock agents from the registry
+   * This ensures health monitoring only reports real, validated agents
+   */
+  clearPhantomAgents(): { cleared: number; remaining: number } {
+    const beforeCount = this.agentRegistry.size;
+    
+    // AGGRESSIVE CLEANUP: Clear all agents and only keep those explicitly registered via MCP
+    // Since we're getting 14 phantom agents vs 6 real ones, we need to be more aggressive
+    console.log(`🧹 AGGRESSIVE CLEANUP: Clearing ALL agents (${beforeCount} total) to fix phantom agent issue`);
+    
+    // Clear all agents - only real ones should be re-registered via MCP tools
+    this.agentRegistry.clear();
+    
+    const clearedCount = beforeCount;
+    console.log(`✅ Cleared ${clearedCount} agents completely. Registry is now empty and ready for real agent registration.`);
+    
+    return {
+      cleared: clearedCount,
+      remaining: 0
     };
   }
 

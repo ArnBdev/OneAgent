@@ -52,30 +52,36 @@ export class MultiAgentOrchestrator {
   private mcpServer: MultiAgentMCPServer;
   private registeredAgents: Map<string, ISpecializedAgent> = new Map();
   private activeSessions: Map<string, MultiAgentSession> = new Map();
-  
-  constructor(
+    constructor(
     private coreAgentId: string = 'OneAgent-Core-v4.0.0',
     private qualityThreshold: number = 85
   ) {
-    this.communicationProtocol = new AgentCommunicationProtocol(coreAgentId, true);
+    this.communicationProtocol = AgentCommunicationProtocol.getInstance(coreAgentId, true);
     this.mcpServer = new MultiAgentMCPServer(coreAgentId);
-  }
-
-  /**
+  }  /**
    * Initialize multi-agent orchestrator with existing OneAgent infrastructure
    * Automatically registers existing agents for multi-agent communication
-   */
-  async initialize(): Promise<void> {
+   */  async initialize(): Promise<void> {
     console.log(`🚀 Initializing Multi-Agent Orchestrator for ${this.coreAgentId}`);
     
     try {
-      // Auto-register existing OneAgent agents
+      // NUCLEAR OPTION: Force reset singleton to eliminate phantom agents completely
+      AgentCommunicationProtocol.resetSingleton();
+      this.communicationProtocol = AgentCommunicationProtocol.getInstance(this.coreAgentId, true);
+      console.log(`🚀 NUCLEAR RESET: Fresh AgentCommunicationProtocol instance created`);
+      
+      // Auto-register existing OneAgent agents (now disabled to prevent phantom agents)
       await this.autoRegisterExistingAgents();
       
       console.log(`✅ Multi-Agent Orchestrator initialized`);
       console.log(`📊 Registered Agents: ${this.registeredAgents.size}`);
       console.log(`🔧 MCP Tools Available: ${this.mcpServer.getAvailableTools().length}`);
       console.log(`⚖️ Constitutional AI: Active | Quality Threshold: ${this.qualityThreshold}%`);
+      
+      // Start automated agent discovery
+      console.log('🔍 Starting automated agent discovery protocol...');
+      await this.triggerAgentDiscovery();
+      console.log('🎯 Agent discovery protocol activated - CoreAgent ready to ask "Who\'s awake?"');
       
     } catch (error) {
       console.error(`❌ Multi-Agent Orchestrator initialization failed:`, error);
@@ -428,39 +434,31 @@ export class MultiAgentOrchestrator {
     return await this.mcpServer.processToolCall(toolName, parameters, context);
   }
 
-  // Private implementation methods
+  /**
+   * Get the discovery service for agent auto-registration
+   */
+  getDiscoveryService(): any {
+    return this.mcpServer.getDiscoveryService();
+  }
 
+  /**
+   * Get the MCP server instance
+   */
+  getMCPServer(): MultiAgentMCPServer {
+    return this.mcpServer;
+  }
+
+  // Private implementation methods
   private async autoRegisterExistingAgents(): Promise<void> {
     console.log(`🔄 Auto-registering existing OneAgent agents...`);
     
     try {
-      // Register common OneAgent agents (if available)
+      // FIXED: No longer auto-register phantom/mock agents
+      // Only real agents should be registered via explicit register_agent calls
+      // This prevents the health monitoring system from reporting phantom agents
       
-      // Note: In actual implementation, these would be injected or discovered
-      // For now, we simulate the registration process
-      
-      const agentConfigs = [
-        { type: 'dev', name: 'DevAgent', id: 'dev-agent-001' },
-        { type: 'office', name: 'OfficeAgent', id: 'office-agent-001' },
-        { type: 'triage', name: 'TriageAgent', id: 'triage-agent-001' }
-      ];
-      
-      for (const config of agentConfigs) {
-        // Create mock registration for existing agents
-        const registration: AgentRegistration = {
-          agentId: config.id,
-          agentType: config.type,
-          capabilities: this.getDefaultCapabilities(config.type),
-          endpoint: `http://localhost:8083/agents/${config.type}`,
-          status: 'online',
-          loadLevel: 0.2,
-          qualityScore: 88, // Default quality for existing OneAgent agents
-          lastSeen: new Date()
-        };
-        
-        await this.communicationProtocol.registerAgent(registration);
-        console.log(`✅ Auto-registered: ${config.name} (${config.type})`);
-      }
+      console.log(`✅ Auto-registration disabled - only real agents will be registered manually`);
+      console.log(`📌 Use the register_agent MCP tool to register actual agents`);
       
     } catch (error) {
       console.error(`❌ Auto-registration failed:`, error);
@@ -573,6 +571,34 @@ export class MultiAgentOrchestrator {
     }
     
     return `Coordination completed successfully:\n${results.join('\n')}`;
+  }
+
+  /**
+   * Trigger automated agent discovery
+   * CoreAgent broadcasts "Who's awake?" and agents respond with capabilities
+   */
+  async triggerAgentDiscovery(): Promise<any[]> {
+    try {
+      console.log('🔍 CoreAgent asking: "Who\'s awake?"');
+      const discoveredAgents = await this.mcpServer.triggerAgentDiscovery();
+      
+      console.log(`📡 Discovery complete: Found ${discoveredAgents.length} agents`);
+      discoveredAgents.forEach(agent => {
+        console.log(`   👋 ${agent.agentId} (${agent.agentType}): Quality ${agent.qualityScore}%`);
+      });
+      
+      return discoveredAgents;
+    } catch (error) {
+      console.error('❌ Agent discovery failed:', error);
+      return [];
+    }
+  }
+
+  /**
+   * Get discovery network status from the automated discovery protocol
+   */
+  getDiscoveryNetworkStatus(): any {
+    return this.mcpServer.getDiscoveryNetworkStatus();
   }
 }
 

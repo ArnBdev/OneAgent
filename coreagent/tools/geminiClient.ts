@@ -237,23 +237,20 @@ export class GeminiClient {
     const userText = lastUserMessage?.parts[0]?.text || '';
     
     console.log(`🤖 Mock generation for input: "${userText.substring(0, 50)}..."`);
-    
-    // Generate a realistic mock response based on the prompt
-    let mockResponse: string;
+      // Generate a fallback response when API is rate limited
+    let fallbackResponse: string;
     
     if (userText.toLowerCase().includes('summarize') || userText.toLowerCase().includes('summary')) {
-      mockResponse = `This is a mock summary of the provided text. In a real implementation, Gemini would analyze the content and provide a concise summary highlighting the key points and main ideas.`;
+      fallbackResponse = `I understand you'd like a summary. Due to API rate limits, I'm currently operating in limited mode. Please try again in a few moments for full AI analysis capabilities.`;
     } else if (userText.toLowerCase().includes('analyze')) {
-      mockResponse = `This is a mock analysis of the provided content. Gemini would typically examine the text structure, themes, sentiment, and provide insights based on the analysis instructions.`;
+      fallbackResponse = `I see you need analysis assistance. Currently experiencing API rate limits - full analytical capabilities will be restored shortly. Please retry your request.`;
     } else if (userText.toLowerCase().includes('hello') || userText.toLowerCase().includes('test')) {
-      mockResponse = `Test successful! This is a mock response from the Gemini client. In production, this would be a real AI-generated response from Google's Gemini model.`;
+      fallbackResponse = `Hello! I'm OneAgent's AI assistant. Currently operating in limited mode due to API rate limits. Full capabilities will be available once rate limits reset.`;
     } else {
-      mockResponse = `This is a mock response to your query: "${userText.substring(0, 100)}${userText.length > 100 ? '...' : ''}". In production, Gemini would provide intelligent, contextual responses based on your input.`;
-    }
-
-    // Return response immediately (no async needed for mock)
+      fallbackResponse = `I understand your request about "${userText.substring(0, 100)}${userText.length > 100 ? '...' : ''}". Currently experiencing API rate limits. Please try again shortly for full AI processing capabilities.`;
+    }    // Return response immediately (no async needed for fallback)
     return {
-      response: mockResponse,
+      response: fallbackResponse,
       finishReason: 'STOP',
       timestamp: new Date().toISOString()
     };

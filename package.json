@@ -58,6 +58,7 @@
     "node": ">=18.0.0"
   },
   "dependencies": {
+    "chalk": "^5.4.1",
     "class-variance-authority": "^0.7.0",
     "clsx": "^2.0.0",
     "cors": "^2.8.5",
