@@ -2,27 +2,26 @@
  * OneAgent Memory System Connection Fix
  * 
  * This integration file properly configures the memory system connection
- * to use the real persistent memory server instead of the mock fallback.
+ * to use the real persistent memory server with centralized configuration.
  */
 
-import { Mem0Client } from '../tools/mem0Client';
+import { oneAgentConfig } from '../config/index';
+import { UnifiedMemoryClient } from '../memory/UnifiedMemoryClient';
 import { AgentCommunicationProtocol, AgentCapability, AgentRegistration } from '../agents/communication/AgentCommunicationProtocol';
 
 /**
- * Fixed Mem0Client factory that ensures proper connection to real memory system
+ * Fixed UnifiedMemoryClient factory that ensures proper connection to real memory system
  */
-export function createRealMemoryClient(): Mem0Client {
+export function createRealMemoryClient(): UnifiedMemoryClient {
   console.log('🧠 Creating real memory system client connection...');
   
   const options = {
-    deploymentType: 'local' as const,
-    localEndpoint: 'http://localhost:8000',
-    preferLocal: true,
+    serverUrl: oneAgentConfig.memoryUrl,
     timeout: 10000,
-    retries: 3
+    maxRetries: 3
   };
   
-  return new Mem0Client(options);
+  return new UnifiedMemoryClient(options);
 }
 
 /**
@@ -52,7 +51,7 @@ export class MemoryRegistrationSynchronizer {
         agentId,
         agentType,
         capabilities,
-        endpoint: `http://localhost:8083/agents/${agentType}`,
+        endpoint: `${oneAgentConfig.mcpUrl}/agents/${agentType}`,
         status: 'online',
         loadLevel: 0,
         qualityScore: 90, // Default quality score

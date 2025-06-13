@@ -207,12 +207,16 @@ export class AgentRegistry implements IAgentRegistry {
       keywords: ['workout', 'exercise', 'fitness', 'health', 'nutrition', 'diet', 'weight', 'training'],
       requiredCapabilities: ['workout_planning'],
       priority: 1
-    });
-
-    this.matchingCriteria.set('general', {
+    });    this.matchingCriteria.set('general', {
       keywords: ['help', 'question', 'information', 'chat', 'talk'],
       requiredCapabilities: ['conversation'],
       priority: 0
+    });
+
+    this.matchingCriteria.set('template', {
+      keywords: ['template', 'example', 'unified', 'memory', 'best', 'practices', 'modern', 'coordination', 'multi-agent', 'constitutional', 'quality', 'professional', 'standard'],
+      requiredCapabilities: ['unified_memory', 'multi_agent_coordination'],
+      priority: 2  // High priority for modern template agent
     });
   }  /**
    * Determine agent type from its capabilities
@@ -220,7 +224,16 @@ export class AgentRegistry implements IAgentRegistry {
   private determineAgentType(agent: ISpecializedAgent): AgentType {
     const capabilities = agent.config.capabilities;
     
-    // Check for enhanced development capabilities first (highest priority - revolutionary prompt engineering)
+    // Check for template agent capabilities first (modern unified patterns)
+    if (capabilities.includes('unified_memory') || 
+        capabilities.includes('multi_agent_coordination') || 
+        capabilities.includes('comprehensive_error_handling') ||
+        capabilities.includes('extensible_design') ||
+        capabilities.includes('best_practices')) {
+      return 'template';
+    }
+    
+    // Check for enhanced development capabilities (highest priority - revolutionary prompt engineering)
     if (capabilities.includes('revolutionary_prompting') || 
         capabilities.includes('constitutional_ai') || 
         capabilities.includes('bmad_elicitation') || 

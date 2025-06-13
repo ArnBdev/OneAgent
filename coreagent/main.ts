@@ -8,7 +8,7 @@
 
 import { listWorkflows, listUserWorkflows } from './tools/listWorkflows';
 import { createMCPAdapter, defaultMCPConfig } from './mcp/adapter';
-import { Mem0Client } from './tools/mem0Client';
+import { UnifiedMemoryClient } from './memory/UnifiedMemoryClient';
 import { BraveSearchClient } from './tools/braveSearchClient';
 import { WebSearchTool } from './tools/webSearch';
 import { GeminiClient } from './tools/geminiClient';
@@ -27,7 +27,7 @@ dotenv.config();
 class CoreAgent {
   private currentUser: User | null = null;
   private mcpAdapter: any;
-  private mem0Client: Mem0Client;
+  private unifiedMemoryClient: UnifiedMemoryClient;
   private braveSearchClient: BraveSearchClient;
   private webSearchTool: WebSearchTool;
   private geminiClient: GeminiClient;
@@ -38,9 +38,8 @@ class CoreAgent {
   constructor() {
     console.log("🚀 Hello CoreAgent!");
     console.log("OneAgent CoreAgent is starting...");
-    
-    // Initialize clients
-    this.mem0Client = new Mem0Client();
+      // Initialize clients
+    this.unifiedMemoryClient = new UnifiedMemoryClient();
     
     // Initialize Brave Search client
     const braveConfig = {
@@ -60,7 +59,7 @@ class CoreAgent {
     this.geminiClient = new GeminiClient(geminiConfig);
       // Initialize AI assistant
     this.aiAssistant = new AIAssistantTool(this.geminiClient);    // Initialize embeddings tool
-    this.embeddingsTool = new GeminiEmbeddingsTool(this.geminiClient, this.mem0Client);
+    this.embeddingsTool = new GeminiEmbeddingsTool(this.geminiClient, this.unifiedMemoryClient);
     
     // Initialize TriageAgent for intelligent task routing
     this.triageAgent = new TriageAgent({
@@ -104,7 +103,7 @@ class CoreAgent {
       // Test basic functionality
       await this.testWorkflowSystem();
       await this.testMCPCommunication();
-      await this.testMem0Integration();
+      await this.testMemoryIntegration();
       await this.testWebSearchIntegration();
       await this.testAIAssistantIntegration();
       await this.testEmbeddingsIntegration();
@@ -173,39 +172,48 @@ class CoreAgent {
       console.warn(`⚠️  MCP communication test failed: ${error}`);
     }
   }
-
   /**
-   * Test Mem0 integration
+   * Test Unified Memory integration
    */
-  private async testMem0Integration(): Promise<void> {
-    console.log("\n🧠 Testing Mem0 integration:");
+  private async testMemoryIntegration(): Promise<void> {
+    console.log("\n🧠 Testing Unified Memory integration:");
     
     try {
-      // Test connection
-      const connectionOk = await this.mem0Client.testConnection();
-      if (!connectionOk) {
-        console.warn("⚠️  Mem0 connection test failed - using mock mode");
-      }
-
-      // Test create memory
-      const createResult = await this.mem0Client.createMemory(
-        "OneAgent CoreAgent initialization test", 
-        { type: 'system', event: 'startup' },
-        this.currentUser?.id,
-        'coreagent'
-      );
-      
-      if (createResult.success) {
-        console.log(`✅ Memory created: ${createResult.data?.id}`);        const searchResult = await this.mem0Client.searchMemories({
-          userId: this.currentUser?.id || 'demo-user',
-          agentId: 'coreagent'
-        });
-        
-        if (searchResult.success) {
-          console.log(`🔍 Found ${searchResult.data?.length} memories for user`);
+      // Test connection by trying to store a simple conversation
+      const testConversation = {
+        id: `test-${Date.now()}`,
+        agentId: 'coreagent',
+        userId: this.currentUser?.id || 'demo-user',
+        timestamp: new Date(),
+        content: 'OneAgent CoreAgent initialization test',
+        context: {
+          actionType: 'system_test',
+          environment: 'development'
+        },
+        outcome: {
+          success: true,
+          satisfaction: 'high' as const,
+          qualityScore: 0.9
+        },
+        metadata: {
+          type: 'system',
+          event: 'startup'
         }
-      }    } catch (error) {
-      console.warn(`⚠️  Mem0 integration test failed: ${error}`);
+      };
+
+      const memoryId = await this.unifiedMemoryClient.storeConversation(testConversation);
+      console.log(`✅ Memory created: ${memoryId}`);
+
+      // Test search
+      const searchResult = await this.unifiedMemoryClient.searchMemories({
+        query: 'initialization test',
+        maxResults: 5,
+        semanticSearch: true
+      });
+      
+      console.log(`🔍 Found ${searchResult.length} memories`);
+    } catch (error) {
+      console.warn(`⚠️  Unified Memory integration test failed: ${error}`);
     }
   }
 

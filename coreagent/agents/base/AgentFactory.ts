@@ -10,8 +10,9 @@ import { AgentConfig } from './BaseAgent';
 import { OfficeAgent } from '../specialized/OfficeAgent';
 import { FitnessAgent } from '../specialized/FitnessAgent';
 import { DevAgent } from '../specialized/DevAgent';
+import { TemplateAgent } from '../templates/TemplateAgent';
 
-export type AgentType = 'enhanced-development' | 'development' | 'office' | 'fitness' | 'general' | 'coach' | 'advisor';
+export type AgentType = 'enhanced-development' | 'development' | 'office' | 'fitness' | 'general' | 'coach' | 'advisor' | 'template';
 
 export interface AgentFactoryConfig {
   type: AgentType;
@@ -30,7 +31,8 @@ export class AgentFactory {  private static readonly DEFAULT_CAPABILITIES = {
     fitness: ['workout_planning', 'nutrition_tracking', 'progress_monitoring', 'goal_setting'],
     general: ['conversation', 'information_retrieval', 'task_assistance'],
     coach: ['goal_setting', 'progress_tracking', 'motivation', 'feedback'],
-    advisor: ['analysis', 'recommendations', 'strategic_planning', 'consultation']
+    advisor: ['analysis', 'recommendations', 'strategic_planning', 'consultation'],
+    template: ['unified_memory', 'multi_agent_coordination', 'constitutional_ai', 'bmad_analysis', 'quality_scoring', 'time_awareness', 'comprehensive_error_handling', 'extensible_design', 'best_practices']
   };
 
   /**
@@ -65,10 +67,13 @@ export class AgentFactory {  private static readonly DEFAULT_CAPABILITIES = {
         break;
       case 'office':
         agent = new OfficeAgent(agentConfig);
-        break;
-      case 'fitness':
+        break;      case 'fitness':
         agent = new FitnessAgent(agentConfig);
-        break;default:
+        break;
+      case 'template':
+        agent = new TemplateAgent(agentConfig);
+        break;
+      default:
         throw new Error(`Unknown agent type: ${factoryConfig.type}`);
     }
 

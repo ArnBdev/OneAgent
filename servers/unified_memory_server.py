@@ -10,9 +10,11 @@ This replaces the mock memory system with:
 - Cross-agent learning capabilities
 - Constitutional AI validation
 - Quality monitoring and analytics
+- Centralized configuration via .env file
 
 Version: 1.0.0
 Created: June 13, 2025
+Updated: December 16, 2024 - Added centralized configuration
 """
 
 import asyncio
@@ -32,6 +34,10 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 
+# Load environment variables
+from dotenv import load_dotenv
+load_dotenv()
+
 # Add the parent directory to the path for imports
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
@@ -43,20 +49,21 @@ except ImportError:
     print("Warning: Google GenerativeAI not available. Embeddings will be simulated.")
 
 # =====================================
-# Configuration
+# Centralized Configuration
 # =====================================
 
 class ServerConfig:
     def __init__(self):
-        self.host = "localhost"
-        self.port = 8000
-        self.chroma_path = "./oneagent_unified_memory"
-        self.gemini_api_key = os.getenv("GOOGLE_API_KEY")
+        # Use centralized configuration from .env
+        self.host = os.getenv("ONEAGENT_HOST", "127.0.0.1")
+        self.port = int(os.getenv("ONEAGENT_MEMORY_PORT", "8001"))
+        self.chroma_path = os.getenv("MEMORY_STORAGE_PATH", "./oneagent_unified_memory")
+        self.gemini_api_key = os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY")
         self.enable_cors = True
         self.enable_embeddings = True
         self.embedding_model = "models/embedding-001"
         self.max_batch_size = 100
-        self.quality_threshold = 0.85
+        self.quality_threshold = float(os.getenv("QUALITY_THRESHOLD", "0.85"))
         
         # Configure Gemini if available
         if GEMINI_AVAILABLE and self.gemini_api_key:

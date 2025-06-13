@@ -13,7 +13,7 @@ import path from 'path';
 import { PerformanceAPI } from '../api/performanceAPI';
 import { MemoryIntelligence } from '../intelligence/memoryIntelligence';
 import { GeminiClient } from '../tools/geminiClient';
-import { Mem0Client } from '../tools/mem0Client';
+import { UnifiedMemoryClient } from '../memory/UnifiedMemoryClient';
 import { GeminiEmbeddingsTool } from '../tools/geminiEmbeddings';
 import { globalProfiler } from '../performance/profiler';
 
@@ -34,16 +34,17 @@ const geminiClient = new GeminiClient({
   apiKey: process.env.GOOGLE_API_KEY || process.env.GEMINI_API_KEY || '',
   model: 'gemini-2.5-pro-preview-05-06'
 });
-const mem0Client = new Mem0Client();
-const embeddingsTool = new GeminiEmbeddingsTool(geminiClient, mem0Client);
-const memoryIntelligence = new MemoryIntelligence(mem0Client, embeddingsTool);
+const unifiedMemoryClient = new UnifiedMemoryClient();
+const embeddingsTool = new GeminiEmbeddingsTool(geminiClient, unifiedMemoryClient);
+// TODO: Update MemoryIntelligence and PerformanceAPI to work with UnifiedMemoryClient
+// const memoryIntelligence = new MemoryIntelligence(unifiedMemoryClient, embeddingsTool);
 
-const performanceAPI = new PerformanceAPI(
-  memoryIntelligence,
-  geminiClient,
-  mem0Client,
-  embeddingsTool
-);
+// const performanceAPI = new PerformanceAPI(
+//   memoryIntelligence,
+//   geminiClient,
+//   unifiedMemoryClient,
+//   embeddingsTool
+// );
 
 // Configuration management
 interface SystemConfig {

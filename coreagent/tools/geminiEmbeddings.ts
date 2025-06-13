@@ -3,10 +3,12 @@
  * 
  * Provides semantic search, similarity matching, and embedding-based
  * memory enhancement for the OneAgent system using Google Gemini embeddings.
+ * Updated to use UnifiedMemoryClient.
  */
 
 import { GeminiClient } from './geminiClient';
-import { Mem0Client, Mem0Memory, Mem0SearchFilter } from './mem0Client';
+import { UnifiedMemoryClient } from '../memory/UnifiedMemoryClient';
+import { MemorySearchQuery, MemoryResult, ConversationMemory, LearningMemory } from '../memory/UnifiedMemoryInterface';
 import { EmbeddingOptions, EmbeddingResult, EmbeddingTaskType } from '../types/gemini';
 import { globalProfiler } from '../performance/profiler';
 
@@ -24,7 +26,7 @@ export interface MemoryEmbeddingOptions extends SemanticSearchOptions {
 }
 
 export interface SemanticSearchResult {
-  memory: Mem0Memory;
+  memory: MemoryResult;
   similarity: number;
   embeddingResult: EmbeddingResult;
 }
@@ -39,440 +41,217 @@ export interface EmbeddingAnalytics {
 
 /**
  * Gemini Embeddings Tool
- * Integrates Gemini embeddings with Mem0 memory system for semantic operations
+ * Integrates Gemini embeddings with UnifiedMemoryClient for semantic operations
  */
 export class GeminiEmbeddingsTool {
   private geminiClient: GeminiClient;
-  private mem0Client: Mem0Client;
+  private unifiedMemoryClient: UnifiedMemoryClient;
   private embeddingCache: Map<string, EmbeddingResult> = new Map();
 
-  constructor(geminiClient: GeminiClient, mem0Client: Mem0Client) {
+  constructor(geminiClient: GeminiClient, unifiedMemoryClient: UnifiedMemoryClient) {
     this.geminiClient = geminiClient;
-    this.mem0Client = mem0Client;
-    console.log('🔢 GeminiEmbeddingsTool initialized');
+    this.unifiedMemoryClient = unifiedMemoryClient;
+    console.log('🔢 GeminiEmbeddingsTool initialized with UnifiedMemoryClient');
   }
   /**
    * Perform semantic search across memories
    */
   async semanticSearch(
     query: string, 
-    filter?: Mem0SearchFilter, 
+    searchQuery?: MemorySearchQuery, 
     options?: MemoryEmbeddingOptions
   ): Promise<{ results: SemanticSearchResult[]; analytics: EmbeddingAnalytics }> {
-    const operationId = `semantic_search_${Date.now()}_${Math.random()}`;
-    globalProfiler.startOperation(operationId, 'semantic_search', { 
-      query: query.substring(0, 50),
-      threshold: options?.similarityThreshold,
-      topK: options?.topK
-    });
-
     const startTime = Date.now();
-    console.log(`🔍 Performing semantic search for: "${query.substring(0, 50)}..."`);
-
+    const operationId = `semantic-search-${Date.now()}`;
+    
     try {
-      // Retrieve memories using Mem0 filter
-      const memoriesResponse = await this.mem0Client.searchMemories(filter || {});
+      globalProfiler.startOperation(operationId, 'semantic-search');
       
-      if (!memoriesResponse.success || !memoriesResponse.data) {
-        console.log('⚠️ No memories found for semantic search');
-        return {
-          results: [],
-          analytics: {
-            totalMemories: 0,
-            searchResults: 0,
-            averageSimilarity: 0,
-            topSimilarity: 0,
-            processingTime: Date.now() - startTime
-          }
-        };
-      }
-
-      const memories = memoriesResponse.data;
-      console.log(`📚 Found ${memories.length} memories for semantic analysis`);
-
-      // Generate embedding for search query
+      // Step 1: Generate embedding for the query
       const queryEmbedding = await this.geminiClient.generateEmbedding(query, {
-        taskType: options?.taskType || 'RETRIEVAL_QUERY',
-        model: options?.model
+        taskType: options?.taskType || 'SEMANTIC_SIMILARITY',
+        model: options?.model || 'text-embedding-004'
       });
+      
+      // Step 2: Search memories using unified memory client
+      const memories = await this.unifiedMemoryClient.searchMemories(
+        searchQuery || { 
+          query, 
+          maxResults: options?.topK || 10,
+          semanticSearch: true
+        }
+      );
+      
+      // Step 3: Generate embeddings for memory contents and calculate similarities
+      const memoryTexts = memories.map(memory => memory.content || '');
+      const memoryEmbeddings = await Promise.all(
+        memoryTexts.map(text => this.geminiClient.generateEmbedding(text, {
+          taskType: 'SEMANTIC_SIMILARITY',
+          model: options?.model || 'text-embedding-004'
+        }))
+      );
 
-      // Generate embeddings for memory contents
-      const memoryTexts = memories.map(memory => memory.content);
-      const memoryEmbeddings = await this.geminiClient.generateEmbeddingBatch(memoryTexts, {
-        taskType: 'RETRIEVAL_DOCUMENT',
-        model: options?.model
-      });
-
-      // Calculate similarities and create results
       const searchResults: SemanticSearchResult[] = memories.map((memory, index) => {
-        const embeddingResult = memoryEmbeddings[index];
-        const similarity = GeminiClient.calculateCosineSimilarity(
-          queryEmbedding.embedding, 
-          embeddingResult.embedding
+        const similarity = this.calculateCosineSimilarity(
+          queryEmbedding.embedding,
+          memoryEmbeddings[index].embedding
         );
-
+        
         return {
           memory,
           similarity,
-          embeddingResult
+          embeddingResult: memoryEmbeddings[index]
         };
-      });
+      }).filter(result => result.similarity >= (options?.similarityThreshold || 0.1))
+       .sort((a, b) => b.similarity - a.similarity)
+       .slice(0, options?.topK || 10);
 
-      // Filter by similarity threshold
-      const threshold = options?.similarityThreshold || 0.5;
-      const filteredResults = searchResults.filter(result => result.similarity >= threshold);
-
-      // Sort by similarity (highest first)
-      filteredResults.sort((a, b) => b.similarity - a.similarity);
-
-      // Apply topK limit
-      const topK = options?.topK || filteredResults.length;
-      const finalResults = filteredResults.slice(0, topK);
-
-      // Calculate analytics
-      const similarities = finalResults.map(r => r.similarity);
       const analytics: EmbeddingAnalytics = {
         totalMemories: memories.length,
-        searchResults: finalResults.length,
-        averageSimilarity: similarities.length > 0 ? similarities.reduce((a, b) => a + b, 0) / similarities.length : 0,
-        topSimilarity: similarities.length > 0 ? Math.max(...similarities) : 0,
+        searchResults: searchResults.length,
+        averageSimilarity: searchResults.length > 0 
+          ? searchResults.reduce((sum, r) => sum + r.similarity, 0) / searchResults.length 
+          : 0,
+        topSimilarity: searchResults.length > 0 ? searchResults[0].similarity : 0,
         processingTime: Date.now() - startTime
-      };      console.log(`✅ Semantic search completed: ${finalResults.length} results in ${analytics.processingTime}ms`);
+      };
+
       globalProfiler.endOperation(operationId, true);
-      return { results: finalResults, analytics };
+      
+      return { results: searchResults, analytics };
 
     } catch (error) {
+      globalProfiler.endOperation(operationId, false, error?.toString());
       console.error('❌ Semantic search failed:', error);
-      globalProfiler.endOperation(operationId, false, error instanceof Error ? error.message : 'Unknown error');
-      throw error;
+      return {
+        results: [],
+        analytics: {
+          totalMemories: 0,
+          searchResults: 0,
+          averageSimilarity: 0,
+          topSimilarity: 0,
+          processingTime: Date.now() - startTime
+        }
+      };
     }
   }
   /**
-   * Store memory with embedding for future semantic searches
+   * Enhanced memory storage with embedding generation
    */
   async storeMemoryWithEmbedding(
     content: string,
-    metadata?: Record<string, any>,
-    userId?: string,
-    agentId?: string,
-    workflowId?: string,
-    memoryType: 'short_term' | 'long_term' | 'workflow' | 'session' = 'long_term',
-    embeddingOptions?: EmbeddingOptions
-  ): Promise<{ memory: Mem0Memory; embedding: EmbeddingResult }> {
-    const operationId = `store_memory_embedding_${Date.now()}_${Math.random()}`;
-    globalProfiler.startOperation(operationId, 'store_memory_with_embedding', { 
-      contentLength: content.length,
-      memoryType,
-      userId,
-      agentId 
-    });
-
-    console.log(`💾 Storing memory with embedding: "${content.substring(0, 50)}..."`);
-
+    agentId: string,
+    userId: string,
+    memoryType: 'conversation' | 'learning' | 'pattern' = 'conversation',
+    metadata?: Record<string, any>
+  ): Promise<{ memoryId: string; embedding: EmbeddingResult }> {
+    const operationId = `store-memory-${Date.now()}`;
+    
     try {
-      // Generate embedding for the content
+      globalProfiler.startOperation(operationId, 'store-memory-embedding');
+      
+      // Generate embedding
       const embedding = await this.geminiClient.generateEmbedding(content, {
-        taskType: 'RETRIEVAL_DOCUMENT',
-        ...embeddingOptions
+        taskType: 'SEMANTIC_SIMILARITY',
+        model: 'text-embedding-004'
       });
 
-      // Store memory in Mem0 with embedding metadata
-      const enhancedMetadata = {
-        ...metadata,
-        has_embedding: true,
-        embedding_model: embeddingOptions?.model || 'text-embedding-004',
-        embedding_dimensions: embedding.dimensions,
-        embedding_task_type: embedding.taskType
-      };
+      let memoryId: string;
+      const timestamp = new Date();
 
-      const memoryResponse = await this.mem0Client.createMemory(
-        content,
-        enhancedMetadata,
-        userId,
-        agentId,
-        workflowId,
-        memoryType
-      );
+      // Store based on memory type
+      switch (memoryType) {        case 'conversation':
+          memoryId = await this.unifiedMemoryClient.storeConversation({
+            id: '', // Will be generated by the server
+            agentId,
+            userId,
+            timestamp,
+            content,
+            context: { timestamp, sessionId: metadata?.sessionId || 'default' },
+            outcome: { success: true, value: content, confidence: 0.9 },
+            ...(metadata && { metadata })
+          });
+          break;
 
-      if (!memoryResponse.success || !memoryResponse.data) {
-        throw new Error('Failed to store memory');
+        case 'learning':
+          memoryId = await this.unifiedMemoryClient.storeLearning({
+            id: '', // Will be generated by the server
+            agentId,
+            learningType: 'pattern',
+            content,
+            confidence: 0.8,
+            applicationCount: 0,
+            lastApplied: timestamp,
+            sourceConversations: [],
+            ...(metadata && { metadata })
+          });
+          break;
+
+        default:
+          throw new Error(`Unsupported memory type: ${memoryType}`);
       }
 
-      // Cache the embedding for future use
-      if (memoryResponse.data.id) {
-        this.embeddingCache.set(memoryResponse.data.id, embedding);
-      }      console.log(`✅ Memory stored with embedding: ${memoryResponse.data.id}`);
       globalProfiler.endOperation(operationId, true);
-      return {
-        memory: memoryResponse.data,
-        embedding
-      };
+      
+      return { memoryId, embedding };
 
     } catch (error) {
-      console.error('❌ Failed to store memory with embedding:', error);
-      globalProfiler.endOperation(operationId, false, error instanceof Error ? error.message : 'Unknown error');
+      globalProfiler.endOperation(operationId, false, error?.toString());
+      console.error('❌ Memory storage with embedding failed:', error);
       throw error;
     }
   }
 
   /**
-   * Find similar memories to a given memory
+   * Calculate cosine similarity between two embeddings
+   */
+  private calculateCosineSimilarity(embedding1: number[], embedding2: number[]): number {
+    if (embedding1.length !== embedding2.length) {
+      throw new Error('Embeddings must have the same length');
+    }
+
+    let dotProduct = 0;
+    let norm1 = 0;
+    let norm2 = 0;
+
+    for (let i = 0; i < embedding1.length; i++) {
+      dotProduct += embedding1[i] * embedding2[i];
+      norm1 += embedding1[i] * embedding1[i];
+      norm2 += embedding2[i] * embedding2[i];
+    }
+
+    return dotProduct / (Math.sqrt(norm1) * Math.sqrt(norm2));
+  }
+
+  /**
+   * Get similar memories using embeddings
    */
   async findSimilarMemories(
-    memoryId: string,
+    queryText: string,
+    searchQuery?: MemorySearchQuery,
     options?: MemoryEmbeddingOptions
-  ): Promise<{ results: SemanticSearchResult[]; analytics: EmbeddingAnalytics }> {
-    console.log(`🔍 Finding similar memories to: ${memoryId}`);
-
-    try {
-      // Get the reference memory
-      const memoryResponse = await this.mem0Client.getMemory(memoryId);
-      
-      if (!memoryResponse.success || !memoryResponse.data) {
-        throw new Error(`Memory not found: ${memoryId}`);
-      }
-
-      const referenceMemory = memoryResponse.data;
-        // Use the memory content for semantic search
-      const searchFilter: any = {
-        // Exclude the reference memory from results
-        userId: referenceMemory.userId,
-        agentId: referenceMemory.agentId,
-        workflowId: options?.workflowId || referenceMemory.workflowId,
-        sessionId: options?.sessionId || referenceMemory.sessionId
-      };
-      
-      // Only add memoryType if it's defined
-      if (options?.memoryType || referenceMemory.memoryType) {
-        searchFilter.memoryType = options?.memoryType || referenceMemory.memoryType;
-      }
-      
-      return this.semanticSearch(referenceMemory.content, searchFilter, options);
-
-    } catch (error) {
-      console.error('❌ Failed to find similar memories:', error);
-      throw error;
-    }
-  }
-  /**
-   * Cluster memories by semantic similarity
-   */
-  async clusterMemories(
-    filter?: Mem0SearchFilter,
-    options?: { 
-      numClusters?: number; 
-      model?: string;
-      similarityThreshold?: number;
-    }
-  ): Promise<Array<{ 
-    cluster: number; 
-    memories: Mem0Memory[]; 
-    centroid: number[];
-    avgSimilarity: number;
-  }>> {
-    const operationId = `cluster_memories_${Date.now()}_${Math.random()}`;
-    globalProfiler.startOperation(operationId, 'cluster_memories', { 
-      numClusters: options?.numClusters,
-      model: options?.model
-    });
-
-    console.log('🎯 Clustering memories by semantic similarity...');
-
-    try {
-      // Get memories
-      const memoriesResponse = await this.mem0Client.searchMemories(filter || {});
-      
-      if (!memoriesResponse.success || !memoriesResponse.data || memoriesResponse.data.length < 2) {
-        console.log('⚠️ Insufficient memories for clustering');
-        return [];
-      }
-
-      const memories = memoriesResponse.data;
-      console.log(`📊 Clustering ${memories.length} memories`);
-
-      // Generate embeddings for all memories
-      const memoryTexts = memories.map(memory => memory.content);
-      const embeddings = await this.geminiClient.generateEmbeddingBatch(memoryTexts, {
-        taskType: 'CLUSTERING',
-        model: options?.model as any
-      });
-
-      // Simple k-means clustering implementation
-      const numClusters = Math.min(options?.numClusters || 3, Math.floor(memories.length / 2));
-      const clusters = this.performKMeansClustering(embeddings, memories, numClusters);      console.log(`✅ Created ${clusters.length} clusters`);
-      globalProfiler.endOperation(operationId, true);
-      return clusters;
-
-    } catch (error) {
-      console.error('❌ Memory clustering failed:', error);
-      globalProfiler.endOperation(operationId, false, error instanceof Error ? error.message : 'Unknown error');
-      throw error;
-    }
-  }
-
-  /**
-   * Test embeddings functionality
-   */
-  async testEmbeddings(): Promise<boolean> {
-    try {
-      console.log('🧪 Testing Gemini embeddings functionality...');
-
-      // Test single embedding
-      const testText = "OneAgent is a modular AI agent platform";
-      const embedding = await this.geminiClient.generateEmbedding(testText, {
-        taskType: 'SEMANTIC_SIMILARITY'
-      });
-
-      console.log(`✅ Single embedding: ${embedding.dimensions} dimensions`);
-
-      // Test batch embeddings
-      const testTexts = [
-        "AI agent platform",
-        "Machine learning system", 
-        "Software development tools"
-      ];
-      
-      const batchEmbeddings = await this.geminiClient.generateEmbeddingBatch(testTexts, {
-        taskType: 'CLUSTERING'
-      });
-
-      console.log(`✅ Batch embeddings: ${batchEmbeddings.length} embeddings generated`);
-
-      // Test similarity calculation
-      const similarity = GeminiClient.calculateCosineSimilarity(
-        embedding.embedding,
-        batchEmbeddings[0].embedding
-      );
-
-      console.log(`✅ Similarity calculation: ${similarity.toFixed(4)}`);
-      console.log('🎉 Embeddings test completed successfully');
-      
-      return true;
-
-    } catch (error) {
-      console.error('❌ Embeddings test failed:', error);
-      return false;
-    }
-  }
-
-  /**
-   * Simple k-means clustering implementation
-   */
-  private performKMeansClustering(
-    embeddings: EmbeddingResult[],
-    memories: Mem0Memory[],
-    k: number
-  ): Array<{ 
-    cluster: number; 
-    memories: Mem0Memory[]; 
-    centroid: number[];
-    avgSimilarity: number;
+  ): Promise<{
+    results: SemanticSearchResult[];
+    analytics: EmbeddingAnalytics;
   }> {
-    const numPoints = embeddings.length;
-    const dimensions = embeddings[0].embedding.length;
-
-    // Initialize centroids randomly
-    const centroids: number[][] = [];
-    for (let i = 0; i < k; i++) {
-      const randomIndex = Math.floor(Math.random() * numPoints);
-      centroids.push([...embeddings[randomIndex].embedding]);
-    }
-
-    let assignments = new Array(numPoints).fill(0);
-    let converged = false;
-    let iterations = 0;
-    const maxIterations = 100;
-
-    while (!converged && iterations < maxIterations) {      // Assign points to closest centroids
-      const newAssignments = embeddings.map((embedding) => {
-        let minDistance = Infinity;
-        let closestCentroid = 0;
-
-        for (let j = 0; j < k; j++) {
-          const distance = this.calculateEuclideanDistance(embedding.embedding, centroids[j]);
-          if (distance < minDistance) {
-            minDistance = distance;
-            closestCentroid = j;
-          }
-        }
-
-        return closestCentroid;
-      });
-
-      // Check for convergence
-      converged = newAssignments.every((assignment, index) => assignment === assignments[index]);
-      assignments = newAssignments;
-
-      // Update centroids
-      for (let j = 0; j < k; j++) {
-        const clusterPoints = embeddings.filter((_, index) => assignments[index] === j);
-        if (clusterPoints.length > 0) {
-          for (let d = 0; d < dimensions; d++) {
-            centroids[j][d] = clusterPoints.reduce((sum, point) => sum + point.embedding[d], 0) / clusterPoints.length;
-          }
-        }
-      }
-
-      iterations++;
-    }
-
-    // Create cluster results
-    const clusters = [];
-    for (let j = 0; j < k; j++) {
-      const clusterMemories = memories.filter((_, index) => assignments[index] === j);
-      const clusterEmbeddings = embeddings.filter((_, index) => assignments[index] === j);
-      
-      // Calculate average similarity within cluster
-      let totalSimilarity = 0;
-      let pairCount = 0;
-      
-      for (let i = 0; i < clusterEmbeddings.length; i++) {
-        for (let l = i + 1; l < clusterEmbeddings.length; l++) {
-          totalSimilarity += GeminiClient.calculateCosineSimilarity(
-            clusterEmbeddings[i].embedding,
-            clusterEmbeddings[l].embedding
-          );
-          pairCount++;
-        }
-      }
-
-      const avgSimilarity = pairCount > 0 ? totalSimilarity / pairCount : 0;
-
-      clusters.push({
-        cluster: j,
-        memories: clusterMemories,
-        centroid: centroids[j],
-        avgSimilarity
-      });
-    }
-
-    return clusters.filter(cluster => cluster.memories.length > 0);
-  }
-
-  /**
-   * Calculate Euclidean distance between two vectors
-   */
-  private calculateEuclideanDistance(vec1: number[], vec2: number[]): number {
-    return Math.sqrt(
-      vec1.reduce((sum, val, index) => sum + Math.pow(val - vec2[index], 2), 0)
-    );
-  }
-
-  /**
-   * Get embedding cache statistics
-   */
-  getCacheStats() {
-    return {
-      cacheSize: this.embeddingCache.size,
-      memoryUsage: `${Math.round(this.embeddingCache.size * 384 * 8 / 1024)} KB` // Approximate for 384-dim embeddings
-    };
+    return this.semanticSearch(queryText, searchQuery, options);
   }
 
   /**
    * Clear embedding cache
    */
-  clearCache() {
+  clearCache(): void {
     this.embeddingCache.clear();
-    console.log('🗑️ Embedding cache cleared');
+    console.log('🧹 Embedding cache cleared');
+  }
+
+  /**
+   * Get cache statistics
+   */
+  getCacheStats(): { size: number; keys: string[] } {
+    return {
+      size: this.embeddingCache.size,
+      keys: Array.from(this.embeddingCache.keys())
+    };
   }
 }

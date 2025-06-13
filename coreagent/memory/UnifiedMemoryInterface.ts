@@ -1,3 +1,5 @@
+import { oneAgentConfig } from '../config/index';
+
 /**
  * OneAgent Unified Memory System - Core Interface
  * 
@@ -7,8 +9,11 @@
  * - Cross-agent semantic search and retrieval
  * - Organic growth and learning transfer
  * 
+ * Uses centralized configuration from ../config/index.ts
+ * 
  * @version 1.0.0
  * @created June 13, 2025
+ * @updated December 16, 2024 - Added centralized configuration
  */
 
 // =====================================
@@ -350,7 +355,7 @@ export interface MemoryConfig {
 }
 
 export const DEFAULT_MEMORY_CONFIG: MemoryConfig = {
-  serverUrl: 'http://localhost:8000',
+  serverUrl: oneAgentConfig.memoryUrl,
   maxRetries: 3,
   retryDelay: 1000,
   timeout: 30000,

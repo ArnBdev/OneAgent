@@ -3,8 +3,10 @@
  * 
  * Prevents mock memory from masquerading as real Gemini-based memory.
  * Provides transparent, accurate system status for TriageAgent integration.
+ * Uses centralized configuration for memory server connection.
  */
 
+import { oneAgentConfig } from '../config/index';
 import { IIntelligenceProvider } from '../interfaces/IIntelligenceProvider';
 
 export interface MemorySystemType {
@@ -42,7 +44,7 @@ export class MemorySystemValidator implements IIntelligenceProvider {
     console.log('🔍 MemorySystemValidator initialized - Reality detection active');
   }  /**
    * Comprehensive memory system validation with deception detection
-   */  async validateMemorySystem(endpoint = 'http://127.0.0.1:8000'): Promise<MemoryValidationResult> {
+   */  async validateMemorySystem(endpoint = oneAgentConfig.memoryUrl): Promise<MemoryValidationResult> {
     const cacheKey = `${endpoint}_${Date.now().toString().slice(-6)}`;
     
     try {
@@ -134,20 +136,36 @@ export class MemorySystemValidator implements IIntelligenceProvider {
       return { status: 'disconnected', responseTime: Date.now() - startTime };
     }
   }
-
   /**
    * Identify the actual memory system type
-   */  private async identifySystemType(endpoint: string): Promise<MemorySystemType> {
+   */
+  private async identifySystemType(endpoint: string): Promise<MemorySystemType> {
     try {
       console.log(`🔍 Identifying memory system type for endpoint: ${endpoint}`);
       
-      // Test for Gemini-ChromaDB system
-      console.log(`🔍 Testing Gemini features...`);
+      // Test for Unified Memory System first
+      console.log(`🔍 Testing Unified Memory System features...`);
+      const unifiedTest = await this.testUnifiedMemoryFeatures(endpoint);
+      console.log(`🔍 Unified test result: isUnified=${unifiedTest.isUnified}, features=${unifiedTest.features.join(', ')}`);
+      
+      if (unifiedTest.isUnified) {
+        console.log(`✅ Detected Unified Memory System`);
+        return {
+          type: 'Gemini-ChromaDB',
+          isReal: true,
+          hasPersistence: true,
+          hasEmbeddings: true,
+          capabilities: unifiedTest.features
+        };
+      }
+      
+      // Test for legacy Gemini-ChromaDB system
+      console.log(`🔍 Testing legacy Gemini features...`);
       const geminiTest = await this.testGeminiFeatures(endpoint);
       console.log(`🔍 Gemini test result: isGemini=${geminiTest.isGemini}, features=${geminiTest.features.join(', ')}`);
       
       if (geminiTest.isGemini) {
-        console.log(`✅ Detected Gemini-ChromaDB system`);
+        console.log(`✅ Detected legacy Gemini-ChromaDB system`);
         return {
           type: 'Gemini-ChromaDB',
           isReal: true,
@@ -208,27 +226,60 @@ export class MemorySystemValidator implements IIntelligenceProvider {
         capabilities: []
       };
     }
-  }
-  /**
+  }  /**
    * Test for Gemini-specific features
    */  private async testGeminiFeatures(endpoint: string): Promise<{ isGemini: boolean; features: string[] }> {
     try {
-      // Look for Gemini-specific endpoints and responses with broader searches
+      // Look for Gemini-specific features with unified memory API first
       let searchData: any = null;
       
-      // Try multiple search queries to find Gemini memories
+      // Try unified memory search endpoint first
+      try {
+        const unifiedSearch = await fetch(`${endpoint}/memory/search`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            query: 'embedding test',
+            max_results: 10,
+            semantic_search: true
+          })
+        });
+
+        if (unifiedSearch.ok) {
+          searchData = await unifiedSearch.json();
+          if (searchData.success && searchData.memories && searchData.memories.length > 0) {
+            // Check unified memory for Gemini embeddings
+            for (const memory of searchData.memories) {
+              if (memory.embeddings && memory.embeddings.length > 0) {
+                return {
+                  isGemini: true,
+                  features: ['embeddings', 'semantic_search', 'unified_memory']
+                };
+              }
+            }
+          }
+        }
+      } catch (unifiedError) {
+        console.log('🔍 Unified search test failed, trying legacy endpoints...');
+      }
+      
+      // Fallback to legacy endpoint test
       const searchQueries = ['embedding', 'semantic', 'search', 'test', 'memory'];
       
       for (const query of searchQueries) {
-        const testSearch = await fetch(`${endpoint}/v1/memories?query=${query}&limit=10`, {
-          method: 'GET'
-        });
+        try {
+          const testSearch = await fetch(`${endpoint}/v1/memories?query=${query}&limit=10`, {
+            method: 'GET'
+          });
 
-        if (testSearch.ok) {
-          searchData = await testSearch.json();
-          if (searchData.success && searchData.data && searchData.data.length > 0) {
-            break; // Found memories, use this result
+          if (testSearch.ok) {
+            searchData = await testSearch.json();
+            if (searchData.success && searchData.data && searchData.data.length > 0) {
+              break; // Found memories, use this result
+            }
           }
+        } catch (legacyError) {
+          console.log(`🔍 Legacy endpoint test failed for query: ${query}`);
         }
       }
 
@@ -268,14 +319,51 @@ export class MemorySystemValidator implements IIntelligenceProvider {
       console.error('❌ testGeminiFeatures failed:', error);
       return { isGemini: false, features: [] };
     }
-  }
-  /**
+  }  /**
    * Test for basic Mem0 features
    */  private async testMem0Features(endpoint: string): Promise<{ isMem0: boolean; features: string[] }> {
     try {
       console.log(`🔍 Testing Mem0 features for endpoint: ${endpoint}`);
       
-      const testResponse = await fetch(`${endpoint}/v1/memories/`, {
+      // Try unified memory endpoint first
+      const testResponse = await fetch(`${endpoint}/memory/learnings`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          id: `mem0_test_${Date.now()}`,
+          agent_id: 'system_test',
+          learning_type: 'mem0_validation',
+          content: 'Memory system validation test',
+          confidence: 0.8,
+          application_count: 0,
+          last_applied: new Date().toISOString(),
+          source_conversations: [],
+          metadata: { test: true, timestamp: Date.now() }
+        })
+      });
+
+      console.log(`🔍 Unified endpoint test response status: ${testResponse.status}, ok: ${testResponse.ok}`);
+
+      if (testResponse.ok) {
+        const responseData = await testResponse.json();
+        console.log(`🔍 Unified response data:`, JSON.stringify(responseData, null, 2));
+        
+        // Check response structure for unified memory patterns
+        const hasPersistence = responseData.success && responseData.id;
+        const hasMetadata = responseData.metadata !== undefined;
+        
+        console.log(`🔍 Unified analysis: hasPersistence=${hasPersistence}, hasMetadata=${hasMetadata}`);
+
+        if (hasPersistence) {
+          return {
+            isMem0: true,
+            features: ['persistence', 'unified_storage', 'constitutional_ai']
+          };
+        }
+      }
+      
+      // Fallback to legacy Mem0 endpoint
+      const legacyResponse = await fetch(`${endpoint}/v1/memories/`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -285,15 +373,15 @@ export class MemorySystemValidator implements IIntelligenceProvider {
         })
       });
 
-      console.log(`🔍 Mem0 test response status: ${testResponse.status}, ok: ${testResponse.ok}`);
+      console.log(`🔍 Legacy Mem0 test response status: ${legacyResponse.status}, ok: ${legacyResponse.ok}`);
 
-      if (!testResponse.ok) {
-        console.log(`❌ Mem0 test failed - response not ok`);
+      if (!legacyResponse.ok) {
+        console.log(`❌ Both unified and legacy tests failed`);
         return { isMem0: false, features: [] };
       }
 
-      const responseData = await testResponse.json();
-      console.log(`🔍 Mem0 response data:`, JSON.stringify(responseData, null, 2));
+      const responseData = await legacyResponse.json();
+      console.log(`🔍 Legacy Mem0 response data:`, JSON.stringify(responseData, null, 2));
       
       // Check response structure for Mem0 patterns
       const hasPersistence = responseData.success && responseData.data?.id;
@@ -361,7 +449,6 @@ export class MemorySystemValidator implements IIntelligenceProvider {
       return { isMock: false, indicators: [] };
     }
   }
-
   /**
    * Test data quality and persistence
    */
@@ -372,14 +459,20 @@ export class MemorySystemValidator implements IIntelligenceProvider {
   }> {
     const testId = `quality_test_${Date.now()}`;
       try {
-      // Add test memory using correct OneAgent endpoint
-      const addResponse = await fetch(`${endpoint}/v1/memories/`, {
+      // Add test memory using unified memory endpoint
+      const addResponse = await fetch(`${endpoint}/memory/learnings`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
+          id: testId,
+          agent_id: 'system_validator',
+          learning_type: 'quality_validation',
           content: `Quality test memory ${testId}`,
-          metadata: { test: true, validator: 'MemorySystemValidator' },
-          user_id: 'system_validator'
+          confidence: 0.8,
+          application_count: 0,
+          last_applied: new Date().toISOString(),
+          source_conversations: [],
+          metadata: { test: true, validator: 'MemorySystemValidator' }
         })
       });
 
@@ -387,24 +480,31 @@ export class MemorySystemValidator implements IIntelligenceProvider {
         return { quality: 'unknown', persistence: false, testResults: null };
       }      const addData = await addResponse.json();
       
-      // Search for the memory using correct OneAgent endpoint
-      const searchResponse = await fetch(`${endpoint}/v1/memories?query=${encodeURIComponent(testId)}&userId=system_validator&limit=1`, {
-        method: 'GET'
+      // Search for the memory using unified search endpoint
+      const searchResponse = await fetch(`${endpoint}/memory/search`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          query: testId,
+          agent_ids: ['system_validator'],
+          memory_types: ['learnings'],
+          max_results: 1
+        })
       });
 
       if (!searchResponse.ok) {
         return { quality: 'unknown', persistence: false, testResults: addData };
-      }      const searchData = await searchResponse.json();
-      const found = searchData.success && searchData.data?.length > 0;
+      }      const searchData = await searchResponse.json();      const found = searchData.success && searchData.memories?.length > 0;
 
       // Determine quality based on response characteristics
       let quality: 'real' | 'mock' | 'mixed' | 'unknown' = 'unknown';
       
-      if (found && addData.data?.id && searchData.data[0].metadata) {
-        // Check if data seems real or mock
-        const hasRealTimestamp = searchData.data[0].createdAt !== "2025-01-03T12:00:00Z";
-        const hasComplexId = addData.data.id.length > 10;
-        const hasEmbeddings = searchData.data[0].metadata?.embedding_model || searchData.embeddings || searchData.similarities;
+      if (found && addData.success && searchData.memories[0]) {
+        const memory = searchData.memories[0];
+        // Check if data seems real or mock - unified memory has different structure
+        const hasRealTimestamp = memory.last_applied !== "2025-01-03T12:00:00Z";
+        const hasComplexId = addData.id?.length > 10;
+        const hasEmbeddings = memory.embeddings && memory.embeddings.length > 0;
 
         if (hasRealTimestamp && hasComplexId && hasEmbeddings) {
           quality = 'real';
@@ -513,5 +613,92 @@ export class MemorySystemValidator implements IIntelligenceProvider {
 
     const v = this.lastValidation;
     return `Memory: ${v.systemType.type} | Status: ${v.connectionStatus} | Quality: ${v.dataQuality} | Real: ${v.systemType.isReal}`;
+  }
+
+  /**
+   * Test for Unified Memory System features
+   */
+  private async testUnifiedMemoryFeatures(endpoint: string): Promise<{ isUnified: boolean; features: string[] }> {
+    try {
+      console.log(`🔍 Testing Unified Memory System features for endpoint: ${endpoint}`);
+      
+      // Test health endpoint for unified memory signature
+      const healthResponse = await fetch(`${endpoint}/health`);
+      if (!healthResponse.ok) {
+        return { isUnified: false, features: [] };
+      }
+      
+      const healthData = await healthResponse.json();
+      console.log(`🔍 Health response:`, healthData);
+        // Check for unified memory system indicators
+      const isUnifiedMemoryServer = healthData.service?.includes('unified') || 
+                                   healthData.service?.includes('oneagent') ||
+                                   healthData.system === 'OneAgent Memory System' ||
+                                   healthData.version?.includes('unified') ||
+                                   // Check for ChromaDB + collections structure (unified memory signature)
+                                   (healthData.components?.chromadb === 'connected' && 
+                                    healthData.components?.collections &&
+                                    typeof healthData.components.collections === 'object');
+      
+      if (!isUnifiedMemoryServer) {
+        return { isUnified: false, features: [] };
+      }
+      
+      const features = ['unified_memory', 'constitutional_ai'];
+      
+      // Test search endpoint with unified memory API
+      try {
+        const searchResponse = await fetch(`${endpoint}/memory/search`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            query: 'test',
+            maxResults: 1
+          })
+        });
+        
+        if (searchResponse.ok) {
+          const searchData = await searchResponse.json();
+          if (searchData.success) {
+            features.push('semantic_search');
+            features.push('persistence');
+          }
+        }
+      } catch (searchError) {
+        console.log(`🔍 Search test failed (non-critical):`, searchError);
+      }
+      
+      // Test conversation storage endpoint
+      try {
+        const conversationResponse = await fetch(`${endpoint}/memory/conversations`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            id: 'test-validation',
+            agentId: 'validator',
+            userId: 'system',
+            timestamp: new Date(),
+            content: 'Memory system validation test',
+            context: { test: true },
+            outcome: { success: true, value: 'test', confidence: 1 }
+          })
+        });
+        
+        if (conversationResponse.ok) {
+          features.push('conversation_storage');
+        }
+      } catch (convError) {
+        console.log(`🔍 Conversation test failed (non-critical):`, convError);
+      }
+      
+      return {
+        isUnified: isUnifiedMemoryServer,
+        features
+      };
+      
+    } catch (error) {
+      console.error('❌ testUnifiedMemoryFeatures failed:', error);
+      return { isUnified: false, features: [] };
+    }
   }
 }

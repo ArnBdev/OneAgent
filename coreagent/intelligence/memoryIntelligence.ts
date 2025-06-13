@@ -9,7 +9,8 @@
  * - Memory summarization
  */
 
-import { Mem0Client, Mem0Memory, Mem0SearchFilter, MemoryType } from '../tools/mem0Client';
+import { UnifiedMemoryClient } from '../memory/UnifiedMemoryClient';
+import { ConversationMemory, LearningMemory, PatternMemory, MemoryResult } from '../memory/UnifiedMemoryInterface';
 import { GeminiEmbeddingsTool, SemanticSearchResult } from '../tools/geminiEmbeddings';
 import { globalProfiler } from '../performance/profiler';
 import { EmbeddingResult } from '../types/gemini';

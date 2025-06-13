@@ -9,7 +9,7 @@
  * - Chat Interface Coordination
  */
 
-import { Mem0Client } from '../tools/mem0Client';
+import { UnifiedMemoryClient } from '../memory/UnifiedMemoryClient';
 
 // Core Orchestrator Components
 export { AgentRegistry } from './agentRegistry';
@@ -48,7 +48,7 @@ export async function initializeOrchestrator() {
     
     try {        // Initialize core components
         const agentRegistry = new AgentRegistry();
-        const memoryClient = new Mem0Client({ deploymentType: 'local' });
+        const memoryClient = new UnifiedMemoryClient();
         const memoryBridge = new MemoryContextBridge(memoryClient);
         const requestRouter = new RequestRouter(agentRegistry);
         

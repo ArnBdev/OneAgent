@@ -10,6 +10,9 @@
 import * as dotenv from 'dotenv';
 dotenv.config();
 
+// Import centralized configuration
+import { oneAgentConfig } from '../config/index';
+
 import express = require('express');
 import { randomUUID } from 'crypto';
 
@@ -26,6 +29,9 @@ import { WebFetchTool } from '../tools/webFetch';
 import { GeminiClient } from '../tools/geminiClient';
 import { AIAssistantTool } from '../tools/aiAssistant';
 
+// Import Unified Tool Framework
+import { toolRegistry } from '../tools/ToolRegistry';
+
 // Import Multi-Agent Communication System
 import { MultiAgentMCPServer } from '../agents/communication/MultiAgentMCPServer';
 import { MultiAgentOrchestrator } from '../agents/communication/MultiAgentOrchestrator';
@@ -33,6 +39,7 @@ import { AgentCommunicationProtocol } from '../agents/communication/AgentCommuni
 import { agentBootstrap } from '../agents/communication/AgentBootstrapService';
 import { GeminiEmbeddingsTool } from '../tools/geminiEmbeddings';
 import { UnifiedMemoryClient } from '../memory/UnifiedMemoryClient';
+import { generateMemoryId } from '../memory/UnifiedMemoryInterface';
 
 // Import OneAgent Monitoring and Error Handling
 import { ErrorMonitoringService } from '../monitoring/ErrorMonitoringService';
@@ -81,9 +88,9 @@ const constitutionalAI = new ConstitutionalAI({
 
 const bmadElicitation = new BMADElicitationEngine();
 
-// Initialize OneAgent tools with proper configuration
+// Initialize OneAgent tools with centralized configuration
 const unifiedMemoryClient = new UnifiedMemoryClient({
-  serverUrl: 'http://127.0.0.1:8000',
+  serverUrl: oneAgentConfig.memoryUrl,
   timeout: 30000
 });
 
@@ -162,12 +169,9 @@ async function testMemorySystemHealth() {
       testResult = { success: true, results: testResults };
     } catch (error) {
       connectionSuccessful = false;
-      testResult = { success: false, error: error };
-    }
-
-    // Build comprehensive status with transparency data
+      testResult = { success: false, error: error };    }    // Build comprehensive status with transparency data
     const baseStatus = {
-      port: 8000,
+      port: oneAgentConfig.memoryPort,
       basicConnection: testResult.success,
       validation: memoryValidation ? {
         systemType: memoryValidation.systemType.type,
@@ -266,13 +270,11 @@ async function testMemorySystemHealth() {
         taskType: 'health_check',
         severity: 'high',
         metadata: { operation: 'memory_health_test' }
-      }
-    );
-    
-    return {
+      }    );
+      return {
       status: 'fallback',
       connectionStatus: 'disconnected',
-      port: 8000,
+      port: oneAgentConfig.memoryPort,
       issue: error instanceof Error ? error.message : 'Unknown error',
       performance: 'degraded',
       validation: null
@@ -451,50 +453,9 @@ async function processMcpMethod(message: any) {
               inputSchema: {
                 type: 'object',
                 properties: {}
-              }
-            },
-            // Memory Management Tools
-            {
-              name: 'oneagent_memory_create',
-              description: 'Create new memory with real-time learning capability',
-              inputSchema: {
-                type: 'object',
-                properties: {
-                  content: { type: 'string', description: 'Memory content to store' },
-                  userId: { type: 'string', description: 'User ID for memory ownership' },
-                  metadata: { type: 'object', description: 'Additional metadata for the memory' },
-                  memoryType: { type: 'string', enum: ['short_term', 'long_term', 'workflow', 'session'], description: 'Type of memory to create' }
-                },
-                required: ['content', 'userId']
-              }
-            },
-            {
-              name: 'oneagent_memory_edit',
-              description: 'Edit existing memory content and metadata',
-              inputSchema: {
-                type: 'object',
-                properties: {
-                  memoryId: { type: 'string', description: 'ID of memory to edit' },
-                  content: { type: 'string', description: 'Updated memory content' },
-                  metadata: { type: 'object', description: 'Updated metadata' },
-                  userId: { type: 'string', description: 'User ID for memory ownership verification' }
-                },
-                required: ['memoryId', 'userId']
-              }
-            },
-            {
-              name: 'oneagent_memory_delete',
-              description: 'Delete memory with cleanup operations',
-              inputSchema: {
-                type: 'object',
-                properties: {
-                  memoryId: { type: 'string', description: 'ID of memory to delete' },
-                  userId: { type: 'string', description: 'User ID for memory ownership verification' },
-                  confirm: { type: 'boolean', description: 'Confirmation flag for deletion' }
-                },
-                required: ['memoryId', 'userId', 'confirm']
-              }
-            },
+              }            },
+            // Memory Management Tools (Unified Framework)
+            ...toolRegistry.getToolSchemas(),
             // Web Feature Completion
             {
               name: 'oneagent_web_fetch',
@@ -709,6 +670,10 @@ async function processMcpMethod(message: any) {
  */
 async function handleToolCall(params: any, id: any) {
   const { name, arguments: args } = params;
+  
+  // Debug logging
+  console.log(`[DEBUG] Tool call received: ${name}`);
+  console.log(`[DEBUG] Arguments:`, JSON.stringify(args, null, 2));
 
   try {
     switch (name) {
@@ -737,7 +702,10 @@ async function handleToolCall(params: any, id: any) {
             }, null, 2)
           }],
           isError: false
-        });      case 'oneagent_bmad_analyze':
+        });
+        break;
+
+      case 'oneagent_bmad_analyze':
         const context: AgentContext = {
           user: { 
             id: 'mcp_user', 
@@ -791,10 +759,11 @@ async function handleToolCall(params: any, id: any) {
               professionalGrade: qualityAnalysis.confidence >= 80 ? 'A' : qualityAnalysis.confidence >= 70 ? 'B' : qualityAnalysis.confidence >= 60 ? 'C' : 'D'
             }, null, 2)
           }],
-          isError: false
-        });
+          isError: false        });
+        break;
 
-      case 'oneagent_memory_context':        try {
+      case 'oneagent_memory_context':
+        try {
           const memories = await unifiedMemoryClient.searchMemories({
             query: args.query,
             maxResults: args.limit || 5
@@ -827,7 +796,10 @@ async function handleToolCall(params: any, id: any) {
             }],
             isError: false
           });
-        }      case 'oneagent_enhanced_search':
+        }
+        break;
+
+      case 'oneagent_enhanced_search':
         const searchResults = await webSearchTool.search({
           query: args.query,
           count: 5,
@@ -863,7 +835,10 @@ async function handleToolCall(params: any, id: any) {
             text: JSON.stringify(enhancedResults, null, 2)
           }],
           isError: false
-        });      case 'oneagent_ai_assistant':
+        });
+        break;
+
+      case 'oneagent_ai_assistant':
         let aiResponse = await aiAssistantTool.ask(args.message);
         
         if (args.applyConstitutional && aiResponse.success) {
@@ -902,7 +877,10 @@ async function handleToolCall(params: any, id: any) {
             text: JSON.stringify(aiResponse, null, 2)
           }],
           isError: false
-        });      case 'oneagent_semantic_analysis':
+        });
+        break;
+
+      case 'oneagent_semantic_analysis':
         // Map analysis types to valid Google AI Studio API task types
         const taskTypeMapping: Record<string, string> = {
           'similarity': 'SEMANTIC_SIMILARITY',
@@ -956,8 +934,7 @@ async function handleToolCall(params: any, id: any) {
                 averageLatency: Math.floor(Math.random() * 100) + 50,
                 errorRate: Math.random() * 0.01,
                 qualityScore: 85 + Math.random() * 10
-              },
-              capabilities: [
+              },              capabilities: [
                 'Constitutional AI Validation',
                 'BMAD Framework Analysis',
                 'Quality Scoring',
@@ -967,90 +944,9 @@ async function handleToolCall(params: any, id: any) {
                 'Web Content Fetching',
                 'Semantic Analysis'
               ]
-            }, null, 2)          }],
-          isError: false
-        });        // Memory Management Tools
-      case 'oneagent_memory_create':
-        // Determine which type of memory to create based on content and metadata
-        const memoryType = args.memoryType || 'learning';
-        let createResult: string;
-        
-        if (memoryType === 'conversation') {
-          createResult = await unifiedMemoryClient.storeConversation({
-            id: '', // Will be generated
-            agentId: args.userId || 'oneagent_mcp_copilot',
-            userId: args.userId || 'mcp_user',
-            timestamp: new Date(),
-            content: args.content,
-            context: args.metadata?.context || {},            outcome: {
-              success: true,
-              qualityScore: args.metadata?.qualityScore || 0.8,
-              learningsExtracted: 1
-            },
-            metadata: args.metadata || {}
-          });
-        } else if (memoryType === 'pattern') {
-          createResult = await unifiedMemoryClient.storePattern({
-            id: '', // Will be generated
-            agentId: args.userId || 'oneagent_mcp_copilot',
-            patternType: 'functional',
-            description: args.content,
-            frequency: args.metadata?.frequency || 1,
-            strength: args.metadata?.strength || 0.8,
-            conditions: args.metadata?.conditions || [],
-            outcomes: args.metadata?.outcomes || [],
-            metadata: args.metadata || {}
-          });
-        } else {
-          // Default to learning
-          createResult = await unifiedMemoryClient.storeLearning({
-            id: '', // Will be generated
-            agentId: args.userId || 'oneagent_mcp_copilot',
-            learningType: 'documentation_context',
-            content: args.content,
-            confidence: args.metadata?.confidence || 0.8,
-            applicationCount: 0,
-            lastApplied: new Date(),
-            sourceConversations: [],
-            metadata: args.metadata || {}
-          });
-        }        return createJsonRpcResponse(id, {
-          content: [{
-            type: 'text',
-            text: JSON.stringify({
-              success: true,
-              memoryId: createResult,
-              content: args.content,
-              userId: args.userId,
-              memoryType: args.memoryType || 'learning',
-              metadata: args.metadata,
-              message: 'Memory created successfully with real-time learning capability'
             }, null, 2)
           }],
-          isError: false
-        });      case 'oneagent_memory_edit':
-        // TODO: Implement memory editing when interface supports it
-        return createJsonRpcResponse(id, {
-          content: [{
-            type: 'text',
-            text: JSON.stringify({
-              success: false,
-              message: 'Memory editing not yet implemented in unified memory system'
-            }, null, 2)
-          }],
-          isError: true
-        });      case 'oneagent_memory_delete':
-        // TODO: Implement memory deletion when interface supports it
-        return createJsonRpcResponse(id, {
-          content: [{
-            type: 'text',
-            text: JSON.stringify({
-              success: false,
-              message: 'Memory deletion not yet implemented in unified memory system'
-            }, null, 2)
-          }],
-          isError: true
-        });
+          isError: false        });        break;
 
       // Web Feature Completion
       case 'oneagent_web_fetch':
@@ -1109,16 +1005,53 @@ async function handleToolCall(params: any, id: any) {
         return createJsonRpcResponse(id, {
           content: [{
             type: 'text',
-            text: JSON.stringify(multiAgentResult, null, 2)
-          }],
+            text: JSON.stringify(multiAgentResult, null, 2)          }],
           isError: !multiAgentResult.success
         });
-
+        break;
+        
       default:
+        // First check if this is a unified framework tool
+        if (toolRegistry.hasTool(name)) {
+          console.log(`[DEBUG] Dispatching to unified tool: ${name}`);
+          try {
+            return await toolRegistry.executeTool(name, args, id);
+          } catch (error) {
+            console.error(`[ERROR] Unified tool execution failed for ${name}:`, error);
+            return createJsonRpcResponse(id, null, createJsonRpcError(
+              -32603,
+              'Unified tool execution error',
+              error instanceof Error ? error.message : 'Unknown unified tool error'
+            ));
+          }
+        }
+        
+        // If not a unified tool, log debug info and return error
+        console.log(`[DEBUG] No case matched for tool name: "${name}"`);
+        console.log(`[DEBUG] Available cases in switch statement:`);
+        console.log(`[DEBUG] - oneagent_constitutional_validate`);
+        console.log(`[DEBUG] - oneagent_bmad_analyze`);
+        console.log(`[DEBUG] - oneagent_quality_score`);
+        console.log(`[DEBUG] - oneagent_memory_context`);
+        console.log(`[DEBUG] - oneagent_enhanced_search`);
+        console.log(`[DEBUG] - oneagent_ai_assistant`);
+        console.log(`[DEBUG] - oneagent_semantic_analysis`);
+        console.log(`[DEBUG] - oneagent_system_health`);
+        console.log(`[DEBUG] - oneagent_memory_create (unified)`);
+        console.log(`[DEBUG] - oneagent_memory_edit`);
+        console.log(`[DEBUG] - oneagent_memory_delete`);
+        console.log(`[DEBUG] - oneagent_web_fetch`);
+        console.log(`[DEBUG] - register_agent`);
+        console.log(`[DEBUG] - send_agent_message`);
+        console.log(`[DEBUG] - query_agent_capabilities`);
+        console.log(`[DEBUG] - coordinate_agents`);
+        console.log(`[DEBUG] - get_agent_network_health`);
+        console.log(`[DEBUG] - get_communication_history`);
+        console.log(`[DEBUG] Unified tools available: ${toolRegistry.getToolNames().join(', ')}`);
         return createJsonRpcResponse(id, null, createJsonRpcError(
           -32601,
           'Tool not found',
-          `Unknown tool: ${name}`
+          `Unknown tool: ${name}. Check server logs for case matching details.`
         ));
     }
   } catch (error) {
@@ -1335,7 +1268,7 @@ app.get('/', (_req, res) => {
   });
 });
 
-const PORT = process.env.ONEAGENT_MCP_PORT || 8083;
+const PORT = oneAgentConfig.mcpPort;
 
 if (require.main === module) {
   app.listen(PORT, async () => {
