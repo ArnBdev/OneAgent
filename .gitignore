@@ -1,8 +1,8 @@
 # OneAgent v4.0.0 Professional - Comprehensive .gitignore
-# Last Updated: June 11, 2025
+# Last Updated: June 13, 2025 - Memory Bridge Implementation Update
 
 # ================================
-# SECURITY & ENVIRONMENT
+# SECURITY & ENVIRONMENT - CRITICAL
 # ================================
 
 # Environment variables (contains API keys and secrets)
@@ -26,11 +26,15 @@
 *secret*
 *credential*
 
-# OneAgent specific sensitive files
+# OneAgent specific sensitive files - CRITICAL SECURITY
 oneagent_gemini_config.json
 gemini_memory_config.json
 *_api_key.json
 mcp_secrets.json
+**/gemini_*.json
+**/oneagent_*.json
+oneagent_memory.log
+**/oneagent_*.log
 
 # ================================
 # BUILD ARTIFACTS & DEPENDENCIES
@@ -103,16 +107,18 @@ temp_*.txt
 *.code-workspace
 
 # ================================
-# ONEAGENT SPECIFIC
+# ONEAGENT SPECIFIC - UPDATED FOR MEMORY BRIDGE
 # ================================
 
 # Data directories (contains personal and workflow data)
 data/
 temp/
 temp_*/
+test-workspace/
 
-# Memory & AI databases (may contain sensitive user data)
+# Memory & AI databases (may contain sensitive user data) - CRITICAL
 oneagent_gemini_memory/
+oneagent_unified_memory/
 *.sqlite3
 *.db
 chroma_db/
@@ -120,10 +126,12 @@ chroma.sqlite3
 mem0_data/
 mem0_gemini_data/
 **/chroma.sqlite3
+**/chroma/
 vector_store/
 embeddings_cache/
+**/oneagent_*_memory/
 
-# OneAgent generated files
+# OneAgent generated files and runtime data
 **/agent_state.json
 **/session_*.json
 **/memory_*.json
@@ -131,26 +139,79 @@ embeddings_cache/
 validation_reports/
 quality_reports/
 agent_logs/
-
-# Prompt engineering temporary files
-prompts/temp/
-prompts/generated/
-prompts/cache/
-**/prompt_cache/
-**/generated_prompts/
-
-# MCP (Model Context Protocol) runtime files
-mcp_sessions/
-mcp_cache/
-mcp_logs/
+**/oneagent_*.log
 **/mcp_*.log
-**/session_*.mcp
 
-# Constitutional AI validation cache
-constitutional_cache/
-bmad_cache/
-quality_cache/
-validation_temp/
+# ================================
+# TESTING & DEVELOPMENT - NO COMMIT (COMPREHENSIVE)
+# ================================
+
+# All test files and debugging scripts - DO NOT COMMIT
+test-*.ts
+test-*.js
+test_*.py
+test_*.js
+test*.json
+**/test-*
+**/test_*
+**/tests/test-*
+**/tests/test_*
+tests/
+test/
+debug-*.ts
+debug-*.js
+debug_*.py
+validate-*.js
+validate-*.py
+**/debug_*
+**/validate_*
+
+# Manual testing and demo files
+**/demo/manual-*
+**/demo/test-*
+manual-test-*
+level-*-test-*
+
+# Documentation that may contain sensitive info
+**/reports/oneagent_*
+**/production/ONEAGENT_*
+
+# Migration and setup scripts (may contain sensitive paths)
+memory_migration_*.py
+migrate_*.py
+initialize-*.ps1
+**/migration_*
+**/migrate_*
+**/initialize_*
+
+# Server files with potential config data
+servers/gemini_*.py
+servers/oneagent_*.py
+!servers/unified_memory_server.py  # Allow the main server
+
+# Backup directories and files
+backup/
+**/backup/
+*.backup
+*.bak
+
+# Temporary PowerShell and batch files
+*.ps1
+*.bat
+!start-mcp-copilot.ps1
+!start-mcp-copilot.bat
+!restart-optimized-server.ps1
+
+# Integration test workspace
+test-workspace/
+**/test-workspace/
+
+# Performance validation
+validate-memory-performance.js
+**/validate-*performance*
+
+# Security validation script (contains security logic)
+security_validation.py
 
 # ================================
 # SYSTEM & RUNTIME
