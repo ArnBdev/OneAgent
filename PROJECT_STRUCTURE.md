@@ -39,7 +39,7 @@ The heart of OneAgent's functionality with modular architecture:
 - `# Code Citations.md` - License compliance and attribution
 
 #### `docs/technical/` - Technical Implementation
-- `REVOLUTIONARY_AI_TECHNICAL_REFERENCE.md` - Technical implementation details
+- `ADVANCED_AI_TECHNICAL_REFERENCE.md` - Technical implementation details
 - `MCP_SYSTEM_GUIDE.md` - MCP tools and integration guide
 - `MCP_ADAPTERS_EXPLAINED.md` - Technical reference for MCP adapters
 
@@ -128,7 +128,7 @@ Comprehensive collection of development, testing, and maintenance scripts:
 
 1. **Setup**: See `docs/production/GITHUB_SETUP_GUIDE.md`
 2. **Development**: See `docs/production/DEVELOPMENT_GUIDELINES.md`
-3. **Architecture**: See `docs/technical/REVOLUTIONARY_AI_TECHNICAL_REFERENCE.md`
+3. **Architecture**: See `docs/technical/ADVANCED_AI_TECHNICAL_REFERENCE.md`
 4. **MCP Integration**: See `docs/technical/MCP_SYSTEM_GUIDE.md`
 
 ## 📊 Quality Metrics
@@ -141,4 +141,4 @@ Comprehensive collection of development, testing, and maintenance scripts:
 
 ---
 
-**OneAgent v4.0.0** - Revolutionary AI Development Platform with Constitutional AI, BMAD Framework, and Professional Quality Standards.
+**OneAgent v4.0.0** - Advanced AI Development Platform with Constitutional AI, BMAD Framework, and Professional Quality Standards.

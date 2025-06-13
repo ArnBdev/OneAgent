@@ -18,7 +18,7 @@ import {
   TimeRange,
   MemoryType
 } from './interfaces/IMemoryContextBridge';
-import { AgentContext, Message } from '../agents/base/BaseAgent_new';
+import { AgentContext, Message } from '../agents/base/BaseAgent';
 import { UnifiedMemoryClient } from '../memory/UnifiedMemoryClient';
 import { userService } from './userService';
 

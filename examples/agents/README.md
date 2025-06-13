@@ -2,7 +2,7 @@
 
 ## 📚 **Overview**
 
-This directory contains example implementations and templates showing how to enhance OneAgent agents with Revolutionary AI capabilities.
+This directory contains example implementations and templates showing how to enhance OneAgent agents with Advanced AI capabilities.
 
 ## 🎯 **Current Examples**
 
@@ -61,5 +61,5 @@ All examples should include:
 ## 🔗 **Related Documentation**
 
 - `/docs/agents/README.md` - Complete agent architecture overview
-- `/docs/technical/REVOLUTIONARY_AI_TECHNICAL_REFERENCE.md` - Technical implementation details
+- `/docs/technical/ADVANCED_AI_TECHNICAL_REFERENCE.md` - Technical implementation details
 - `/coreagent/agents/base/` - Base agent implementation classes

@@ -1,5 +1,5 @@
 /**
- * EnhancedPromptEngine - Revolutionary Prompt Engineering System for OneAgent
+ * EnhancedPromptEngine - Advanced Prompt Engineering System for OneAgent
  * 
  * This engine implements comprehensive prompt engineering research findings:
  * - Constitutional AI principles for self-correction
@@ -68,7 +68,7 @@ export interface VerificationStep {
 
 /**
  * Enhanced Prompt Engineering Engine
- * Implements revolutionary prompt engineering techniques for OneAgent
+ * Implements advanced prompt engineering techniques for OneAgent
  */
 export class EnhancedPromptEngine {
   

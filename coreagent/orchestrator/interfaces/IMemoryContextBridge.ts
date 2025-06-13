@@ -5,7 +5,7 @@
  * conversation context for enhanced agent responses.
  */
 
-import { AgentContext, Message } from '../../agents/base/BaseAgent_new';
+import { AgentContext, Message } from '../../agents/base/BaseAgent';
 
 export interface IMemoryContextBridge {
   /**

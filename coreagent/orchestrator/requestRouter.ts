@@ -16,7 +16,7 @@ import {
   AlternativeAgent
 } from './interfaces/IRequestRouter';
 import { ISpecializedAgent } from '../agents/base/ISpecializedAgent';
-import { AgentContext } from '../agents/base/BaseAgent_new';
+import { AgentContext } from '../agents/base/BaseAgent';
 import { IAgentRegistry } from './interfaces/IAgentRegistry';
 
 export class RequestRouter implements IRequestRouter {

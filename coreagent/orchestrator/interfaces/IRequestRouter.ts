@@ -6,7 +6,7 @@
  */
 
 import { ISpecializedAgent } from '../../agents/base/ISpecializedAgent';
-import { AgentContext, AgentResponse } from '../../agents/base/BaseAgent_new';
+import { AgentContext, AgentResponse } from '../../agents/base/BaseAgent';
 
 export interface IRequestRouter {
   /**

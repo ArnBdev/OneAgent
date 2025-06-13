@@ -7,7 +7,7 @@ coreagent/agents/
 ├── base/
 │   ├── BaseAgent.ts              # Core agent implementation class
 │   ├── ISpecializedAgent.ts      # Interface for specialized agents
-│   ├── EnhancedPromptEngine.ts   # Revolutionary prompt engineering
+│   ├── EnhancedPromptEngine.ts   # Advanced prompt engineering
 │   ├── ConstitutionalAI.ts       # Constitutional AI validation
 │   └── BMADElicitationEngine.ts  # BMAD 9-point framework
 ├── specialized/
@@ -26,7 +26,7 @@ coreagent/agents/
 
 ### **Production Agents**
 - **DevAgent** - Standard development assistance (88-92% quality)
-- **EnhancedDevAgent** - Revolutionary prompt engineering (97%+ quality)
+- **EnhancedDevAgent** - Advanced prompt engineering (97%+ quality)
 - **FitnessAgent** - Health optimization with systematic frameworks
 - **OfficeAgent** - Office productivity with workflow automation
 - **TriageAgent** - System health monitoring and validation
@@ -69,7 +69,7 @@ export class DevAgent extends BaseAgent implements ISpecializedAgent {
 ## 📊 **Quality Standards**
 
 - **DevAgent**: 88-92% quality threshold
-- **EnhancedDevAgent**: 97%+ quality threshold (Revolutionary AI)
+- **EnhancedDevAgent**: 97%+ quality threshold (Advanced AI)
 - **Constitutional AI**: 100% compliance for all agents
 - **Multi-Agent Network**: 93.5% system health
 

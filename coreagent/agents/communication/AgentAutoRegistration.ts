@@ -191,7 +191,7 @@ export class AgentAutoRegistrationFactory {  static createDevAgent(sharedDiscove
       capabilities: [
         {
           name: 'code_analysis_enhanced',
-          description: 'Comprehensive code analysis with revolutionary prompt engineering',
+          description: 'Comprehensive code analysis with advanced prompt engineering',
           version: '4.0.0',
           qualityThreshold: 97
         },
@@ -213,9 +213,8 @@ export class AgentAutoRegistrationFactory {  static createDevAgent(sharedDiscove
           version: '4.0.0',
           qualityThreshold: 99
         },
-        {
-          name: 'revolutionary_prompting',
-          description: 'Revolutionary prompt engineering for development tasks',
+        {          name: 'advanced_prompting',
+          description: 'Advanced prompt engineering for development tasks',
           version: '4.0.0',
           qualityThreshold: 97
         }
@@ -369,6 +368,94 @@ export class AgentAutoRegistrationFactory {  static createDevAgent(sharedDiscove
       config.sharedDiscoveryService = sharedDiscoveryService;
     }
     
+    return new AgentAutoRegistration(config);
+  }
+
+  /**
+   * Create auto-registration for CoreAgent - System Foundation and Integration Hub
+   */
+  static createCoreAgent(sharedDiscoveryService?: AgentDiscoveryService): AgentAutoRegistration {    const config: AgentRegistrationConfig = {
+      agentId: 'CoreAgent-v4.0',
+      agentType: 'core',
+      endpoint: 'http://localhost:8083/core-agent',
+      qualityScore: 95,
+      capabilities: [
+        {
+          name: 'system_coordination',
+          description: 'Central system coordination and orchestration',
+          version: '4.0.0',
+          qualityThreshold: 95
+        },
+        {
+          name: 'agent_integration',
+          description: 'Multi-agent integration and lifecycle management',
+          version: '4.0.0',
+          qualityThreshold: 92
+        },
+        {
+          name: 'service_management',
+          description: 'Service delivery orchestration and management',
+          version: '4.0.0',
+          qualityThreshold: 90
+        },
+        {
+          name: 'health_monitoring',
+          description: 'System health monitoring and performance tracking',
+          version: '4.0.0',
+          qualityThreshold: 88
+        },
+        {
+          name: 'resource_allocation',
+          description: 'Resource management and allocation optimization',
+          version: '4.0.0',
+          qualityThreshold: 85
+        },
+        {
+          name: 'security_management',
+          description: 'Security and access control management',
+          version: '4.0.0',
+          qualityThreshold: 95
+        },
+        {
+          name: 'rise_plus_methodology',
+          description: 'R-I-S-E+ framework implementation and coordination',
+          version: '4.0.0',
+          qualityThreshold: 90
+        },
+        {
+          name: 'constitutional_ai',
+          description: 'Constitutional AI principles and validation',
+          version: '4.0.0',
+          qualityThreshold: 95
+        },
+        {
+          name: 'quality_validation',
+          description: 'System-wide quality validation and scoring',
+          version: '4.0.0',
+          qualityThreshold: 88
+        },
+        {
+          name: 'advanced_prompting',
+          description: 'Advanced prompt engineering coordination',
+          version: '4.0.0',
+          qualityThreshold: 85
+        },
+        {
+          name: 'bmad_analysis',
+          description: 'BMAD framework analysis and coordination',
+          version: '4.0.0',
+          qualityThreshold: 88
+        },
+        {
+          name: 'chain_of_verification',
+          description: 'Chain-of-Verification coordination and validation',
+          version: '4.0.0',
+          qualityThreshold: 90
+        }      ],
+      port: 8083,
+      ...(sharedDiscoveryService && { sharedDiscoveryService })
+    };
+
     return new AgentAutoRegistration(config);
   }
 }

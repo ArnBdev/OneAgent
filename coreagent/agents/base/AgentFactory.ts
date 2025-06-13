@@ -10,9 +10,10 @@ import { AgentConfig } from './BaseAgent';
 import { OfficeAgent } from '../specialized/OfficeAgent';
 import { FitnessAgent } from '../specialized/FitnessAgent';
 import { DevAgent } from '../specialized/DevAgent';
+import { CoreAgent } from '../specialized/CoreAgent';
 import { TemplateAgent } from '../templates/TemplateAgent';
 
-export type AgentType = 'enhanced-development' | 'development' | 'office' | 'fitness' | 'general' | 'coach' | 'advisor' | 'template';
+export type AgentType = 'core' | 'enhanced-development' | 'development' | 'office' | 'fitness' | 'general' | 'coach' | 'advisor' | 'template';
 
 export interface AgentFactoryConfig {
   type: AgentType;
@@ -25,7 +26,8 @@ export interface AgentFactoryConfig {
 }
 
 export class AgentFactory {  private static readonly DEFAULT_CAPABILITIES = {
-    'enhanced-development': ['revolutionary_prompting', 'constitutional_ai', 'bmad_elicitation', 'chain_of_verification', 'quality_validation', 'self_correction', 'adaptive_prompting', 'code_analysis', 'test_generation', 'documentation_sync', 'refactoring'],
+    'core': ['system_coordination', 'agent_integration', 'service_management', 'health_monitoring', 'resource_allocation', 'security_management', 'rise_plus_methodology', 'constitutional_ai', 'quality_validation', 'advanced_prompting', 'bmad_analysis', 'chain_of_verification'],
+    'enhanced-development': ['advanced_prompting', 'constitutional_ai', 'bmad_elicitation', 'chain_of_verification', 'quality_validation', 'self_correction', 'adaptive_prompting', 'code_analysis', 'test_generation', 'documentation_sync', 'refactoring'],
     'development': ['code_analysis', 'test_generation', 'documentation_sync', 'refactoring', 'performance_optimization', 'security_scanning', 'git_workflow', 'dependency_management'],
     office: ['document_processing', 'calendar_management', 'email_assistance', 'task_organization'],
     fitness: ['workout_planning', 'nutrition_tracking', 'progress_monitoring', 'goal_setting'],
@@ -49,13 +51,29 @@ export class AgentFactory {  private static readonly DEFAULT_CAPABILITIES = {
     };
 
     let agent: ISpecializedAgent;    switch (factoryConfig.type) {
+      case 'core':
+        // CoreAgent - System coordination and integration hub
+        agent = new CoreAgent({
+          ...agentConfig,
+          capabilities: [
+            ...agentConfig.capabilities,
+            'system_coordination',
+            'agent_integration',
+            'service_management',
+            'health_monitoring',
+            'resource_allocation',
+            'security_management',
+            'rise_plus_methodology'
+          ]
+        });
+        break;
       case 'enhanced-development':
-        // Enhanced development agent with Revolutionary Prompt Engineering
+        // Enhanced development agent with Advanced Prompt Engineering
         agent = new DevAgent({
           ...agentConfig,
           capabilities: [
             ...agentConfig.capabilities,
-            'revolutionary_prompting',
+            'advanced_prompting',
             'constitutional_ai',
             'bmad_elicitation',
             'quality_validation'

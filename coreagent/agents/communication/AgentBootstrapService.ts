@@ -35,11 +35,13 @@ export class AgentBootstrapService {
     console.log('🚀 AgentBootstrapService: Starting automatic agent initialization...');
     console.log('📢 All agents will automatically respond to CoreAgent discovery broadcasts');    try {
       // Create all specialized agents with shared discovery service
+      const coreAgent = AgentAutoRegistrationFactory.createCoreAgent(this.sharedDiscoveryService);
       const devAgent = AgentAutoRegistrationFactory.createDevAgent(this.sharedDiscoveryService);
       const enhancedDevAgent = AgentAutoRegistrationFactory.createEnhancedDevAgent(this.sharedDiscoveryService);
       const officeAgent = AgentAutoRegistrationFactory.createOfficeAgent(this.sharedDiscoveryService);
       const fitnessAgent = AgentAutoRegistrationFactory.createFitnessAgent(this.sharedDiscoveryService);
       const triageAgent = AgentAutoRegistrationFactory.createTriageAgent(this.sharedDiscoveryService);      // Store agents with standardized naming convention: {Type}Agent-v{Version}
+      this.agents.set('CoreAgent-v4.0', coreAgent);
       this.agents.set('DevAgent-v4.0', devAgent);
       this.agents.set('EnhancedDevAgent-v4.0', enhancedDevAgent);
       this.agents.set('OfficeAgent-v2.0', officeAgent);

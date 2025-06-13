@@ -1,7 +1,7 @@
 /**
  * BaseAgent - Core Agent Implementation for OneAgent
  * 
- * Enhanced with Revolutionary Prompt Engineering System:
+ * Enhanced with Advanced Prompt Engineering System:
  * - Constitutional AI principles and self-correction
  * - BMAD 9-point elicitation framework  
  * - Systematic prompting frameworks (R-T-F, T-A-G, R-I-S-E, R-G-C, C-A-R-E)
@@ -66,7 +66,7 @@ export interface AgentAction {
 
 /**
  * Base Agent class providing common functionality for all OneAgent agents
- * Enhanced with Revolutionary Prompt Engineering System
+ * Enhanced with Advanced Prompt Engineering System
  */
 export abstract class BaseAgent {
   protected config: AgentConfig;
@@ -74,7 +74,7 @@ export abstract class BaseAgent {
   protected aiClient?: GeminiClient;
   protected isInitialized: boolean = false;
   
-  // Revolutionary Prompt Engineering Components
+  // Advanced Prompt Engineering Components
   protected promptEngine?: EnhancedPromptEngine;
   protected constitutionalAI?: ConstitutionalAI;
   protected bmadElicitation?: BMADElicitationEngine;
@@ -83,9 +83,8 @@ export abstract class BaseAgent {
   constructor(config: AgentConfig, promptConfig?: EnhancedPromptConfig) {
     this.config = config;
     this.promptConfig = promptConfig || this.getDefaultPromptConfig();
-  }
-  /**
-   * Initialize the agent with necessary clients and revolutionary prompt engineering
+  }  /**
+   * Initialize the agent with necessary clients and advanced prompt engineering
    */
   async initialize(): Promise<void> {
     try {      // Initialize memory client if enabled
@@ -100,9 +99,7 @@ export abstract class BaseAgent {
           apiKey: process.env.GOOGLE_API_KEY || process.env.GEMINI_API_KEY || 'your_google_gemini_api_key_here',
           model: 'gemini-2.5-pro-preview-05-06'
         });
-      }
-
-      // Initialize Revolutionary Prompt Engineering System
+      }      // Initialize Advanced Prompt Engineering System
       await this.initializePromptEngineering();
 
       this.isInitialized = true;
@@ -111,9 +108,8 @@ export abstract class BaseAgent {
       throw error;
     }
   }
-
   /**
-   * Initialize the revolutionary prompt engineering system
+   * Initialize the advanced prompt engineering system
    */
   private async initializePromptEngineering(): Promise<void> {
     if (!this.promptConfig) return;
@@ -131,7 +127,7 @@ export abstract class BaseAgent {
       // Initialize BMAD Elicitation Engine
       this.bmadElicitation = new BMADElicitationEngine();
 
-      console.log(`Revolutionary Prompt Engineering initialized for agent ${this.config.id}`);
+      console.log(`Advanced Prompt Engineering initialized for agent ${this.config.id}`);
     } catch (error) {
       console.warn(`Prompt engineering initialization failed for ${this.config.id}:`, error);
       // Continue without enhanced prompting if initialization fails
@@ -191,15 +187,15 @@ export abstract class BaseAgent {
     
     const results = await this.memoryClient.searchMemories(searchQuery);
     return results || [];
-  }/**
-   * Generate AI response using revolutionary prompt engineering system
+  }  /**
+   * Generate AI response using advanced prompt engineering system
    */
   protected async generateResponse(prompt: string, context?: any[]): Promise<string> {
     if (!this.aiClient) {
       throw new Error('AI client not initialized');
     }
 
-    // Use revolutionary prompt engineering if available
+    // Use advanced prompt engineering if available
     if (this.promptEngine && this.constitutionalAI) {
       return await this.generateEnhancedResponse(prompt, context || []);
     }
@@ -207,13 +203,12 @@ export abstract class BaseAgent {
     // Fallback to standard prompt generation
     return await this.generateStandardResponse(prompt, context);
   }
-
   /**
-   * Generate response using revolutionary prompt engineering system
+   * Generate response using advanced prompt engineering system
    */
   protected async generateEnhancedResponse(message: string, memories: any[]): Promise<string> {
     try {
-      // Phase 1: Build enhanced prompt using the revolutionary system
+      // Phase 1: Build enhanced prompt using the advanced system
       const enhancedPrompt = await this.promptEngine!.buildEnhancedPrompt(
         message,
         memories,
@@ -311,9 +306,8 @@ export abstract class BaseAgent {
         timestamp: new Date().toISOString(),
       },
     };
-  }
-  /**
-   * Get default prompt configuration for revolutionary prompt engineering
+  }  /**
+   * Get default prompt configuration for advanced prompt engineering
    */
   protected getDefaultPromptConfig(): EnhancedPromptConfig {
     return {

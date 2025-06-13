@@ -15,10 +15,10 @@
     "noImplicitAny": true,
     "noImplicitReturns": true,    "noImplicitThis": true,
     "noUnusedLocals": false,
-    "noUnusedParameters": true,
-    "exactOptionalPropertyTypes": true,
+    "noUnusedParameters": true,    "exactOptionalPropertyTypes": true,
     "allowSyntheticDefaultImports": true,
-    "resolveJsonModule": true
+    "resolveJsonModule": true,
+    "downlevelIteration": true
   },
   "include": [
     "coreagent/**/*"

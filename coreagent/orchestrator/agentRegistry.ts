@@ -185,10 +185,9 @@ export class AgentRegistry implements IAgentRegistry {
    * Initialize matching criteria for different agent types
    */
   private initializeMatchingCriteria(): void {
-    this.matchingCriteria.set('enhanced-development', {
-      keywords: ['revolutionary', 'constitutional', 'bmad', 'quality', 'enhanced', 'advanced', 'code', 'develop', 'programming', 'debug', 'test', 'refactor', 'optimize', 'security', 'git', 'dependency', 'analyze', 'performance', 'documentation', 'technical', 'prompt', 'ai', 'verification'],
-      requiredCapabilities: ['revolutionary_prompting', 'constitutional_ai', 'bmad_elicitation'],
-      priority: 3  // Highest priority - revolutionary prompt engineering
+    this.matchingCriteria.set('enhanced-development', {      keywords: ['advanced', 'constitutional', 'bmad', 'quality', 'enhanced', 'professional', 'code', 'develop', 'programming', 'debug', 'test', 'refactor', 'optimize', 'security', 'git', 'dependency', 'analyze', 'performance', 'documentation', 'technical', 'prompt', 'ai', 'verification'],
+      requiredCapabilities: ['advanced_prompting', 'constitutional_ai', 'bmad_elicitation'],
+      priority: 3  // Highest priority - advanced prompt engineering
     });
 
     this.matchingCriteria.set('development', {
@@ -232,9 +231,8 @@ export class AgentRegistry implements IAgentRegistry {
         capabilities.includes('best_practices')) {
       return 'template';
     }
-    
-    // Check for enhanced development capabilities (highest priority - revolutionary prompt engineering)
-    if (capabilities.includes('revolutionary_prompting') || 
+      // Check for enhanced development capabilities (highest priority - advanced prompt engineering)
+    if (capabilities.includes('advanced_prompting') ||
         capabilities.includes('constitutional_ai') || 
         capabilities.includes('bmad_elicitation') || 
         capabilities.includes('chain_of_verification') ||

@@ -5,7 +5,7 @@
  * message handling, and real-time communication.
  */
 
-import { AgentResponse, Message } from '../../agents/base/BaseAgent_new';
+import { AgentResponse, Message } from '../../agents/base/BaseAgent';
 import { ISpecializedAgent } from '../../agents/base/ISpecializedAgent';
 
 export interface IChatInterface {
