@@ -184,10 +184,13 @@ initialize-*.ps1
 **/migrate_*
 **/initialize_*
 
-# Server files with potential config data
+# Server files with potential config data (but allow production servers)
 servers/gemini_*.py
-servers/oneagent_*.py
-!servers/unified_memory_server.py  # Allow the main server
+servers/test_*.py
+servers/oneagent_mem0_*.py
+!servers/oneagent_memory_server.py  # Production memory server - ALLOW
+!servers/unified_memory_server.py   # Legacy memory server - ALLOW
+!servers/requirements.txt            # Server dependencies - ALLOW
 
 # Backup directories and files
 backup/
