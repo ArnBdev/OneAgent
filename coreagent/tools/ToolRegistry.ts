@@ -5,25 +5,20 @@
 
 import { UnifiedMCPTool } from './UnifiedMCPTool';
 import { MemoryCreateTool } from './MemoryCreateTool';
-import { MemoryEditTool } from './MemoryEditTool';
-import { MemoryDeleteTool } from './MemoryDeleteTool';
 
 export class ToolRegistry {
   private tools: Map<string, UnifiedMCPTool> = new Map();
 
   constructor() {
     this.registerDefaultTools();
-  }
-  /**
+  }  /**
    * Register default unified tools
    */
   private registerDefaultTools(): void {
-    // Memory management tools
+    // Memory management tools (Constitutional AI compliant - append-only)
     this.registerTool(new MemoryCreateTool());
-    this.registerTool(new MemoryEditTool());
-    this.registerTool(new MemoryDeleteTool());
     
-    console.log(`[ToolRegistry] Registered ${this.tools.size} unified memory tools`);
+    console.log(`[ToolRegistry] Registered ${this.tools.size} unified memory tools (append-only for Constitutional AI compliance)`);
   }
 
   /**

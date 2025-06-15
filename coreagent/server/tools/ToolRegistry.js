@@ -6,8 +6,6 @@
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.toolRegistry = exports.ToolRegistry = void 0;
 const MemoryCreateTool_1 = require("./MemoryCreateTool");
-const MemoryEditTool_1 = require("./MemoryEditTool");
-const MemoryDeleteTool_1 = require("./MemoryDeleteTool");
 class ToolRegistry {
     constructor() {
         this.tools = new Map();
@@ -17,11 +15,9 @@ class ToolRegistry {
      * Register default unified tools
      */
     registerDefaultTools() {
-        // Memory management tools
+        // Memory management tools (Constitutional AI compliant - append-only)
         this.registerTool(new MemoryCreateTool_1.MemoryCreateTool());
-        this.registerTool(new MemoryEditTool_1.MemoryEditTool());
-        this.registerTool(new MemoryDeleteTool_1.MemoryDeleteTool());
-        console.log(`[ToolRegistry] Registered ${this.tools.size} unified memory tools`);
+        console.log(`[ToolRegistry] Registered ${this.tools.size} unified memory tools (append-only for Constitutional AI compliance)`);
     }
     /**
      * Register a new tool
