@@ -1212,10 +1212,7 @@ async function handleToolCall(params: any, id: any) {
         console.log(`[DEBUG] - oneagent_enhanced_search`);
         console.log(`[DEBUG] - oneagent_ai_assistant`);
         console.log(`[DEBUG] - oneagent_semantic_analysis`);
-        console.log(`[DEBUG] - oneagent_system_health`);
-        console.log(`[DEBUG] - oneagent_memory_create (unified)`);
-        console.log(`[DEBUG] - oneagent_memory_edit`);
-        console.log(`[DEBUG] - oneagent_memory_delete`);
+        console.log(`[DEBUG] - oneagent_system_health`);        console.log(`[DEBUG] - oneagent_memory_create (unified, append-only)`);
         console.log(`[DEBUG] - oneagent_web_fetch`);
         console.log(`[DEBUG] - register_agent`);
         console.log(`[DEBUG] - send_agent_message`);
