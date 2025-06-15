@@ -33,23 +33,27 @@ export class AgentBootstrapService {
     }
 
     console.log('🚀 AgentBootstrapService: Starting automatic agent initialization...');
-    console.log('📢 All agents will automatically respond to CoreAgent discovery broadcasts');    try {
-      // Create only REAL AI agents with Gemini backends
+    console.log('📢 All agents will automatically respond to CoreAgent discovery broadcasts');    try {      // Create original 5 specialized AI agents with Constitutional AI integration
       console.log('🤖 Creating REAL AI agents with Gemini intelligence...');
       
       const coreAgent = AgentAutoRegistrationFactory.createCoreAgent(this.sharedDiscoveryService);
       const devAgent = AgentAutoRegistrationFactory.createDevAgent(this.sharedDiscoveryService);
-      
-      // NOTE: OfficeAgent, FitnessAgent, TriageAgent are utility classes, not real AI agents
-      // They don't have Gemini backends and shouldn't be registered as agents
-      
-      // Store only real AI agents
+      const officeAgent = AgentAutoRegistrationFactory.createOfficeAgent(this.sharedDiscoveryService);
+      const fitnessAgent = AgentAutoRegistrationFactory.createFitnessAgent(this.sharedDiscoveryService);
+      const triageAgent = AgentAutoRegistrationFactory.createTriageAgent(this.sharedDiscoveryService);
+        // Store original 5 specialized AI agents
       this.agents.set('CoreAgent-v4.0', coreAgent);
       this.agents.set('DevAgent-v4.0', devAgent);
+      this.agents.set('OfficeAgent-v2.0', officeAgent);
+      this.agents.set('FitnessAgent-v1.0', fitnessAgent);
+      this.agents.set('TriageAgent-v3.0', triageAgent);
       
       console.log('✅ Real AI Agent Registration:');
       console.log('   🧠 CoreAgent-v4.0: Constitutional AI + BMAD orchestrator');
       console.log('   💻 DevAgent-v4.0: Context7 + learning engine specialist');
+      console.log('   📋 OfficeAgent-v2.0: Productivity and office workflow specialist');
+      console.log('   💪 FitnessAgent-v1.0: Fitness and wellness tracking specialist');
+      console.log('   🔀 TriageAgent-v3.0: Task routing and agent health monitoring');
 
       // Start auto-registration for all agents
       const startupPromises = Array.from(this.agents.values()).map(agent => 

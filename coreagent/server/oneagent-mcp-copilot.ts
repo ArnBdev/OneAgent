@@ -764,7 +764,7 @@ async function handleToolCall(params: any, id: any) {
             }, null, 2)
           }],
           isError: false        });
-        break;        case 'oneagent_memory_context':        try {          const memories = await realUnifiedMemoryClient.getMemoryContext(
+        break;        case 'oneagent_memory_context':        try {          const searchResult = await realUnifiedMemoryClient.getMemoryContext(
             args.query,
             args.userId || 'oneagent_system',
             args.limit || 5
@@ -776,8 +776,8 @@ async function handleToolCall(params: any, id: any) {
               text: JSON.stringify({
                 query: args.query,
                 userId: args.userId,
-                memories: Array.isArray(memories) ? memories : [],
-                totalFound: Array.isArray(memories) ? memories.length : 0,
+                memories: searchResult.memories || [],
+                totalFound: searchResult.totalFound || 0,
                 contextEnhancement: {
                   semantic: true,
                   temporal: true,

@@ -394,6 +394,9 @@ export class MultiAgentMCPServer {  private communicationProtocol: AgentCommunic
 
     const success = await this.communicationProtocol.registerAgent(registration);
     
+    // PERSISTENT STORAGE: Store agent registration in unified memory
+    await this.storeAgentRegistration(registration, 'manual');
+
     return {
       success,
       agentId,
@@ -756,6 +759,9 @@ export class MultiAgentMCPServer {  private communicationProtocol: AgentCommunic
       if (response.qualityScore >= this.qualityThreshold) {
         const success = await this.communicationProtocol.registerAgent(registration);
         
+        // PERSISTENT STORAGE: Store agent registration in unified memory
+        await this.storeAgentRegistration(registration, 'auto');
+        
         if (success) {
           console.log(`🎉 Auto-registered ${response.agentId} via discovery protocol`);
           console.log(`   Type: ${response.agentType} | Quality: ${response.qualityScore}% | Capabilities: ${response.capabilities.length}`);
@@ -995,10 +1001,68 @@ export class MultiAgentMCPServer {  private communicationProtocol: AgentCommunic
   }
 
   /**
-   * Analyze message types for quality statistics
+   * Store agent registration in persistent memory for durability
+   */
+  private async storeAgentRegistration(registration: AgentRegistration, source: 'manual' | 'auto' = 'manual'): Promise<boolean> {
+    try {
+      if (!this.memoryClient) {
+        console.warn('Memory client not available for agent registration storage');
+        return false;
+      }
+
+      const registrationContent = `Agent Registration: ${registration.agentId}
+
+Agent Type: ${registration.agentType}
+Quality Score: ${registration.qualityScore}%
+Endpoint: ${registration.endpoint}
+Status: ${registration.status}
+Registration Source: ${source}
+
+Capabilities:
+${registration.capabilities.map(cap => 
+  `- ${cap.name}: ${cap.description} (Quality: ${cap.qualityThreshold}%)`
+).join('\n')}
+
+Registered at: ${registration.lastSeen?.toISOString()}`;
+
+      const memoryResult = await this.memoryClient.createMemory(
+        registrationContent,
+        'agent_system',
+        'long_term',
+        {
+          agentId: registration.agentId,
+          agentType: registration.agentType,
+          qualityScore: registration.qualityScore,
+          endpoint: registration.endpoint,
+          status: registration.status,
+          registrationSource: source,
+          capabilityCount: registration.capabilities.length,
+          constitutionalCompliant: registration.capabilities.every(cap => cap.constitutionalCompliant),
+          toolName: 'agent_registration',
+          category: 'agent_management',
+          priority: 3,
+          memoryType: 'long_term'
+        }
+      );
+
+      if (memoryResult.success) {
+        console.log(`💾 Agent registration stored in memory: ${registration.agentId}`);
+        return true;
+      } else {
+        console.warn(`⚠️ Failed to store agent registration in memory: ${registration.agentId}`);
+        return false;
+      }
+    } catch (error) {
+      console.error(`❌ Error storing agent registration:`, error);
+      return false;
+    }
+  }
+
+  /**
+   * Analyze message types for quality stats
    */
   private analyzeMessageTypes(messages: any[]): Record<string, number> {
-    const typeCounts: Record<string, number> = {
+    const typeCount: Record<string, number> = {
       coordination_request: 0,
       capability_query: 0,
       task_delegation: 0,
@@ -1006,20 +1070,20 @@ export class MultiAgentMCPServer {  private communicationProtocol: AgentCommunic
       response: 0,
       other: 0
     };
-    
-    messages.forEach(msg => {
-      const type = msg.type || 'other';
-      if (msg.isResponse) {
-        typeCounts.response++;
-      } else if (typeCounts.hasOwnProperty(type)) {
-        typeCounts[type]++;
+
+    messages.forEach(message => {
+      const type = message.type || message.messageType || 'other';
+      if (typeCount.hasOwnProperty(type)) {
+        typeCount[type]++;
       } else {
-        typeCounts.other++;
+        typeCount.other++;
       }
     });
-    
-    return typeCounts;
+
+    return typeCount;
   }
+
+  // ...existing code...
 }
 
 /**

@@ -412,6 +412,227 @@ export class AgentAutoRegistrationFactory {  static createDevAgent(sharedDiscove
 
     return new AgentAutoRegistration(config);
   }
-}
 
-export default AgentAutoRegistration;
+  /**
+   * Create auto-registration for SecurityAgent - Security and Compliance Specialist
+   */
+  static createSecurityAgent(sharedDiscoveryService?: AgentDiscoveryService): AgentAutoRegistration {
+    const config: AgentRegistrationConfig = {
+      agentId: 'SecurityAgent-v4.0',
+      agentType: 'security',
+      capabilities: [
+        {
+          name: 'security_audit',
+          description: 'Comprehensive security audits and vulnerability assessment',
+          version: '4.0.0',
+          qualityThreshold: 95
+        },
+        {
+          name: 'dependency_scan',
+          description: 'Scan dependencies for known vulnerabilities',
+          version: '4.0.0',
+          qualityThreshold: 93
+        },
+        {
+          name: 'compliance_check',
+          description: 'Check compliance with security standards (OWASP, GDPR, SOC2)',
+          version: '4.0.0',
+          qualityThreshold: 94
+        },
+        {
+          name: 'encryption_validate',
+          description: 'Validate encryption implementations and key management',
+          version: '4.0.0',
+          qualityThreshold: 96
+        },
+        {
+          name: 'penetration_test',
+          description: 'Automated penetration testing and security validation',
+          version: '4.0.0',
+          qualityThreshold: 92
+        },
+        {
+          name: 'secure_coding',
+          description: 'Secure coding review and security best practices',
+          version: '4.0.0',
+          qualityThreshold: 91
+        }
+      ],
+      endpoint: `http://localhost:${oneAgentConfig.mcpPort}/agents/security`,
+      qualityScore: 94
+    };
+    
+    if (sharedDiscoveryService) {
+      config.sharedDiscoveryService = sharedDiscoveryService;
+    }
+    
+    return new AgentAutoRegistration(config);
+  }
+
+  /**
+   * Create auto-registration for DataAgent - Data Analysis and ML Specialist
+   */
+  static createDataAgent(sharedDiscoveryService?: AgentDiscoveryService): AgentAutoRegistration {
+    const config: AgentRegistrationConfig = {
+      agentId: 'DataAgent-v4.0',
+      agentType: 'data-analytics',
+      capabilities: [
+        {
+          name: 'data_analysis',
+          description: 'Statistical analysis and data pattern recognition',
+          version: '4.0.0',
+          qualityThreshold: 90
+        },
+        {
+          name: 'visualization_create',
+          description: 'Create charts, graphs, and interactive visualizations',
+          version: '4.0.0',
+          qualityThreshold: 88
+        },
+        {
+          name: 'ml_insights',
+          description: 'Machine learning model insights and predictions',
+          version: '4.0.0',
+          qualityThreshold: 92
+        },
+        {
+          name: 'data_cleaning',
+          description: 'Data cleaning, validation, and preprocessing',
+          version: '4.0.0',
+          qualityThreshold: 89
+        },
+        {
+          name: 'performance_metrics',
+          description: 'System performance metrics analysis and recommendations',
+          version: '4.0.0',
+          qualityThreshold: 91
+        },
+        {
+          name: 'report_generation',
+          description: 'Automated report generation with insights and recommendations',
+          version: '4.0.0',
+          qualityThreshold: 87
+        }
+      ],
+      endpoint: `http://localhost:${oneAgentConfig.mcpPort}/agents/data`,
+      qualityScore: 90
+    };
+    
+    if (sharedDiscoveryService) {
+      config.sharedDiscoveryService = sharedDiscoveryService;
+    }
+    
+    return new AgentAutoRegistration(config);
+  }
+
+  /**
+   * Create auto-registration for UIAgent - UI/UX Design and Component Specialist
+   */
+  static createUIAgent(sharedDiscoveryService?: AgentDiscoveryService): AgentAutoRegistration {
+    const config: AgentRegistrationConfig = {
+      agentId: 'UIAgent-v4.0',
+      agentType: 'ui-ux',
+      capabilities: [
+        {
+          name: 'component_design',
+          description: 'Design and create reusable UI components',
+          version: '4.0.0',
+          qualityThreshold: 90
+        },
+        {
+          name: 'accessibility_audit',
+          description: 'Accessibility audits and WCAG compliance validation',
+          version: '4.0.0',
+          qualityThreshold: 93
+        },
+        {
+          name: 'responsive_design',
+          description: 'Responsive design implementation and testing',
+          version: '4.0.0',
+          qualityThreshold: 89
+        },
+        {
+          name: 'ux_optimization',
+          description: 'User experience optimization and usability testing',
+          version: '4.0.0',
+          qualityThreshold: 92
+        },
+        {
+          name: 'design_system',
+          description: 'Design system creation and maintenance',
+          version: '4.0.0',
+          qualityThreshold: 91
+        },
+        {
+          name: 'style_guide',
+          description: 'Style guide generation and CSS optimization',
+          version: '4.0.0',
+          qualityThreshold: 88
+        }
+      ],
+      endpoint: `http://localhost:${oneAgentConfig.mcpPort}/agents/ui`,
+      qualityScore: 91
+    };
+    
+    if (sharedDiscoveryService) {
+      config.sharedDiscoveryService = sharedDiscoveryService;
+    }
+    
+    return new AgentAutoRegistration(config);
+  }
+  /**
+   * Create auto-registration for APIAgent - API Design and Integration Specialist
+   */
+  static createAPIAgent(sharedDiscoveryService?: AgentDiscoveryService): AgentAutoRegistration {
+    const config: AgentRegistrationConfig = {
+      agentId: 'APIAgent-v4.0',
+      agentType: 'api-integration',
+      capabilities: [
+        {
+          name: 'api_design',
+          description: 'RESTful API design with OpenAPI/Swagger documentation',
+          version: '4.0.0',
+          qualityThreshold: 92
+        },
+        {
+          name: 'endpoint_testing',
+          description: 'Automated API endpoint testing and validation',
+          version: '4.0.0',
+          qualityThreshold: 90
+        },
+        {
+          name: 'integration_setup',
+          description: 'Third-party API integration and authentication setup',
+          version: '4.0.0',
+          qualityThreshold: 91
+        },
+        {
+          name: 'schema_validation',
+          description: 'API schema validation and contract testing',
+          version: '4.0.0',
+          qualityThreshold: 93
+        },
+        {
+          name: 'rate_limiting',
+          description: 'Rate limiting and API performance optimization',
+          version: '4.0.0',
+          qualityThreshold: 89
+        },
+        {
+          name: 'webhook_management',
+          description: 'Webhook implementation and event-driven architecture',
+          version: '4.0.0',
+          qualityThreshold: 88
+        }
+      ],
+      endpoint: `http://localhost:${oneAgentConfig.mcpPort}/agents/api`,
+      qualityScore: 91
+    };
+    
+    if (sharedDiscoveryService) {
+      config.sharedDiscoveryService = sharedDiscoveryService;
+    }
+    
+    return new AgentAutoRegistration(config);
+  }
+}
