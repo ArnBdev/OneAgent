@@ -126,10 +126,9 @@ export class ErrorMonitoringService {
     } else if (errorMessage.includes('processing') || errorMessage.includes('timeout')) {
       category = 'processing';
     }
-    
-    // Severity assessment based on context and error type
+      // Severity assessment based on context and error type
     let severity: ErrorClassification['severity'] = 'medium';
-    if (category === 'connection' && errorMessage.includes('8000')) {
+    if (category === 'connection' && (errorMessage.includes('memory') || errorMessage.includes('8000') || errorMessage.includes('8001'))) {
       severity = 'medium'; // Memory fallback available
     } else if (context.taskType === 'critical' || category === 'validation') {
       severity = 'high';

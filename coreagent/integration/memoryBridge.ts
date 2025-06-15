@@ -129,10 +129,9 @@ export class MemoryBridge {
         }
       }      // Perform actual search
       const searchResults = await this.memoryIntelligence.semanticSearch(
-        query,
-        {
+        query,        {
           limit: options.limit || 10,
-          userId: options.userId
+          ...(options.userId && { userId: options.userId })
         },
         {
           topK: options.limit || 10,

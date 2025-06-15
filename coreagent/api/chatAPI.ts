@@ -1,7 +1,7 @@
 import { Request, Response } from 'express';
 import { CoreAgent } from '../main';
 import { MemoryUserService } from '../orchestrator/userService';
-import { Mem0Client } from '../tools/mem0Client';
+import { UnifiedMemoryClient } from '../memory/UnifiedMemoryClient';
 
 interface ChatRequest {
   message: string;
@@ -22,13 +22,11 @@ interface ChatResponse {
 
 export class ChatAPI {
   private coreAgent: CoreAgent;
-  private userService: MemoryUserService;
-  private mem0Client: Mem0Client;
+  private userService: MemoryUserService;  private unifiedMemoryClient: UnifiedMemoryClient;
 
-  constructor(coreAgent: CoreAgent, userService: MemoryUserService, mem0Client: Mem0Client) {
-    this.coreAgent = coreAgent;
+  constructor(coreAgent: CoreAgent, userService: MemoryUserService, unifiedMemoryClient: UnifiedMemoryClient) {    this.coreAgent = coreAgent;
     this.userService = userService;
-    this.mem0Client = mem0Client;
+    this.unifiedMemoryClient = unifiedMemoryClient;
   }
 
   /**
@@ -53,46 +51,43 @@ export class ChatAPI {
           customInstructions: 'Be helpful and concise.',
           preferences: { language: 'en', timezone: 'UTC' }
         });
-      }// Store user message in memory
-      await this.mem0Client.createMemory(
+      }      // Store user message in memory using unified client
+      await this.unifiedMemoryClient.createMemory(
         `User message: ${message}`,
+        userId,
+        'session',
         {
           source: 'chat',
           role: 'user',
-          timestamp: new Date().toISOString(),
+          timestamp: Date.now(),
           agentType
-        },
-        userId
+        }
       );
 
       // Process the message through CoreAgent
-      const agentResponse = await this.coreAgent.processMessage(message, userId);
-
-      // Store agent response in memory
-      await this.mem0Client.createMemory(
+      const agentResponse = await this.coreAgent.processMessage(message, userId);      // Store agent response in memory
+      await this.unifiedMemoryClient.createMemory(
         `Agent response: ${agentResponse.content}`,
+        userId,
+        'session',
         {
           source: 'chat',
           role: 'assistant',
-          timestamp: new Date().toISOString(),
+          timestamp: Date.now(),
           agentType,
           confidence: agentResponse.metadata?.confidence || 0.8
-        },
-        userId
-      );
-
-      // Get relevant memory context for response
+        }
+      );      // Get relevant memory context for response
       const relevantMemories = memoryContext ? 
-        await this.mem0Client.searchMemories({
-          user_id: userId,
+        await this.unifiedMemoryClient.searchMemories({
           query: message,
-          limit: 3
+          userId: userId,
+          maxResults: 3
         }) : 
-        undefined;      const response: ChatResponse = {
+        [];const response: ChatResponse = {
         response: agentResponse.content,
-        agentType: agentResponse.metadata?.agentType || agentType,
-        memoryContext: relevantMemories?.success && relevantMemories.data ? {
-          relevantMemories: relevantMemories.data.length,
+        agentType: agentResponse.metadata?.agentType || agentType,        memoryContext: relevantMemories.length > 0 ? {
+          relevantMemories: relevantMemories.length,
           searchTerms: [message]
         } : undefined
       };
@@ -124,20 +119,19 @@ export class ChatAPI {
         res.status(400).json({ error: 'Missing userId parameter' });
         return;
       }      // Search for chat messages in memory
-      const memories = await this.mem0Client.searchMemories({
-        user_id: userId,
+      const memories = await this.unifiedMemoryClient.searchMemories({
         query: 'chat message',
-        limit: parseInt(limit as string),
-        offset: parseInt(offset as string)
+        userId: userId,
+        maxResults: parseInt(limit as string)
       });
 
       // Filter and format chat messages
-      const chatHistory = memories.success && memories.data ? 
-        memories.data
+      const chatHistory = memories.length > 0 ? 
+        memories
           .filter((memory: any) => memory.metadata?.source === 'chat')
           .map((memory: any) => ({
             id: memory.id,
-            content: memory.text,
+            content: memory.content,
             role: memory.metadata?.role,
             timestamp: memory.metadata?.timestamp,
             agentType: memory.metadata?.agentType

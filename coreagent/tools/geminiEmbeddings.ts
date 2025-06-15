@@ -89,16 +89,28 @@ export class GeminiEmbeddingsTool {
           taskType: 'SEMANTIC_SIMILARITY',
           model: options?.model || 'text-embedding-004'
         }))
-      );
-
-      const searchResults: SemanticSearchResult[] = memories.map((memory, index) => {
+      );      const searchResults: SemanticSearchResult[] = memories.map((memory, index) => {
         const similarity = this.calculateCosineSimilarity(
           queryEmbedding.embedding,
           memoryEmbeddings[index].embedding
         );
         
+        // Map MemoryEntry to MemoryResult format
+        const memoryResult: MemoryResult = {
+          id: memory.id,
+          type: memory.type === 'conversation' || memory.type === 'learning' || memory.type === 'pattern' 
+            ? memory.type 
+            : 'conversation', // Default fallback
+          content: memory.content,
+          agentId: memory.agentId || 'default',
+          relevanceScore: similarity,
+          timestamp: new Date(memory.timestamp),
+          metadata: memory.metadata || {},
+          summary: memory.metadata?.summary || undefined
+        };
+        
         return {
-          memory,
+          memory: memoryResult,
           similarity,
           embeddingResult: memoryEmbeddings[index]
         };

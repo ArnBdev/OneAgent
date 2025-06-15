@@ -8,11 +8,10 @@
 
 import { MemoryValidationResult } from '../intelligence/MemorySystemValidator';
 
-export interface IIntelligenceProvider {
-  /**
+export interface IIntelligenceProvider {  /**
    * Validate a memory system for authenticity and capabilities
    * 
-   * @param endpoint - The endpoint URL to validate (default: 'http://localhost:8000')
+   * @param endpoint - The endpoint URL to validate (default: from oneAgentConfig.memoryUrl)
    * @returns Promise containing comprehensive validation results including:
    *   - System type identification (Gemini-ChromaDB, Mem0-Local, MockMemory, Unknown)
    *   - Connection status and data quality assessment

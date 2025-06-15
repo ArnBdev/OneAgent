@@ -3,17 +3,16 @@ import { OneAgentClient } from '../connection/oneagent-client';
 
 export class OneAgentChatProvider {
     constructor(private client: OneAgentClient) {}
-    
-    async handleRequest(
+      async handleRequest(
         request: vscode.ChatRequest,
-        context: vscode.ChatContext,
+        _context: vscode.ChatContext,
         response: vscode.ChatResponseStream,
         token: vscode.CancellationToken
     ): Promise<void> {
           // Check if OneAgent is available
         const isAvailable = await this.client.healthCheck();
         if (!isAvailable) {
-            response.markdown('⚠️ **OneAgent server is not available**\n\nPlease ensure OneAgent is running on port 8083.\n\nYou can check the connection in OneAgent settings.');
+            response.markdown('⚠️ **OneAgent server is not available**\n\nPlease ensure OneAgent is running (check .env for port configuration).\n\nYou can check the connection in OneAgent settings.');
             return;
         }
         
@@ -84,11 +83,10 @@ export class OneAgentChatProvider {
             console.error('OneAgent chat error:', error);
         }
     }
-    
-    async provideFollowups(
-        result: vscode.ChatResult,
-        context: vscode.ChatContext,
-        token: vscode.CancellationToken
+      async provideFollowups(
+        _result: vscode.ChatResult,
+        _context: vscode.ChatContext,
+        _token: vscode.CancellationToken
     ): Promise<vscode.ChatFollowup[]> {
         
         // Check if OneAgent is available before providing followups

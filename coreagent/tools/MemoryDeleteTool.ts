@@ -57,15 +57,14 @@ export class MemoryDeleteTool extends UnifiedMCPTool {
             constitutionalCompliant: true
           }
         };
-      }
+      }      // For now, use getMemoryContext to verify the memory exists
+      const searchResult = await this.unifiedMemoryClient.getMemoryContext(
+        args.memoryId,
+        args.userId,
+        1
+      );
 
-      // For now, use searchMemories to verify the memory exists
-      const searchResult = await this.unifiedMemoryClient.searchMemories({
-        query: args.memoryId,
-        maxResults: 1
-      });
-
-      if (searchResult.length === 0) {
+      if (searchResult.memories.length === 0) {
         return {
           success: false,
           data: {
@@ -89,7 +88,7 @@ export class MemoryDeleteTool extends UnifiedMCPTool {
         userId: args.userId,
         deletedAt: new Date().toISOString(),
         deletedBy: args.userId,
-        originalContent: searchResult[0].content,
+        originalContent: searchResult.memories[0].content,
         reason: 'User requested deletion via unified tool framework'
       };
 

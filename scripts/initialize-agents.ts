@@ -14,6 +14,8 @@ import { AgentConfig } from '../coreagent/agents/base/BaseAgent';
 import { randomUUID } from 'crypto';
 // Import the memory system fix
 import { createRealMemoryClient, MemoryRegistrationSynchronizer } from '../coreagent/integration/memorySystemFix';
+// Import config to get proper URLs from environment
+import { oneAgentConfig } from '../coreagent/config';
 
 async function initializeAgentNetwork() {
   console.log('🚀 OneAgent Network Initialization');
@@ -49,9 +51,8 @@ async function initializeAgentNetwork() {
             description: 'VS Code extension development', 
             version: '1.0', 
             parameters: {} 
-          }
-        ],
-        endpoint: 'http://localhost:8083/agents/enhanced-dev',
+          }        ],
+        endpoint: `${oneAgentConfig.mcpUrl}/agents/enhanced-dev`,
         qualityScore: 95
       },
       {
@@ -71,7 +72,7 @@ async function initializeAgentNetwork() {
             parameters: {} 
           }
         ],
-        endpoint: 'http://localhost:8083/agents/research',
+        endpoint: `${oneAgentConfig.mcpUrl}/agents/research`,
         qualityScore: 92
       },
       {
@@ -85,7 +86,7 @@ async function initializeAgentNetwork() {
             parameters: {} 
           }
         ],
-        endpoint: 'http://localhost:8083/agents/fitness',
+        endpoint: `${oneAgentConfig.mcpUrl}/agents/fitness`,
         qualityScore: 90
       }
     ];

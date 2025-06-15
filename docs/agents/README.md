@@ -11,8 +11,7 @@ coreagent/agents/
 │   ├── ConstitutionalAI.ts       # Constitutional AI validation
 │   └── BMADElicitationEngine.ts  # BMAD 9-point framework
 ├── specialized/
-│   ├── DevAgent.ts               # Development & coding assistance
-│   ├── EnhancedDevAgent.ts       # Enhanced dev agent (97% quality)
+│   ├── DevAgent.ts               # Development & coding assistance (enhanced with Constitutional AI)
 │   ├── FitnessAgent.ts           # Health & fitness optimization
 │   ├── OfficeAgent.ts            # Office productivity assistance
 │   └── TriageAgent.ts            # System health monitoring
@@ -25,8 +24,7 @@ coreagent/agents/
 ## 🤖 **Agent Types & Roles**
 
 ### **Production Agents**
-- **DevAgent** - Standard development assistance (88-92% quality)
-- **EnhancedDevAgent** - Advanced prompt engineering (97%+ quality)
+- **DevAgent** - Development assistance with Constitutional AI and Context7 (95%+ quality)
 - **FitnessAgent** - Health optimization with systematic frameworks
 - **OfficeAgent** - Office productivity with workflow automation
 - **TriageAgent** - System health monitoring and validation
@@ -68,8 +66,7 @@ export class DevAgent extends BaseAgent implements ISpecializedAgent {
 
 ## 📊 **Quality Standards**
 
-- **DevAgent**: 88-92% quality threshold
-- **EnhancedDevAgent**: 97%+ quality threshold (Advanced AI)
+- **DevAgent**: 95%+ quality threshold (Constitutional AI enhanced)
 - **Constitutional AI**: 100% compliance for all agents
 - **Multi-Agent Network**: 93.5% system health
 

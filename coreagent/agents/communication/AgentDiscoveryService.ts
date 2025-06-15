@@ -13,6 +13,7 @@
  */
 
 import { EventEmitter } from 'events';
+import { oneAgentConfig } from '../../config/index';
 import { AgentRegistration, A2AMessage } from './AgentCommunicationProtocol';
 
 export interface DiscoveryMessage {
@@ -50,10 +51,9 @@ export class AgentDiscoveryService extends EventEmitter {
   private discoveryTimeout: number = 5000; // 5 seconds
   private activeDiscovery: Map<string, NodeJS.Timeout> = new Map();
   private lastSeen: Map<string, Date> = new Map();
-  
-  constructor(
+    constructor(
     private coreAgentId: string = 'OneAgent-Core-v4.0.0',
-    private port: number = 8083
+    private port: number = oneAgentConfig.mcpPort
   ) {
     super();
     this.setupDiscoveryProtocol();

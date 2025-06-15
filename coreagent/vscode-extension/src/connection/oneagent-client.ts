@@ -1,4 +1,5 @@
 import * as vscode from 'vscode';
+import { getServerUrl } from '../config/environment';
 
 export interface OneAgentResponse<T = any> {
     success: boolean;
@@ -38,8 +39,7 @@ export class OneAgentClient {
     private baseUrl: string;
     
     constructor() {
-        const config = vscode.workspace.getConfiguration('oneagent');
-        this.baseUrl = config.get('serverUrl', 'http://localhost:8083');
+        this.baseUrl = getServerUrl();
     }
       async healthCheck(): Promise<boolean> {
         try {
@@ -185,13 +185,11 @@ export class OneAgentClient {
             };
         }
     }
-    
-    /**
+      /**
      * Update configuration and reinitialize client
      */
     updateConfiguration(): void {
-        const config = vscode.workspace.getConfiguration('oneagent');
-        this.baseUrl = config.get('serverUrl', 'http://localhost:8083');
+        this.baseUrl = getServerUrl();
     }
     
     /**
@@ -200,7 +198,7 @@ export class OneAgentClient {
     getConfiguration() {
         const config = vscode.workspace.getConfiguration('oneagent');
         return {
-            serverUrl: config.get('serverUrl', 'http://localhost:8083'),
+            serverUrl: getServerUrl(),
             enableConstitutionalAI: config.get('enableConstitutionalAI', true),
             qualityThreshold: config.get('qualityThreshold', 80)
         };

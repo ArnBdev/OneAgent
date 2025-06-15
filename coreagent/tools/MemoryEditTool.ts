@@ -60,15 +60,12 @@ export class MemoryEditTool extends UnifiedMCPTool {
             constitutionalCompliant: true
           }
         };
-      }
-
-      // For now, use searchMemories to verify the memory exists
-      const searchResult = await this.unifiedMemoryClient.searchMemories({
-        query: args.memoryId,
-        maxResults: 1
-      });
-
-      if (searchResult.length === 0) {
+      }      // For now, use getMemoryContext to verify the memory exists
+      const searchResult = await this.unifiedMemoryClient.getMemoryContext(
+        args.memoryId,
+        args.userId,
+        1      );      
+      if (searchResult.memories.length === 0) {
         return {
           success: false,
           data: {
@@ -86,12 +83,14 @@ export class MemoryEditTool extends UnifiedMCPTool {
         };
       }
 
+      const memoryEntry = searchResult.memories[0];
+
       // Create an updated memory entry (simulated update)
       // In a real implementation, this would use a proper update API
       const updatedData = {
-        content: args.content || searchResult[0].content,
+        content: args.content || memoryEntry.content,
         metadata: {
-          ...searchResult[0].metadata,
+          ...memoryEntry.metadata,
           ...args.metadata,
           lastModified: new Date().toISOString(),
           modifiedBy: args.userId,

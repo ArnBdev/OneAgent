@@ -123,11 +123,16 @@ export class MemorySystemValidator implements IIntelligenceProvider {
         return { status: 'degraded', responseTime };
       }
         const serverInfo = await response.json();
-      
-      // Check if this is mock server (only based on explicit indicators, not response time)
+        // Check if this is mock server (only based on explicit indicators, not response time)
       if (serverInfo.service?.includes('mem0-test-server') || 
           serverInfo.message?.includes('mock')) {
         return { status: 'mock_fallback', responseTime, serverInfo };
+      }
+      
+      // Recognize OneAgent Gemini Memory Server as valid real system
+      if (serverInfo.server === 'OneAgent Gemini Memory Server' ||
+          serverInfo.stats?.embedding_model === 'text-embedding-004') {
+        return { status: 'connected', responseTime, serverInfo };
       }
       
       return { status: 'connected', responseTime, serverInfo };
@@ -135,15 +140,38 @@ export class MemorySystemValidator implements IIntelligenceProvider {
     } catch (error) {
       return { status: 'disconnected', responseTime: Date.now() - startTime };
     }
-  }
-  /**
+  }  /**
    * Identify the actual memory system type
    */
   private async identifySystemType(endpoint: string): Promise<MemorySystemType> {
     try {
       console.log(`🔍 Identifying memory system type for endpoint: ${endpoint}`);
       
-      // Test for Unified Memory System first
+      // First check health endpoint for immediate identification
+      try {
+        const healthResponse = await fetch(`${endpoint}/health`);
+        if (healthResponse.ok) {
+          const healthData = await healthResponse.json();
+            // Recognize OneAgent Gemini Memory Server immediately
+          if (healthData.server === 'OneAgent Gemini Memory Server' ||
+              healthData.stats?.embedding_model === 'text-embedding-004' ||
+              healthData.data?.embedding_model === 'models/text-embedding-004' ||
+              healthData.message?.includes('OneAgent Memory Server')) {
+            console.log(`✅ Detected OneAgent Gemini Memory Server via health check`);
+            return {
+              type: 'Gemini-ChromaDB',
+              isReal: true,
+              hasPersistence: true,
+              hasEmbeddings: true,
+              capabilities: ['semantic_search', 'vector_storage', 'persistence', 'embeddings', 'real_time_learning']
+            };
+          }
+        }
+      } catch (healthError) {
+        console.log('🔍 Health endpoint check failed, continuing with feature tests...');
+      }
+      
+      // Test for Unified Memory System
       console.log(`🔍 Testing Unified Memory System features...`);
       const unifiedTest = await this.testUnifiedMemoryFeatures(endpoint);
       console.log(`🔍 Unified test result: isUnified=${unifiedTest.isUnified}, features=${unifiedTest.features.join(', ')}`);
@@ -262,13 +290,12 @@ export class MemorySystemValidator implements IIntelligenceProvider {
       } catch (unifiedError) {
         console.log('🔍 Unified search test failed, trying legacy endpoints...');
       }
-      
-      // Fallback to legacy endpoint test
+        // Fallback to legacy endpoint test
       const searchQueries = ['embedding', 'semantic', 'search', 'test', 'memory'];
       
       for (const query of searchQueries) {
         try {
-          const testSearch = await fetch(`${endpoint}/v1/memories?query=${query}&limit=10`, {
+          const testSearch = await fetch(`${endpoint}/v1/memories?userId=system&query=${query}&limit=10`, {
             method: 'GET'
           });
 

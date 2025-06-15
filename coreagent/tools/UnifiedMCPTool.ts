@@ -4,6 +4,7 @@
  */
 
 import { UnifiedMemoryClient } from '../memory/UnifiedMemoryClient';
+import RealUnifiedMemoryClient from '../memory/RealUnifiedMemoryClient';
 import { generateMemoryId } from '../memory/UnifiedMemoryInterface';
 
 export interface ToolValidationResult {
@@ -44,7 +45,7 @@ export abstract class UnifiedMCPTool {
   public readonly schema: InputSchema;
   public readonly constitutionalLevel: 'basic' | 'enhanced' | 'critical';
   
-  protected unifiedMemoryClient: UnifiedMemoryClient;
+  protected unifiedMemoryClient: RealUnifiedMemoryClient;
 
   constructor(
     name: string,
@@ -56,7 +57,7 @@ export abstract class UnifiedMCPTool {
     this.description = description;
     this.schema = schema;
     this.constitutionalLevel = constitutionalLevel;
-    this.unifiedMemoryClient = new UnifiedMemoryClient();
+    this.unifiedMemoryClient = new RealUnifiedMemoryClient();
   }
 
   /**

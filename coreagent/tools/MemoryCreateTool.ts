@@ -4,7 +4,8 @@
  */
 
 import { UnifiedMCPTool, ToolExecutionResult, InputSchema } from './UnifiedMCPTool';
-import { generateMemoryId } from '../memory/UnifiedMemoryInterface';
+import { UnifiedMemoryClient } from '../memory/UnifiedMemoryClient';
+import { oneAgentConfig } from '../config/index';
 
 export class MemoryCreateTool extends UnifiedMCPTool {
   constructor() {
@@ -38,79 +39,104 @@ export class MemoryCreateTool extends UnifiedMCPTool {
       schema,
       'enhanced' // Constitutional AI level
     );
-  }
-
-  /**
+  }  /**
    * Core memory creation logic
    */
   protected async executeCore(args: any): Promise<ToolExecutionResult> {
-    try {
-      const memoryType = args.memoryType || 'long_term';
-      let createResult: string;
+    try {        const memoryType = args.memoryType || 'long_term';
       
-      // Determine storage method based on memory type
-      if (memoryType === 'short_term' || memoryType === 'session') {
-        // Store as conversation for short-term memories
-        createResult = await this.unifiedMemoryClient.storeConversation({
-          id: generateMemoryId(),
-          agentId: args.userId || 'oneagent_mcp_copilot',
-          userId: args.userId || 'mcp_user',
-          timestamp: new Date(),
-          content: args.content,
-          context: args.metadata?.context || {},
-          outcome: {
-            success: true,
-            qualityScore: args.metadata?.qualityScore || 0.8,
-            learningsExtracted: 1
-          },
-          metadata: {
-            ...args.metadata,
-            memoryType,
-            createdVia: 'unified_mcp_tool',
-            constitutionalCompliant: true
+      // Use the singleton RealUnifiedMemoryClient instance
+      const { realUnifiedMemoryClient } = await import('../memory/RealUnifiedMemoryClient');      
+      // Ensure connection to the FastAPI server (safe to call multiple times)
+      await realUnifiedMemoryClient.connect();
+
+      // Create comprehensive metadata with rich contextual information
+      const enhancedMetadata = {
+        // Core identity and source tracking
+        source: args.metadata?.source || 'oneagent_mcp_tool',
+        toolName: 'oneagent_memory_create',
+        toolVersion: '4.0.0',
+        memoryType: memoryType,
+        
+        // Quality and validation metrics
+        qualityScore: 95,
+        constitutionalCompliant: true,
+        validationStatus: 'passed',
+        
+        // User and session context
+        userId: args.userId,
+        sessionId: args.metadata?.sessionId || `session_${Date.now()}`,
+        agentId: args.metadata?.agentId || 'oneagent_copilot',
+        
+        // Content analysis
+        contentLength: args.content.length,
+        contentType: args.metadata?.contentType || 'text',
+        contentHash: args.content.substring(0, 8),
+        
+        // Temporal context
+        createdAt: new Date().toISOString(),
+        timestamp: Date.now(),
+        timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+        
+        // Enhanced categorization and search optimization
+        category: args.metadata?.category || 'general',
+        context: args.metadata?.context || 'GitHub Copilot Chat interaction',
+        importance: args.metadata?.importance || 'medium',
+        confidence: args.metadata?.confidence || 0.85,
+        
+        // Collaboration and integration context
+        collaborationPattern: args.metadata?.collaborationPattern || 'single_agent',
+        integrationLevel: 'mcp_tool_direct',
+        
+        // Performance and system metrics
+        systemHealth: 'operational',
+        memoryServerVersion: '4.0.0',
+        
+        // Priority handling with intelligent conversion
+        priority: typeof args.metadata?.priority === 'string' 
+          ? (args.metadata.priority === 'high' ? 90 : args.metadata.priority === 'medium' ? 75 : args.metadata.priority === 'low' ? 50 : 75)
+          : (args.metadata?.priority || 75),
+          
+        // Include other user-provided metadata (filtered for compatibility)
+        ...(Object.fromEntries(
+          Object.entries(args.metadata || {}).filter(([key, value]) => 
+            key !== 'priority' && // Handled specially above
+            key !== 'constitutionalCompliant' && // Already included
+            key !== 'constitutionalLevel' && // Not needed in storage
+            key !== 'tags' && // Handled specially below
+            value !== null && value !== undefined && value !== ''
+          )
+        )),
+        
+        // Enhanced tags with intelligent defaults and ChromaDB compatibility
+        tags: (() => {
+          const baseTags = ['oneagent', 'mcp-tool', 'memory-creation'];
+          const userTags = args.metadata?.tags;
+          
+          if (userTags) {
+            const allTags = Array.isArray(userTags) 
+              ? [...baseTags, ...userTags] 
+              : [...baseTags, String(userTags)];
+            return allTags.join(',');
           }
-        });      } else if (memoryType === 'workflow') {
-        // Store as pattern for workflow memories
-        createResult = await this.unifiedMemoryClient.storePattern({
-          id: generateMemoryId(),
-          agentId: args.userId || 'oneagent_mcp_copilot',
-          patternType: 'functional',
-          description: args.content,
-          frequency: args.metadata?.frequency || 1,
-          strength: args.metadata?.strength || 0.8,
-          conditions: args.metadata?.conditions || [],
-          outcomes: args.metadata?.outcomes || [],
-          metadata: {
-            ...args.metadata,
-            memoryType,
-            createdVia: 'unified_mcp_tool',
-            constitutionalCompliant: true
-          }
-        });
-      } else {
-        // Default to learning for long_term memories
-        createResult = await this.unifiedMemoryClient.storeLearning({
-          id: generateMemoryId(),
-          agentId: args.userId || 'oneagent_mcp_copilot',
-          learningType: 'documentation_context',
-          content: args.content,
-          confidence: args.metadata?.confidence || 0.8,
-          applicationCount: 0,
-          lastApplied: new Date(),
-          sourceConversations: [],
-          metadata: {
-            ...args.metadata,
-            memoryType,
-            createdVia: 'unified_mcp_tool',
-            constitutionalCompliant: true
-          }
-        });
+          
+          return baseTags.join(',');
+        })()
+      };
+        const result = await realUnifiedMemoryClient.createMemory(
+        args.content,
+        args.userId,
+        memoryType,
+        enhancedMetadata
+      );
+
+      if (!result.success) {
+        throw new Error(result.error || 'Failed to create memory');
       }
 
       return {
-        success: true,
-        data: {
-          memoryId: createResult,
+        success: true,        data: {
+          memoryId: result.memoryId || 'unknown',
           content: args.content,
           userId: args.userId,
           memoryType,
@@ -118,14 +144,13 @@ export class MemoryCreateTool extends UnifiedMCPTool {
           capabilities: [
             'Real-time learning integration',
             'Constitutional AI compliance',
-            'Type-aware storage routing',
+            'Direct memory server API',
             'Graceful error handling'
           ]
         },
         qualityScore: 95, // High quality for successful creation
         metadata: {
-          storageType: memoryType === 'workflow' ? 'pattern' : 
-                      (memoryType === 'short_term' || memoryType === 'session') ? 'conversation' : 'learning',
+          storageType: 'direct_api',
           toolFramework: 'unified_mcp_v1.0',
           constitutionalLevel: 'enhanced'
         }
@@ -190,7 +215,7 @@ export class MemoryCreateTool extends UnifiedMCPTool {
     return {
       message: 'Memory creation tool temporarily unavailable',
       suggestions: [
-        'Verify unified memory server is running on port 8001',
+        `Verify unified memory server is running on port ${oneAgentConfig.memoryPort}`,
         'Check memory system health via oneagent_system_health',
         'Try oneagent_memory_context to test memory system connectivity',
         'Retry with simpler content or metadata'

@@ -9,6 +9,7 @@
  */
 
 import { AgentDiscoveryService, AgentCapabilityResponse } from './AgentDiscoveryService';
+import { oneAgentConfig } from '../../config/index';
 
 export interface AgentRegistrationConfig {
   agentId: string;
@@ -35,10 +36,9 @@ export class AgentAutoRegistration {
   private isRegistered: boolean = false;
 
   constructor(config: AgentRegistrationConfig) {
-    this.config = config;
-    // Use shared discovery service if provided, otherwise create new one
+    this.config = config;    // Use shared discovery service if provided, otherwise create new one
     this.discoveryService = config.sharedDiscoveryService || 
-      new AgentDiscoveryService(config.agentId, config.port || 8083);
+      new AgentDiscoveryService(config.agentId, config.port || oneAgentConfig.mcpPort);
     this.setupAutoDiscovery();
   }
 
@@ -174,55 +174,9 @@ export class AgentAutoRegistrationFactory {  static createDevAgent(sharedDiscove
           qualityThreshold: 89
         }
       ],
-      endpoint: 'http://localhost:8083/agents/dev',
+      endpoint: `http://localhost:${oneAgentConfig.mcpPort}/agents/dev`,
       qualityScore: 89
-    };
-    
-    if (sharedDiscoveryService) {
-      config.sharedDiscoveryService = sharedDiscoveryService;
-    }
-    
-    return new AgentAutoRegistration(config);
-  }
-  static createEnhancedDevAgent(sharedDiscoveryService?: AgentDiscoveryService): AgentAutoRegistration {
-    const config: AgentRegistrationConfig = {
-      agentId: 'EnhancedDevAgent-v4.0',
-      agentType: 'enhanced-development',
-      capabilities: [
-        {
-          name: 'code_analysis_enhanced',
-          description: 'Comprehensive code analysis with advanced prompt engineering',
-          version: '4.0.0',
-          qualityThreshold: 97
-        },
-        {
-          name: 'architecture_design',
-          description: 'System architecture design with BMAD elicitation framework',
-          version: '4.0.0',
-          qualityThreshold: 98
-        },
-        {
-          name: 'performance_optimization',
-          description: 'Performance analysis and optimization with Chain-of-Verification',
-          version: '4.0.0',
-          qualityThreshold: 96
-        },
-        {
-          name: 'security_audit',
-          description: 'Security audit with constitutional AI safety principles',
-          version: '4.0.0',
-          qualityThreshold: 99
-        },
-        {          name: 'advanced_prompting',
-          description: 'Advanced prompt engineering for development tasks',
-          version: '4.0.0',
-          qualityThreshold: 97
-        }
-      ],
-      endpoint: 'http://localhost:8083/agents/enhanced-dev',
-      qualityScore: 97
-    };
-    
+    };    
     if (sharedDiscoveryService) {
       config.sharedDiscoveryService = sharedDiscoveryService;
     }
@@ -266,7 +220,7 @@ export class AgentAutoRegistrationFactory {  static createDevAgent(sharedDiscove
           qualityThreshold: 94
         }
       ],
-      endpoint: 'http://localhost:8083/agents/office',
+      endpoint: `http://localhost:${oneAgentConfig.mcpPort}/agents/office`,
       qualityScore: 91
     };
     
@@ -313,7 +267,7 @@ export class AgentAutoRegistrationFactory {  static createDevAgent(sharedDiscove
           qualityThreshold: 91
         }
       ],
-      endpoint: 'http://localhost:8083/agents/fitness',
+      endpoint: `http://localhost:${oneAgentConfig.mcpPort}/agents/fitness`,
       qualityScore: 90
     };
     
@@ -360,7 +314,7 @@ export class AgentAutoRegistrationFactory {  static createDevAgent(sharedDiscove
           qualityThreshold: 95
         }
       ],
-      endpoint: 'http://localhost:8083/agents/triage',
+      endpoint: `http://localhost:${oneAgentConfig.mcpPort}/agents/triage`,
       qualityScore: 95
     };
     
@@ -377,7 +331,7 @@ export class AgentAutoRegistrationFactory {  static createDevAgent(sharedDiscove
   static createCoreAgent(sharedDiscoveryService?: AgentDiscoveryService): AgentAutoRegistration {    const config: AgentRegistrationConfig = {
       agentId: 'CoreAgent-v4.0',
       agentType: 'core',
-      endpoint: 'http://localhost:8083/core-agent',
+      endpoint: `http://localhost:${oneAgentConfig.mcpPort}/core-agent`,
       qualityScore: 95,
       capabilities: [
         {
@@ -452,7 +406,7 @@ export class AgentAutoRegistrationFactory {  static createDevAgent(sharedDiscove
           version: '4.0.0',
           qualityThreshold: 90
         }      ],
-      port: 8083,
+      port: oneAgentConfig.mcpPort,
       ...(sharedDiscoveryService && { sharedDiscoveryService })
     };
 

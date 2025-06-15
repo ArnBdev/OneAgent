@@ -88,10 +88,13 @@ export abstract class BaseAgent {
    */
   async initialize(): Promise<void> {
     try {      // Initialize memory client if enabled
-      if (this.config.memoryEnabled) {
-        this.memoryClient = new UnifiedMemoryClient({
-          serverUrl: oneAgentConfig.memoryUrl,
-          timeout: 30000
+      if (this.config.memoryEnabled) {        this.memoryClient = new UnifiedMemoryClient({
+          host: oneAgentConfig.memoryUrl.replace(/^https?:\/\//, '').replace(/:\d+$/, ''),
+          port: parseInt(oneAgentConfig.memoryUrl.match(/:(\d+)$/)?.[1] || '8083'),
+          timeout: 30000,
+          retryAttempts: 3,
+          retryDelay: 1000,
+          enableSSL: oneAgentConfig.memoryUrl.startsWith('https')
         });
       }// Initialize AI client if enabled
       if (this.config.aiEnabled) {

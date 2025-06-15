@@ -80,11 +80,10 @@
     },
     "configuration": {
       "title": "OneAgent Professional",
-      "properties": {
-        "oneagent.serverUrl": {
+      "properties": {        "oneagent.serverUrl": {
           "type": "string",
-          "default": "http://localhost:8083",
-          "description": "OneAgent MCP Server URL"
+          "default": "http://127.0.0.1:8083",
+          "description": "OneAgent MCP Server URL (can be overridden by ONEAGENT_MCP_URL environment variable)"
         },
         "oneagent.enableConstitutionalAI": {
           "type": "boolean",

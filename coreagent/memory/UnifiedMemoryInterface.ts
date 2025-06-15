@@ -410,3 +410,28 @@ export function validatePatternMemory(pattern: PatternMemory): void {
     throw new ValidationError('Strength must be between 0 and 1');
   }
 }
+
+// =====================================
+// Legacy Mem0 Types (for backward compatibility)
+// =====================================
+
+export interface Mem0Memory {
+  id: string;
+  content: string;
+  metadata?: Record<string, any>;
+  timestamp?: number;
+  userId?: string;
+}
+
+export interface Mem0SearchFilter {
+  userId?: string;
+  agentId?: string;
+  memoryType?: MemoryType;
+  limit?: number;
+  dateRange?: {
+    start: Date;
+    end: Date;
+  };
+}
+
+export type MemoryType = 'conversation' | 'learning' | 'pattern' | 'context' | 'short_term' | 'long_term' | 'workflow' | 'session';

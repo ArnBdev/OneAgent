@@ -13,7 +13,7 @@ export class OneAgentPanel implements vscode.WebviewViewProvider {
     
     public resolveWebviewView(
         webviewView: vscode.WebviewView,
-        context: vscode.WebviewViewResolveContext,
+        _context: vscode.WebviewViewResolveContext,
         _token: vscode.CancellationToken,
     ) {
         this._view = webviewView;
@@ -396,7 +396,7 @@ export class OneAgentPanel implements vscode.WebviewViewProvider {
             <div class="troubleshooting">
                 <h4>🔧 Troubleshooting Steps:</h4>
                 <ol>
-                    <li>Ensure OneAgent MCP server is running on port 8083</li>
+                    <li>Ensure OneAgent MCP server is running (check .env file for port configuration)</li>
                     <li>Check that the server URL in settings is correct</li>
                     <li>Verify no firewall is blocking the connection</li>
                     <li>Try restarting the OneAgent server</li>

@@ -34,19 +34,22 @@ export class AgentBootstrapService {
 
     console.log('🚀 AgentBootstrapService: Starting automatic agent initialization...');
     console.log('📢 All agents will automatically respond to CoreAgent discovery broadcasts');    try {
-      // Create all specialized agents with shared discovery service
+      // Create only REAL AI agents with Gemini backends
+      console.log('🤖 Creating REAL AI agents with Gemini intelligence...');
+      
       const coreAgent = AgentAutoRegistrationFactory.createCoreAgent(this.sharedDiscoveryService);
       const devAgent = AgentAutoRegistrationFactory.createDevAgent(this.sharedDiscoveryService);
-      const enhancedDevAgent = AgentAutoRegistrationFactory.createEnhancedDevAgent(this.sharedDiscoveryService);
-      const officeAgent = AgentAutoRegistrationFactory.createOfficeAgent(this.sharedDiscoveryService);
-      const fitnessAgent = AgentAutoRegistrationFactory.createFitnessAgent(this.sharedDiscoveryService);
-      const triageAgent = AgentAutoRegistrationFactory.createTriageAgent(this.sharedDiscoveryService);      // Store agents with standardized naming convention: {Type}Agent-v{Version}
+      
+      // NOTE: OfficeAgent, FitnessAgent, TriageAgent are utility classes, not real AI agents
+      // They don't have Gemini backends and shouldn't be registered as agents
+      
+      // Store only real AI agents
       this.agents.set('CoreAgent-v4.0', coreAgent);
       this.agents.set('DevAgent-v4.0', devAgent);
-      this.agents.set('EnhancedDevAgent-v4.0', enhancedDevAgent);
-      this.agents.set('OfficeAgent-v2.0', officeAgent);
-      this.agents.set('FitnessAgent-v1.0', fitnessAgent);
-      this.agents.set('TriageAgent-v3.0', triageAgent);
+      
+      console.log('✅ Real AI Agent Registration:');
+      console.log('   🧠 CoreAgent-v4.0: Constitutional AI + BMAD orchestrator');
+      console.log('   💻 DevAgent-v4.0: Context7 + learning engine specialist');
 
       // Start auto-registration for all agents
       const startupPromises = Array.from(this.agents.values()).map(agent => 

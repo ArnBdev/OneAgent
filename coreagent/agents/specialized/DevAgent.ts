@@ -389,8 +389,7 @@ export class DevAgent extends BaseAgent implements ISpecializedAgent {
         limit: Math.ceil(limit / 2)
       };      const memories = await this.unifiedMemoryClient.searchMemories({
         query: message,
-        agentIds: [this.id],
-        memoryTypes: ['conversation', 'learning'],
+        userId: userId,
         maxResults: Math.ceil(limit / 2),
         semanticSearch: true
       });
@@ -417,10 +416,9 @@ export class DevAgent extends BaseAgent implements ISpecializedAgent {
           if (externalDocs && externalDocs.length > 0) {
             const externalMemories = externalDocs.slice(0, limit - devMemories.length).map((doc: DocumentationResult) => ({
               content: doc.content,
-              metadata: {
-                source: 'external_docs',
+              metadata: {                source: 'external_docs',
                 confidence: doc.relevanceScore || 0.8,
-                timestamp: new Date()
+                timestamp: Date.now()
               }
             }));
             

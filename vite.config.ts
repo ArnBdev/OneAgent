@@ -1,6 +1,10 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import path from 'path'
+import * as dotenv from 'dotenv'
+
+// Load environment variables
+dotenv.config()
 
 // https://vitejs.dev/config/
 export default defineConfig({
@@ -15,9 +19,8 @@ export default defineConfig({
       '@': path.resolve(__dirname, './ui/src'),
       '@/coreagent': path.resolve(__dirname, './coreagent'),
     },
-  },
-  server: {
-    port: 3000,
+  },  server: {
+    port: parseInt(process.env.COREAGENT_PORT || '3000'),
     host: true,
   },
 })

@@ -171,13 +171,12 @@ export class MemoryContextBridge implements IMemoryContextBridge {
           maxResults: searchLimit,
           semanticSearch: true
         });
-        
-        for (const memory of memoryResults) {
+          for (const memory of memoryResults) {
           results.push({
             type: 'memory',
             content: memory.content,
-            relevanceScore: memory.relevanceScore,
-            timestamp: memory.timestamp,
+            relevanceScore: memory.relevanceScore || 0.5,
+            timestamp: new Date(memory.timestamp),
             context: memory.metadata || {},
             id: memory.id
           });
@@ -287,12 +286,11 @@ export class MemoryContextBridge implements IMemoryContextBridge {
       });
       
       for (const memory of directResults) {
-        memoryContexts.push({
-          memoryId: memory.id,
+        memoryContexts.push({          memoryId: memory.id,
           content: memory.content,
-          relevanceScore: memory.relevanceScore,
+          relevanceScore: memory.relevanceScore || 0.5,
           memoryType: this.determineMemoryType(memory.metadata),
-          timestamp: memory.timestamp,
+          timestamp: new Date(memory.timestamp),
           metadata: memory.metadata || {}
         });
       }
@@ -314,10 +312,9 @@ export class MemoryContextBridge implements IMemoryContextBridge {
           if (!memoryContexts.some(ctx => ctx.memoryId === memory.id)) {
             memoryContexts.push({
               memoryId: memory.id,
-              content: memory.content,
-              relevanceScore: memory.relevanceScore * 0.8, // Slightly lower score for context matches
+              content: memory.content,              relevanceScore: (memory.relevanceScore || 0.5) * 0.8, // Slightly lower score for context matches
               memoryType: this.determineMemoryType(memory.metadata),
-              timestamp: memory.timestamp,
+              timestamp: new Date(memory.timestamp),
               metadata: memory.metadata || {}
             });
           }

@@ -10,7 +10,7 @@
  */
 
 import { UnifiedMemoryClient } from '../memory/UnifiedMemoryClient';
-import { ConversationMemory, LearningMemory, PatternMemory, MemoryResult } from '../memory/UnifiedMemoryInterface';
+import { ConversationMemory, LearningMemory, PatternMemory, MemoryResult, Mem0Memory, Mem0SearchFilter, MemoryType } from '../memory/UnifiedMemoryInterface';
 import { GeminiEmbeddingsTool, SemanticSearchResult } from '../tools/geminiEmbeddings';
 import { globalProfiler } from '../performance/profiler';
 import { EmbeddingResult } from '../types/gemini';
@@ -54,13 +54,13 @@ export interface MemorySummary {
  * Memory Intelligence Engine
  */
 export class MemoryIntelligence {
-  private mem0Client: Mem0Client;
+  private unifiedMemoryClient: UnifiedMemoryClient;
   private embeddingsClient: GeminiEmbeddingsTool;
   private categories: MemoryCategory[] = [];
   private embeddingCache = new Map<string, EmbeddingResult>();
 
-  constructor(mem0Client: Mem0Client, embeddingsClient: GeminiEmbeddingsTool) {
-    this.mem0Client = mem0Client;
+  constructor(unifiedMemoryClient: UnifiedMemoryClient, embeddingsClient: GeminiEmbeddingsTool) {
+    this.unifiedMemoryClient = unifiedMemoryClient;
     this.embeddingsClient = embeddingsClient;
     this.initializeDefaultCategories();
     console.log('🧠 Memory Intelligence Layer initialized');
@@ -285,7 +285,11 @@ export class MemoryIntelligence {
       if (options.memoryType) {
         filter.memoryType = options.memoryType;
       }      // Get memories from Mem0
-      const memoriesResponse = await this.mem0Client.searchMemories(filter);
+      const memoriesResponse = await this.unifiedMemoryClient.searchMemories({
+        query: filter?.query || "",
+        userId: filter?.userId || "system",
+        maxResults: 100
+      });
       if (!memoriesResponse.success || !memoriesResponse.data || memoriesResponse.data.length === 0) {
         globalProfiler.endOperation(operationId, true);
         return [];

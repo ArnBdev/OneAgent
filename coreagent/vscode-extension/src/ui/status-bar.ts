@@ -75,7 +75,7 @@ export class OneAgentStatusBar implements vscode.Disposable {
                 this.statusBarItem.text = "$(error) OneAgent Offline";
                 this.statusBarItem.backgroundColor = new vscode.ThemeColor('statusBarItem.errorBackground');
                 this.statusBarItem.color = new vscode.ThemeColor('statusBarItem.errorForeground');
-                this.statusBarItem.tooltip = 'OneAgent Professional - Not available | Ensure OneAgent is running on port 8083';
+                this.statusBarItem.tooltip = 'OneAgent Professional - Not available | Ensure OneAgent is running (check .env for configuration)';
             }
         } catch (error) {
             // Error during status update

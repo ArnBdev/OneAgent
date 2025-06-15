@@ -16,7 +16,7 @@ export async function activate(context: vscode.ExtensionContext) {
         const isAvailable = await client.healthCheck();
         if (!isAvailable) {
             vscode.window.showWarningMessage(
-                'OneAgent server not available. Please ensure OneAgent is running on port 8083.',
+                'OneAgent server not available. Please ensure OneAgent is running (check .env for configuration).',
                 'Open Settings'
             ).then(selection => {
                 if (selection === 'Open Settings') {
@@ -102,7 +102,7 @@ export function deactivate() {
     console.log('OneAgent Professional extension deactivated');
 }
 
-async function showWelcomeMessage(client: OneAgentClient) {
+async function showWelcomeMessage(_client: OneAgentClient) {
     const action = await vscode.window.showInformationMessage(
         '🚀 Welcome to OneAgent Professional! A sophisticated AI development platform with Constitutional AI, BMAD Framework analysis, and quality-first development principles.',
         'Open Dashboard',

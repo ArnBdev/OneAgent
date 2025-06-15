@@ -38,7 +38,7 @@ import { MultiAgentOrchestrator } from '../agents/communication/MultiAgentOrches
 import { AgentCommunicationProtocol } from '../agents/communication/AgentCommunicationProtocol';
 import { agentBootstrap } from '../agents/communication/AgentBootstrapService';
 import { GeminiEmbeddingsTool } from '../tools/geminiEmbeddings';
-import { UnifiedMemoryClient } from '../memory/UnifiedMemoryClient';
+import { realUnifiedMemoryClient } from '../memory/RealUnifiedMemoryClient';
 import { generateMemoryId } from '../memory/UnifiedMemoryInterface';
 
 // Import OneAgent Monitoring and Error Handling
@@ -89,10 +89,11 @@ const constitutionalAI = new ConstitutionalAI({
 const bmadElicitation = new BMADElicitationEngine();
 
 // Initialize OneAgent tools with centralized configuration
-const unifiedMemoryClient = new UnifiedMemoryClient({
-  serverUrl: oneAgentConfig.memoryUrl,
-  timeout: 30000
-});
+// Commented out broken UnifiedMemoryClient - using SimpleMemoryAdapter instead
+// const unifiedMemoryClient = new UnifiedMemoryClient({
+//   serverUrl: oneAgentConfig.memoryUrl,
+//   timeout: 30000
+// });
 
 const braveConfig = {
   apiKey: process.env.BRAVE_API_KEY || 'your_brave_search_api_key_here',
@@ -159,17 +160,20 @@ async function testMemorySystemHealth() {
     const memoryValidation = await triageAgent.revalidateMemorySystem();    // Attempt to test memory connection
     let connectionSuccessful = false;
     let testResult: any = { success: false };
-    
-    try {
-      const testResults = await unifiedMemoryClient.searchMemories({
-        query: 'test',
-        maxResults: 1
-      });
+      try {
+      const testResults = await realUnifiedMemoryClient.getMemoryContext(
+        'test',
+        'oneagent_system',
+        1
+      );
       connectionSuccessful = true;
       testResult = { success: true, results: testResults };
     } catch (error) {
       connectionSuccessful = false;
-      testResult = { success: false, error: error };    }    // Build comprehensive status with transparency data
+      testResult = { success: false, error: error };
+    }
+    
+    // Build comprehensive status with transparency data
     const baseStatus = {
       port: oneAgentConfig.memoryPort,
       basicConnection: testResult.success,
@@ -760,21 +764,20 @@ async function handleToolCall(params: any, id: any) {
             }, null, 2)
           }],
           isError: false        });
-        break;
-
-      case 'oneagent_memory_context':
-        try {
-          const memories = await unifiedMemoryClient.searchMemories({
-            query: args.query,
-            maxResults: args.limit || 5
-          });          return createJsonRpcResponse(id, {
+        break;        case 'oneagent_memory_context':        try {          const memories = await realUnifiedMemoryClient.getMemoryContext(
+            args.query,
+            args.userId || 'oneagent_system',
+            args.limit || 5
+          );
+          
+          return createJsonRpcResponse(id, {
             content: [{
               type: 'text',
               text: JSON.stringify({
                 query: args.query,
                 userId: args.userId,
-                memories: memories || [],
-                totalFound: memories ? memories.length : 0,
+                memories: Array.isArray(memories) ? memories : [],
+                totalFound: Array.isArray(memories) ? memories.length : 0,
                 contextEnhancement: {
                   semantic: true,
                   temporal: true,
@@ -1270,15 +1273,24 @@ app.get('/', (_req, res) => {
 
 const PORT = oneAgentConfig.mcpPort;
 
-if (require.main === module) {
-  app.listen(PORT, async () => {
+if (require.main === module) {  app.listen(PORT, async () => {
     console.log(`🚀 OneAgent Professional MCP Server running on port ${PORT}`);
     console.log(`🔗 MCP endpoint: http://localhost:${PORT}/mcp`);
     console.log(`💊 Health check: http://localhost:${PORT}/health`);
     console.log(`🧠 Constitutional AI: ACTIVE`);
     console.log(`📊 BMAD Framework: ACTIVE`);
     console.log(`✅ GitHub Copilot Agent Mode: READY`);
-    console.log(`📚 Memory System: Mem0Local`);
+    console.log(`📚 Memory System: Connecting to OneAgent Memory Server...`);
+    
+    // Connect to memory server
+    try {
+      await realUnifiedMemoryClient.connect();
+      console.log(`✅ Memory System: Connected to OneAgent Memory Server on port ${oneAgentConfig.memoryPort}`);
+    } catch (error) {
+      console.error(`❌ Memory System: Failed to connect to memory server:`, error);
+      console.log(`⚠️  Memory operations will use fallback mechanisms`);
+    }
+    
     console.log(`🔍 Enhanced Search: Brave + Quality Scoring`);
       // Bootstrap all specialized agents for automatic discovery
     console.log('🤖 Starting automatic agent initialization...');

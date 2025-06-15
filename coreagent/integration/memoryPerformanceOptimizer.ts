@@ -9,7 +9,7 @@
  */
 
 import { MemoryBridge } from './memoryBridge';
-import { Mem0Client } from '../tools/mem0Client';
+import { UnifiedMemoryClient } from '../memory/UnifiedMemoryClient';
 import { SimpleAuditLogger } from '../audit/auditLogger';
 
 export interface PerformanceOptimizationConfig {
@@ -129,10 +129,9 @@ export class MemoryPerformanceOptimizer {
         expectedImprovements: {}
       };
     }
-  }
-  /**
-   * Optimize Mem0Client with connection pooling and timeouts
-   */  async optimizeMem0Client(_mem0Client: Mem0Client): Promise<{
+  }  /**
+   * Optimize UnifiedMemoryClient with connection pooling and timeouts
+   */  async optimizeUnifiedMemoryClient(_unifiedMemoryClient: UnifiedMemoryClient): Promise<{
     success: boolean;
     optimizations: string[];
   }> {
