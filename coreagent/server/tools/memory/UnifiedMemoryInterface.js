@@ -1,70 +1,43 @@
 "use strict";
-var __extends = (this && this.__extends) || (function () {
-    var extendStatics = function (d, b) {
-        extendStatics = Object.setPrototypeOf ||
-            ({ __proto__: [] } instanceof Array && function (d, b) { d.__proto__ = b; }) ||
-            function (d, b) { for (var p in b) if (Object.prototype.hasOwnProperty.call(b, p)) d[p] = b[p]; };
-        return extendStatics(d, b);
-    };
-    return function (d, b) {
-        if (typeof b !== "function" && b !== null)
-            throw new TypeError("Class extends value " + String(b) + " is not a constructor or null");
-        extendStatics(d, b);
-        function __() { this.constructor = d; }
-        d.prototype = b === null ? Object.create(b) : (__.prototype = b.prototype, new __());
-    };
-})();
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.DEFAULT_MEMORY_CONFIG = exports.SearchError = exports.StorageError = exports.ValidationError = exports.MemoryError = void 0;
 exports.generateMemoryId = generateMemoryId;
 exports.validateConversationMemory = validateConversationMemory;
 exports.validateLearningMemory = validateLearningMemory;
 exports.validatePatternMemory = validatePatternMemory;
-var index_1 = require("../config/index");
+const index_1 = require("../config/index");
 // =====================================
 // Error Types
 // =====================================
-var MemoryError = /** @class */ (function (_super) {
-    __extends(MemoryError, _super);
-    function MemoryError(message, code, details) {
-        var _this = _super.call(this, message) || this;
-        _this.code = code;
-        _this.details = details;
-        _this.name = 'MemoryError';
-        return _this;
+class MemoryError extends Error {
+    constructor(message, code, details) {
+        super(message);
+        this.code = code;
+        this.details = details;
+        this.name = 'MemoryError';
     }
-    return MemoryError;
-}(Error));
+}
 exports.MemoryError = MemoryError;
-var ValidationError = /** @class */ (function (_super) {
-    __extends(ValidationError, _super);
-    function ValidationError(message, details) {
-        var _this = _super.call(this, message, 'VALIDATION_ERROR', details) || this;
-        _this.name = 'ValidationError';
-        return _this;
+class ValidationError extends MemoryError {
+    constructor(message, details) {
+        super(message, 'VALIDATION_ERROR', details);
+        this.name = 'ValidationError';
     }
-    return ValidationError;
-}(MemoryError));
+}
 exports.ValidationError = ValidationError;
-var StorageError = /** @class */ (function (_super) {
-    __extends(StorageError, _super);
-    function StorageError(message, details) {
-        var _this = _super.call(this, message, 'STORAGE_ERROR', details) || this;
-        _this.name = 'StorageError';
-        return _this;
+class StorageError extends MemoryError {
+    constructor(message, details) {
+        super(message, 'STORAGE_ERROR', details);
+        this.name = 'StorageError';
     }
-    return StorageError;
-}(MemoryError));
+}
 exports.StorageError = StorageError;
-var SearchError = /** @class */ (function (_super) {
-    __extends(SearchError, _super);
-    function SearchError(message, details) {
-        var _this = _super.call(this, message, 'SEARCH_ERROR', details) || this;
-        _this.name = 'SearchError';
-        return _this;
+class SearchError extends MemoryError {
+    constructor(message, details) {
+        super(message, 'SEARCH_ERROR', details);
+        this.name = 'SearchError';
     }
-    return SearchError;
-}(MemoryError));
+}
 exports.SearchError = SearchError;
 exports.DEFAULT_MEMORY_CONFIG = {
     serverUrl: index_1.oneAgentConfig.memoryUrl,
@@ -83,7 +56,7 @@ exports.DEFAULT_MEMORY_CONFIG = {
  * Generate a unique ID for memory entries
  */
 function generateMemoryId() {
-    return "mem_".concat(Date.now(), "_").concat(Math.random().toString(36).substr(2, 9));
+    return `mem_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
 }
 /**
  * Validate a conversation memory object

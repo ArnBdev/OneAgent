@@ -230,14 +230,21 @@ export class RealUnifiedMemoryClient extends EventEmitter {
         // Remove potentially problematic fields for now
         // constitutionalLevel: constitutionalLevel.toString(),
         // constitutionalCompliance: constitutionalResult.valid
-      });
-        // Make REST API call to memory server
-      const createUrl = `http://${this.config.host}:${this.config.port}/v1/memories`;
+      });      // Make REST API call to memory server using correct endpoints
+      const createUrl = `${this.config.host === 'localhost' ? 'http://127.0.0.1' : `http://${this.config.host}`}:${this.config.port}/memory/conversations`;
       
-      // Debug: Log the exact request being sent
+      // Prepare request body to match memory server API schema
       const requestBody = {
+        id: memoryId,
+        agent_id: metadata.agentId || 'oneagent_system',
+        user_id: userId, // Memory server expects 'user_id' not 'userId'
+        timestamp: new Date().toISOString(),
         content,
-        userId: userId, // FastAPI server expects 'userId' not 'user_id'        metadata: cleanMetadata
+        context: cleanMetadata,
+        outcome: {
+          qualityScore,
+          constitutionalCompliance: constitutionalResult.valid
+        }
       };
       
       const response = await fetch(createUrl, {
@@ -292,40 +299,38 @@ export class RealUnifiedMemoryClient extends EventEmitter {
       throw new Error('Memory client not connected');
     }
 
-    const startTime = Date.now();
-      try {
-      // Make REST API call to memory server for search - using GET endpoint
-      const params = new URLSearchParams({
-        userId: userId,
-        limit: limit.toString()
-      });
-      if (query) {
-        params.append('query', query);
-      }
-      if (memoryTypes && memoryTypes.length > 0) {
-        params.append('memoryTypes', memoryTypes.join(','));
-      }
+    const startTime = Date.now();    try {
+      // Make REST API call to memory server for search using correct endpoint
+      const searchUrl = `${this.config.host === 'localhost' ? 'http://127.0.0.1' : `http://${this.config.host}`}:${this.config.port}/memory/search`;
       
-      const searchUrl = `http://${this.config.host}:${this.config.port}/v1/memories?${params}`;
+      const requestBody = {
+        query: query,
+        agent_ids: ['oneagent_system'],
+        memory_types: memoryTypes || ['conversations', 'learnings', 'patterns'],
+        max_results: limit,
+        semantic_search: true
+      };
+      
       const response = await fetch(searchUrl, {
-        method: 'GET',
+        method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-        }
+        },
+        body: JSON.stringify(requestBody)
       });
 
       if (!response.ok) {
         throw new Error(`Memory server search failed: ${response.status} ${response.statusText}`);
       }      const result = await response.json();
-      const memories = result.data || []; // FastAPI server returns data in 'data' field
+      const memories = result.results || result.memories || []; // Handle different response formats
       
-      // Convert to expected format
+      // Convert to expected format based on memory server API schema
       const searchResults = memories.map((memory: any) => ({
         id: memory.id,
         content: memory.content,
-        metadata: memory.metadata || {},
-        similarity: memory.relevanceScore || 0.5, // FastAPI server uses relevanceScore
-        timestamp: memory.createdAt ? new Date(memory.createdAt).getTime() : Date.now()
+        metadata: memory.context || memory.metadata || {},
+        similarity: memory.similarity || memory.confidence || 0.5,
+        timestamp: memory.timestamp ? new Date(memory.timestamp).getTime() : Date.now()
       }));
 
       // Calculate search quality

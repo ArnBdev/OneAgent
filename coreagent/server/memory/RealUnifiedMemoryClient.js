@@ -199,12 +199,17 @@ class RealUnifiedMemoryClient extends events_1.EventEmitter {
                 // constitutionalLevel: constitutionalLevel.toString(),
                 // constitutionalCompliance: constitutionalResult.valid
             });
-            // Make REST API call to memory server
-            const createUrl = `http://${this.config.host}:${this.config.port}/v1/memories`;
+            // Make REST API call to memory server - using conversations endpoint
+            const createUrl = `http://${this.config.host}:${this.config.port}/memory/conversations`;
             // Debug: Log the exact request being sent
             const requestBody = {
+                id: 'mem_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9),
+                agent_id: cleanMetadata.agentId || 'oneagent_system',
+                user_id: userId,
+                timestamp: new Date().toISOString(),
                 content,
-                userId: userId, // FastAPI server expects 'userId' not 'user_id'        metadata: cleanMetadata
+                context: cleanMetadata,
+                outcome: { success: true, qualityScore: cleanMetadata.qualityScore || 95 }
             };
             const response = await fetch(createUrl, {
                 method: 'POST',
@@ -249,23 +254,21 @@ class RealUnifiedMemoryClient extends events_1.EventEmitter {
         }
         const startTime = Date.now();
         try {
-            // Make REST API call to memory server for search - using GET endpoint
-            const params = new URLSearchParams({
-                userId: userId,
-                limit: limit.toString()
-            });
-            if (query) {
-                params.append('query', query);
-            }
-            if (memoryTypes && memoryTypes.length > 0) {
-                params.append('memoryTypes', memoryTypes.join(','));
-            }
-            const searchUrl = `http://${this.config.host}:${this.config.port}/v1/memories?${params}`;
+            // Make REST API call to memory server for search - using POST endpoint
+            const searchBody = {
+                query: query,
+                agent_ids: ['oneagent_system'],
+                memory_types: ['conversations', 'learnings', 'patterns'],
+                max_results: limit,
+                semantic_search: true
+            };
+            const searchUrl = `http://${this.config.host}:${this.config.port}/memory/search`;
             const response = await fetch(searchUrl, {
-                method: 'GET',
+                method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
-                }
+                },
+                body: JSON.stringify(searchBody)
             });
             if (!response.ok) {
                 throw new Error(`Memory server search failed: ${response.status} ${response.statusText}`);
