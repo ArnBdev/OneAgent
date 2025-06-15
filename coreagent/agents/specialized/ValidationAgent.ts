@@ -163,26 +163,25 @@ export class ValidationAgent extends BaseAgent implements ISpecializedAgent {
   /**
    * BMAD Framework Analysis (9-point systematic analysis)
    * Following OneAgent decision-making methodology
-   */
-  private async performBMADAnalysis(decision: string, scope?: string, _context?: AgentContext): Promise<any> {
+   */  private async performBMADAnalysis(decision: string, scope?: string, _context?: AgentContext): Promise<any> {
     const analysis = {
-      beliefAssessment: this.assessBeliefs(decision),
-      motivationMapping: this.mapMotivations(decision),
-      authorityIdentification: this.identifyAuthorities(decision),
-      dependencyMapping: this.mapDependencies(decision),
-      constraintAnalysis: this.analyzeConstraints(decision),
-      riskAssessment: this.assessRisks(decision),
-      successMetrics: this.defineSuccessMetrics(decision),
-      timelineConsiderations: this.analyzeTimeline(decision),
-      resourceRequirements: this.analyzeResources(decision)
+      beliefAssessment: this.assessBeliefs(),
+      motivationMapping: this.mapMotivations(),
+      authorityIdentification: this.identifyAuthorities(),
+      dependencyMapping: this.mapDependencies(),
+      constraintAnalysis: this.analyzeConstraints(),
+      riskAssessment: this.assessRisks(),
+      successMetrics: this.defineSuccessMetrics(),
+      timelineConsiderations: this.analyzeTimeline(),
+      resourceRequirements: this.analyzeResources()
     };
 
     return {
       decision,
       scope: scope || 'Comprehensive analysis',
       analysis,
-      recommendation: this.generateBMADRecommendation(analysis),
-      confidenceLevel: this.calculateBMADConfidence(analysis)
+      recommendation: this.generateBMADRecommendation(),
+      confidenceLevel: this.calculateBMADConfidence()
     };
   }
 
@@ -323,43 +322,52 @@ export class ValidationAgent extends BaseAgent implements ISpecializedAgent {
 
     return recommendations;
   }
-
   // BMAD Framework implementation methods (simplified for example)
-  private assessBeliefs(decision: string): any { return { confidence: 0.8, assumptions: ['User needs solution'] }; }
-  private mapMotivations(decision: string): any { return { primary: 'solve problem', secondary: 'efficiency' }; }
-  private identifyAuthorities(decision: string): any { return { stakeholders: ['user', 'team'], approvers: ['lead'] }; }
-  private mapDependencies(decision: string): any { return { technical: ['system'], human: ['expertise'] }; }
-  private analyzeConstraints(decision: string): any { return { time: 'limited', resources: 'adequate' }; }
-  private assessRisks(decision: string): any { return { technical: 'low', business: 'medium' }; }
-  private defineSuccessMetrics(decision: string): any { return { primary: 'functionality', secondary: 'performance' }; }
-  private analyzeTimeline(decision: string): any { return { estimated: '2-4 hours', critical_path: 'implementation' }; }
-  private analyzeResources(decision: string): any { return { required: 'developer time', available: 'yes' }; }
+  private assessBeliefs(): any { return { confidence: 0.8, assumptions: ['User needs solution'] }; }
+  private mapMotivations(): any { return { primary: 'solve problem', secondary: 'efficiency' }; }
+  private identifyAuthorities(): any { return { stakeholders: ['user', 'team'], approvers: ['lead'] }; }
+  private mapDependencies(): any { return { technical: ['system'], human: ['expertise'] }; }
+  private analyzeConstraints(): any { return { time: 'limited', resources: 'adequate' }; }
+  private assessRisks(): any { return { technical: 'low', business: 'medium' }; }
+  private defineSuccessMetrics(): any { return { primary: 'functionality', secondary: 'performance' }; }
+  private analyzeTimeline(): any { return { estimated: '2-4 hours', critical_path: 'implementation' }; }
+  private analyzeResources(): any { return { required: 'developer time', available: 'yes' }; }
 
-  private generateBMADRecommendation(analysis: any): string {
+  private generateBMADRecommendation(): string {
     return 'Proceed with implementation following OneAgent quality standards';
   }
 
-  private calculateBMADConfidence(analysis: any): number {
+  private calculateBMADConfidence(): number {
     return 0.85; // Simplified confidence calculation
   }
 
   /**
    * Process incoming messages with validation and Constitutional AI compliance
-   */
-  async processMessage(message: string, context: AgentContext): Promise<string> {
+   */  async processMessage(context: AgentContext, message: string): Promise<AgentResponse> {
     try {
-      // Store user message in memory
-      await this.storeUserMessage(message, context);
+      // Store user message in memory (if memory enabled)
+      if (this.config.memoryEnabled) {
+        // TODO: Implement memory storage when available
+      }
       
       // Determine validation type based on message content
       if (message.toLowerCase().includes('validate') || message.toLowerCase().includes('check')) {
         // Perform code or content validation
-        const validationResult = await this.performConstitutionalCheck(message, context, context);
+        const validationResult = await this.performConstitutionalCheck(message, context.user.id, context);
         
-        // Store AI response in memory
-        await this.storeAIResponse(validationResult, context);
-        
-        return validationResult;
+        // Store AI response in memory (if memory enabled)
+        if (this.config.memoryEnabled) {
+          // TODO: Implement memory storage when available
+        }
+          return {
+          content: validationResult,
+          metadata: {
+            validationType: 'constitutional_check',
+            agentId: this.id,
+            timestamp: new Date(),
+            confidence: 0.9
+          }
+        };
       } else {
         // General validation guidance
         const response = `I'm ValidationAgent, specialized in code quality validation and Constitutional AI compliance. I can help you:
@@ -371,15 +379,32 @@ export class ValidationAgent extends BaseAgent implements ISpecializedAgent {
 
 What would you like me to validate or analyze?`;
         
-        // Store AI response in memory
-        await this.storeAIResponse(response, context);
-        
-        return response;
+        // Store AI response in memory (if memory enabled)
+        if (this.config.memoryEnabled) {
+          // TODO: Implement memory storage when available
+        }
+          return {
+          content: response,
+          metadata: {
+            validationType: 'general_guidance',
+            agentId: this.id,
+            timestamp: new Date(),
+            confidence: 0.8
+          }
+        };
       }
     } catch (error: any) {
       const errorMessage = `ValidationAgent error: ${error.message}`;
-      console.error(errorMessage);
-      return errorMessage;
+      console.error(errorMessage);      return {
+        content: errorMessage,
+        metadata: {
+          validationType: 'error',
+          agentId: this.id,
+          timestamp: new Date(),
+          error: error.message,
+          confidence: 0.1
+        }
+      };
     }
   }
 }

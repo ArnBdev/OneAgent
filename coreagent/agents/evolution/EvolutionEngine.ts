@@ -132,7 +132,7 @@ export class EvolutionEngine extends EventEmitter {
       const userFeedback = await this.getUserFeedback(profile.memoryConfig.userId);
       
       // Get memory insights
-      const memoryInsights = await this.getMemoryInsights(profile.memoryConfig.userId);
+      const memoryInsights = await this.getMemoryInsights();
 
       return {
         currentProfile: profile,
@@ -167,24 +167,22 @@ export class EvolutionEngine extends EventEmitter {
   private async analyzePerformance(context: EvolutionContext): Promise<EvolutionAnalysis> {
     console.log('🔍 Analyzing current performance...');
 
-    const { currentProfile, performanceMetrics, userFeedback, memoryInsights } = context;
-
-    // Calculate current performance scores
+    const { currentProfile, performanceMetrics, userFeedback, memoryInsights } = context;    // Calculate current performance scores
     const overallQuality = this.calculateAverageScore(performanceMetrics.qualityScores);
     const userSatisfaction = this.calculateAverageScore(performanceMetrics.userSatisfaction);
-    const constitutionalCompliance = this.assessConstitutionalCompliance(context);
+    const constitutionalCompliance = this.assessConstitutionalCompliance();
 
     // Analyze capability effectiveness
-    const capabilityEffectiveness = this.analyzeCapabilityEffectiveness(currentProfile, performanceMetrics);
+    const capabilityEffectiveness = this.analyzeCapabilityEffectiveness(currentProfile);
 
     // Identify issues based on patterns
-    const identifiedIssues = this.identifyPerformanceIssues(context);
+    const identifiedIssues = this.identifyPerformanceIssues();
 
     // Find improvement opportunities
-    const improvementOpportunities = this.findImprovementOpportunities(context);
+    const improvementOpportunities = this.findImprovementOpportunities();
 
     // Generate specific recommendations
-    const recommendations = this.generateSpecificRecommendations(identifiedIssues, improvementOpportunities);
+    const recommendations = this.generateSpecificRecommendations();
 
     return {
       currentPerformance: {
@@ -342,7 +340,7 @@ export class EvolutionEngine extends EventEmitter {
       };
 
       // Store evolution record in memory
-      await this.storeEvolutionRecord(evolvedProfile.memoryConfig.userId, evolutionSummary);
+      await this.storeEvolutionRecord(evolutionSummary);
 
       // Save evolved profile
       await this.profileManager.saveProfile(evolvedProfile);
@@ -354,7 +352,7 @@ export class EvolutionEngine extends EventEmitter {
   }
 
   // Helper methods for memory integration
-  private async getRecentConversations(userId: string): Promise<any[]> {
+  private async getRecentConversations(_userId: string): Promise<any[]> {
     try {
       // Implementation depends on memory system integration
       return [];
@@ -364,7 +362,7 @@ export class EvolutionEngine extends EventEmitter {
     }
   }
 
-  private async getPerformanceMetrics(userId: string): Promise<any> {
+  private async getPerformanceMetrics(_userId: string): Promise<any> {
     try {
       // Implementation depends on memory system integration
       return {
@@ -386,7 +384,7 @@ export class EvolutionEngine extends EventEmitter {
     }
   }
 
-  private async getUserFeedback(userId: string): Promise<any> {
+  private async getUserFeedback(_userId: string): Promise<any> {
     try {
       // Implementation depends on memory system integration
       return { positive: [], negative: [], suggestions: [] };
@@ -395,8 +393,7 @@ export class EvolutionEngine extends EventEmitter {
       return { positive: [], negative: [], suggestions: [] };
     }
   }
-
-  private async getMemoryInsights(userId: string): Promise<any> {
+  private async getMemoryInsights(): Promise<any> {
     try {
       // Implementation depends on memory system integration
       return { patterns: [], successfulStrategies: [], problematicAreas: [] };
@@ -406,7 +403,7 @@ export class EvolutionEngine extends EventEmitter {
     }
   }
 
-  private async storeEvolutionRecord(userId: string, record: any): Promise<void> {
+  private async storeEvolutionRecord(record: any): Promise<void> {
     try {
       // Implementation depends on memory system integration
       console.log('Evolution record stored:', record);
@@ -419,13 +416,12 @@ export class EvolutionEngine extends EventEmitter {
   private calculateAverageScore(scores: number[]): number {
     return scores.length > 0 ? scores.reduce((a, b) => a + b, 0) / scores.length : 0;
   }
-
-  private assessConstitutionalCompliance(context: EvolutionContext): number {
+  private assessConstitutionalCompliance(): number {
     // Simplified constitutional compliance assessment
     return 95; // High compliance by default
   }
 
-  private analyzeCapabilityEffectiveness(profile: AgentProfile, metrics: any): Record<string, number> {
+  private analyzeCapabilityEffectiveness(profile: AgentProfile): Record<string, number> {
     const effectiveness: Record<string, number> = {};
     
     profile.capabilities.forEach(cap => {
@@ -435,7 +431,7 @@ export class EvolutionEngine extends EventEmitter {
     return effectiveness;
   }
 
-  private identifyPerformanceIssues(context: EvolutionContext): any[] {
+  private identifyPerformanceIssues(): any[] {
     // Simplified issue identification
     return [
       {
@@ -448,7 +444,7 @@ export class EvolutionEngine extends EventEmitter {
     ];
   }
 
-  private findImprovementOpportunities(context: EvolutionContext): any[] {
+  private findImprovementOpportunities(): any[] {
     // Simplified opportunity identification
     return [
       {
@@ -461,7 +457,7 @@ export class EvolutionEngine extends EventEmitter {
     ];
   }
 
-  private generateSpecificRecommendations(issues: any[], opportunities: any[]): EvolutionChange[] {
+  private generateSpecificRecommendations(): EvolutionChange[] {
     // Simplified recommendation generation
     return [
       {
@@ -481,14 +477,29 @@ export class EvolutionEngine extends EventEmitter {
     if (change.category === 'instructions') return 'low';
     return 'low';
   }
-
   private getImpactScore(change: EvolutionChange): number {
-    // Simplified impact scoring
-    return 0.8;
+    // Calculate impact score based on change characteristics
+    let score = 0.5; // Base score
+    
+    // Higher confidence = higher impact
+    score += (change.confidence / 100) * 0.3;
+    
+    // Different categories have different base impacts
+    if (change.category === 'instructions') score += 0.2;
+    if (change.category === 'personality') score += 0.1;
+    if (change.category === 'capabilities') score += 0.3;
+    
+    return Math.min(score, 1.0); // Cap at 1.0
   }
-
   private validateAccuracy(change: EvolutionChange, profile: AgentProfile): boolean {
-    return change.reasoning.length > 10 && change.confidence > 50;
+    // Check if change maintains accuracy standards based on profile
+    const meetsBasicCriteria = change.reasoning.length > 10 && change.confidence > 50;
+    
+    // Check against profile's quality thresholds
+    const accuracyThreshold = profile.qualityThresholds?.qualityDimensions?.accuracy || 80;
+    const meetsThreshold = change.confidence >= accuracyThreshold;
+    
+    return meetsBasicCriteria && meetsThreshold;
   }
 
   private validateTransparency(change: EvolutionChange): boolean {
@@ -504,15 +515,26 @@ export class EvolutionEngine extends EventEmitter {
     if (change.category === 'instructions' && change.field === 'prohibitions') {
       return Array.isArray(change.newValue) && change.newValue.length > 0;
     }
-    return true;
+      // Check against profile safety requirements
+    const safetyThreshold = profile.qualityThresholds?.qualityDimensions?.safety || 95;
+    const isSafe = change.confidence >= safetyThreshold || change.category !== 'instructions';
+    
+    return isSafe;
   }
 
   private applyChange(profile: AgentProfile, change: EvolutionChange): void {
-    // Simplified change application
-    console.log(`Applying change: ${change.category}.${change.field}`);
+    // Apply change to the profile based on category and field
+    console.log(`Applying change to profile ${profile.metadata.name}: ${change.category}.${change.field}`);
     
     // This would need proper path-based property setting
-    // For now, just log the change
+    // For now, just log the change and basic validation
+    if (change.category === 'instructions') {
+      console.log(`Updating instructions field: ${change.field}`);
+    } else if (change.category === 'personality') {
+      console.log(`Updating personality field: ${change.field}`);
+    } else if (change.category === 'capabilities') {
+      console.log(`Updating capabilities field: ${change.field}`);
+    }
   }
 
   private assessOverallRisk(changes: EvolutionChange[]): 'low' | 'medium' | 'high' {
@@ -523,12 +545,16 @@ export class EvolutionEngine extends EventEmitter {
   }
   /**
    * Get evolution engine status
-   */
-  getStatus(): { isEvolving: boolean; lastEvolution?: string } {
+   */  getStatus(): { isEvolving: boolean; lastEvolution?: string } {
     const profile = this.profileManager.getCurrentProfile();
-    return {
-      isEvolving: this.isEvolving,
-      lastEvolution: profile?.metadata.lastEvolved || undefined
+    const result: { isEvolving: boolean; lastEvolution?: string } = {
+      isEvolving: this.isEvolving
     };
+    
+    if (profile?.metadata.lastEvolved) {
+      result.lastEvolution = profile.metadata.lastEvolved;
+    }
+    
+    return result;
   }
 }

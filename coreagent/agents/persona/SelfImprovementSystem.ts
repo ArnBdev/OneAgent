@@ -170,7 +170,7 @@ export class SelfImprovementSystem extends EventEmitter {
     }
     
     const currentMetrics = this.calculateAverageMetrics(recentMetrics);
-    const improvements = await this.generateImprovementSuggestions(agentId, currentPersona, recentMetrics);
+    const improvements = await this.generateImprovementSuggestions(currentPersona, recentMetrics);
     const overallHealth = this.assessOverallHealth(currentMetrics);
     const recommendedActions = this.generateRecommendedActions(improvements, overallHealth);
     
@@ -205,9 +205,7 @@ export class SelfImprovementSystem extends EventEmitter {
 
   /**
    * Generate improvement suggestions based on performance analysis
-   */
-  private async generateImprovementSuggestions(
-    agentId: string, 
+   */  private async generateImprovementSuggestions( 
     persona: PersonaConfig, 
     metrics: PerformanceMetrics[]
   ): Promise<ImprovementSuggestion[]> {

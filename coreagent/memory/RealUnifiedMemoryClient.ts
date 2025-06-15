@@ -302,10 +302,9 @@ export class RealUnifiedMemoryClient extends EventEmitter {
     const startTime = Date.now();    try {
       // Make REST API call to memory server for search using correct endpoint
       const searchUrl = `${this.config.host === 'localhost' ? 'http://127.0.0.1' : `http://${this.config.host}`}:${this.config.port}/memory/search`;
-      
-      const requestBody = {
+        const requestBody = {
         query: query,
-        agent_ids: ['oneagent_system'],
+        agent_ids: [userId || 'oneagent_system'],
         memory_types: memoryTypes || ['conversations', 'learnings', 'patterns'],
         max_results: limit,
         semantic_search: true

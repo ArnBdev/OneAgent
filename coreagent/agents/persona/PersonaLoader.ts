@@ -197,7 +197,7 @@ export class PersonaLoader extends EventEmitter {
    */
   private generatePromptTemplate(persona: PersonaConfig): PromptTemplate {
     const systemPrompt = this.buildSystemPrompt(persona);
-    const userPromptTemplate = this.buildUserPromptTemplate(persona);
+    const userPromptTemplate = this.buildUserPromptTemplate();
     const responseInstructions = this.buildResponseInstructions(persona);
     const qualityChecks = this.buildQualityChecks(persona);
 
@@ -253,7 +253,7 @@ Communication Approach:
   /**
    * Build user prompt template
    */
-  private buildUserPromptTemplate(persona: PersonaConfig): string {
+  private buildUserPromptTemplate(): string {
     return `Request Type: {requestType}
 Context: {context}
 Memory Context: {memoryContext}

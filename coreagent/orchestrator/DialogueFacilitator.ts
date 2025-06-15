@@ -141,17 +141,21 @@ export class DialogueFacilitator {
       conversationHistory,
       responseType,
       agentContext
-    );
-
-    return {
+    );    const relevantTurn = this.getRelevantPreviousTurn(thread.turns);
+    const turn: ConversationTurn = {
       agentId,
       content,
       turnType: responseType,
       timestamp: new Date(),
-      responseToTurn: this.getRelevantPreviousTurn(thread.turns),
       confidence: 0.8, // Would be calculated based on agent certainty
       perspective: agentContext.perspective
     };
+
+    if (relevantTurn) {
+      turn.responseToTurn = relevantTurn;
+    }
+
+    return turn;
   }
 
   /**
@@ -247,11 +251,10 @@ export class DialogueFacilitator {
       perspective: await this.getAgentPerspective(agentId)
     };
   }
-
   private async generateOpeningStatement(
     agentId: string, 
     topic: string, 
-    context: ConversationContext
+    _context: ConversationContext
   ): Promise<string> {
     // Would use AI assistant to generate contextual opening based on agent's expertise
     return `Opening statement from ${agentId} on ${topic}`;

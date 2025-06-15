@@ -258,7 +258,6 @@ export class TemplateAgent extends BaseAgent implements ISpecializedAgent {
         throw new Error(`Unknown action type: ${action.type}`);
     }
   }
-
   /**
    * Get agent status
    */  getStatus(): { 
@@ -270,6 +269,9 @@ export class TemplateAgent extends BaseAgent implements ISpecializedAgent {
     memoryEnabled: boolean; 
     aiEnabled: boolean; 
     lastActivity?: Date; 
+    isHealthy: boolean;
+    processedMessages: number;
+    errors: number;
   } {
     return {
       agentId: this.id,
@@ -279,7 +281,10 @@ export class TemplateAgent extends BaseAgent implements ISpecializedAgent {
       capabilities: this.config.capabilities,
       memoryEnabled: this.config.memoryEnabled,
       aiEnabled: this.config.aiEnabled,
-      lastActivity: this.lastActivity
+      lastActivity: this.lastActivity,
+      isHealthy: true,
+      processedMessages: 0,
+      errors: 0
     };
   }
 

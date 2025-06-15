@@ -147,8 +147,8 @@ export class InstructionsConverter {
       personality: this.extractPersonality(sections),
       instructions: this.extractInstructions(sections),
       capabilities: this.extractCapabilities(sections),
-      frameworks: this.extractFrameworks(sections),
-      qualityThresholds: this.extractQualityThresholds(sections),
+      frameworks: this.extractFrameworks(),
+      qualityThresholds: this.extractQualityThresholds(),
       evolutionHistory: [],
 
       memoryConfig: {
@@ -289,7 +289,7 @@ export class InstructionsConverter {
   /**
    * Extract framework preferences
    */
-  private extractFrameworks(sections: Record<string, string[]>): any {
+  private extractFrameworks(): any {
     return {
       systematicPrompting: ['R-T-F', 'T-A-G', 'R-I-S-E', 'R-G-C', 'C-A-R-E'],
       qualityValidation: 'Constitutional AI',
@@ -315,7 +315,7 @@ export class InstructionsConverter {
   /**
    * Extract quality thresholds
    */
-  private extractQualityThresholds(sections: Record<string, string[]>): any {
+  private extractQualityThresholds(): any {
     return {
       minimumScore: 85,
       constitutionalCompliance: 100,
@@ -378,7 +378,7 @@ export class InstructionsConverter {
   /**
    * Validate conversion by comparing functionality
    */
-  async validateConversion(originalPath: string, convertedProfile: AgentProfile): Promise<boolean> {
+  async validateConversion(convertedProfile: AgentProfile): Promise<boolean> {
     console.log('🔍 Validating conversion completeness...');
 
     try {
