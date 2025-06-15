@@ -12,6 +12,8 @@
 import { EventEmitter } from 'events';
 import { personaLoader, PersonaConfig } from './PersonaLoader';
 import { realUnifiedMemoryClient } from '../../memory/RealUnifiedMemoryClient';
+// ALITA Integration
+import { ALITA } from '../evolution';
 
 export interface PerformanceMetrics {
   agentId: string;
@@ -34,6 +36,15 @@ export interface ImprovementSuggestion {
   riskLevel: 'low' | 'medium' | 'high';
 }
 
+/**
+ * Enhanced self-improvement suggestion with ALITA evolution integration
+ */
+export interface ALITAImprovementSuggestion extends ImprovementSuggestion {
+  evolutionTrigger: boolean;
+  evolutionAggressiveness?: 'conservative' | 'moderate' | 'aggressive';
+  profileChanges?: any[];
+}
+
 export interface SelfEvaluationResult {
   agentId: string;
   timestamp: string;
@@ -41,6 +52,15 @@ export interface SelfEvaluationResult {
   improvements: ImprovementSuggestion[];
   overallHealth: 'excellent' | 'good' | 'needs_attention' | 'critical';
   recommendedActions: string[];
+}
+
+/**
+ * Enhanced self-evaluation with ALITA evolution capabilities
+ */
+export interface ALITASelfEvaluationResult extends SelfEvaluationResult {
+  evolutionRecommended: boolean;
+  evolutionReasoning?: string;
+  nextEvolutionThreshold?: number;
 }
 
 /**

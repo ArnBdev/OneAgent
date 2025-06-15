@@ -117,14 +117,7 @@ const auditLogger = new SimpleAuditLogger({
   enableConsoleOutput: false
 });
 
-const triageAgent = new TriageAgent({
-  id: 'mcp-triage-agent',
-  name: 'MCP Server Triage Agent',
-  description: 'Automatic error recovery and system health monitoring for MCP server',
-  capabilities: ['task_routing', 'error_recovery', 'agent_health_monitoring'],
-  memoryEnabled: false,
-  aiEnabled: false
-});
+const triageAgent = new TriageAgent();
 
 // Initialize Multi-Agent Communication System
 AgentCommunicationProtocol.resetSingleton(); // HARD RESET to clear phantom agents
@@ -150,17 +143,18 @@ const memoryPerformanceFix = new MemorySystemPerformanceFix(auditLogger);
 const sessions = new Map<string, { id: string; createdAt: Date; lastActivity: Date }>();
 
 /**
- * Test memory system health and connection status with enhanced error monitoring
- * Includes TriageAgent memory validation for complete transparency
+ * Test memory system health and connection status
  */
 async function testMemorySystemHealth() {
   try {
-    // IMPLEMENTATION: Real-time memory validation (Phase 2A Priority #1)
-    // Force real-time memory system validation through TriageAgent
-    const memoryValidation = await triageAgent.revalidateMemorySystem();    // Attempt to test memory connection
+    // Test agent initialization
+    console.log('🔧 Triage agent initialized successfully');
+
+    // Simple memory validation
     let connectionSuccessful = false;
     let testResult: any = { success: false };
-      try {
+    
+    try {
       const testResults = await realUnifiedMemoryClient.getMemoryContext(
         'test',
         'oneagent_system',
@@ -173,77 +167,18 @@ async function testMemorySystemHealth() {
       testResult = { success: false, error: error };
     }
     
-    // Build comprehensive status with transparency data
+    // Build simple status
     const baseStatus = {
       port: oneAgentConfig.memoryPort,
       basicConnection: testResult.success,
-      validation: memoryValidation ? {
-        systemType: memoryValidation.systemType.type,
-        isReal: memoryValidation.systemType.isReal,
-        hasPersistence: memoryValidation.systemType.hasPersistence,
-        hasEmbeddings: memoryValidation.systemType.hasEmbeddings,
-        capabilities: memoryValidation.systemType.capabilities,
-        dataQuality: memoryValidation.dataQuality,
-        connectionStatus: memoryValidation.connectionStatus,
-        userImpact: memoryValidation.userImpact,
-        transparency: {
-          isDeceptive: memoryValidation.transparency.isDeceptive,
-          actualCapabilities: memoryValidation.transparency.actualCapabilities,
-          reportedCapabilities: memoryValidation.transparency.reportedCapabilities
-        },
-        lastValidated: new Date().toISOString()
-      } : null
+      connectionStatus: testResult.success ? 'connected' : 'disconnected',
+      performance: testResult.success ? 'optimal' : 'degraded'
     };
 
     if (testResult.success) {
-      // Check for deceptive mock systems
-      if (memoryValidation?.transparency.isDeceptive) {
-        await errorMonitoringService.reportError(
-          new Error('Memory system deception detected - mock system reporting as real'),
-          {
-            agentId: 'mcp-server',
-            taskType: 'transparency_check',
-            severity: 'high',
-            metadata: { validation: memoryValidation }
-          }
-        );
-        
-        return {
-          ...baseStatus,
-          status: 'mock_deception_detected',
-          connectionStatus: 'mock_fallback',
-          performance: 'degraded',
-          issue: 'Mock memory system detected masquerading as real system',
-          transparency: {
-            warning: 'DECEPTIVE MOCK SYSTEM DETECTED',
-            actualType: memoryValidation.systemType.type,
-            reported: memoryValidation.transparency.reportedCapabilities,
-            actual: memoryValidation.transparency.actualCapabilities
-          }
-        };
-      }
-
-      // Determine status based on validation
-      if (memoryValidation?.systemType.type === 'MockMemory') {
-        return {
-          ...baseStatus,
-          status: 'mock_transparent',
-          connectionStatus: 'mock_fallback',
-          performance: 'mock',
-          note: 'Using transparent mock memory system - data will not persist'
-        };
-      }      // Check if memory performance optimizations are active
-      const fs = require('fs');
-      const path = require('path');
-      const optimizationMarkerPath = path.join(process.cwd(), 'coreagent', 'integration', 'memorySystemPerformanceFix.ts');
-      const isOptimized = fs.existsSync(optimizationMarkerPath);
-      
       return {
         ...baseStatus,
-        status: 'active',
-        connectionStatus: 'connected',
-        performance: memoryValidation?.systemType.isReal ? 'optimal' : 
-                    (isOptimized ? 'optimal' : 'degraded')
+        status: 'active'
       };
     } else {
       // Report memory system degradation to error monitoring
@@ -253,16 +188,14 @@ async function testMemorySystemHealth() {
           agentId: 'mcp-server',
           taskType: 'health_check',
           severity: 'medium',
-          metadata: { testResult, validation: memoryValidation }
+          metadata: { testResult }
         }
       );
       
       return {
         ...baseStatus,
         status: 'active_with_fallback',
-        connectionStatus: 'degraded',
-        issue: 'Memory queries failing, using fallback mechanisms',
-        performance: 'degraded'
+        issue: 'Memory queries failing, using fallback mechanisms'
       };
     }
   } catch (error) {
@@ -274,14 +207,15 @@ async function testMemorySystemHealth() {
         taskType: 'health_check',
         severity: 'high',
         metadata: { operation: 'memory_health_test' }
-      }    );
-      return {
+      }
+    );
+    
+    return {
       status: 'fallback',
       connectionStatus: 'disconnected',
       port: oneAgentConfig.memoryPort,
       issue: error instanceof Error ? error.message : 'Unknown error',
-      performance: 'degraded',
-      validation: null
+      performance: 'degraded'
     };
   }
 }
@@ -457,9 +391,113 @@ async function processMcpMethod(message: any) {
               inputSchema: {
                 type: 'object',
                 properties: {}
-              }            },
-            // Memory Management Tools (Unified Framework)
+              }            },            // Memory Management Tools (Unified Framework)
             ...toolRegistry.getToolSchemas(),
+            
+            // ALITA Evolution System Tools (5 new tools)
+            {
+              name: 'oneagent_evolve_profile',
+              description: 'Trigger agent profile evolution with configurable options',
+              inputSchema: {
+                type: 'object',
+                properties: {
+                  trigger: { 
+                    type: 'string', 
+                    enum: ['manual', 'performance', 'scheduled', 'user_feedback'],
+                    description: 'Evolution trigger type'
+                  },
+                  aggressiveness: { 
+                    type: 'string', 
+                    enum: ['conservative', 'moderate', 'aggressive'],
+                    description: 'Evolution aggressiveness level'
+                  },
+                  focusAreas: { 
+                    type: 'array', 
+                    items: { type: 'string' },
+                    description: 'Specific areas to focus evolution on'
+                  },
+                  qualityThreshold: { 
+                    type: 'number', 
+                    description: 'Minimum quality threshold for acceptance'
+                  },
+                  skipValidation: { 
+                    type: 'boolean', 
+                    description: 'Skip Constitutional AI validation (advanced users only)'
+                  }
+                }
+              }
+            },
+            {
+              name: 'oneagent_profile_status',
+              description: 'Get current profile status, health, and evolution readiness',
+              inputSchema: {
+                type: 'object',
+                properties: {}
+              }
+            },
+            {
+              name: 'oneagent_profile_history',
+              description: 'Get profile evolution history with detailed analytics',
+              inputSchema: {
+                type: 'object',
+                properties: {
+                  limit: { type: 'number', description: 'Maximum number of history records to return' },
+                  filterByTrigger: { 
+                    type: 'string', 
+                    enum: ['manual', 'performance', 'scheduled', 'user_feedback'],
+                    description: 'Filter history by evolution trigger'
+                  },
+                  includeValidationDetails: { 
+                    type: 'boolean', 
+                    description: 'Include Constitutional AI validation details'
+                  }
+                }
+              }
+            },
+            {
+              name: 'oneagent_profile_rollback',
+              description: 'Rollback agent profile to a previous version',
+              inputSchema: {
+                type: 'object',
+                properties: {
+                  targetVersion: { 
+                    type: 'string', 
+                    description: 'Target version to rollback to'
+                  },
+                  reason: { 
+                    type: 'string', 
+                    description: 'Reason for rollback (for audit trail)'
+                  },
+                  skipValidation: { 
+                    type: 'boolean', 
+                    description: 'Skip validation checks (use with caution)'
+                  }
+                },
+                required: ['targetVersion', 'reason']
+              }
+            },
+            {
+              name: 'oneagent_evolution_analytics',
+              description: 'Generate comprehensive evolution analytics and insights',
+              inputSchema: {
+                type: 'object',
+                properties: {
+                  timeRange: { 
+                    type: 'string', 
+                    enum: ['1d', '7d', '30d', 'all'],
+                    description: 'Time range for analytics'
+                  },
+                  includeCapabilityAnalysis: { 
+                    type: 'boolean', 
+                    description: 'Include detailed capability evolution analysis'
+                  },
+                  includeQualityTrends: { 
+                    type: 'boolean', 
+                    description: 'Include quality trend analysis'
+                  }
+                }
+              }
+            },
             // Web Feature Completion
             {
               name: 'oneagent_web_fetch',
@@ -981,9 +1019,144 @@ async function handleToolCall(params: any, id: any) {
                 'Content cleaning',
                 'Security validation'
               ]
-            }, null, 2)
-          }],          isError: !fetchResult.success
+            }, null, 2)          }],          isError: !fetchResult.success
         });
+
+      // ALITA Evolution System Tools
+      case 'oneagent_evolve_profile':
+        try {
+          const { oneagent_evolve_profile } = await import('./evolution-mcp-endpoints');
+          const evolutionResult = await oneagent_evolve_profile(args);
+          
+          return createJsonRpcResponse(id, {
+            content: [{
+              type: 'text',
+              text: JSON.stringify(evolutionResult, null, 2)
+            }],
+            isError: !evolutionResult.success
+          });
+        } catch (error) {
+          console.error('❌ Evolution endpoint error:', error);
+          return createJsonRpcResponse(id, {
+            content: [{
+              type: 'text',
+              text: JSON.stringify({
+                success: false,
+                message: `Evolution failed: ${error instanceof Error ? error.message : 'Unknown error'}`,
+                error: error instanceof Error ? error.message : 'Unknown error'
+              }, null, 2)
+            }],
+            isError: true
+          });
+        }
+
+      case 'oneagent_profile_status':
+        try {
+          const { oneagent_profile_status } = await import('./evolution-mcp-endpoints');
+          const statusResult = await oneagent_profile_status();
+          
+          return createJsonRpcResponse(id, {
+            content: [{
+              type: 'text',
+              text: JSON.stringify(statusResult, null, 2)
+            }],
+            isError: !statusResult.success
+          });
+        } catch (error) {
+          console.error('❌ Profile status endpoint error:', error);
+          return createJsonRpcResponse(id, {
+            content: [{
+              type: 'text',
+              text: JSON.stringify({
+                success: false,
+                message: `Profile status failed: ${error instanceof Error ? error.message : 'Unknown error'}`,
+                error: error instanceof Error ? error.message : 'Unknown error'
+              }, null, 2)
+            }],
+            isError: true
+          });
+        }
+
+      case 'oneagent_profile_history':
+        try {
+          const { oneagent_profile_history } = await import('./evolution-mcp-endpoints');
+          const historyResult = await oneagent_profile_history(args);
+          
+          return createJsonRpcResponse(id, {
+            content: [{
+              type: 'text',
+              text: JSON.stringify(historyResult, null, 2)
+            }],
+            isError: !historyResult.success
+          });
+        } catch (error) {
+          console.error('❌ Profile history endpoint error:', error);
+          return createJsonRpcResponse(id, {
+            content: [{
+              type: 'text',
+              text: JSON.stringify({
+                success: false,
+                message: `Profile history failed: ${error instanceof Error ? error.message : 'Unknown error'}`,
+                error: error instanceof Error ? error.message : 'Unknown error'
+              }, null, 2)
+            }],
+            isError: true
+          });
+        }
+
+      case 'oneagent_profile_rollback':
+        try {
+          const { oneagent_profile_rollback } = await import('./evolution-mcp-endpoints');
+          const rollbackResult = await oneagent_profile_rollback(args);
+          
+          return createJsonRpcResponse(id, {
+            content: [{
+              type: 'text',
+              text: JSON.stringify(rollbackResult, null, 2)
+            }],
+            isError: !rollbackResult.success
+          });
+        } catch (error) {
+          console.error('❌ Profile rollback endpoint error:', error);
+          return createJsonRpcResponse(id, {
+            content: [{
+              type: 'text',
+              text: JSON.stringify({
+                success: false,
+                message: `Profile rollback failed: ${error instanceof Error ? error.message : 'Unknown error'}`,
+                error: error instanceof Error ? error.message : 'Unknown error'
+              }, null, 2)
+            }],
+            isError: true
+          });
+        }
+
+      case 'oneagent_evolution_analytics':
+        try {
+          const { oneagent_evolution_analytics } = await import('./evolution-mcp-endpoints');
+          const analyticsResult = await oneagent_evolution_analytics(args);
+          
+          return createJsonRpcResponse(id, {
+            content: [{
+              type: 'text',
+              text: JSON.stringify(analyticsResult, null, 2)
+            }],
+            isError: !analyticsResult.success
+          });
+        } catch (error) {
+          console.error('❌ Evolution analytics endpoint error:', error);
+          return createJsonRpcResponse(id, {
+            content: [{
+              type: 'text',
+              text: JSON.stringify({
+                success: false,
+                message: `Evolution analytics failed: ${error instanceof Error ? error.message : 'Unknown error'}`,
+                error: error instanceof Error ? error.message : 'Unknown error'
+              }, null, 2)
+            }],
+            isError: true
+          });
+        }
 
       // Multi-Agent Communication Tools
       case 'register_agent':

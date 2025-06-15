@@ -60,16 +60,8 @@ class CoreAgent {
       // Initialize AI assistant
     this.aiAssistant = new AIAssistantTool(this.geminiClient);    // Initialize embeddings tool
     this.embeddingsTool = new GeminiEmbeddingsTool(this.geminiClient, this.unifiedMemoryClient);
-    
-    // Initialize TriageAgent for intelligent task routing
-    this.triageAgent = new TriageAgent({
-      id: 'triage-agent-001',
-      name: 'Main Triage Agent',
-      description: 'Intelligent task routing and error recovery agent',
-      capabilities: ['task_routing', 'error_recovery', 'agent_health_monitoring'],
-      memoryEnabled: true,
-      aiEnabled: false
-    });
+      // Initialize TriageAgent for intelligent task routing
+    this.triageAgent = new TriageAgent();
   }
 
   /**
@@ -398,9 +390,8 @@ class CoreAgent {
       console.log(`💬 Response preview: "${fitnessResult.content.substring(0, 100)}..."`);
 
       // Test agent health monitoring
-      const agentStatus = this.triageAgent.getStatus();
-      console.log(`📊 TriageAgent processed ${agentStatus.processedMessages} messages`);
-      console.log(`❤️ Agent health: ${agentStatus.isHealthy ? 'Healthy' : 'Degraded'}`);
+      const agentStatus = this.triageAgent.getStatus();      console.log(`📊 TriageAgent status: ${agentStatus.initialized ? 'Active' : 'Inactive'}`);
+      console.log(`❤️ Agent health: ${agentStatus.initialized ? 'Healthy' : 'Degraded'}`);
 
       // Test error recovery simulation
       const invalidTask = ""; // Empty task to trigger error handling
@@ -449,9 +440,8 @@ class CoreAgent {
     }
     
     return {
-      status: this.triageAgent.getStatus(),
-      health: this.triageAgent.getHealthStatus(),
-      availableActions: this.triageAgent.getAvailableActions()
+      status: this.triageAgent.getStatus(),      health: this.triageAgent.getStatus(),
+      availableActions: ['task_routing', 'agent_health_monitoring', 'system_optimization']
     };
   }
 
