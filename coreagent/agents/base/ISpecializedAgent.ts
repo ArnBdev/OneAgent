@@ -1,18 +1,18 @@
 /**
- * ISpecializedAgent - Interface for Specialized Agent Implementation
+ * ISpecializedAgent - Enhanced Interface for Specialized Agent Implementation
  * 
  * This interface defines the contract for all specialized agents in the OneAgent ecosystem.
- * Specialized agents extend the base agent functionality with domain-specific capabilities.
+ * Supports dependency injection, action systems, and comprehensive health monitoring.
  */
 
 import { AgentConfig, AgentContext, AgentResponse, AgentAction } from './BaseAgent';
 
 export interface ISpecializedAgent {
   /** Unique identifier for the agent */
-  id: string;
+  readonly id: string;
   
   /** Agent configuration */
-  config: AgentConfig;
+  readonly config: AgentConfig;
   
   /** Initialize the specialized agent */
   initialize(): Promise<void>;
@@ -24,9 +24,19 @@ export interface ISpecializedAgent {
   getAvailableActions(): AgentAction[];
   
   /** Execute a specific action */
-  executeAction(action: AgentAction, context: AgentContext): Promise<any>;
-    /** Get agent status and health */
-  getStatus(): AgentStatus;
+  executeAction(action: string | AgentAction, params: any, context?: AgentContext): Promise<any>;
+  
+  /** Get agent status and health (BaseAgent compatibility) */
+  getStatus(): {
+    agentId: string;
+    name: string;
+    description: string;
+    initialized: boolean;
+    capabilities: string[];
+    memoryEnabled: boolean;
+    aiEnabled: boolean;
+    lastActivity?: Date;
+  };
   
   /** Get agent name */
   getName(): string;
@@ -38,20 +48,14 @@ export interface ISpecializedAgent {
   cleanup(): Promise<void>;
 }
 
-export interface AgentStatus {
-  isHealthy: boolean;
-  lastActivity: Date;
-  memoryCount: number;
-  processedMessages: number;
-  errors: string[];
-}
-
 export interface AgentHealthStatus {
   status: 'healthy' | 'degraded' | 'critical' | 'offline';
   uptime: number;
   memoryUsage: number;
   responseTime: number;
   errorRate: number;
+  lastActivity?: Date;
+  errors?: string[];
 }
 
 export interface AgentCapability {
@@ -84,4 +88,32 @@ export interface AgentMemoryContext {
   conversationHistory: any[];
   relevantMemories: any[];
   contextWindow: string[];
+}
+
+// Task and system interfaces for specialized agents
+export interface Task {
+  id: string;
+  description: string;
+  priority: 'low' | 'medium' | 'high' | 'urgent';
+  assignedAgent?: string;
+  status: 'pending' | 'in_progress' | 'completed' | 'failed';
+  context: Record<string, any>;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface SystemHealthReport {
+  systemStatus: 'healthy' | 'degraded' | 'critical';
+  agentCount: number;
+  activeTasks: number;
+  memorySystemStatus: 'connected' | 'degraded' | 'offline';
+  timestamp: Date;
+}
+
+export interface AgentStatus {
+  isHealthy: boolean;
+  lastActivity: Date;
+  memoryCount: number;
+  processedMessages: number;
+  errors: string[];
 }

@@ -5,8 +5,8 @@
  * different types of specialized agents in the OneAgent ecosystem.
  */
 
+import { BaseAgent, AgentConfig } from './BaseAgent';
 import { ISpecializedAgent } from './ISpecializedAgent';
-import { AgentConfig } from './BaseAgent';
 import { OfficeAgent } from '../specialized/OfficeAgent';
 import { FitnessAgent } from '../specialized/FitnessAgent';
 import { DevAgent } from '../specialized/DevAgent';
@@ -36,7 +36,6 @@ export class AgentFactory {  private static readonly DEFAULT_CAPABILITIES = {
     advisor: ['analysis', 'recommendations', 'strategic_planning', 'consultation'],
     template: ['unified_memory', 'multi_agent_coordination', 'constitutional_ai', 'bmad_analysis', 'quality_scoring', 'time_awareness', 'comprehensive_error_handling', 'extensible_design', 'best_practices']
   };
-
   /**
    * Create a specialized agent based on type and configuration
    */
@@ -48,44 +47,24 @@ export class AgentFactory {  private static readonly DEFAULT_CAPABILITIES = {
       capabilities: factoryConfig.customCapabilities || AgentFactory.DEFAULT_CAPABILITIES[factoryConfig.type],
       memoryEnabled: factoryConfig.memoryEnabled ?? true,
       aiEnabled: factoryConfig.aiEnabled ?? true
-    };
+    };    let agent: BaseAgent | undefined;
 
-    let agent: ISpecializedAgent;    switch (factoryConfig.type) {
+    switch (factoryConfig.type) {
       case 'core':
         // CoreAgent - System coordination and integration hub
-        agent = new CoreAgent({
-          ...agentConfig,
-          capabilities: [
-            ...agentConfig.capabilities,
-            'system_coordination',
-            'agent_integration',
-            'service_management',
-            'health_monitoring',
-            'resource_allocation',
-            'security_management',
-            'rise_plus_methodology'
-          ]
-        });
+        agent = new CoreAgent(agentConfig);
         break;
       case 'enhanced-development':
         // Enhanced development agent with Advanced Prompt Engineering
-        agent = new DevAgent({
-          ...agentConfig,
-          capabilities: [
-            ...agentConfig.capabilities,
-            'advanced_prompting',
-            'constitutional_ai',
-            'bmad_elicitation',
-            'quality_validation'
-          ]
-        });
+        agent = new DevAgent(agentConfig);
         break;
       case 'development':
         agent = new DevAgent(agentConfig);
         break;
       case 'office':
         agent = new OfficeAgent(agentConfig);
-        break;      case 'fitness':
+        break;
+      case 'fitness':
         agent = new FitnessAgent(agentConfig);
         break;
       case 'template':
@@ -93,10 +72,12 @@ export class AgentFactory {  private static readonly DEFAULT_CAPABILITIES = {
         break;
       default:
         throw new Error(`Unknown agent type: ${factoryConfig.type}`);
+    }    if (!agent) {
+      throw new Error(`Failed to create agent of type: ${factoryConfig.type}`);
     }
 
     await agent.initialize();
-    return agent;
+    return agent as unknown as ISpecializedAgent;
   }
 
   /**
@@ -125,7 +106,6 @@ export class AgentFactory {  private static readonly DEFAULT_CAPABILITIES = {
       throw new Error(`Unsupported agent type: ${config.type}`);
     }
   }
-
   /**
    * Create multiple agents from configurations
    */

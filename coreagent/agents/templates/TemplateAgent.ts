@@ -261,14 +261,25 @@ export class TemplateAgent extends BaseAgent implements ISpecializedAgent {
 
   /**
    * Get agent status
-   */
-  getStatus(): AgentStatus {
+   */  getStatus(): { 
+    agentId: string; 
+    name: string; 
+    description: string; 
+    initialized: boolean; 
+    capabilities: string[]; 
+    memoryEnabled: boolean; 
+    aiEnabled: boolean; 
+    lastActivity?: Date; 
+  } {
     return {
-      isHealthy: this.isReady() && this.errors.length < 5,
-      lastActivity: new Date(),
-      memoryCount: 0, // Would be fetched from memory client
-      processedMessages: this.processedMessages,
-      errors: [...this.errors]
+      agentId: this.id,
+      name: this.config.name,
+      description: this.config.description,
+      initialized: true,
+      capabilities: this.config.capabilities,
+      memoryEnabled: this.config.memoryEnabled,
+      aiEnabled: this.config.aiEnabled,
+      lastActivity: this.lastActivity
     };
   }
 

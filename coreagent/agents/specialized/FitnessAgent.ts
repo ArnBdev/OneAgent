@@ -8,30 +8,184 @@
  * - Specialized fitness and wellness expertise
  */
 
-import { BaseAgent, AgentConfig, AgentContext, AgentResponse, Message } from '../base/BaseAgent';
+import { BaseAgent, AgentConfig, AgentContext, AgentResponse, Message, AgentAction } from '../base/BaseAgent';
+import { ISpecializedAgent, AgentStatus, AgentHealthStatus } from '../base/ISpecializedAgent';
 import { EnhancedPromptConfig, AgentPersona, ConstitutionalPrinciple } from '../base/EnhancedPromptEngine';
 
-export class FitnessAgent extends BaseAgent {  constructor() {
-    const config: AgentConfig = {
-      id: 'FitnessAgent',
-      name: 'FitnessAgent',
-      description: 'AI agent specializing in fitness tracking, workout planning, nutrition guidance, and wellness coaching',
-      capabilities: [
-        'workout_planning',
-        'nutrition_guidance', 
-        'fitness_tracking',
-        'wellness_coaching',
-        'goal_setting',
-        'progress_monitoring',
-        'recovery_advice',
-        'motivation_support'
-      ],
-      memoryEnabled: true,
-      aiEnabled: true
-    };
-
+export class FitnessAgent extends BaseAgent implements ISpecializedAgent {
+  
+  constructor(config: AgentConfig) {
     const promptConfig = FitnessAgent.createFitnessPromptConfig();
     super(config, promptConfig);
+  }
+
+  /** ISpecializedAgent interface implementation */
+  get id(): string {
+    return this.config.id;
+  }
+
+  async initialize(): Promise<void> {
+    console.log(`FitnessAgent ${this.id} initialized`);
+  }
+
+  getName(): string {
+    return this.config.name;
+  }
+
+  getAvailableActions(): AgentAction[] {
+    return [
+      {
+        type: 'create_workout',
+        description: 'Create a personalized workout plan',
+        parameters: {
+          goals: { type: 'string', required: true, description: 'Fitness goals' },
+          level: { type: 'string', required: true, description: 'Fitness level: beginner, intermediate, advanced' },
+          duration: { type: 'number', required: false, description: 'Workout duration in minutes' }
+        }
+      },
+      {
+        type: 'track_progress',
+        description: 'Track fitness progress and metrics',
+        parameters: {
+          metric: { type: 'string', required: true, description: 'Metric to track: weight, reps, distance, etc.' },
+          value: { type: 'number', required: true, description: 'Measured value' },
+          date: { type: 'string', required: false, description: 'Date of measurement' }
+        }
+      },
+      {
+        type: 'nutrition_advice',
+        description: 'Provide nutrition guidance and meal planning',
+        parameters: {
+          goal: { type: 'string', required: true, description: 'Nutrition goal: weight loss, muscle gain, maintenance' },
+          restrictions: { type: 'array', required: false, description: 'Dietary restrictions' }
+        }
+      }
+    ];
+  }
+
+  async executeAction(action: string | AgentAction, params: any, context?: AgentContext): Promise<any> {
+    const actionType = typeof action === 'string' ? action : action.type;
+    
+    switch (actionType) {
+      case 'create_workout':
+        return this.createWorkout(params.goals, params.level, params.duration, context);
+      case 'track_progress':
+        return this.trackProgress(params.metric, params.value, params.date, context);
+      case 'nutrition_advice':
+        return this.provideNutritionAdvice(params.goal, params.restrictions, context);
+      default:
+        throw new Error(`Unknown action: ${actionType}`);
+    }
+  }
+
+  async getHealthStatus(): Promise<AgentHealthStatus> {
+    return {
+      status: 'healthy',
+      uptime: Date.now(),
+      memoryUsage: 0,
+      responseTime: 0,
+      errorRate: 0,
+      lastActivity: new Date()
+    };
+  }
+
+  async cleanup(): Promise<void> {
+    console.log(`FitnessAgent ${this.id} cleaned up`);
+  }
+
+  // FitnessAgent-specific action implementations
+  private async createWorkout(goals: string, level: string, duration?: number, _context?: AgentContext): Promise<any> {
+    const workoutDuration = duration || 45;
+    const workout = {
+      id: `workout_${Date.now()}`,
+      goals,
+      level,
+      duration: workoutDuration,
+      exercises: this.generateExercises(level, workoutDuration),
+      createdAt: new Date()
+    };
+    
+    return {
+      workout,
+      message: `Workout plan created for ${level} level focusing on ${goals}`,
+      estimatedCalories: workoutDuration * 8 // Rough estimate
+    };
+  }
+
+  private async trackProgress(metric: string, value: number, date?: string, _context?: AgentContext): Promise<any> {
+    const measurement = {
+      id: `progress_${Date.now()}`,
+      metric,
+      value,
+      date: date ? new Date(date) : new Date(),
+      unit: this.getMetricUnit(metric)
+    };
+    
+    return {
+      measurement,
+      message: `Progress tracked: ${value} ${measurement.unit} for ${metric}`,
+      trend: 'improving' // Placeholder
+    };
+  }
+
+  private async provideNutritionAdvice(goal: string, restrictions?: string[], _context?: AgentContext): Promise<any> {
+    const advice = {
+      goal,
+      restrictions: restrictions || [],
+      recommendations: this.generateNutritionRecommendations(goal, restrictions),
+      dailyCalories: this.calculateDailyCalories(goal),
+      macros: this.calculateMacros(goal)
+    };
+    
+    return {
+      advice,
+      message: `Nutrition plan created for ${goal}`,
+      mealPlan: `Sample meal plan for ${goal} goals`
+    };
+  }
+  private generateExercises(level: string, _duration: number): string[] {
+    const exercises = {
+      beginner: ['Push-ups', 'Squats', 'Walking', 'Plank'],
+      intermediate: ['Pull-ups', 'Lunges', 'Jogging', 'Burpees'],
+      advanced: ['Deadlifts', 'Olympic lifts', 'HIIT', 'Advanced calisthenics']
+    };
+    return exercises[level as keyof typeof exercises] || exercises.beginner;
+  }
+
+  private getMetricUnit(metric: string): string {
+    const units: Record<string, string> = {
+      weight: 'lbs',
+      distance: 'miles',
+      reps: 'count',
+      time: 'minutes'
+    };
+    return units[metric] || 'units';
+  }
+
+  private generateNutritionRecommendations(goal: string, _restrictions?: string[]): string[] {
+    const base = ['Eat whole foods', 'Stay hydrated', 'Monitor portion sizes'];
+    if (goal === 'weight loss') {
+      base.push('Create caloric deficit', 'Increase protein intake');
+    } else if (goal === 'muscle gain') {
+      base.push('Increase protein intake', 'Eat in caloric surplus');
+    }
+    return base;
+  }
+
+  private calculateDailyCalories(goal: string): number {
+    const base = 2000; // Base calories
+    if (goal === 'weight loss') return base - 300;
+    if (goal === 'muscle gain') return base + 300;
+    return base;
+  }
+
+  private calculateMacros(goal: string): { protein: number; carbs: number; fats: number } {
+    if (goal === 'weight loss') {
+      return { protein: 35, carbs: 35, fats: 30 };
+    } else if (goal === 'muscle gain') {
+      return { protein: 30, carbs: 45, fats: 25 };
+    }
+    return { protein: 25, carbs: 50, fats: 25 };
   }
 
   /**

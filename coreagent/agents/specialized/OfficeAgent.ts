@@ -11,7 +11,8 @@
  * NOT just metadata - this is a functioning office agent!
  */
 
-import { BaseAgent, AgentConfig, AgentContext, AgentResponse, Message } from '../base/BaseAgent';
+import { BaseAgent, AgentConfig, AgentContext, AgentResponse, Message, AgentAction } from '../base/BaseAgent';
+import { ISpecializedAgent, AgentStatus, AgentHealthStatus } from '../base/ISpecializedAgent';
 import { realUnifiedMemoryClient } from '../../memory/RealUnifiedMemoryClient';
 import { v4 as uuidv4 } from 'uuid';
 
@@ -33,31 +34,158 @@ export interface OfficeAgentResponse extends AgentResponse {
 }
 
 /**
- * REAL Office Agent - Actual BaseAgent implementation for productivity
+ * REAL Office Agent - ISpecializedAgent implementation for productivity
  */
-export class OfficeAgent extends BaseAgent {
+export class OfficeAgent extends BaseAgent implements ISpecializedAgent {
   private officeTasks: Map<string, OfficeTask> = new Map();
   private userPreferences: Map<string, any> = new Map();
   private conversationHistory: Message[] = [];
-  constructor() {
-    const config: AgentConfig = {
-      id: 'OfficeAgent',
-      name: 'OfficeAgent',
-      description: 'REAL office productivity agent with memory, AI, and task management',
-      capabilities: [
-        'document_creation',
-        'email_drafting',
-        'calendar_scheduling',
-        'meeting_planning',
-        'task_management',
-        'productivity_optimization',
-        'memory_integration'
-      ],
-      memoryEnabled: true,  // REAL memory integration
-      aiEnabled: true       // REAL AI integration
-    };
-
+  
+  constructor(config: AgentConfig) {
     super(config);
+  }
+
+  /** ISpecializedAgent interface implementation */
+  get id(): string {
+    return this.config.id;
+  }
+
+  async initialize(): Promise<void> {
+    this.officeTasks.clear();
+    this.userPreferences.clear();
+    this.conversationHistory = [];
+    console.log(`OfficeAgent ${this.id} initialized`);
+  }
+
+  getName(): string {
+    return this.config.name;
+  }
+
+  getAvailableActions(): AgentAction[] {
+    return [
+      {
+        type: 'create_document',
+        description: 'Create a new document or template',
+        parameters: {
+          title: { type: 'string', required: true, description: 'Document title' },
+          content: { type: 'string', required: false, description: 'Initial content' },
+          template: { type: 'string', required: false, description: 'Template type' }
+        }
+      },
+      {
+        type: 'schedule_meeting',
+        description: 'Schedule a meeting or appointment',
+        parameters: {
+          title: { type: 'string', required: true, description: 'Meeting title' },
+          datetime: { type: 'string', required: true, description: 'Meeting date and time' },
+          participants: { type: 'array', required: false, description: 'List of participants' }
+        }
+      },
+      {
+        type: 'manage_task',
+        description: 'Create, update, or manage office tasks',
+        parameters: {
+          action: { type: 'string', required: true, description: 'Action: create, update, complete, delete' },
+          taskId: { type: 'string', required: false, description: 'Task ID for update/complete/delete' },
+          title: { type: 'string', required: false, description: 'Task title' },
+          priority: { type: 'string', required: false, description: 'Task priority: low, medium, high' }
+        }
+      }
+    ];
+  }
+
+  async executeAction(action: string | AgentAction, params: any, context?: AgentContext): Promise<any> {
+    const actionType = typeof action === 'string' ? action : action.type;
+    
+    switch (actionType) {
+      case 'create_document':
+        return this.createDocument(params.title, params.content, params.template, context);
+      case 'schedule_meeting':
+        return this.scheduleMeeting(params.title, params.datetime, params.participants, context);
+      case 'manage_task':
+        return this.manageTask(params.action, params.taskId, params.title, params.priority, context);
+      default:
+        throw new Error(`Unknown action: ${actionType}`);
+    }
+  }
+
+  async getHealthStatus(): Promise<AgentHealthStatus> {
+    return {
+      status: 'healthy',
+      uptime: Date.now(),
+      memoryUsage: this.officeTasks.size * 100, // Rough estimate
+      responseTime: 0,
+      errorRate: 0,
+      lastActivity: new Date()
+    };
+  }
+
+  async cleanup(): Promise<void> {
+    this.officeTasks.clear();
+    this.userPreferences.clear();
+    this.conversationHistory = [];
+    console.log(`OfficeAgent ${this.id} cleaned up`);
+  }
+
+  // OfficeAgent-specific action implementations
+  private async createDocument(title: string, content?: string, template?: string, _context?: AgentContext): Promise<any> {
+    const doc = {
+      id: `doc_${Date.now()}`,
+      title,
+      content: content || `# ${title}\n\nContent created on ${new Date().toISOString()}`,
+      template: template || 'default',
+      createdAt: new Date()
+    };
+    
+    return {
+      document: doc,
+      message: `Document "${title}" created successfully`,
+      template: template
+    };
+  }
+
+  private async scheduleMeeting(title: string, datetime: string, participants?: string[], _context?: AgentContext): Promise<any> {
+    const meeting = {
+      id: `meeting_${Date.now()}`,
+      title,
+      datetime: new Date(datetime),
+      participants: participants || [],
+      status: 'scheduled'
+    };
+    
+    return {
+      meeting,
+      message: `Meeting "${title}" scheduled for ${datetime}`,
+      participants: participants?.length || 0
+    };
+  }
+
+  private async manageTask(action: string, taskId?: string, title?: string, priority?: string, _context?: AgentContext): Promise<any> {
+    switch (action) {
+      case 'create':
+        if (!title) throw new Error('Title required for task creation');
+        const newTask: OfficeTask = {
+          id: `task_${Date.now()}`,
+          type: 'task',
+          title,
+          description: `Task created: ${title}`,
+          status: 'pending',
+          priority: (priority as any) || 'medium',
+          createdAt: new Date()
+        };
+        this.officeTasks.set(newTask.id, newTask);
+        return { task: newTask, message: `Task "${title}" created` };
+      
+      case 'complete':
+        if (!taskId) throw new Error('Task ID required');
+        const task = this.officeTasks.get(taskId);
+        if (!task) throw new Error('Task not found');
+        task.status = 'completed';
+        return { task, message: `Task "${task.title}" marked as completed` };
+      
+      default:
+        throw new Error(`Unknown task action: ${action}`);
+    }
   }
 
   /**
@@ -368,25 +496,7 @@ Provide helpful, professional office assistance. If creating documents or emails
     return {
       totalTasks: tasks.length,
       pendingTasks: tasks.filter(t => t.status === 'pending').length,
-      completedTasks: tasks.filter(t => t.status === 'completed').length,
-      conversationLength: this.conversationHistory.length
+      completedTasks: tasks.filter(t => t.status === 'completed').length,      conversationLength: this.conversationHistory.length
     };
   }
-
-  /**
-   * Override cleanup to save state
-   */
-  async cleanup(): Promise<void> {
-    // Save final productivity state to memory
-    const summary = this.getProductivitySummary();
-    await this.addMemory('system', `RealOfficeAgent session ended. Summary: ${JSON.stringify(summary)}`, {
-      sessionEnd: true,
-      productivitySummary: summary
-    });
-    
-    await super.cleanup();
-  }
 }
-
-// Export singleton instance for use in the server
-export const officeAgent = new OfficeAgent();

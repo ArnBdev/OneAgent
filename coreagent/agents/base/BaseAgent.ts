@@ -69,7 +69,7 @@ export interface AgentAction {
  * Enhanced with Advanced Prompt Engineering System
  */
 export abstract class BaseAgent {
-  protected config: AgentConfig;
+  public config: AgentConfig;
   protected memoryClient?: UnifiedMemoryClient;
   protected aiClient?: GeminiClient;
   protected isInitialized: boolean = false;
@@ -525,5 +525,31 @@ Generate a refined response that addresses the improvement areas while maintaini
     };
 
     return baseContext;
+  }
+
+  /**
+   * Get agent status and health information
+   * This is a common method all agents should have for monitoring
+   */
+  getStatus(): {
+    agentId: string;
+    name: string;
+    description: string;
+    initialized: boolean;
+    capabilities: string[];
+    memoryEnabled: boolean;
+    aiEnabled: boolean;
+    lastActivity?: Date;
+  } {
+    return {
+      agentId: this.config.id,
+      name: this.config.name,
+      description: this.config.description,
+      initialized: this.isInitialized,
+      capabilities: this.config.capabilities,
+      memoryEnabled: this.config.memoryEnabled,
+      aiEnabled: this.config.aiEnabled,
+      lastActivity: new Date() // Could be enhanced to track actual last activity
+    };
   }
 }

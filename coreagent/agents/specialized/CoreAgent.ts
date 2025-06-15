@@ -36,9 +36,8 @@ export interface CoreAgentResponse extends AgentResponse {
 export class CoreAgent extends BaseAgent {
   private tasks: Map<string, Task> = new Map();
   private agentRegistry: Map<string, any> = new Map();
-  private conversationHistory: Message[] = [];
-  constructor() {
-    const config: AgentConfig = {
+  private conversationHistory: Message[] = [];  constructor(config?: AgentConfig) {
+    const defaultConfig: AgentConfig = {
       id: 'CoreAgent',
       name: 'CoreAgent',
       description: 'REAL orchestrator agent with memory, AI, and coordination capabilities',
@@ -55,7 +54,7 @@ export class CoreAgent extends BaseAgent {
       aiEnabled: true       // REAL AI integration
     };
 
-    super(config);
+    super(config || defaultConfig);
   }
 
   /**
