@@ -105,6 +105,9 @@ export abstract class BaseAgent {
       }      // Initialize Advanced Prompt Engineering System
       await this.initializePromptEngineering();
 
+      // Auto-register with multi-agent system
+      await this.autoRegisterWithNetwork();
+
       this.isInitialized = true;
     } catch (error) {
       console.error(`Failed to initialize agent ${this.config.id}:`, error);
@@ -134,6 +137,77 @@ export abstract class BaseAgent {
     } catch (error) {
       console.warn(`Prompt engineering initialization failed for ${this.config.id}:`, error);
       // Continue without enhanced prompting if initialization fails
+    }
+  }
+
+  /**
+   * Auto-register this agent with the multi-agent network
+   * This allows agents to be discovered and used by other agents
+   */
+  private async autoRegisterWithNetwork(): Promise<void> {
+    try {
+      // Skip auto-registration if it's disabled or if this is a factory
+      if (this.config.id === 'AgentFactory' || this.config.id.includes('Factory')) {
+        console.log(`⏭️  Skipping auto-registration for factory: ${this.config.id}`);
+        return;
+      }
+
+      // Call the registration API
+      const registrationData = {
+        agentId: this.config.id,
+        agentType: this.config.name.toLowerCase().replace(/agent/i, ''),
+        capabilities: this.config.capabilities.map(cap => ({
+          name: cap,
+          description: `${cap} capability provided by ${this.config.name}`,
+          version: '1.0.0',
+          qualityThreshold: 85,
+          constitutionalCompliant: true
+        })),
+        endpoint: `http://localhost:8083/agent/${this.config.id}`,
+        qualityScore: 90
+      };
+
+      // Make HTTP request to register the agent
+      const response = await this.makeRegistrationRequest(registrationData);
+      
+      if (response.success) {
+        console.log(`✅ Auto-registered ${this.config.id} with multi-agent network`);
+      } else {
+        console.warn(`⚠️  Auto-registration failed for ${this.config.id}:`, response.error);
+      }
+    } catch (error) {
+      console.warn(`⚠️  Auto-registration error for ${this.config.id}:`, error);
+      // Don't throw - agent should still work even if registration fails
+    }
+  }  /**
+   * Make HTTP request to register agent with multi-agent system
+   */
+  private async makeRegistrationRequest(data: any): Promise<any> {
+    try {
+      // Use fetch to call the MCP server registration endpoint  
+      const mcpServerUrl = oneAgentConfig.mcpUrl;
+      
+      const response = await fetch(`${mcpServerUrl}/mcp`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          jsonrpc: '2.0',
+          id: `reg-${Date.now()}`,
+          method: 'tools/call',
+          params: {
+            name: 'register_agent',
+            arguments: data
+          }
+        })
+      });
+
+      const result = await response.json();
+      return result.result || { success: false, error: 'Unknown registration error' };
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      return { success: false, error: errorMessage };
     }
   }
 

@@ -51,21 +51,53 @@ export class AgentDiscoveryService extends EventEmitter {
   private discoveryTimeout: number = 5000; // 5 seconds
   private activeDiscovery: Map<string, NodeJS.Timeout> = new Map();
   private lastSeen: Map<string, Date> = new Map();
-    constructor(
-    private coreAgentId: string = 'OneAgent-Core-v4.0.0',
+    // Reference to the multi-agent communication protocol (set by the main server)
+  private communicationProtocol: any;
+
+  constructor(
+    private coreAgentId: string = 'CoreAgent-Core-v4.0.0',
     private port: number = oneAgentConfig.mcpPort
   ) {
     super();
     this.setupDiscoveryProtocol();
   }
-
   /**
    * Broadcast "Who's awake?" discovery request
-   * Agents respond with their capabilities automatically
+   * Now returns agents already registered in the multi-agent system
    */
   async discoverAgents(): Promise<AgentCapabilityResponse[]> {
     console.log(`🔍 CoreAgent broadcasting: "Who's awake?" on ${this.discoveryChannel}`);
     
+    // If we have access to the communication protocol, get registered agents directly
+    if (this.communicationProtocol && this.communicationProtocol.getRegisteredAgents) {
+      const registeredAgents = this.communicationProtocol.getRegisteredAgents();
+      const responses: AgentCapabilityResponse[] = [];
+      
+      for (const [agentId, registration] of registeredAgents) {
+        if (agentId !== this.coreAgentId) { // Don't include CoreAgent in discovery
+          const response: AgentCapabilityResponse = {
+            agentId: registration.agentId,
+            agentType: registration.agentType,
+            capabilities: registration.capabilities.map((cap: any) => ({
+              name: cap.name,
+              description: cap.description,
+              version: cap.version,
+              qualityThreshold: cap.qualityThreshold
+            })),
+            endpoint: registration.endpoint,
+            qualityScore: registration.qualityScore,
+            status: registration.status as 'online' | 'busy' | 'starting'
+          };
+          responses.push(response);
+          console.log(`👋 Found agent: ${response.agentId} (${response.agentType})`);
+        }
+      }
+      
+      console.log(`✅ Discovery complete: Found ${responses.length} agents`);
+      return responses;
+    }
+    
+    // Fallback to event-based discovery (legacy mode)
     const discoveryMessage: DiscoveryMessage = {
       type: 'DISCOVER_AGENTS',
       sourceAgent: this.coreAgentId,
@@ -238,6 +270,14 @@ export class AgentDiscoveryService extends EventEmitter {
       aliveAgents: Array.from(this.lastSeen.keys()),
       lastSeen: this.lastSeen
     };
+  }
+
+  /**
+   * Set the communication protocol reference (called from main server)
+   */
+  setCommunicationProtocol(protocol: any): void {
+    this.communicationProtocol = protocol;
+    console.log('🔗 AgentDiscoveryService: Communication protocol connected');
   }
 }
 

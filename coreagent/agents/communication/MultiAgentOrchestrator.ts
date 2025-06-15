@@ -460,7 +460,7 @@ export class MultiAgentOrchestrator {
       
       // Register DevAgent with enhanced capabilities
       const devAgentRegistration: AgentRegistration = {
-        agentId: 'DevAgent-v4.0',
+        agentId: 'DevAgent',
         agentType: 'dev',
         capabilities: [          {
             name: 'analyze_code',
@@ -498,7 +498,7 @@ export class MultiAgentOrchestrator {
 
       // Register CoreAgent for coordination
       const coreAgentRegistration: AgentRegistration = {
-        agentId: 'CoreAgent-v4.0',
+        agentId: 'CoreAgent',
         agentType: 'core',
         capabilities: [          {
             name: 'coordinate_tasks',

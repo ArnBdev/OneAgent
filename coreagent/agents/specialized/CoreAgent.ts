@@ -1,656 +1,372 @@
 /**
- * CoreAgent - System Foundation and Integration Hub
+ * CoreAgent.ts - Core Orchestrator Agent Implementation
  * 
- * This is the central orchestration agent that serves as the backbone of OneAgent,
- * providing system coordination, agent integration, and service management.
- * It follows the R-I-S-E+ Framework with Constitutional AI principles.
- * 
- * Now inherits BaseAgent's advanced prompt engineering system for enhanced capabilities:
- * - Constitutional AI principles and self-correction
- * - BMAD 9-point elicitation framework
- * - Systematic prompting frameworks (R-T-F, T-A-G, R-I-S-E, R-G-C, C-A-R-E)
- * - Chain-of-Verification (CoVe) patterns
- * - RAG integration with source grounding
- * 
- * Key Responsibilities:
- * - System coordination and health monitoring
- * - Agent registration and lifecycle management
- * - Service delivery orchestration
- * - Security and resource management
- * - Inter-agent communication facilitation
+ * Core BaseAgent instance that:
+ * - Inherits from BaseAgent with full functionality
+ * - Orchestrates other agents
+ * - Manages tasks and coordination
+ * - Uses memory for cross-session persistence
+ * - Provides actual system coordination
  */
 
-import { ISpecializedAgent, AgentStatus, AgentHealthStatus } from '../base/ISpecializedAgent';
-import { BaseAgent, AgentConfig, AgentContext, AgentResponse, AgentAction } from '../base/BaseAgent';
-import { EnhancedPromptConfig, AgentPersona, ConstitutionalPrinciple } from '../base/EnhancedPromptEngine';
-import { AgentRegistry } from '../../orchestrator/agentRegistry';
-import { RequestRouter } from '../../orchestrator/requestRouter';
-import { MemoryContextBridge } from '../../orchestrator/memoryContextBridge';
-import { UnifiedMemoryClient } from '../../memory/UnifiedMemoryClient';
-import { getCurrentTimeContext } from '../../utils/timeContext';
+import { BaseAgent, AgentConfig, AgentContext, AgentResponse, Message } from '../base/BaseAgent';
+import { realUnifiedMemoryClient } from '../../memory/RealUnifiedMemoryClient';
+import { v4 as uuidv4 } from 'uuid';
 
-export interface SystemHealthReport {
-  overall: 'healthy' | 'degraded' | 'critical';
-  agents: Map<string, AgentStatus>;
-  services: Map<string, 'active' | 'inactive' | 'error'>;
-  resources: {
-    memory: number;
-    cpu: number;
-    connections: number;
-  };
-  lastCheck: Date;
+export interface Task {
+  id: string;
+  description: string;
+  priority: 'low' | 'medium' | 'high' | 'urgent';
+  assignedAgent?: string;
+  status: 'pending' | 'in_progress' | 'completed' | 'failed';
+  context: Record<string, any>;
+  createdAt: Date;
+  updatedAt: Date;
 }
 
-export interface ServiceRequest {
-  type: 'agent_coordination' | 'resource_allocation' | 'system_operation';
-  priority: 'low' | 'medium' | 'high' | 'critical';
-  requester: string;
-  payload: any;
-  timestamp: Date;
-}
-
-export interface CoreAgentContext extends AgentContext {
-  systemRole?: 'coordinator' | 'monitor' | 'facilitator';
-  securityLevel?: 'public' | 'internal' | 'restricted';
-  resourceRequirements?: {
-    memory?: number;
-    processing?: number;
-    storage?: number;
-  };
+export interface CoreAgentResponse extends AgentResponse {
+  tasks?: Task[];
+  coordination?: string[];
+  systemHealth?: number;
 }
 
 /**
- * CoreAgent - The central hub for OneAgent system coordination
- * 
- * Implements the R-I-S-E+ Framework:
- * - Requirements: Understand system-wide needs and integration requirements
- * - Implementation: Coordinate agent interactions and system services
- * - Standards: Maintain system reliability and integration standards
- * - Evaluation: Monitor system health and optimize performance
- * - Plus: Anticipate system needs and prevent integration issues
+ * Core Agent - BaseAgent implementation for orchestration
  */
-export class CoreAgent extends BaseAgent implements ISpecializedAgent {
-  public readonly id: string;
-  public readonly config: AgentConfig;  // Made public to satisfy ISpecializedAgent interface
-  
-  private agentRegistry: AgentRegistry;
-  private requestRouter: RequestRouter;
-  private memoryBridge: MemoryContextBridge;
-  private systemHealth: SystemHealthReport;
-  private serviceQueue: ServiceRequest[] = [];
-  private healthCheckInterval?: NodeJS.Timeout;
-  private coordinationHistory: Array<{
-    action: string;
-    timestamp: Date;
-    success: boolean;
-    details: string;
-  }> = [];
-  private processedMessages = 0;
-  private errors: string[] = [];
-  constructor(config: AgentConfig) {
-    // Initialize BaseAgent with advanced prompt configuration for system orchestration
-    super(config, CoreAgent.getCoreAgentPromptConfig());
-    
-    this.id = config.id;
-    this.config = {
-      ...config,
+export class CoreAgent extends BaseAgent {
+  private tasks: Map<string, Task> = new Map();
+  private agentRegistry: Map<string, any> = new Map();
+  private conversationHistory: Message[] = [];
+  constructor() {
+    const config: AgentConfig = {
+      id: 'CoreAgent',
+      name: 'CoreAgent',
+      description: 'REAL orchestrator agent with memory, AI, and coordination capabilities',
       capabilities: [
-        'system_coordination',
-        'agent_integration',
-        'service_management',
-        'health_monitoring',
-        'resource_allocation',
-        'security_management',
-        'rise_plus_methodology',
-        'constitutional_ai',
-        'quality_validation',
-        'advanced_prompting',
+        'task_orchestration',
+        'agent_coordination', 
+        'system_monitoring',
+        'memory_management',
+        'constitutional_validation',
         'bmad_analysis',
-        'chain_of_verification',
-        ...config.capabilities
-      ]
+        'multi_agent_communication'
+      ],
+      memoryEnabled: true,  // REAL memory integration
+      aiEnabled: true       // REAL AI integration
     };
 
-    // Initialize core system components
-    this.agentRegistry = new AgentRegistry();
-    this.requestRouter = new RequestRouter(this.agentRegistry);
-    this.memoryBridge = new MemoryContextBridge(this.memoryClient!);
-    
-    this.systemHealth = {
-      overall: 'healthy',
-      agents: new Map(),
-      services: new Map(),
-      resources: { memory: 0, cpu: 0, connections: 0 },
-      lastCheck: new Date()
-    };
-  }
-
-  async initialize(): Promise<void> {
-    console.log(`🚀 Initializing CoreAgent ${this.id} - System Foundation and Integration Hub`);
-    
-    try {
-      // R-I-S-E+ Framework: Requirements - Understand system-wide needs
-      await this.assessSystemRequirements();
-      
-      // R-I-S-E+ Framework: Implementation - Coordinate agent interactions
-      await this.initializeSystemServices();
-      
-      // R-I-S-E+ Framework: Standards - Maintain system reliability
-      await this.establishQualityStandards();
-      
-      // R-I-S-E+ Framework: Evaluation - Monitor system health
-      this.startSystemMonitoring();
-      
-      // R-I-S-E+ Framework: Plus - Anticipate system needs
-      await this.enablePredictiveCapabilities();
-      
-      // Store initialization success in memory
-      await this.recordSystemEvent('CoreAgent initialization completed successfully', 'system_startup');
-      
-      console.log(`✅ CoreAgent ${this.id} initialized with Constitutional AI and quality validation`);
-      
-    } catch (error) {
-      console.error(`❌ CoreAgent initialization failed:`, error);
-      await this.recordSystemEvent(`CoreAgent initialization failed: ${(error as Error).message}`, 'system_error');
-      throw error;
-    }
+    super(config);
   }
 
   /**
-   * Main message processing with Constitutional AI validation
+   * REAL message processing with orchestration logic
    */
-  async processMessage(context: CoreAgentContext, message: string): Promise<AgentResponse> {
-    const timeContext = getCurrentTimeContext();
-    const processingStart = Date.now();
-    
-    try {
-      console.log(`🎯 CoreAgent processing: ${message.substring(0, 100)}...`);
-      
-      // R-I-S-E+ Framework: Requirements analysis
-      const systemRequest = await this.analyzeSystemRequest(message, context);
-      
-      // Constitutional AI: Ensure accuracy, transparency, helpfulness, safety
-      const response = await this.coordinateSystemResponse(systemRequest, context);
-      
-      // R-I-S-E+ Framework: Evaluation and quality validation
-      const qualityScore = await this.validateResponseQuality(response);
-      
-      // Record successful coordination
-      this.recordCoordination(`System request processed: ${systemRequest.type}`, true, 
-        `Quality score: ${qualityScore}%`);
-      
-      const processingTime = Date.now() - processingStart;
-      
-      return {
-        content: response,
-        metadata: {
-          timeContext,
-          processingTime,
-          qualityScore,
-          systemRequest,
-          constitutionalCompliant: true,
-          agent: 'CoreAgent',
-          framework: 'R-I-S-E+'
-        }
-      };
-      
-    } catch (error) {
-      console.error(`❌ CoreAgent processing failed:`, error);
-      
-      // R-I-S-E+ Framework: Plus - Prevent system failures
-      await this.handleSystemError(error as Error, context);
-      
-      this.recordCoordination(`System request failed: ${message.substring(0, 50)}`, false, 
-        (error as Error).message);
-      
-      return {
-        content: `System coordination error encountered. The CoreAgent has logged this issue and initiated recovery procedures. Error: ${(error as Error).message}`,
-        metadata: {
-          timeContext,
-          error: (error as Error).message,
-          recoveryInitiated: true,
-          agent: 'CoreAgent',
-          framework: 'R-I-S-E+'
-        }
-      };
-    }
-  }
+  async processMessage(context: AgentContext, message: string): Promise<CoreAgentResponse> {
+    this.validateContext(context);
 
-  /**
-   * System coordination and agent integration
-   */
-  private async coordinateSystemResponse(request: ServiceRequest, context: CoreAgentContext): Promise<string> {
-    switch (request.type) {
-      case 'agent_coordination':
-        return await this.handleAgentCoordination(request, context);
-      
-      case 'resource_allocation':
-        return await this.handleResourceAllocation(request, context);
-      
-      case 'system_operation':
-        return await this.handleSystemOperation(request, context);
-      
-      default:
-        // Fallback to general system coordination
-        return await this.handleGeneralCoordination(request, context);
-    }
-  }  /**
-   * Agent coordination and lifecycle management
-   */
-  private async handleAgentCoordination(_request: ServiceRequest, _context: CoreAgentContext): Promise<string> {
-    const agents = this.agentRegistry.getAllAgents();
-    const healthyAgents = agents.filter(agent => this.isAgentHealthy(agent.id));
-    
-    // Simple coordination since we don't have route method yet
-    if (healthyAgents.length > 0) {
-      const selectedAgent = healthyAgents[0]; // Use first healthy agent
-      return `System coordinated request to ${selectedAgent.id}. Agent status: healthy. Available agents: ${healthyAgents.length}.`;
-    } else {
-      return `System coordination identified ${agents.length} total agents but none are healthy. Initiating fallback procedures.`;
-    }
-  }
+    // Store the incoming message in memory
+    await this.storeUserMessage(context.user.id, message, context);
 
-  /**
-   * Resource allocation and management
-   */
-  private async handleResourceAllocation(request: ServiceRequest, context: CoreAgentContext): Promise<string> {
-    const currentResources = await this.assessSystemResources();
-    const requiredResources = context.resourceRequirements || {};
-    
-    // Check if resources are available
-    const canAllocate = this.validateResourceAvailability(currentResources, requiredResources);
-    
-    if (canAllocate) {
-      await this.allocateResources(request.requester, requiredResources);
-      return `Resources allocated successfully to ${request.requester}. Memory: ${requiredResources.memory || 0}MB, Processing: ${requiredResources.processing || 0}%, Storage: ${requiredResources.storage || 0}MB.`;
-    } else {
-      return `Resource allocation failed for ${request.requester}. Insufficient system resources. Current availability: Memory: ${currentResources.memory}MB, CPU: ${currentResources.cpu}%, Connections: ${currentResources.connections}.`;
-    }
-  }
-  /**
-   * System operation and maintenance
-   */
-  private async handleSystemOperation(request: ServiceRequest, _context: CoreAgentContext): Promise<string> {
-    const operation = request.payload.operation;
-    
-    switch (operation) {
-      case 'health_check':
-        const health = await this.performSystemHealthCheck();
-        return `System health check completed. Status: ${health.overall}. Agents: ${health.agents.size} registered. Services: ${Array.from(health.services.values()).filter(s => s === 'active').length} active.`;
-      
-      case 'cleanup':
-        const cleaned = await this.performSystemCleanup();
-        return `System cleanup completed. Removed ${cleaned.orphanedProcesses} orphaned processes, freed ${cleaned.memoryFreed}MB memory, cleaned ${cleaned.tempFiles} temporary files.`;
-      
-      case 'optimization':
-        const optimized = await this.performSystemOptimization();
-        return `System optimization completed. Performance improved by ${optimized.performanceGain}%. Resource efficiency: ${optimized.efficiency}%. Next optimization in ${optimized.nextOptimization} hours.`;
-      
-      default:
-        return `Unknown system operation: ${operation}. Available operations: health_check, cleanup, optimization.`;
-    }
-  }
-  /**
-   * General coordination for complex requests
-   */
-  private async handleGeneralCoordination(request: ServiceRequest, _context: CoreAgentContext): Promise<string> {
-    // Simple coordination plan without memory bridge for now
-    const coordinationPlan = {
-      agentCount: Math.min(this.agentRegistry.getAllAgents().length, 3),
-      estimatedSteps: Math.floor(Math.random() * 5 + 2),
-      confidence: Math.floor(Math.random() * 20 + 80)
-    };
-    
-    return `System coordination plan created for ${request.type} request. Plan involves ${coordinationPlan.agentCount} agents over ${coordinationPlan.estimatedSteps} steps. Priority: ${request.priority}. Execution confidence: ${coordinationPlan.confidence}%.`;
-  }
-
-  // === System Monitoring and Health Management ===
-
-  private async performSystemHealthCheck(): Promise<SystemHealthReport> {
-    const agents = this.agentRegistry.getAllAgents();
-    const agentHealth = new Map<string, AgentStatus>();
-      // Check each agent's health
-    for (const agent of agents) {
-      try {
-        const status = await agent.getStatus();
-        agentHealth.set(agent.id, status);
-      } catch (error) {
-        agentHealth.set(agent.id, { 
-          isHealthy: false, 
-          lastActivity: new Date(), 
-          memoryCount: 0, 
-          processedMessages: 0, 
-          errors: [(error as Error).message] 
-        });
+    // Add to conversation history
+    const userMessage: Message = {
+      id: uuidv4(),
+      content: message,
+      sender: 'user',
+      timestamp: new Date(),
+      metadata: {
+        sessionId: context.sessionId,
+        userId: context.user.id
       }
-    }
-    
-    // Check system services
-    const services = new Map<string, 'active' | 'inactive' | 'error'>();
-    services.set('memory_system', await this.checkMemorySystemHealth());
-    services.set('agent_registry', this.agentRegistry ? 'active' : 'inactive');
-    services.set('request_router', this.requestRouter ? 'active' : 'inactive');
-      // Assess overall system health
-    const healthyAgents = Array.from(agentHealth.values()).filter(s => s.isHealthy).length;
-    const activeServices = Array.from(services.values()).filter(s => s === 'active').length;
-    
-    let overall: 'healthy' | 'degraded' | 'critical' = 'healthy';
-    if (healthyAgents < agents.length * 0.8 || activeServices < services.size * 0.8) {
-      overall = 'degraded';
-    }
-    if (healthyAgents < agents.length * 0.5 || activeServices < services.size * 0.5) {
-      overall = 'critical';
-    }
-    
-    this.systemHealth = {
-      overall,
-      agents: agentHealth,
-      services,
-      resources: await this.assessSystemResources(),
-      lastCheck: new Date()
     };
+    this.conversationHistory.push(userMessage);
+
+    // Analyze the request for orchestration needs
+    const orchestrationAnalysis = await this.analyzeOrchestrationRequest(message, context);
     
-    return this.systemHealth;
+    // Generate coordinated response
+    const response = await this.generateOrchestrationResponse(message, context, orchestrationAnalysis);
+
+    // Store the agent response in memory
+    await this.storeAgentResponse(context.user.id, response, context);
+
+    // Add to conversation history
+    const agentMessage: Message = {
+      id: uuidv4(),
+      content: response,
+      sender: 'agent',
+      timestamp: new Date(),
+      metadata: {
+        sessionId: context.sessionId,
+        orchestrationNeeded: orchestrationAnalysis.needsOrchestration,
+        tasksCreated: orchestrationAnalysis.tasksToCreate.length
+      }
+    };
+    this.conversationHistory.push(agentMessage);
+
+    return this.createCoreResponse(response, orchestrationAnalysis);
   }
 
-  // === Helper Methods ===
-
-  private async analyzeSystemRequest(message: string, context: CoreAgentContext): Promise<ServiceRequest> {
+  /**
+   * Analyze if the request needs multi-agent orchestration
+   */
+  private async analyzeOrchestrationRequest(message: string, context: AgentContext): Promise<{
+    needsOrchestration: boolean;
+    suggestedAgents: string[];
+    tasksToCreate: Partial<Task>[];
+    complexity: 'simple' | 'medium' | 'complex';
+  }> {
     const messageLower = message.toLowerCase();
     
-    // Classify request type based on content
-    let type: ServiceRequest['type'] = 'system_operation';
-    if (messageLower.includes('agent') || messageLower.includes('coordinate') || messageLower.includes('delegate')) {
-      type = 'agent_coordination';
-    } else if (messageLower.includes('resource') || messageLower.includes('memory') || messageLower.includes('allocate')) {
-      type = 'resource_allocation';
-    }
-    
-    // Determine priority
-    let priority: ServiceRequest['priority'] = 'medium';
-    if (messageLower.includes('urgent') || messageLower.includes('critical') || messageLower.includes('emergency')) {
-      priority = 'critical';
-    } else if (messageLower.includes('high') || messageLower.includes('important')) {
-      priority = 'high';
-    } else if (messageLower.includes('low') || messageLower.includes('when possible')) {
-      priority = 'low';
-    }
-    
-    return {
-      type,
-      priority,
-      requester: context.user?.name || 'system',
-      payload: { message, context },
-      timestamp: new Date()
-    };
-  }
-
-  private async assessSystemRequirements(): Promise<void> {
-    console.log('📋 CoreAgent: Assessing system-wide requirements...');
-    // Implementation for requirement assessment
-  }
-
-  private async initializeSystemServices(): Promise<void> {
-    console.log('🔧 CoreAgent: Initializing system services...');
-    // Implementation for service initialization
-  }
-
-  private async establishQualityStandards(): Promise<void> {
-    console.log('⭐ CoreAgent: Establishing quality standards (minimum 95%)...');
-    // Implementation for quality standards
-  }
-
-  private startSystemMonitoring(): void {
-    console.log('📊 CoreAgent: Starting system monitoring...');
-    this.healthCheckInterval = setInterval(async () => {
-      await this.performSystemHealthCheck();
-    }, 60000); // Check every minute
-  }
-
-  private async enablePredictiveCapabilities(): Promise<void> {
-    console.log('🔮 CoreAgent: Enabling predictive capabilities...');
-    // Implementation for predictive system management
-  }
-
-  private async validateResponseQuality(response: string): Promise<number> {
-    // Simple quality scoring based on response completeness and structure
-    let score = 70; // Base score
-    
-    if (response.length > 50) score += 10; // Adequate length
-    if (response.includes('System') || response.includes('Agent')) score += 10; // System awareness
-    if (response.includes('successfully') || response.includes('completed')) score += 10; // Success indication
-    
-    return Math.min(score, 100);
-  }
-  private async checkMemorySystemHealth(): Promise<'active' | 'inactive' | 'error'> {
-    try {
-      if (!this.memoryClient) {
-        return 'inactive';
-      }
-      await this.memoryClient.testConnection();
-      return 'active';
-    } catch (error) {
-      return 'error';
-    }
-  }
-
-  private async assessSystemResources(): Promise<{ memory: number; cpu: number; connections: number }> {
-    // Simple resource assessment - in production this would check actual system metrics
-    return {
-      memory: Math.floor(Math.random() * 1000 + 500), // Mock: 500-1500 MB available
-      cpu: Math.floor(Math.random() * 30 + 70), // Mock: 70-100% available
-      connections: this.agentRegistry.getAllAgents().length
-    };
-  }
-
-  private validateResourceAvailability(current: any, required: any): boolean {
-    const memoryOk = !required.memory || current.memory >= required.memory;
-    const processingOk = !required.processing || current.cpu >= required.processing;
-    const storageOk = !required.storage || true; // Mock storage check
-    
-    return memoryOk && processingOk && storageOk;
-  }
-
-  private async allocateResources(requester: string, resources: any): Promise<void> {
-    console.log(`🎯 CoreAgent: Allocating resources to ${requester}:`, resources);
-    // Implementation for actual resource allocation
-  }
-
-  private async performSystemCleanup(): Promise<{ orphanedProcesses: number; memoryFreed: number; tempFiles: number }> {
-    // Mock cleanup results
-    return {
-      orphanedProcesses: Math.floor(Math.random() * 5),
-      memoryFreed: Math.floor(Math.random() * 100 + 50),
-      tempFiles: Math.floor(Math.random() * 20 + 5)
-    };
-  }
-
-  private async performSystemOptimization(): Promise<{ performanceGain: number; efficiency: number; nextOptimization: number }> {
-    // Mock optimization results
-    return {
-      performanceGain: Math.floor(Math.random() * 15 + 5),
-      efficiency: Math.floor(Math.random() * 20 + 80),
-      nextOptimization: 24
-    };
-  }
-  // Remove unused method - createCoordinationPlan was integrated into handleGeneralCoordination
-  private isAgentHealthy(agentId: string): boolean {
-    const status = this.systemHealth.agents.get(agentId);
-    return status ? status.isHealthy : false;
-  }
-
-  private recordCoordination(action: string, success: boolean, details: string): void {
-    this.coordinationHistory.push({
-      action,
-      timestamp: new Date(),
-      success,
-      details
-    });
-    
-    // Keep only last 100 coordination records
-    if (this.coordinationHistory.length > 100) {
-      this.coordinationHistory = this.coordinationHistory.slice(-100);
-    }
-  }  private async recordSystemEvent(event: string, category: string): Promise<void> {
-    try {
-      console.log(`📝 CoreAgent Event [${category}]: ${event}`);
-      // Future: Implement proper memory storage when interface is available
-    } catch (error) {
-      console.warn('⚠️ Could not record system event to memory:', error);
-    }
-  }
-
-  private async handleSystemError(error: Error, _context: CoreAgentContext): Promise<void> {
-    console.error(`🚨 CoreAgent system error:`, error);
-    
-    // Record error for analysis
-    await this.recordSystemEvent(`System error: ${error.message}`, 'system_error');
-    
-    // Initiate recovery procedures
-    if (this.systemHealth.overall === 'critical') {
-      console.log('🔄 CoreAgent: Initiating emergency recovery procedures...');
-      // Emergency recovery implementation
-    }
-  }
-  // === ISpecializedAgent Interface Implementation ===
-
-  getStatus(): AgentStatus {
-    const health = this.systemHealth;
-    
-    return {
-      isHealthy: health.overall === 'healthy',
-      lastActivity: new Date(),
-      memoryCount: 0, // Would be fetched from memory client
-      processedMessages: this.processedMessages,
-      errors: [...this.errors]
-    };
-  }
-
-  getName(): string {
-    return this.config.name || `CoreAgent-${this.id}`;
-  }
-
-  getAvailableActions(): AgentAction[] {
-    return [
-      {
-        type: 'system_coordination',
-        description: 'Coordinate system-wide operations',
-        parameters: {}
-      },
-      {
-        type: 'agent_management',
-        description: 'Manage agent lifecycle and health',
-        parameters: {}
-      },
-      {
-        type: 'resource_allocation',
-        description: 'Allocate system resources',
-        parameters: {}
-      }
+    // Check for complex requests that need multiple agents
+    const orchestrationKeywords = [
+      'coordinate', 'multiple', 'team', 'collaborate', 'complex project',
+      'end-to-end', 'full stack', 'comprehensive', 'integrate'
     ];
-  }
-
-  async executeAction(action: AgentAction, context: AgentContext): Promise<any> {
-    switch (action.type) {
-      case 'system_coordination':
-        return await this.coordinateSystemResponse({
-          type: 'system_operation',
-          priority: 'medium',
-          requester: context.user?.name || 'system',
-          payload: action.parameters,
-          timestamp: new Date()
-        }, context as CoreAgentContext);
-      
-      case 'agent_management':
-        return { success: true, message: 'Agent management operation completed' };
-      
-      case 'resource_allocation':
-        return { success: true, message: 'Resource allocation completed' };
-      
-      default:
-        return { success: false, message: `Unknown action: ${action.type}` };
-    }
-  }
-
-  async getHealthStatus(): Promise<AgentHealthStatus> {
-    const health = await this.performSystemHealthCheck();
     
+    const needsOrchestration = orchestrationKeywords.some(keyword => 
+      messageLower.includes(keyword)
+    );
+
+    // Suggest agents based on request content
+    const suggestedAgents: string[] = [];
+    if (messageLower.includes('code') || messageLower.includes('develop')) {
+      suggestedAgents.push('DevAgent');
+    }
+    if (messageLower.includes('office') || messageLower.includes('document')) {
+      suggestedAgents.push('OfficeAgent');
+    }
+    if (messageLower.includes('fitness') || messageLower.includes('health')) {
+      suggestedAgents.push('FitnessAgent');
+    }
+
+    // Create tasks if orchestration is needed
+    const tasksToCreate: Partial<Task>[] = [];
+    if (needsOrchestration) {
+      tasksToCreate.push({
+        description: `Coordinate response to: ${message}`,
+        priority: 'medium',
+        status: 'pending',
+        context: { originalRequest: message, sessionId: context.sessionId }
+      });
+    }
+
     return {
-      status: health.overall === 'healthy' ? 'healthy' : 
-              health.overall === 'degraded' ? 'degraded' : 'critical',
-      uptime: Date.now(),
-      memoryUsage: health.resources.memory,
-      responseTime: 50, // Mock value
-      errorRate: this.processedMessages > 0 ? this.errors.length / this.processedMessages : 0
+      needsOrchestration,
+      suggestedAgents,
+      tasksToCreate,
+      complexity: needsOrchestration ? 'complex' : 'simple'
     };
-  }
-
-  async cleanup(): Promise<void> {
-    console.log(`🧹 CoreAgent ${this.id}: Starting cleanup...`);
-    
-    if (this.healthCheckInterval) {
-      clearInterval(this.healthCheckInterval);
-    }
-    
-    await this.recordSystemEvent('CoreAgent cleanup completed', 'system_shutdown');
-    console.log(`✅ CoreAgent ${this.id}: Cleanup completed`);
-  }
-  getCapabilities(): string[] {
-    return this.config.capabilities;
   }
 
   /**
-   * Get CoreAgent-specific prompt configuration for advanced system orchestration
+   * Generate orchestration response using AI
    */
-  static getCoreAgentPromptConfig(): EnhancedPromptConfig {
+  private async generateOrchestrationResponse(
+    message: string, 
+    context: AgentContext,
+    analysis: any
+  ): Promise<string> {
+    // Search for relevant coordination memories
+    const relevantMemories = await this.searchMemories(context.user.id, message, 5);
+    
+    // Build orchestration prompt
+    const orchestrationPrompt = this.buildOrchestrationPrompt(message, analysis, relevantMemories);
+    
+    // Generate response using AI
+    const response = await this.generateResponse(orchestrationPrompt, relevantMemories);
+    
+    return response;
+  }
+
+  /**
+   * Build specialized orchestration prompt
+   */
+  private buildOrchestrationPrompt(message: string, analysis: any, memories: any[]): string {
+    const memoryContext = memories.length > 0 
+      ? `\nRelevant past coordination:\n${memories.map(m => `- ${m.content}`).join('\n')}`
+      : '';
+
+    const systemPrompt = `You are CoreAgent, the central orchestrator for the OneAgent system. You coordinate multiple specialized agents and manage complex tasks.
+
+Your capabilities:
+- Task orchestration and delegation
+- Multi-agent coordination
+- System health monitoring
+- Memory management across sessions
+- Constitutional AI validation
+
+Analysis of current request:
+- Needs orchestration: ${analysis.needsOrchestration}
+- Suggested agents: ${analysis.suggestedAgents.join(', ') || 'None'}
+- Complexity: ${analysis.complexity}
+
+${memoryContext}
+
+User request: ${message}
+
+If orchestration is needed, explain how you'll coordinate multiple agents. If not, provide direct assistance while maintaining system oversight.`;
+
+    return systemPrompt;
+  }
+
+  /**
+   * Create a new task
+   */
+  async createTask(description: string, priority: Task['priority'] = 'medium'): Promise<Task> {
+    const task: Task = {
+      id: uuidv4(),
+      description,
+      priority,
+      status: 'pending',
+      context: {},
+      createdAt: new Date(),
+      updatedAt: new Date()
+    };
+
+    this.tasks.set(task.id, task);
+    
+    // Store task in memory for persistence
+    await this.addMemory('system', `Task created: ${description}`, {
+      taskId: task.id,
+      priority,
+      createdAt: task.createdAt.toISOString()
+    });
+
+    return task;
+  }
+
+  /**
+   * Update task status
+   */
+  async updateTaskStatus(taskId: string, status: Task['status']): Promise<boolean> {
+    const task = this.tasks.get(taskId);
+    if (!task) return false;
+
+    task.status = status;
+    task.updatedAt = new Date();
+    
+    // Store update in memory
+    await this.addMemory('system', `Task ${taskId} status updated to ${status}`, {
+      taskId,
+      newStatus: status,
+      updatedAt: task.updatedAt.toISOString()
+    });
+
+    return true;
+  }
+
+  /**
+   * Get all tasks
+   */
+  getAllTasks(): Task[] {
+    return Array.from(this.tasks.values());
+  }
+
+  /**
+   * Register an agent in the system
+   */
+  async registerAgent(agentId: string, agentData: any): Promise<void> {
+    this.agentRegistry.set(agentId, agentData);
+    
+    await this.addMemory('system', `Agent registered: ${agentId}`, {
+      agentId,
+      capabilities: agentData.capabilities,
+      registeredAt: new Date().toISOString()
+    });
+  }
+
+  /**
+   * Store user message in memory
+   */
+  private async storeUserMessage(userId: string, message: string, context: AgentContext): Promise<void> {
+    const content = `User coordination request: ${message}`;
+    const metadata = {
+      messageType: 'coordination_request',
+      agentId: this.config.id,
+      sessionId: context.sessionId,
+      timestamp: new Date().toISOString(),
+      userId: userId
+    };
+
+    await this.addMemory(userId, content, metadata);
+  }
+
+  /**
+   * Store agent response in memory
+   */
+  private async storeAgentResponse(userId: string, response: string, context: AgentContext): Promise<void> {
+    const content = `CoreAgent coordination response: ${response}`;
+    const metadata = {
+      messageType: 'coordination_response',
+      agentId: this.config.id,
+      sessionId: context.sessionId,
+      timestamp: new Date().toISOString(),
+      userId: userId
+    };
+
+    await this.addMemory(userId, content, metadata);
+  }
+
+  /**
+   * Create specialized core response
+   */
+  private createCoreResponse(content: string, analysis: any): CoreAgentResponse {
     return {
-      agentPersona: {
-        role: 'System Orchestration and Integration Hub',
-        style: 'Professional, systematic, and coordination-focused',
-        coreStrength: 'Multi-agent coordination, system health management, and service orchestration',
-        principles: [
-          'System reliability and stability first',
-          'Transparent coordination and communication',
-          'Proactive health monitoring and issue prevention',
-          'Efficient resource allocation and management',
-          'Constitutional AI principles in all decisions'
-        ],
-        frameworks: ['RISE', 'RGC', 'CARE'] // Advanced frameworks for complex orchestration
-      },
-      constitutionalPrinciples: [
-        {
-          id: 'system_accuracy',
-          name: 'System State Accuracy',
-          description: 'Maintain accurate system state and health reporting',
-          validationRule: 'All system reports include source verification and timestamp',
-          severityLevel: 'critical'
-        },
-        {
-          id: 'transparent_coordination',
-          name: 'Transparent Coordination',
-          description: 'Clearly communicate coordination decisions and their reasoning',
-          validationRule: 'Coordination actions include clear rationale and expected outcomes',
-          severityLevel: 'high'
-        },
-        {
-          id: 'helpful_orchestration',
-          name: 'Helpful Service Orchestration',
-          description: 'Provide efficient and effective service coordination that serves user goals',
-          validationRule: 'Orchestration decisions demonstrably improve system efficiency or user experience',
-          severityLevel: 'high'
-        },
-        {
-          id: 'safe_operations',
-          name: 'Safe System Operations',
-          description: 'Prioritize system safety and prevent harmful operational decisions',
-          validationRule: 'All system operations undergo risk assessment with mitigation strategies',
-          severityLevel: 'critical'
+      content,
+      actions: [{
+        type: 'orchestration',
+        description: 'Provided system orchestration and coordination',
+        parameters: { 
+          needsOrchestration: analysis.needsOrchestration,
+          complexity: analysis.complexity
         }
-      ],
-      enabledFrameworks: ['RISE', 'RGC', 'CARE'], // Advanced frameworks for complex coordination
-      enableCoVe: true,  // Enable Chain-of-Verification for critical system decisions
-      enableRAG: true,   // Enable RAG for better context and historical knowledge
-      qualityThreshold: 85 // High quality threshold for system coordination
+      }],
+      memories: [], // Memories are handled separately
+      metadata: {
+        agentId: this.config.id,
+        timestamp: new Date().toISOString(),
+        orchestrationAnalysis: analysis,
+        totalTasks: this.tasks.size,
+        registeredAgents: this.agentRegistry.size,
+        isRealAgent: true // NOT just metadata!
+      }
     };
   }
+
+  /**
+   * Get system health summary
+   */
+  getSystemHealth(): {
+    totalTasks: number;
+    activeTasks: number;
+    registeredAgents: number;
+    conversationLength: number;
+  } {
+    const activeTasks = Array.from(this.tasks.values())
+      .filter(task => task.status === 'in_progress').length;
+
+    return {
+      totalTasks: this.tasks.size,
+      activeTasks,
+      registeredAgents: this.agentRegistry.size,
+      conversationLength: this.conversationHistory.length
+    };
+  }
+
+  /**
+   * Override cleanup to save state
+   */
+  async cleanup(): Promise<void> {
+    // Save final system state to memory
+    const systemHealth = this.getSystemHealth();
+    await this.addMemory('system', `CoreAgent session ended. Final state: ${JSON.stringify(systemHealth)}`, {
+      sessionEnd: true,
+      finalState: systemHealth
+    });
+    
+    await super.cleanup();
+  }
 }
+
+// Export singleton instance for use in the server
+export const coreAgent = new CoreAgent();

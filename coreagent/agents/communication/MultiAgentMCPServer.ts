@@ -55,6 +55,10 @@ export class MultiAgentMCPServer {  private communicationProtocol: AgentCommunic
   ) {
     this.communicationProtocol = AgentCommunicationProtocol.getInstance(coreAgentId, true);
     this.discoveryService = new AgentDiscoveryService(coreAgentId, basePort);
+    
+    // Connect discovery service to communication protocol
+    this.discoveryService.setCommunicationProtocol(this.communicationProtocol);
+    
     this.initializeMultiAgentTools();
     this.setupAutomatedDiscovery();
     this.initializeMemoryClient();

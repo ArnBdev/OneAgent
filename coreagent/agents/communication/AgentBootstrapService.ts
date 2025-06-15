@@ -1,19 +1,25 @@
 /**
- * AgentBootstrapService - Automatic startup of all specialized agents
+ * AgentBootstrapService - Startup and management of REAL BaseAgent instances
  * 
- * This service automatically starts all specialized agents and makes them
- * participate in the discovery protocol. No more manual registration needed!
+ * This service creates and manages actual BaseAgent implementations with:
+ * - Real memory integration for conversation storage
+ * - AI processing capabilities with Gemini
+ * - Specialized domain expertise for each agent
+ * - Message handling and response generation
  * 
- * When CoreAgent asks "Who's awake?", all these agents will respond automatically.
+ * No more metadata-only registration - these are REAL, functioning agents!
  */
 
-import { AgentAutoRegistration, AgentAutoRegistrationFactory, AgentRegistrationConfig } from './AgentAutoRegistration';
+import { BaseAgent } from '../base/BaseAgent';
+import { AgentFactory as BaseAgentFactory, AgentFactoryConfig } from '../base/AgentFactory';
+import { AgentFactory as SpecializedAgentFactory } from '../specialized/AgentFactory';
 import { AgentDiscoveryService } from './AgentDiscoveryService';
 
 export class AgentBootstrapService {
-  private agents: Map<string, AgentAutoRegistration> = new Map();
+  private agents: Map<string, BaseAgent> = new Map();
   private isBootstrapped: boolean = false;
   private sharedDiscoveryService: AgentDiscoveryService | undefined = undefined;
+
   /**
    * Set the shared discovery service (called from main server)
    */
@@ -23,8 +29,8 @@ export class AgentBootstrapService {
   }
 
   /**
-   * Bootstrap all specialized agents for auto-discovery
-   * This replaces manual MCP tool registration calls
+   * Bootstrap all REAL agents with memory and AI capabilities
+   * This creates actual BaseAgent instances, not just metadata!
    */
   async bootstrapAllAgents(): Promise<void> {
     if (this.isBootstrapped) {
@@ -32,44 +38,33 @@ export class AgentBootstrapService {
       return;
     }
 
-    console.log('🚀 AgentBootstrapService: Starting automatic agent initialization...');
-    console.log('📢 All agents will automatically respond to CoreAgent discovery broadcasts');    try {      // Create original 5 specialized AI agents with Constitutional AI integration
-      console.log('🤖 Creating REAL AI agents with Gemini intelligence...');
+    console.log('🚀 AgentBootstrapService: Creating REAL agents with memory and AI...');
+    console.log('🧠 These are actual BaseAgent instances with working processMessage() methods!');    
+    try {      
+      // Create all 5 REAL agents with memory and AI capabilities
+      const realAgents = await SpecializedAgentFactory.createAllCoreAgents();
       
-      const coreAgent = AgentAutoRegistrationFactory.createCoreAgent(this.sharedDiscoveryService);
-      const devAgent = AgentAutoRegistrationFactory.createDevAgent(this.sharedDiscoveryService);
-      const officeAgent = AgentAutoRegistrationFactory.createOfficeAgent(this.sharedDiscoveryService);
-      const fitnessAgent = AgentAutoRegistrationFactory.createFitnessAgent(this.sharedDiscoveryService);
-      const triageAgent = AgentAutoRegistrationFactory.createTriageAgent(this.sharedDiscoveryService);
-        // Store original 5 specialized AI agents
-      this.agents.set('CoreAgent-v4.0', coreAgent);
-      this.agents.set('DevAgent-v4.0', devAgent);
-      this.agents.set('OfficeAgent-v2.0', officeAgent);
-      this.agents.set('FitnessAgent-v1.0', fitnessAgent);
-      this.agents.set('TriageAgent-v3.0', triageAgent);
-      
-      console.log('✅ Real AI Agent Registration:');
-      console.log('   🧠 CoreAgent-v4.0: Constitutional AI + BMAD orchestrator');
-      console.log('   💻 DevAgent-v4.0: Context7 + learning engine specialist');
-      console.log('   📋 OfficeAgent-v2.0: Productivity and office workflow specialist');
-      console.log('   💪 FitnessAgent-v1.0: Fitness and wellness tracking specialist');
-      console.log('   🔀 TriageAgent-v3.0: Task routing and agent health monitoring');
-
-      // Start auto-registration for all agents
-      const startupPromises = Array.from(this.agents.values()).map(agent => 
-        agent.startAutoRegistration()
-      );
-
-      await Promise.all(startupPromises);
+      // Store them in our local map
+      for (const agent of realAgents) {
+        const config = agent.getConfig();
+        this.agents.set(config.id, agent);
+        console.log(`📝 Registered REAL agent: ${config.id} (${config.capabilities.length} capabilities)`);
+      }
+        console.log('✅ REAL Agent Registration Complete:');
+      console.log('   🧠 CoreAgent: Constitutional AI + BMAD orchestrator WITH MEMORY');
+      console.log('   💻 DevAgent: Context7 + learning engine specialist WITH MEMORY');
+      console.log('   📋 OfficeAgent: Productivity workflow specialist WITH MEMORY');
+      console.log('   💪 FitnessAgent: Fitness and wellness tracking WITH MEMORY');
+      console.log('   🔀 TriageAgent: Task routing and health monitoring WITH MEMORY');
 
       this.isBootstrapped = true;
 
-      console.log('✅ AgentBootstrapService: All agents initialized and ready for discovery!');
-      console.log(`🎯 ${this.agents.size} agents now listening for "Who's awake?" broadcasts`);
-      console.log('📡 Agents will automatically register when CoreAgent discovers them');
+      console.log('✅ AgentBootstrapService: All REAL agents initialized and ready!');
+      console.log(`🎯 ${this.agents.size} agents with actual AI processing and memory storage`);
+      console.log('� Agents can now handle real messages with processMessage() method!');
 
     } catch (error) {
-      console.error('❌ AgentBootstrapService: Error during agent initialization:', error);
+      console.error('❌ AgentBootstrapService: Error during REAL agent initialization:', error);
       throw error;
     }
   }
@@ -83,31 +78,102 @@ export class AgentBootstrapService {
       return;
     }
 
-    console.log('🛑 AgentBootstrapService: Shutting down all agents...');
+    console.log('🛑 AgentBootstrapService: Shutting down all REAL agents...');
 
-    const shutdownPromises = Array.from(this.agents.values()).map(agent => 
-      agent.stopAutoRegistration()
-    );
-
-    await Promise.all(shutdownPromises);
-
+    // Use the factory's shutdown method
+    await SpecializedAgentFactory.shutdownAllAgents();
+    
     this.agents.clear();
     this.isBootstrapped = false;
 
-    console.log('✅ AgentBootstrapService: All agents shut down gracefully');
+    console.log('✅ AgentBootstrapService: All REAL agents shut down gracefully');
   }
 
   /**
-   * Get status of all bootstrapped agents
+   * Get all initialized agents
    */
-  getAgentStatus(): Array<{
-    agentId: string;
-    isRegistered: boolean;
-    lastSeen: Date;
-    capabilities: number;
-    qualityScore: number;
-  }> {
-    return Array.from(this.agents.values()).map(agent => agent.getStatus());
+  getAgents(): Map<string, BaseAgent> {
+    return new Map(this.agents);
+  }
+
+  /**
+   * Check if a specific agent is available
+   */
+  hasAgent(agentId: string): boolean {
+    const agent = this.agents.get(agentId);
+    return agent !== undefined && agent.isReady();
+  }
+
+  /**
+   * Get agent by ID
+   */
+  getAgent(agentId: string): BaseAgent | undefined {
+    return this.agents.get(agentId);
+  }
+
+  /**
+   * Get agent count
+   */
+  getAgentCount(): number {
+    return this.agents.size;
+  }
+
+  /**
+   * Get bootstrap status
+   */
+  isReady(): boolean {
+    return this.isBootstrapped;
+  }
+
+  /**
+   * Get status of all agents
+   */
+  getAgentStatus(): Array<{ agentId: string; isReady: boolean; capabilities: string[] }> {
+    return Array.from(this.agents.entries()).map(([agentId, agent]) => ({
+      agentId,
+      isReady: agent.isReady(),
+      capabilities: agent.getConfig().capabilities
+    }));
+  }
+
+  /**
+   * Process a message with a specific agent
+   */
+  async processMessageWithAgent(
+    agentId: string, 
+    message: string, 
+    context: { user: any; sessionId: string; conversationHistory: any[] }
+  ): Promise<string> {
+    const agent = this.agents.get(agentId);
+    
+    if (!agent) {
+      throw new Error(`Agent ${agentId} not found`);
+    }
+
+    if (!agent.isReady()) {
+      throw new Error(`Agent ${agentId} is not ready`);
+    }
+
+    try {
+      const response = await agent.processMessage(context as any, message);
+      return response.content;
+    } catch (error) {
+      console.error(`Error processing message with agent ${agentId}:`, error);
+      throw error;
+    }
+  }
+
+  /**
+   * Get capabilities summary for all agents
+   */
+  getCapabilitiesSummary(): Record<string, string[]> {
+    const summary: Record<string, string[]> = {};
+    
+    for (const [agentId, agent] of this.agents) {
+      summary[agentId] = agent.getConfig().capabilities;
+    }
+    
+    return summary;
   }
 
   /**
@@ -118,72 +184,41 @@ export class AgentBootstrapService {
   }
 
   /**
-   * Get count of active agents
+   * Add a new REAL agent dynamically
    */
-  getAgentCount(): number {
-    return this.agents.size;
-  }
-
-  /**
-   * Restart a specific agent
-   */
-  async restartAgent(agentId: string): Promise<boolean> {
-    const agent = this.agents.get(agentId);
-    if (!agent) {
-      console.log(`⚠️  Agent ${agentId} not found in bootstrap service`);
-      return false;
-    }
-
-    console.log(`🔄 Restarting ${agentId}...`);
-    
-    try {
-      await agent.stopAutoRegistration();
-      await agent.startAutoRegistration();
-      console.log(`✅ ${agentId} restarted successfully`);
-      return true;
-    } catch (error) {
-      console.error(`❌ Failed to restart ${agentId}:`, error);
-      return false;
-    }
-  }
-
-  /**
-   * Add a new agent to the bootstrap service
-   */
-  async addAgent(agentId: string, agent: AgentAutoRegistration): Promise<void> {
+  async addAgent(agentId: string, agent: BaseAgent): Promise<void> {
     if (this.agents.has(agentId)) {
-      console.log(`⚠️  Agent ${agentId} already exists - stopping existing agent first`);
-      await this.agents.get(agentId)?.stopAutoRegistration();
+      console.log(`⚠️ Replacing existing agent: ${agentId}`);
+      await this.agents.get(agentId)?.cleanup();
     }
 
     this.agents.set(agentId, agent);
-    
-    if (this.isBootstrapped) {
-      await agent.startAutoRegistration();
-      console.log(`✅ Added and started ${agentId} to active bootstrap service`);
-    } else {
-      console.log(`✅ Added ${agentId} to bootstrap service (will start on next bootstrap)`);
-    }
+    console.log(`✅ Agent ${agentId} added successfully`);
   }
 
   /**
-   * Remove an agent from the bootstrap service
+   * Remove an agent
    */
   async removeAgent(agentId: string): Promise<boolean> {
     const agent = this.agents.get(agentId);
+    
     if (!agent) {
-      console.log(`⚠️  Agent ${agentId} not found in bootstrap service`);
+      console.log(`⚠️ Agent ${agentId} not found for removal`);
       return false;
     }
 
-    await agent.stopAutoRegistration();
+    console.log(`🗑️ Removing agent: ${agentId}`);
+    
+    await agent.cleanup();
     this.agents.delete(agentId);
-    console.log(`✅ Removed ${agentId} from bootstrap service`);
+
+    console.log(`✅ Agent ${agentId} removed successfully`);
     return true;
   }
 }
 
 // Singleton instance for global use
+export const agentBootstrapService = new AgentBootstrapService();
 export const agentBootstrap = new AgentBootstrapService();
 
 export default AgentBootstrapService;

@@ -1,65 +1,74 @@
 /**
- * FitnessAgent - Specialized agent for fitness and wellness tasks
+ * RealFitnessAgent - REAL Fitness & Wellness AI Agent
  * 
- * This agent specializes in workout planning, nutrition tracking,
- * progress monitoring, and health-related goal setting.
+ * A fully functional BaseAgent implementation with:
+ * - Real memory integration for tracking progress
+ * - Gemini AI for intelligent fitness guidance
+ * - Constitutional AI validation
+ * - Specialized fitness and wellness expertise
  */
 
-import { BaseAgent, AgentConfig, AgentContext, AgentResponse, AgentAction } from '../base/BaseAgent';
-import { ISpecializedAgent, AgentStatus, AgentHealthStatus } from '../base/ISpecializedAgent';
+import { BaseAgent, AgentConfig, AgentContext, AgentResponse, Message } from '../base/BaseAgent';
+import { EnhancedPromptConfig, AgentPersona, ConstitutionalPrinciple } from '../base/EnhancedPromptEngine';
 
-export class FitnessAgent extends BaseAgent implements ISpecializedAgent {
-  public readonly id: string;
-  public readonly config: AgentConfig;
-  private processedMessages: number = 0;
-  private errors: string[] = [];
+export class FitnessAgent extends BaseAgent {  constructor() {
+    const config: AgentConfig = {
+      id: 'FitnessAgent',
+      name: 'FitnessAgent',
+      description: 'AI agent specializing in fitness tracking, workout planning, nutrition guidance, and wellness coaching',
+      capabilities: [
+        'workout_planning',
+        'nutrition_guidance', 
+        'fitness_tracking',
+        'wellness_coaching',
+        'goal_setting',
+        'progress_monitoring',
+        'recovery_advice',
+        'motivation_support'
+      ],
+      memoryEnabled: true,
+      aiEnabled: true
+    };
 
-  constructor(config: AgentConfig) {
-    super(config);
-    this.id = config.id || `fitness-agent-${Date.now()}`;
-    this.config = config;
+    const promptConfig = FitnessAgent.createFitnessPromptConfig();
+    super(config, promptConfig);
   }
 
   /**
-   * Initialize the fitness agent
-   */
-  async initialize(): Promise<void> {
-    await super.initialize();
-    console.log(`FitnessAgent ${this.id} initialized successfully`);
-  }
-
-  /**
-   * Process fitness-related messages
+   * Process fitness and wellness related messages
    */
   async processMessage(context: AgentContext, message: string): Promise<AgentResponse> {
     try {
       this.validateContext(context);
-      this.processedMessages++;
 
-      // Add message to memory for context
-      await this.addMemory(context.user.id, message, {
-        agentType: 'fitness',
-        sessionId: context.sessionId,
-        timestamp: new Date().toISOString()
-      });
+      // Search for relevant fitness context in memory
+      const relevantMemories = await this.searchMemories(
+        context.user.id, 
+        message, 
+        5
+      );
 
-      // Search for relevant fitness memories
-      const relevantMemories = await this.searchMemories(context.user.id, message, 5);
+      // Generate AI response with fitness expertise
+      const response = await this.generateFitnessResponse(message, relevantMemories, context);
 
-      // Analyze the message for fitness-related tasks
-      const actions = await this.analyzeFitnessTask(message);
-      
-      // Generate response using AI with fitness context
-      const prompt = this.buildFitnessPrompt(message, relevantMemories, context);
-      const aiResponse = await this.generateResponse(prompt, relevantMemories);
+      // Store this interaction in memory for future reference
+      await this.addMemory(
+        context.user.id,
+        `Fitness Query: ${message}\nResponse: ${response}`,
+        {
+          type: 'fitness_consultation',
+          category: this.categorizeQuery(message),
+          timestamp: new Date().toISOString(),
+          sessionId: context.sessionId
+        }
+      );
 
-      return this.createResponse(aiResponse, actions, relevantMemories);    } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : String(error);
-      this.errors.push(`Processing error: ${errorMessage}`);
-      console.error('FitnessAgent processing error:', error);
-      
+      return this.createResponse(response, [], relevantMemories);
+
+    } catch (error) {
+      console.error('RealFitnessAgent: Error processing message:', error);
       return this.createResponse(
-        "I apologize, but I encountered an error processing your fitness request. Please try again.",
+        'I apologize, but I encountered an error while processing your fitness query. Please try again.',
         [],
         []
       );
@@ -67,237 +76,177 @@ export class FitnessAgent extends BaseAgent implements ISpecializedAgent {
   }
 
   /**
-   * Get available fitness actions
+   * Generate specialized fitness response with AI
    */
-  getAvailableActions(): AgentAction[] {
-    return [
-      {
-        type: 'workout_plan',
-        description: 'Create a personalized workout plan',
-        parameters: { duration: 'number', equipment: 'array', goals: 'array' }
-      },
-      {
-        type: 'nutrition_track',
-        description: 'Track nutrition and calories',
-        parameters: { meal: 'string', calories: 'number', macros: 'object' }
-      },
-      {
-        type: 'progress_monitor',
-        description: 'Monitor fitness progress',
-        parameters: { metric: 'string', value: 'number', date: 'string' }
-      },
-      {
-        type: 'goal_set',
-        description: 'Set fitness goals',
-        parameters: { goalType: 'string', target: 'number', timeline: 'string' }
-      },
-      {
-        type: 'exercise_recommend',
-        description: 'Recommend exercises',
-        parameters: { bodyPart: 'string', difficulty: 'string', equipment: 'array' }
-      }
-    ];
-  }
-
-  /**
-   * Execute fitness-specific actions
-   */
-  async executeAction(action: AgentAction, context: AgentContext): Promise<any> {
-    switch (action.type) {
-      case 'workout_plan':
-        return await this.createWorkoutPlan(action.parameters, context);
-      case 'nutrition_track':
-        return await this.trackNutrition(action.parameters, context);
-      case 'progress_monitor':
-        return await this.monitorProgress(action.parameters, context);
-      case 'goal_set':
-        return await this.setGoal(action.parameters, context);
-      case 'exercise_recommend':
-        return await this.recommendExercises(action.parameters, context);
-      default:
-        throw new Error(`Unknown action type: ${action.type}`);
-    }
-  }
-  /**
-   * Get agent status
-   */
-  getStatus(): AgentStatus {
-    return {
-      isHealthy: this.isReady() && this.errors.length < 5,
-      lastActivity: new Date(),
-      memoryCount: 0, // Would be fetched from memory client
-      processedMessages: this.processedMessages,
-      errors: [...this.errors]
-    };
-  }
-
-  /**
-   * Get agent name
-   */
-  getName(): string {
-    return this.config.name || `FitnessAgent-${this.id}`;
-  }
-
-  /**
-   * Get detailed health status
-   */
-  async getHealthStatus(): Promise<AgentHealthStatus> {
-    return {
-      status: this.isReady() && this.errors.length < 5 ? 'healthy' : 'degraded',
-      uptime: Date.now(),
-      memoryUsage: 0, // Mock value
-      responseTime: 45, // Mock value
-      errorRate: this.processedMessages > 0 ? this.errors.length / this.processedMessages : 0
-    };
-  }
-
-  /**
-   * Cleanup resources
-   */
-  async cleanup(): Promise<void> {
-    this.errors = [];
-    console.log(`FitnessAgent ${this.id} cleaned up`);
-  }
-
-  /**
-   * Analyze message for fitness tasks
-   */
-  private async analyzeFitnessTask(message: string): Promise<AgentAction[]> {
-    const actions: AgentAction[] = [];
-    const lowerMessage = message.toLowerCase();
-
-    if (lowerMessage.includes('workout') || lowerMessage.includes('exercise')) {
-      actions.push({
-        type: 'workout_plan',
-        description: 'Create workout plan based on request',
-        parameters: { request: message }
-      });
-    }
-
-    if (lowerMessage.includes('nutrition') || lowerMessage.includes('calories') || lowerMessage.includes('diet')) {
-      actions.push({
-        type: 'nutrition_track',
-        description: 'Track nutrition based on request',
-        parameters: { request: message }
-      });
-    }
-
-    if (lowerMessage.includes('progress') || lowerMessage.includes('weight') || lowerMessage.includes('measurement')) {
-      actions.push({
-        type: 'progress_monitor',
-        description: 'Monitor progress based on request',
-        parameters: { request: message }
-      });
-    }
-
-    if (lowerMessage.includes('goal') || lowerMessage.includes('target')) {
-      actions.push({
-        type: 'goal_set',
-        description: 'Set fitness goal based on request',
-        parameters: { request: message }
-      });
-    }
-
-    return actions;
-  }
-  /**
-   * Build fitness-specific prompt for AI
-   */
-  private buildFitnessPrompt(message: string, memories: any[], context: AgentContext): string {
-    // Extract customInstructions from enriched context userProfile
-    const customInstructions = context.enrichedContext?.userProfile?.customInstructions;
+  private async generateFitnessResponse(
+    message: string, 
+    memories: any[], 
+    context: AgentContext
+  ): Promise<string> {
+    const fitnessContext = this.buildFitnessContext(memories, context);
     
-    let prompt = `
-You are a Fitness and Wellness Coach AI specialized in health, exercise, and nutrition.
+    const prompt = `
+You are a professional fitness and wellness specialist AI with expertise in:
+- Personalized workout planning and exercise science
+- Nutrition guidance and meal planning
+- Fitness goal setting and progress tracking
+- Wellness coaching and lifestyle optimization
+- Recovery strategies and injury prevention
+- Motivation and behavioral support
 
-Context:
-- User: ${context.user.name || 'User'}
-- Session: ${context.sessionId}
-- Previous interactions: ${memories.length} relevant fitness memories`;
+Previous context: ${fitnessContext}
 
-    // Add custom instructions if available
-    if (customInstructions) {
-      prompt += `
-- User Preferences: ${customInstructions}`;
-    }
+User query: ${message}
 
-    prompt += `
+Provide expert fitness guidance that is:
+1. Safe and appropriate for the user's level
+2. Evidence-based and scientifically sound
+3. Personalized to their goals and preferences
+4. Actionable with clear next steps
+5. Motivating and supportive
 
-User Request: ${message}
-
-Please provide helpful fitness guidance including:
-- Personalized workout recommendations
-- Nutrition advice and meal planning
-- Progress tracking and motivation
-- Goal setting and achievement strategies
-- Exercise form and safety tips
-
-Be encouraging, knowledgeable, and safety-focused in your responses.
-Always remind users to consult healthcare professionals for medical advice.
+Always recommend consulting healthcare professionals for medical concerns.
 `;
 
-    return prompt;
+    return await this.generateResponse(prompt, memories);
+  }
+  /**
+   * Build fitness-specific context from memories
+   */
+  private buildFitnessContext(memories: any[], _context: AgentContext): string {
+    if (!memories || memories.length === 0) {
+      return "No previous fitness history available.";
+    }
+
+    const fitnessMemories = memories
+      .filter(memory => 
+        memory.metadata?.type === 'fitness_consultation' ||
+        memory.content?.toLowerCase().includes('workout') ||
+        memory.content?.toLowerCase().includes('exercise') ||
+        memory.content?.toLowerCase().includes('nutrition')
+      )
+      .slice(0, 3);
+
+    if (fitnessMemories.length === 0) {
+      return "No relevant fitness history found.";
+    }
+
+    return fitnessMemories
+      .map(memory => `Previous: ${memory.content?.substring(0, 200)}...`)
+      .join('\n');
   }
 
   /**
-   * Fitness action implementations
+   * Categorize the fitness query for better memory organization
    */
-  private async createWorkoutPlan(params: any, _context: AgentContext): Promise<any> {
-    // Mock workout plan creation
-    return {
-      success: true,
-      planId: `workout_${Date.now()}`,
-      plan: {
-        duration: '4 weeks',
-        frequency: '3-4 times per week',
-        exercises: ['Push-ups', 'Squats', 'Planks', 'Lunges'],
-        description: `Workout plan created based on: ${params.request}`
-      }
+  private categorizeQuery(message: string): string {
+    const messageLower = message.toLowerCase();
+    
+    if (messageLower.includes('workout') || messageLower.includes('exercise') || messageLower.includes('training')) {
+      return 'workout_planning';
+    }
+    if (messageLower.includes('nutrition') || messageLower.includes('diet') || messageLower.includes('meal')) {
+      return 'nutrition_guidance';
+    }
+    if (messageLower.includes('goal') || messageLower.includes('target')) {
+      return 'goal_setting';
+    }
+    if (messageLower.includes('progress') || messageLower.includes('track')) {
+      return 'progress_tracking';
+    }
+    if (messageLower.includes('recovery') || messageLower.includes('rest') || messageLower.includes('sleep')) {
+      return 'recovery_advice';
+    }
+    if (messageLower.includes('motivation') || messageLower.includes('support')) {
+      return 'motivation_support';
+    }
+    
+    return 'general_wellness';
+  }
+
+  /**
+   * Create enhanced prompt configuration for fitness expertise
+   */
+  private static createFitnessPromptConfig(): EnhancedPromptConfig {
+    return {      agentPersona: FitnessAgent.createFitnessPersona(),
+      constitutionalPrinciples: FitnessAgent.createFitnessConstitutionalPrinciples(),
+      enabledFrameworks: ['RTF', 'TAG', 'CARE'], // Reasoning, Task, Goals + Care framework
+      enableCoVe: true,   // Enable verification for safety-critical fitness advice
+      enableRAG: true,    // Use relevant memory context
+      qualityThreshold: 88 // High standard for fitness/health advice
     };
   }
 
-  private async trackNutrition(params: any, _context: AgentContext): Promise<any> {
-    // Mock nutrition tracking
+  /**
+   * Create fitness-specialized agent persona
+   */
+  private static createFitnessPersona(): AgentPersona {
     return {
-      success: true,
-      trackingId: `nutrition_${Date.now()}`,
-      message: `Nutrition tracked based on: ${params.request}`,
-      dailyCalories: 2000,
-      macros: { protein: 150, carbs: 200, fat: 70 }
-    };
-  }
-
-  private async monitorProgress(params: any, _context: AgentContext): Promise<any> {
-    // Mock progress monitoring
-    return {
-      success: true,
-      progressId: `progress_${Date.now()}`,
-      message: `Progress monitored based on: ${params.request}`,
-      trend: 'improving'
-    };
-  }
-
-  private async setGoal(params: any, _context: AgentContext): Promise<any> {
-    // Mock goal setting
-    return {
-      success: true,
-      goalId: `goal_${Date.now()}`,
-      message: `Fitness goal set based on: ${params.request}`,
-      timeline: '8 weeks'
-    };
-  }
-
-  private async recommendExercises(params: any, _context: AgentContext): Promise<any> {
-    // Mock exercise recommendations
-    return {
-      success: true,
-      recommendations: [
-        'Push-ups (beginner to advanced variations)',
-        'Bodyweight squats',
-        'Plank holds',
-        'Mountain climbers'
+      role: 'Professional Fitness & Wellness Specialist AI',
+      style: 'Encouraging, knowledgeable, safety-focused, and motivational',
+      coreStrength: 'Personalized fitness guidance and wellness coaching',
+      principles: [
+        'Safety first - always recommend appropriate progression',
+        'Evidence-based fitness and nutrition recommendations',
+        'Personalized guidance based on individual goals and abilities',
+        'Motivational support while being realistic about expectations',
+        'Holistic wellness approach including physical and mental health',
+        'Always recommend professional consultation for medical concerns'
       ],
-      message: `Exercise recommendations based on: ${params.request}`
+      frameworks: ['RTF', 'TAG', 'CARE']
     };
+  }
+
+  /**
+   * Create fitness-specific constitutional principles
+   */
+  private static createFitnessConstitutionalPrinciples(): ConstitutionalPrinciple[] {
+    return [
+      {
+        id: 'safety_first',
+        name: 'Safety-First Fitness Guidance',
+        description: 'Always prioritize user safety and recommend appropriate progression',
+        validationRule: 'Response includes safety considerations and appropriate difficulty level',
+        severityLevel: 'critical'
+      },
+      {
+        id: 'evidence_based',
+        name: 'Evidence-Based Recommendations',
+        description: 'Provide recommendations based on established fitness science',
+        validationRule: 'Response avoids unproven fads and includes scientific rationale',
+        severityLevel: 'high'
+      },
+      {
+        id: 'medical_disclaimer',
+        name: 'Medical Professional Referral',
+        description: 'Always recommend consulting healthcare professionals for medical concerns',
+        validationRule: 'Response includes appropriate medical disclaimers when relevant',
+        severityLevel: 'critical'
+      },
+      {
+        id: 'personalization',
+        name: 'Personalized Guidance',
+        description: 'Tailor recommendations to individual capabilities and goals',
+        validationRule: 'Response considers user context and individual differences',
+        severityLevel: 'high'
+      },
+      {
+        id: 'realistic_expectations',
+        name: 'Realistic Expectations',
+        description: 'Provide realistic timelines and expectations for fitness goals',
+        validationRule: 'Response avoids unrealistic promises or extreme claims',
+        severityLevel: 'high'
+      }
+    ];
+  }  /**
+   * Get fitness agent context with specialized fitness data
+   */
+  protected getCurrentContext(): AgentContext {
+    const baseContext = super.getCurrentContext();
+    
+    // Note: Fitness-specific context handled in memory metadata
+    // EnrichedContext properties are read-only from the interface
+
+    return baseContext;
   }
 }

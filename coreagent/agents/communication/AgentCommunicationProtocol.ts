@@ -404,6 +404,13 @@ export class AgentCommunicationProtocol {
     };
   }
 
+  /**
+   * Get all registered agents in the network
+   */
+  getRegisteredAgents(): Map<string, AgentRegistration> {
+    return new Map(this.agentRegistry);
+  }
+
   // Private helper methods
 
   private async validateRegistrationSecurity(registration: AgentRegistration): Promise<boolean> {
