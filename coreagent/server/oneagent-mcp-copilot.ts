@@ -117,7 +117,15 @@ const auditLogger = new SimpleAuditLogger({
   enableConsoleOutput: false
 });
 
-const triageAgent = new TriageAgent();
+const triageConfig: import('../agents/base/BaseAgent').AgentConfig = {
+  id: 'TriageAgent',
+  name: 'Triage Agent',
+  description: 'Agent specialized in task routing and prioritization',
+  capabilities: ['task-routing', 'priority-assessment', 'delegation', 'coordination'],
+  memoryEnabled: true,
+  aiEnabled: true
+};
+const triageAgent = new TriageAgent(triageConfig);
 
 // Initialize Multi-Agent Communication System
 AgentCommunicationProtocol.resetSingleton(); // HARD RESET to clear phantom agents

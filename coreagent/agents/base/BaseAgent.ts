@@ -14,6 +14,7 @@
 import { UnifiedMemoryClient } from '../../memory/UnifiedMemoryClient';
 import { ConversationMemory, MemorySearchQuery } from '../../memory/UnifiedMemoryInterface';
 import { oneAgentConfig } from '../../config/index';
+import { SmartGeminiClient } from '../../tools/SmartGeminiClient';
 import { GeminiClient } from '../../tools/geminiClient';
 import { User } from '../../types/user';
 import { EnrichedContext } from '../../orchestrator/interfaces/IMemoryContextBridge';
@@ -71,7 +72,7 @@ export interface AgentAction {
 export abstract class BaseAgent {
   public config: AgentConfig;
   protected memoryClient?: UnifiedMemoryClient;
-  protected aiClient?: GeminiClient;
+  protected aiClient?: SmartGeminiClient;
   protected isInitialized: boolean = false;
   
   // Advanced Prompt Engineering Components
@@ -96,13 +97,13 @@ export abstract class BaseAgent {
           retryDelay: 1000,
           enableSSL: oneAgentConfig.memoryUrl.startsWith('https')
         });
-      }// Initialize AI client if enabled
+      }      // Initialize AI client if enabled
       if (this.config.aiEnabled) {
-        this.aiClient = new GeminiClient({
-          apiKey: process.env.GOOGLE_API_KEY || process.env.GEMINI_API_KEY || 'your_google_gemini_api_key_here',
-          model: 'gemini-2.5-pro-preview-05-06'
+        this.aiClient = new SmartGeminiClient({
+          apiKey: process.env.GOOGLE_API_KEY || process.env.GEMINI_API_KEY,
+          model: 'gemini-2.0-flash-exp'
         });
-      }      // Initialize Advanced Prompt Engineering System
+      }// Initialize Advanced Prompt Engineering System
       await this.initializePromptEngineering();
 
       // Auto-register with multi-agent system
@@ -530,8 +531,7 @@ Generate a refined response that addresses the improvement areas while maintaini
   /**
    * Get agent status and health information
    * This is a common method all agents should have for monitoring
-   */
-  getStatus(): {
+   */  getStatus(): {
     agentId: string;
     name: string;
     description: string;
@@ -540,6 +540,9 @@ Generate a refined response that addresses the improvement areas while maintaini
     memoryEnabled: boolean;
     aiEnabled: boolean;
     lastActivity?: Date;
+    isHealthy: boolean;
+    processedMessages: number;
+    errors: number;
   } {
     return {
       agentId: this.config.id,
@@ -549,7 +552,10 @@ Generate a refined response that addresses the improvement areas while maintaini
       capabilities: this.config.capabilities,
       memoryEnabled: this.config.memoryEnabled,
       aiEnabled: this.config.aiEnabled,
-      lastActivity: new Date() // Could be enhanced to track actual last activity
+      lastActivity: new Date(), // Could be enhanced to track actual last activity
+      isHealthy: this.isInitialized,
+      processedMessages: 0, // Could be enhanced to track actual processed messages
+      errors: 0 // Could be enhanced to track actual errors
     };
   }
 }

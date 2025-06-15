@@ -256,13 +256,12 @@ export class DialogueFacilitator {
     // Would use AI assistant to generate contextual opening based on agent's expertise
     return `Opening statement from ${agentId} on ${topic}`;
   }
-
-  private async getAgentPerspective(agentId: string): Promise<string> {
+  private async getAgentPerspective(_agentId: string): Promise<string> {
     // Would retrieve agent's personality and perspective from our agent registry
     return "analytical";
   }
 
-  private findMostQualifiedResponder(question: string, participants: string[]): string {
+  private findMostQualifiedResponder(_question: string, participants: string[]): string {
     // Would analyze question content and match to agent expertise
     return participants[0]; // Simplified
   }
@@ -295,13 +294,12 @@ export class DialogueFacilitator {
       .map(turn => `${turn.agentId}: ${turn.content}`)
       .join('\n');
   }
-
-  private async getAgentContext(agentId: string): Promise<any> {
+  private async getAgentContext(_agentId: string): Promise<any> {
     // Would retrieve agent's personality, expertise, and conversation style
     return { perspective: "analytical", expertise: ["system-design"], style: "collaborative" };
   }
 
-  private determineOptimalResponseType(thread: DiscussionThread, agentId: string): TurnType {
+  private determineOptimalResponseType(thread: DiscussionThread, _agentId: string): TurnType {
     const lastTurn = thread.turns[thread.turns.length - 1];
     
     // Simple logic - would be more sophisticated in real implementation
@@ -310,13 +308,12 @@ export class DialogueFacilitator {
     
     return TurnType.RESPONSE;
   }
-
   private async generateResponseContent(
     agentId: string,
     topic: string,
-    history: string,
+    _history: string,
     responseType: TurnType,
-    agentContext: any
+    _agentContext: any
   ): Promise<string> {
     // Would use AI assistant to generate contextual response
     return `${responseType} response from ${agentId} about ${topic}`;
@@ -325,23 +322,22 @@ export class DialogueFacilitator {
   private getRelevantPreviousTurn(turns: ConversationTurn[]): string | undefined {
     return turns[turns.length - 1]?.agentId;
   }
-
-  private async findSynthesisOpportunities(turns: ConversationTurn[]): Promise<Insight[]> {
+  private async findSynthesisOpportunities(_turns: ConversationTurn[]): Promise<Insight[]> {
     // Would identify where multiple agents' ideas can be combined
     return [];
   }
 
-  private async findNovelConnections(turns: ConversationTurn[]): Promise<Insight[]> {
+  private async findNovelConnections(_turns: ConversationTurn[]): Promise<Insight[]> {
     // Would identify unexpected relationships between ideas
     return [];
   }
 
-  private async analyzeSuccessfulChallenges(turns: ConversationTurn[]): Promise<Insight[]> {
+  private async analyzeSuccessfulChallenges(_turns: ConversationTurn[]): Promise<Insight[]> {
     // Would identify where challenges led to better understanding
     return [];
   }
 
-  private async calculateOverallQuality(thread: DiscussionThread): Promise<number> {
+  private async calculateOverallQuality(_thread: DiscussionThread): Promise<number> {
     // Would calculate composite quality score
     return 0.8;
   }
@@ -370,8 +366,7 @@ export class DialogueFacilitator {
     const variance = participation.reduce((acc, val) => acc + Math.pow(val - avg, 2), 0) / participation.length;
     return Math.max(0, 1 - variance / avg); // Lower variance = better balance
   }
-
-  private async assessTopicCoverage(topic: string, turns: ConversationTurn[]): Promise<number> {
+  private async assessTopicCoverage(_topic: string, _turns: ConversationTurn[]): Promise<number> {
     // Would analyze how thoroughly the topic was explored
     return 0.7;
   }
@@ -392,36 +387,35 @@ export class DialogueFacilitator {
   private rankInsightsByImportance(insights: Insight[]): Insight[] {
     return insights.sort((a, b) => (b.confidence * b.novelty) - (a.confidence * a.novelty));
   }
-
-  private async extractMajorPoints(turns: ConversationTurn[]): Promise<string[]> {
+  private async extractMajorPoints(_turns: ConversationTurn[]): Promise<string[]> {
     // Would identify key points made during discussion
     return ["Point 1", "Point 2", "Point 3"];
   }
 
-  private async identifyAgreement(turns: ConversationTurn[]): Promise<string[]> {
+  private async identifyAgreement(_turns: ConversationTurn[]): Promise<string[]> {
     // Would find areas where agents agreed
     return ["Agreement on X", "Consensus on Y"];
   }
 
-  private async identifyUnresolvedQuestions(turns: ConversationTurn[]): Promise<string[]> {
+  private async identifyUnresolvedQuestions(_turns: ConversationTurn[]): Promise<string[]> {
     // Would find questions that weren't fully answered
     return ["Question about Z", "Uncertainty regarding W"];
   }
 
-  private async suggestFollowupActions(thread: DiscussionThread): Promise<string[]> {
+  private async suggestFollowupActions(_thread: DiscussionThread): Promise<string[]> {
     // Would suggest concrete next steps based on discussion
     return ["Research X further", "Schedule follow-up on Y"];
   }
 
-  private async identifyStrengths(thread: DiscussionThread): Promise<string[]> {
+  private async identifyStrengths(_thread: DiscussionThread): Promise<string[]> {
     return ["Good perspective diversity", "Constructive challenges"];
   }
 
-  private async identifyWeaknesses(thread: DiscussionThread): Promise<string[]> {
+  private async identifyWeaknesses(_thread: DiscussionThread): Promise<string[]> {
     return ["Could use more specific examples", "Some points need deeper exploration"];
   }
 
-  private async generateRecommendations(thread: DiscussionThread): Promise<string[]> {
+  private async generateRecommendations(_thread: DiscussionThread): Promise<string[]> {
     return ["Invite domain expert", "Focus more on practical implications"];
   }
 }

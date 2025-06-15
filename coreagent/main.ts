@@ -46,8 +46,7 @@ class CoreAgent {
       apiKey: process.env.BRAVE_API_KEY || 'your_brave_search_api_key_here',
       ...(process.env.BRAVE_API_URL && { baseUrl: process.env.BRAVE_API_URL })
     };
-    this.braveSearchClient = new BraveSearchClient(braveConfig);
-    
+    this.braveSearchClient = new BraveSearchClient(braveConfig);    
     // Initialize web search tool
     this.webSearchTool = new WebSearchTool(this.braveSearchClient);
     
@@ -57,11 +56,23 @@ class CoreAgent {
       model: process.env.GOOGLE_MODEL || 'gemini-pro'
     };
     this.geminiClient = new GeminiClient(geminiConfig);
-      // Initialize AI assistant
-    this.aiAssistant = new AIAssistantTool(this.geminiClient);    // Initialize embeddings tool
+    
+    // Initialize AI assistant
+    this.aiAssistant = new AIAssistantTool(this.geminiClient);
+    
+    // Initialize embeddings tool
     this.embeddingsTool = new GeminiEmbeddingsTool(this.geminiClient, this.unifiedMemoryClient);
-      // Initialize TriageAgent for intelligent task routing
-    this.triageAgent = new TriageAgent();
+    
+    // Initialize TriageAgent for intelligent task routing
+    const triageConfig: import('./agents/base/BaseAgent').AgentConfig = {
+      id: 'TriageAgent',
+      name: 'Triage Agent',
+      description: 'Agent specialized in task routing and prioritization',
+      capabilities: ['task-routing', 'priority-assessment', 'delegation', 'coordination'],
+      memoryEnabled: true,
+      aiEnabled: true
+    };
+    this.triageAgent = new TriageAgent(triageConfig);
   }
 
   /**

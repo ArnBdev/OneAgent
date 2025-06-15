@@ -8,7 +8,7 @@
  * - Have specialized domain expertise
  */
 
-import { BaseAgent } from '../base/BaseAgent';
+import { BaseAgent, AgentConfig } from '../base/BaseAgent';
 import { CoreAgent } from '../specialized/CoreAgent';
 import { DevAgent } from '../specialized/DevAgent';
 import { OfficeAgent } from '../specialized/OfficeAgent';
@@ -38,15 +38,20 @@ export class AgentFactory {
 
   /**
    * Create or get existing DevAgent instance
-   */
-  static async createDevAgent(): Promise<BaseAgent> {
+   */  static async createDevAgent(): Promise<BaseAgent> {
     const agentId = 'DevAgent';
     
     if (this.instances.has(agentId)) {
       return this.instances.get(agentId)!;
-    }
-
-    const agent = new DevAgent();
+    }    const config: AgentConfig = {
+      id: agentId,
+      name: 'Development Agent',
+      description: 'Agent specialized in development tasks',
+      capabilities: ['code-review', 'debugging', 'architecture', 'testing'],
+      memoryEnabled: true,
+      aiEnabled: true
+    };
+    const agent = new DevAgent(config);
     await agent.initialize();
     
     this.instances.set(agentId, agent);
@@ -56,15 +61,22 @@ export class AgentFactory {
   }
   /**
    * Create or get existing OfficeAgent instance
-   */
-  static async createOfficeAgent(): Promise<BaseAgent> {
+   */  static async createOfficeAgent(): Promise<BaseAgent> {
     const agentId = 'OfficeAgent';
     
     if (this.instances.has(agentId)) {
       return this.instances.get(agentId)!;
     }
 
-    const agent = new OfficeAgent();
+    const config: AgentConfig = {
+      id: agentId,
+      name: 'Office Agent',
+      description: 'Agent specialized in office productivity tasks',
+      capabilities: ['email-management', 'scheduling', 'document-creation', 'communication'],
+      memoryEnabled: true,
+      aiEnabled: true
+    };
+    const agent = new OfficeAgent(config);
     await agent.initialize();
     
     this.instances.set(agentId, agent);
@@ -75,15 +87,22 @@ export class AgentFactory {
 
   /**
    * Create or get existing FitnessAgent instance
-   */
-  static async createFitnessAgent(): Promise<BaseAgent> {
+   */  static async createFitnessAgent(): Promise<BaseAgent> {
     const agentId = 'FitnessAgent';
     
     if (this.instances.has(agentId)) {
       return this.instances.get(agentId)!;
     }
 
-    const agent = new FitnessAgent();
+    const config: AgentConfig = {
+      id: agentId,
+      name: 'Fitness Agent',
+      description: 'Agent specialized in fitness and health guidance',
+      capabilities: ['workout-planning', 'nutrition-advice', 'health-tracking', 'motivation'],
+      memoryEnabled: true,
+      aiEnabled: true
+    };
+    const agent = new FitnessAgent(config);
     await agent.initialize();
     
     this.instances.set(agentId, agent);
@@ -93,15 +112,22 @@ export class AgentFactory {
   }
   /**
    * Create or get existing TriageAgent instance
-   */
-  static async createTriageAgent(): Promise<BaseAgent> {
+   */  static async createTriageAgent(): Promise<BaseAgent> {
     const agentId = 'TriageAgent';
     
     if (this.instances.has(agentId)) {
       return this.instances.get(agentId)!;
     }
 
-    const agent = new TriageAgent();
+    const config: AgentConfig = {
+      id: agentId,
+      name: 'Triage Agent',
+      description: 'Agent specialized in task routing and prioritization',
+      capabilities: ['task-routing', 'priority-assessment', 'delegation', 'coordination'],
+      memoryEnabled: true,
+      aiEnabled: true
+    };
+    const agent = new TriageAgent(config);
     await agent.initialize();
     
     this.instances.set(agentId, agent);

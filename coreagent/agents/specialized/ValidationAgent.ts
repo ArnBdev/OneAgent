@@ -342,6 +342,46 @@ export class ValidationAgent extends BaseAgent implements ISpecializedAgent {
   private calculateBMADConfidence(analysis: any): number {
     return 0.85; // Simplified confidence calculation
   }
+
+  /**
+   * Process incoming messages with validation and Constitutional AI compliance
+   */
+  async processMessage(message: string, context: AgentContext): Promise<string> {
+    try {
+      // Store user message in memory
+      await this.storeUserMessage(message, context);
+      
+      // Determine validation type based on message content
+      if (message.toLowerCase().includes('validate') || message.toLowerCase().includes('check')) {
+        // Perform code or content validation
+        const validationResult = await this.performConstitutionalCheck(message, context, context);
+        
+        // Store AI response in memory
+        await this.storeAIResponse(validationResult, context);
+        
+        return validationResult;
+      } else {
+        // General validation guidance
+        const response = `I'm ValidationAgent, specialized in code quality validation and Constitutional AI compliance. I can help you:
+
+• Validate code quality and best practices
+• Perform Constitutional AI compliance checks  
+• Conduct BMAD (Belief, Motivation, Authority, Dependency) analysis
+• Provide security and safety recommendations
+
+What would you like me to validate or analyze?`;
+        
+        // Store AI response in memory
+        await this.storeAIResponse(response, context);
+        
+        return response;
+      }
+    } catch (error: any) {
+      const errorMessage = `ValidationAgent error: ${error.message}`;
+      console.error(errorMessage);
+      return errorMessage;
+    }
+  }
 }
 
 // Export for use with AgentFactory following OneAgent patterns
