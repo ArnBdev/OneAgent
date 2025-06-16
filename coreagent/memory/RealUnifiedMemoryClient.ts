@@ -118,37 +118,69 @@ export class RealUnifiedMemoryClient extends EventEmitter {
     };
 
     console.log('[RealUnifiedMemoryClient] Initialized with real ChromaDB backend');
-  }
-  /**
-   * Connect to OneAgent Memory Server via REST API
+  }  /**
+   * Connect to OneAgent Memory Server via REST API with retry mechanism
    */
   async connect(): Promise<void> {
-    try {
-      console.log('[RealUnifiedMemoryClient] Connecting to OneAgent Memory Server...');
-      
-      // Test connection to memory server
-      const healthUrl = `http://${this.config.host}:${this.config.port}/health`;
-      const response = await fetch(healthUrl);
-      
-      if (!response.ok) {
-        throw new Error(`Memory server health check failed: ${response.status}`);
+    const maxRetries = 5;
+    const baseDelay = 1000; // 1 second
+    let lastError: Error | null = null;
+
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+      try {
+        console.log(`[RealUnifiedMemoryClient] Connection attempt ${attempt}/${maxRetries}...`);
+          // Test connection to memory server with timeout
+        const healthUrl = `http://${this.config.host}:${this.config.port}/health`;
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 second timeout
+        
+        const response = await fetch(healthUrl, {
+          method: 'GET',
+          signal: controller.signal
+        });
+        
+        clearTimeout(timeoutId);
+        
+        if (!response.ok) {
+          throw new Error(`Memory server health check failed: ${response.status} ${response.statusText}`);
+        }
+        
+        const healthData = await response.json();
+        
+        // Validate the response structure
+        if (!healthData.success) {
+          throw new Error(`Memory server health check returned failure: ${healthData.message || 'Unknown error'}`);
+        }
+        
+        // Mark as connected
+        this.isConnected = true;
+        this.emit('connected', {
+          type: 'OneAgentMemoryServer',
+          server: 'oneagent_memory_server.py',
+          capabilities: ['vector_search', 'embeddings', 'persistence', 'semantic_search'],
+          attempt,
+          healthData
+        });
+        
+        console.log(`[RealUnifiedMemoryClient] ✅ Connected to OneAgent Memory Server successfully on attempt ${attempt}`);
+        return; // Success - exit retry loop
+        
+      } catch (error) {
+        lastError = error instanceof Error ? error : new Error(String(error));
+        console.warn(`[RealUnifiedMemoryClient] ⚠️ Connection attempt ${attempt}/${maxRetries} failed:`, lastError.message);
+        
+        if (attempt === maxRetries) {
+          // Final attempt failed
+          console.error('[RealUnifiedMemoryClient] ❌ All connection attempts failed:', lastError);
+          this.emit('error', lastError);
+          throw new Error(`Failed to connect to memory server after ${maxRetries} attempts. Last error: ${lastError.message}`);
+        }
+        
+        // Wait before retry with exponential backoff
+        const delay = Math.min(baseDelay * Math.pow(2, attempt - 1), 30000); // Max 30 seconds
+        console.log(`[RealUnifiedMemoryClient] 🔄 Retrying in ${delay}ms...`);
+        await new Promise(resolve => setTimeout(resolve, delay));
       }
-      
-      const healthData = await response.json();      
-      // Mark as connected
-      this.isConnected = true;
-      this.emit('connected', {
-        type: 'OneAgentMemoryServer',
-        server: 'oneagent_memory_server.py',
-        capabilities: ['vector_search', 'embeddings', 'persistence', 'semantic_search']
-      });
-      
-      console.log('[RealUnifiedMemoryClient] ✅ Connected to OneAgent Memory Server successfully');
-      
-    } catch (error) {
-      console.error('[RealUnifiedMemoryClient] ❌ Failed to connect:', error);
-      this.emit('error', error);
-      throw error;
     }
   }
   /**
@@ -231,21 +263,23 @@ export class RealUnifiedMemoryClient extends EventEmitter {
         // constitutionalLevel: constitutionalLevel.toString(),
         // constitutionalCompliance: constitutionalResult.valid
       });      // Make REST API call to memory server using correct endpoints
-      const createUrl = `${this.config.host === 'localhost' ? 'http://127.0.0.1' : `http://${this.config.host}`}:${this.config.port}/memory/conversations`;
-      
-      // Prepare request body to match memory server API schema
+      const createUrl = `${this.config.host === 'localhost' ? 'http://127.0.0.1' : `http://${this.config.host}`}:${this.config.port}/v1/memories`;
+        // Prepare request body to match memory server API schema
       const requestBody = {
-        id: memoryId,
-        agent_id: metadata.agentId || 'oneagent_system',
-        user_id: userId, // Memory server expects 'user_id' not 'userId'
-        timestamp: new Date().toISOString(),
         content,
-        context: cleanMetadata,
-        outcome: {
+        userId, // Memory server expects 'userId' with alias to 'user_id'
+        metadata: {
+          ...cleanMetadata,
+          agentId: metadata.agentId || 'oneagent_system',
+          timestamp: new Date().toISOString(),
+          memoryId,
           qualityScore,
           constitutionalCompliance: constitutionalResult.valid
         }
       };
+      
+      // Debug logging to see what we're sending
+      console.log('[RealUnifiedMemoryClient] Creating memory with request:', JSON.stringify(requestBody, null, 2));
       
       const response = await fetch(createUrl, {
         method: 'POST',
@@ -258,6 +292,12 @@ export class RealUnifiedMemoryClient extends EventEmitter {
       if (!response.ok) {
         throw new Error(`Memory server create failed: ${response.status} ${response.statusText}`);
       }      const result = await response.json();
+      
+      // Check if the memory server operation was successful
+      if (!result.success) {
+        throw new Error(`Memory server operation failed: ${result.message || 'Unknown server error'}`);
+      }
+      
       const createdMemory = result.data; // FastAPI server returns data in 'data' field
 
       // Update metrics
@@ -272,7 +312,7 @@ export class RealUnifiedMemoryClient extends EventEmitter {
         memoryId: createdMemory?.id || memoryId,
         qualityScore,
         constitutionalCompliance: true,
-        message: 'Memory created successfully with real persistence'
+        message: result.message || 'Memory created successfully with real persistence'
       };
 
     } catch (error) {
@@ -299,15 +339,14 @@ export class RealUnifiedMemoryClient extends EventEmitter {
       throw new Error('Memory client not connected');
     }
 
-    const startTime = Date.now();    try {
-      // Make REST API call to memory server for search using correct endpoint
+    const startTime = Date.now();    try {      // Make REST API call to memory server using correct schema
       const searchUrl = `${this.config.host === 'localhost' ? 'http://127.0.0.1' : `http://${this.config.host}`}:${this.config.port}/memory/search`;
-        const requestBody = {
+      
+      const requestBody = {
         query: query,
-        agent_ids: [userId || 'oneagent_system'],
-        memory_types: memoryTypes || ['conversations', 'learnings', 'patterns'],
-        max_results: limit,
-        semantic_search: true
+        userId: userId || 'oneagent_system',
+        limit: limit,
+        metadata_filter: memoryTypes ? { memoryType: memoryTypes } : undefined
       };
       
       const response = await fetch(searchUrl, {
@@ -321,7 +360,10 @@ export class RealUnifiedMemoryClient extends EventEmitter {
       if (!response.ok) {
         throw new Error(`Memory server search failed: ${response.status} ${response.statusText}`);
       }      const result = await response.json();
-      const memories = result.results || result.memories || []; // Handle different response formats
+      console.log('[RealUnifiedMemoryClient] Memory search response:', JSON.stringify(result, null, 2));
+      
+      const memories = result.data || result.results || result.memories || []; // Handle different response formats
+      console.log('[RealUnifiedMemoryClient] Extracted memories array:', memories.length, 'memories');
       
       // Convert to expected format based on memory server API schema
       const searchResults = memories.map((memory: any) => ({
@@ -356,7 +398,6 @@ export class RealUnifiedMemoryClient extends EventEmitter {
       };
     }
   }
-
   /**
    * Edit existing memory
    */
@@ -750,13 +791,12 @@ export class RealUnifiedMemoryClient extends EventEmitter {
     }
     
     return sanitized;
-  }
-  /**
-   * Clean metadata by removing null/undefined values and ensuring ChromaDB compatibility
-   * ChromaDB only accepts string, number, boolean values in metadata
+  }  /**
+   * Clean metadata by removing null/undefined values and ensuring memory server compatibility
+   * Memory server accepts arrays for specific fields like 'tags', but ChromaDB needs JSON strings
    */
-  private cleanMetadata(metadata: Record<string, any>): Record<string, string | number | boolean> {
-    const cleaned: Record<string, string | number | boolean> = {};
+  private cleanMetadata(metadata: Record<string, any>): Record<string, any> {
+    const cleaned: Record<string, any> = {};
     
     for (const [key, value] of Object.entries(metadata)) {
       if (value === null || value === undefined) {
@@ -768,8 +808,11 @@ export class RealUnifiedMemoryClient extends EventEmitter {
       } else if (value instanceof Date) {
         // Convert dates to ISO strings
         cleaned[key] = value.toISOString();
+      } else if (key === 'tags' && Array.isArray(value)) {
+        // Keep tags as arrays for memory server compatibility
+        cleaned[key] = value;
       } else if (typeof value === 'object') {
-        // Convert objects to JSON strings
+        // Convert other objects to JSON strings
         cleaned[key] = JSON.stringify(value);
       } else {
         // Convert everything else to string

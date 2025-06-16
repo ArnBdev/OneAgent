@@ -4,7 +4,7 @@
  */
 
 import { UnifiedMCPTool, ToolExecutionResult, InputSchema } from './UnifiedMCPTool';
-import { UnifiedMemoryClient } from '../memory/UnifiedMemoryClient';
+import { realUnifiedMemoryClient } from '../memory/RealUnifiedMemoryClient';
 import { oneAgentConfig } from '../config/index';
 
 export class MemoryCreateTool extends UnifiedMCPTool {
@@ -46,11 +46,10 @@ export class MemoryCreateTool extends UnifiedMCPTool {
     try {        const memoryType = args.memoryType || 'long_term';
       
       // Use the singleton RealUnifiedMemoryClient instance
-      const { realUnifiedMemoryClient } = await import('../memory/RealUnifiedMemoryClient');      
-      // Ensure connection to the FastAPI server (safe to call multiple times)
+      const { realUnifiedMemoryClient } = await import('../memory/RealUnifiedMemoryClient');        // Ensure connection to the FastAPI server (safe to call multiple times)
       await realUnifiedMemoryClient.connect();
 
-      // Create comprehensive metadata with rich contextual information
+      // Create comprehensive metadata for professional AI memory system
       const enhancedMetadata = {
         // Core identity and source tracking
         source: args.metadata?.source || 'oneagent_mcp_tool',
@@ -91,24 +90,11 @@ export class MemoryCreateTool extends UnifiedMCPTool {
         // Performance and system metrics
         systemHealth: 'operational',
         memoryServerVersion: '4.0.0',
-        
-        // Priority handling with intelligent conversion
+          // Priority handling with intelligent conversion (1-5 scale for server)
         priority: typeof args.metadata?.priority === 'string' 
-          ? (args.metadata.priority === 'high' ? 90 : args.metadata.priority === 'medium' ? 75 : args.metadata.priority === 'low' ? 50 : 75)
-          : (args.metadata?.priority || 75),
-          
-        // Include other user-provided metadata (filtered for compatibility)
-        ...(Object.fromEntries(
-          Object.entries(args.metadata || {}).filter(([key, value]) => 
-            key !== 'priority' && // Handled specially above
-            key !== 'constitutionalCompliant' && // Already included
-            key !== 'constitutionalLevel' && // Not needed in storage
-            key !== 'tags' && // Handled specially below
-            value !== null && value !== undefined && value !== ''
-          )
-        )),
-        
-        // Enhanced tags with intelligent defaults and ChromaDB compatibility
+          ? (args.metadata.priority === 'high' ? 5 : args.metadata.priority === 'medium' ? 3 : args.metadata.priority === 'low' ? 1 : 3)
+          : (args.metadata?.priority && args.metadata.priority <= 5 ? args.metadata.priority : 3),
+            // Enhanced tags with intelligent defaults and ChromaDB compatibility (list format)
         tags: (() => {
           const baseTags = ['oneagent', 'mcp-tool', 'memory-creation'];
           const userTags = args.metadata?.tags;
@@ -117,13 +103,14 @@ export class MemoryCreateTool extends UnifiedMCPTool {
             const allTags = Array.isArray(userTags) 
               ? [...baseTags, ...userTags] 
               : [...baseTags, String(userTags)];
-            return allTags.join(',');
+            return allTags; // Return as list, not comma-separated string
           }
           
-          return baseTags.join(',');
+          return baseTags; // Return as list, not comma-separated string
         })()
       };
-        const result = await realUnifiedMemoryClient.createMemory(
+      
+      const result = await realUnifiedMemoryClient.createMemory(
         args.content,
         args.userId,
         memoryType,

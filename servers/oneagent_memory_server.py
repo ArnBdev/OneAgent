@@ -43,6 +43,7 @@ import asyncio
 from datetime import datetime, timezone
 from typing import Dict, List, Optional, Any, Union
 from uuid import uuid4
+from contextlib import asynccontextmanager
 
 # FastAPI for production performance
 from fastapi import FastAPI, HTTPException, Query, Path, BackgroundTasks
@@ -149,8 +150,7 @@ class MemoryMetadata(BaseModel):
     serverUrl: Optional[str] = None
     configurationValid: Optional[bool] = None
     capabilities: Optional[List[str]] = None
-    
-    # Allow additional arbitrary metadata
+      # Allow additional arbitrary metadata
     class Config:
         extra = "allow"  # Allow additional fields not defined in the model
 
@@ -161,7 +161,7 @@ class MemoryCreateRequest(BaseModel):
     metadata: Optional[MemoryMetadata] = None
     
     class Config:
-        allow_population_by_field_name = True
+        populate_by_name = True  # Updated for Pydantic V2
 
 class MemorySearchRequest(BaseModel):
     """Memory search request"""
@@ -171,7 +171,7 @@ class MemorySearchRequest(BaseModel):
     metadata_filter: Optional[Dict[str, Any]] = None
     
     class Config:
-        allow_population_by_field_name = True
+        populate_by_name = True  # Updated for Pydantic V2
 
 class MemoryResponse(BaseModel):
     """Memory response model"""
@@ -244,10 +244,12 @@ class OneAgentMemorySystem:
         """Create new memory with validation"""
         try:
             memory_id = str(uuid4())
-            now = datetime.now(timezone.utc).isoformat()            # Prepare metadata - filter out None values and convert lists to strings for ChromaDB compatibility
+            now = datetime.now(timezone.utc).isoformat()
+            
+            # Prepare metadata - filter out None values and convert lists to strings for ChromaDB compatibility
             if request.metadata:
                 # Convert to dict and filter out None values
-                metadata_dict = request.metadata.dict()
+                metadata_dict = request.metadata.model_dump()
                 metadata = {}
                 for k, v in metadata_dict.items():
                     if v is not None:
@@ -304,34 +306,55 @@ class OneAgentMemorySystem:
                     where={"userId": request.user_id}
                 )
             else:
-                # Get all memories for user
+                # Get all memories for user (get() returns flat arrays, not nested)
                 results = self.collection.get(
-                    where={"userId": request.user_id},
-                    limit=request.limit
+                    where={"userId": request.user_id}
                 )
+                # Manually limit results since get() doesn't accept limit parameter
+                if results.get('ids') and len(results['ids']) > request.limit:
+                    results = {
+                        'ids': results['ids'][:request.limit],                        'documents': results['documents'][:request.limit],
+                        'metadatas': results['metadatas'][:request.limit]
+                    }
             
             memories = []
-            if results.get('ids') and results['ids'][0]:
-                for i, memory_id in enumerate(results['ids'][0]):
-                    content = results['documents'][0][i]
-                    metadata = results['metadatas'][0][i]
-                    
-                    # Calculate relevance score if available
-                    relevance = None
-                    if results.get('distances') and results['distances'][0]:
-                        # Convert distance to similarity score (1 - distance)
-                        relevance = 1.0 - results['distances'][0][i]
-                    
-                    memory = MemoryResponse(
-                        id=memory_id,
-                        content=content,
-                        metadata=metadata,
-                        userId=metadata.get("userId", request.user_id),
-                        createdAt=metadata.get("createdAt", ""),
-                        updatedAt=metadata.get("updatedAt", ""),
-                        relevanceScore=relevance
-                    )
-                    memories.append(memory)
+            
+            # Handle different result structures: query() returns nested arrays, get() returns flat arrays
+            if results.get('ids'):
+                # Check if this is a query result (nested arrays) or get result (flat arrays)
+                if request.query:
+                    # Query results: nested arrays
+                    ids = results['ids'][0] if results['ids'] and results['ids'][0] else []
+                    documents = results['documents'][0] if results['documents'] and results['documents'][0] else []
+                    metadatas = results['metadatas'][0] if results['metadatas'] and results['metadatas'][0] else []
+                    distances = results.get('distances', [[]])[0] if results.get('distances') and results['distances'][0] else []
+                else:
+                    # Get results: flat arrays
+                    ids = results['ids']
+                    documents = results['documents']
+                    metadatas = results['metadatas']
+                    distances = []  # No distances in get results
+                
+                # Process results safely
+                for i, memory_id in enumerate(ids):
+                    if i < len(documents) and i < len(metadatas):
+                        content = documents[i]
+                        metadata = metadatas[i]
+                          # Calculate relevance score if available
+                        relevance = None
+                        if distances and i < len(distances):
+                            # Convert distance to similarity score (1 - distance)
+                            relevance = 1.0 - distances[i]
+                        
+                        memory = MemoryResponse(
+                            id=memory_id,
+                            content=content,
+                            metadata=metadata,
+                            userId=metadata.get("userId", request.user_id),
+                            createdAt=metadata.get("createdAt", ""),
+                            updatedAt=metadata.get("updatedAt", ""),
+                            relevanceScore=relevance                        )
+                        memories.append(memory)
             
             logger.info(f"Search completed: {len(memories)} results for user {request.user_id}")
             return memories
@@ -377,14 +400,38 @@ class OneAgentMemorySystem:
             return {"error": str(e)}
 
 # ============================================================================
-# FASTAPI APPLICATION
+# FASTAPI APPLICATION WITH MODERN LIFESPAN
 # ============================================================================
 
-# Initialize FastAPI app
+# This will be initialized after the lifespan function is defined below
+
+# Initialize memory system
+memory_system = OneAgentMemorySystem()
+
+# ============================================================================
+# SERVER LIFESPAN MANAGEMENT (Modern FastAPI)
+# ============================================================================
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Modern FastAPI lifespan management"""
+    # Startup
+    logger.info("OneAgent Memory Server v4.0.0 Starting...")
+    logger.info(f"Configuration validated successfully")
+    logger.info(f"Memory system operational: {memory_system.collection.count()} memories")
+    logger.info(f"Server ready at http://{config.host}:{config.port}")
+    
+    yield
+    
+    # Shutdown
+    logger.info("OneAgent Memory Server shutting down...")
+
+# Create FastAPI app with modern lifespan
 app = FastAPI(
     title="OneAgent Memory Server",
-    description="Production-grade memory system with Gemini embeddings and ChromaDB",
+    description="Professional AI Memory System with ChromaDB",
     version="4.0.0",
+    lifespan=lifespan,
     docs_url="/docs",
     redoc_url="/redoc"
 )
@@ -398,8 +445,35 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Initialize memory system
-memory_system = OneAgentMemorySystem()
+# Add detailed validation error handler
+from fastapi import HTTPException, Request
+from fastapi.exceptions import RequestValidationError
+from fastapi.responses import JSONResponse
+
+@app.exception_handler(RequestValidationError)
+async def validation_exception_handler(request: Request, exc: RequestValidationError):
+    """Detailed validation error logging for 422 errors"""
+    error_details = []
+    for error in exc.errors():
+        error_details.append({
+            "field": error.get("loc", []),
+            "message": error.get("msg", ""),
+            "type": error.get("type", ""),
+            "input": error.get("input", "")
+        })
+    
+    logger.error(f"422 Validation Error on {request.method} {request.url}")
+    logger.error(f"Request body: {await request.body()}")
+    logger.error(f"Validation errors: {error_details}")
+    
+    return JSONResponse(
+        status_code=422,
+        content={
+            "detail": error_details,
+            "error": "Request validation failed",
+            "path": str(request.url)
+        }
+    )
 
 # ============================================================================
 # API ENDPOINTS
@@ -455,24 +529,23 @@ async def delete_memory(
         message="Memory deleted successfully"
     )
 
-# ============================================================================
-# SERVER STARTUP
-# ============================================================================
-
-async def startup_tasks():
-    """Startup tasks and validation"""
-    logger.info("OneAgent Memory Server v4.0.0 Starting...")
-    logger.info(f"Configuration validated successfully")
-    logger.info(f"Memory system operational: {memory_system.collection.count()} memories")
-    logger.info(f"Server ready at http://{config.host}:{config.port}")
-
-@app.on_event("startup")
-async def startup_event():
-    await startup_tasks()
-
-@app.on_event("shutdown")
-async def shutdown_event():
-    logger.info("OneAgent Memory Server shutting down...")
+@app.post("/memory/search", response_model=MemoryOperationResponse)
+async def legacy_search_memories(
+    request: MemorySearchRequest
+):
+    """Legacy search endpoint for backward compatibility with detailed error logging"""
+    try:
+        logger.info(f"Search request received - Query: {request.query}, User: {request.user_id}, Limit: {request.limit}")
+        memories = await memory_system.search_memories(request)
+        logger.info(f"Search completed: {len(memories)} results for user {request.user_id}")
+        return MemoryOperationResponse(
+            success=True,
+            data=memories,
+            message=f"Retrieved {len(memories)} memories via legacy endpoint"
+        )
+    except Exception as e:
+        logger.error(f"Search error for user {request.user_id}: {str(e)}")
+        raise
 
 # ============================================================================
 # MAIN EXECUTION

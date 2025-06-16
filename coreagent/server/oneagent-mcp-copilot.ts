@@ -117,15 +117,14 @@ const auditLogger = new SimpleAuditLogger({
   enableConsoleOutput: false
 });
 
-const triageConfig: import('../agents/base/BaseAgent').AgentConfig = {
-  id: 'TriageAgent',
-  name: 'Triage Agent',
-  description: 'Agent specialized in task routing and prioritization',
-  capabilities: ['task-routing', 'priority-assessment', 'delegation', 'coordination'],
-  memoryEnabled: true,
-  aiEnabled: true
-};
-const triageAgent = new TriageAgent(triageConfig);
+const triageAgent = new TriageAgent({
+  id: 'mcp-triage-agent',
+  name: 'MCP Server Triage Agent',
+  description: 'Automatic error recovery and system health monitoring for MCP server',
+  capabilities: ['task_routing', 'error_recovery', 'agent_health_monitoring'],
+  memoryEnabled: false,
+  aiEnabled: false
+});
 
 // Initialize Multi-Agent Communication System
 AgentCommunicationProtocol.resetSingleton(); // HARD RESET to clear phantom agents
@@ -155,75 +154,30 @@ const sessions = new Map<string, { id: string; createdAt: Date; lastActivity: Da
  */
 async function testMemorySystemHealth() {
   try {
-    // Test agent initialization
-    console.log('🔧 Triage agent initialized successfully');
-
-    // Simple memory validation
-    let connectionSuccessful = false;
-    let testResult: any = { success: false };
-    
-    try {
-      const testResults = await realUnifiedMemoryClient.getMemoryContext(
-        'test',
-        'oneagent_system',
-        1
-      );
-      connectionSuccessful = true;
-      testResult = { success: true, results: testResults };
-    } catch (error) {
-      connectionSuccessful = false;
-      testResult = { success: false, error: error };
-    }
-    
-    // Build simple status
-    const baseStatus = {
-      port: oneAgentConfig.memoryPort,
-      basicConnection: testResult.success,
-      connectionStatus: testResult.success ? 'connected' : 'disconnected',
-      performance: testResult.success ? 'optimal' : 'degraded'
-    };
-
-    if (testResult.success) {
-      return {
-        ...baseStatus,
-        status: 'active'
-      };
-    } else {
-      // Report memory system degradation to error monitoring
-      await errorMonitoringService.reportError(
-        new Error('Memory system returning unsuccessful results'),
-        {
-          agentId: 'mcp-server',
-          taskType: 'health_check',
-          severity: 'medium',
-          metadata: { testResult }
-        }
-      );
-      
-      return {
-        ...baseStatus,
-        status: 'active_with_fallback',
-        issue: 'Memory queries failing, using fallback mechanisms'
-      };
-    }
-  } catch (error) {
-    // Report memory system error to error monitoring
-    await errorMonitoringService.reportError(
-      error instanceof Error ? error : new Error('Unknown memory system error'),
-      {
-        agentId: 'mcp-server',
-        taskType: 'health_check',
-        severity: 'high',
-        metadata: { operation: 'memory_health_test' }
-      }
+    // Test memory connection
+    const testResults = await realUnifiedMemoryClient.getMemoryContext(
+      'test',
+      'oneagent_system',
+      1
     );
     
     return {
-      status: 'fallback',
-      connectionStatus: 'disconnected',
       port: oneAgentConfig.memoryPort,
-      issue: error instanceof Error ? error.message : 'Unknown error',
-      performance: 'degraded'
+      status: 'active',
+      connectionStatus: 'connected',
+      performance: 'optimal',
+      basicConnection: true
+    };
+  } catch (error) {
+    console.error('[Memory Health] Connection test failed:', error);
+    
+    return {
+      port: oneAgentConfig.memoryPort,
+      status: 'degraded',
+      connectionStatus: 'disconnected',
+      performance: 'degraded',
+      basicConnection: false,
+      error: error instanceof Error ? error.message : 'Unknown error'
     };
   }
 }
@@ -399,113 +353,9 @@ async function processMcpMethod(message: any) {
               inputSchema: {
                 type: 'object',
                 properties: {}
-              }            },            // Memory Management Tools (Unified Framework)
+              }            },
+            // Memory Management Tools (Unified Framework)
             ...toolRegistry.getToolSchemas(),
-            
-            // ALITA Evolution System Tools (5 new tools)
-            {
-              name: 'oneagent_evolve_profile',
-              description: 'Trigger agent profile evolution with configurable options',
-              inputSchema: {
-                type: 'object',
-                properties: {
-                  trigger: { 
-                    type: 'string', 
-                    enum: ['manual', 'performance', 'scheduled', 'user_feedback'],
-                    description: 'Evolution trigger type'
-                  },
-                  aggressiveness: { 
-                    type: 'string', 
-                    enum: ['conservative', 'moderate', 'aggressive'],
-                    description: 'Evolution aggressiveness level'
-                  },
-                  focusAreas: { 
-                    type: 'array', 
-                    items: { type: 'string' },
-                    description: 'Specific areas to focus evolution on'
-                  },
-                  qualityThreshold: { 
-                    type: 'number', 
-                    description: 'Minimum quality threshold for acceptance'
-                  },
-                  skipValidation: { 
-                    type: 'boolean', 
-                    description: 'Skip Constitutional AI validation (advanced users only)'
-                  }
-                }
-              }
-            },
-            {
-              name: 'oneagent_profile_status',
-              description: 'Get current profile status, health, and evolution readiness',
-              inputSchema: {
-                type: 'object',
-                properties: {}
-              }
-            },
-            {
-              name: 'oneagent_profile_history',
-              description: 'Get profile evolution history with detailed analytics',
-              inputSchema: {
-                type: 'object',
-                properties: {
-                  limit: { type: 'number', description: 'Maximum number of history records to return' },
-                  filterByTrigger: { 
-                    type: 'string', 
-                    enum: ['manual', 'performance', 'scheduled', 'user_feedback'],
-                    description: 'Filter history by evolution trigger'
-                  },
-                  includeValidationDetails: { 
-                    type: 'boolean', 
-                    description: 'Include Constitutional AI validation details'
-                  }
-                }
-              }
-            },
-            {
-              name: 'oneagent_profile_rollback',
-              description: 'Rollback agent profile to a previous version',
-              inputSchema: {
-                type: 'object',
-                properties: {
-                  targetVersion: { 
-                    type: 'string', 
-                    description: 'Target version to rollback to'
-                  },
-                  reason: { 
-                    type: 'string', 
-                    description: 'Reason for rollback (for audit trail)'
-                  },
-                  skipValidation: { 
-                    type: 'boolean', 
-                    description: 'Skip validation checks (use with caution)'
-                  }
-                },
-                required: ['targetVersion', 'reason']
-              }
-            },
-            {
-              name: 'oneagent_evolution_analytics',
-              description: 'Generate comprehensive evolution analytics and insights',
-              inputSchema: {
-                type: 'object',
-                properties: {
-                  timeRange: { 
-                    type: 'string', 
-                    enum: ['1d', '7d', '30d', 'all'],
-                    description: 'Time range for analytics'
-                  },
-                  includeCapabilityAnalysis: { 
-                    type: 'boolean', 
-                    description: 'Include detailed capability evolution analysis'
-                  },
-                  includeQualityTrends: { 
-                    type: 'boolean', 
-                    description: 'Include quality trend analysis'
-                  }
-                }
-              }
-            },
             // Web Feature Completion
             {
               name: 'oneagent_web_fetch',
@@ -810,7 +660,9 @@ async function handleToolCall(params: any, id: any) {
             }, null, 2)
           }],
           isError: false        });
-        break;        case 'oneagent_memory_context':        try {          const searchResult = await realUnifiedMemoryClient.getMemoryContext(
+        break;        case 'oneagent_memory_context':
+        try {
+          const memoryResult = await realUnifiedMemoryClient.getMemoryContext(
             args.query,
             args.userId || 'oneagent_system',
             args.limit || 5
@@ -822,8 +674,8 @@ async function handleToolCall(params: any, id: any) {
               text: JSON.stringify({
                 query: args.query,
                 userId: args.userId,
-                memories: searchResult.memories || [],
-                totalFound: searchResult.totalFound || 0,
+                memories: memoryResult.memories || [],
+                totalFound: memoryResult.totalFound || 0,
                 contextEnhancement: {
                   semantic: true,
                   temporal: true,
@@ -1027,144 +879,9 @@ async function handleToolCall(params: any, id: any) {
                 'Content cleaning',
                 'Security validation'
               ]
-            }, null, 2)          }],          isError: !fetchResult.success
+            }, null, 2)
+          }],          isError: !fetchResult.success
         });
-
-      // ALITA Evolution System Tools
-      case 'oneagent_evolve_profile':
-        try {
-          const { oneagent_evolve_profile } = await import('./evolution-mcp-endpoints');
-          const evolutionResult = await oneagent_evolve_profile(args);
-          
-          return createJsonRpcResponse(id, {
-            content: [{
-              type: 'text',
-              text: JSON.stringify(evolutionResult, null, 2)
-            }],
-            isError: !evolutionResult.success
-          });
-        } catch (error) {
-          console.error('❌ Evolution endpoint error:', error);
-          return createJsonRpcResponse(id, {
-            content: [{
-              type: 'text',
-              text: JSON.stringify({
-                success: false,
-                message: `Evolution failed: ${error instanceof Error ? error.message : 'Unknown error'}`,
-                error: error instanceof Error ? error.message : 'Unknown error'
-              }, null, 2)
-            }],
-            isError: true
-          });
-        }
-
-      case 'oneagent_profile_status':
-        try {
-          const { oneagent_profile_status } = await import('./evolution-mcp-endpoints');
-          const statusResult = await oneagent_profile_status();
-          
-          return createJsonRpcResponse(id, {
-            content: [{
-              type: 'text',
-              text: JSON.stringify(statusResult, null, 2)
-            }],
-            isError: !statusResult.success
-          });
-        } catch (error) {
-          console.error('❌ Profile status endpoint error:', error);
-          return createJsonRpcResponse(id, {
-            content: [{
-              type: 'text',
-              text: JSON.stringify({
-                success: false,
-                message: `Profile status failed: ${error instanceof Error ? error.message : 'Unknown error'}`,
-                error: error instanceof Error ? error.message : 'Unknown error'
-              }, null, 2)
-            }],
-            isError: true
-          });
-        }
-
-      case 'oneagent_profile_history':
-        try {
-          const { oneagent_profile_history } = await import('./evolution-mcp-endpoints');
-          const historyResult = await oneagent_profile_history(args);
-          
-          return createJsonRpcResponse(id, {
-            content: [{
-              type: 'text',
-              text: JSON.stringify(historyResult, null, 2)
-            }],
-            isError: !historyResult.success
-          });
-        } catch (error) {
-          console.error('❌ Profile history endpoint error:', error);
-          return createJsonRpcResponse(id, {
-            content: [{
-              type: 'text',
-              text: JSON.stringify({
-                success: false,
-                message: `Profile history failed: ${error instanceof Error ? error.message : 'Unknown error'}`,
-                error: error instanceof Error ? error.message : 'Unknown error'
-              }, null, 2)
-            }],
-            isError: true
-          });
-        }
-
-      case 'oneagent_profile_rollback':
-        try {
-          const { oneagent_profile_rollback } = await import('./evolution-mcp-endpoints');
-          const rollbackResult = await oneagent_profile_rollback(args);
-          
-          return createJsonRpcResponse(id, {
-            content: [{
-              type: 'text',
-              text: JSON.stringify(rollbackResult, null, 2)
-            }],
-            isError: !rollbackResult.success
-          });
-        } catch (error) {
-          console.error('❌ Profile rollback endpoint error:', error);
-          return createJsonRpcResponse(id, {
-            content: [{
-              type: 'text',
-              text: JSON.stringify({
-                success: false,
-                message: `Profile rollback failed: ${error instanceof Error ? error.message : 'Unknown error'}`,
-                error: error instanceof Error ? error.message : 'Unknown error'
-              }, null, 2)
-            }],
-            isError: true
-          });
-        }
-
-      case 'oneagent_evolution_analytics':
-        try {
-          const { oneagent_evolution_analytics } = await import('./evolution-mcp-endpoints');
-          const analyticsResult = await oneagent_evolution_analytics(args);
-          
-          return createJsonRpcResponse(id, {
-            content: [{
-              type: 'text',
-              text: JSON.stringify(analyticsResult, null, 2)
-            }],
-            isError: !analyticsResult.success
-          });
-        } catch (error) {
-          console.error('❌ Evolution analytics endpoint error:', error);
-          return createJsonRpcResponse(id, {
-            content: [{
-              type: 'text',
-              text: JSON.stringify({
-                success: false,
-                message: `Evolution analytics failed: ${error instanceof Error ? error.message : 'Unknown error'}`,
-                error: error instanceof Error ? error.message : 'Unknown error'
-              }, null, 2)
-            }],
-            isError: true
-          });
-        }
 
       // Multi-Agent Communication Tools
       case 'register_agent':
@@ -1220,7 +937,10 @@ async function handleToolCall(params: any, id: any) {
         console.log(`[DEBUG] - oneagent_enhanced_search`);
         console.log(`[DEBUG] - oneagent_ai_assistant`);
         console.log(`[DEBUG] - oneagent_semantic_analysis`);
-        console.log(`[DEBUG] - oneagent_system_health`);        console.log(`[DEBUG] - oneagent_memory_create (unified, append-only)`);
+        console.log(`[DEBUG] - oneagent_system_health`);
+        console.log(`[DEBUG] - oneagent_memory_create (unified)`);
+        console.log(`[DEBUG] - oneagent_memory_edit`);
+        console.log(`[DEBUG] - oneagent_memory_delete`);
         console.log(`[DEBUG] - oneagent_web_fetch`);
         console.log(`[DEBUG] - register_agent`);
         console.log(`[DEBUG] - send_agent_message`);
@@ -1458,19 +1178,18 @@ if (require.main === module) {  app.listen(PORT, async () => {
     console.log(`🧠 Constitutional AI: ACTIVE`);
     console.log(`📊 BMAD Framework: ACTIVE`);
     console.log(`✅ GitHub Copilot Agent Mode: READY`);
-    console.log(`📚 Memory System: Connecting to OneAgent Memory Server...`);
+    console.log(`📚 Memory System: Mem0Local`);
+    console.log(`🔍 Enhanced Search: Brave + Quality Scoring`);
     
-    // Connect to memory server
+    // Initialize memory connection with retry mechanism
+    console.log('🧠 Initializing memory system connection...');
     try {
       await realUnifiedMemoryClient.connect();
-      console.log(`✅ Memory System: Connected to OneAgent Memory Server on port ${oneAgentConfig.memoryPort}`);
+      console.log('✅ Memory system connected successfully');
     } catch (error) {
-      console.error(`❌ Memory System: Failed to connect to memory server:`, error);
-      console.log(`⚠️  Memory operations will use fallback mechanisms`);
+      console.error('⚠️  Memory system connection failed, but server will continue:', error);
+      console.log('🔄 Memory system will retry connection on first use');
     }
-    
-    console.log(`🔍 Enhanced Search: Brave + Quality Scoring`);
-      // Bootstrap all specialized agents for automatic discovery
     console.log('🤖 Starting automatic agent initialization...');
     try {
       // Connect the shared discovery service from the orchestrator

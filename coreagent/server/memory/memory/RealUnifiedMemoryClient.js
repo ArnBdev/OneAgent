@@ -256,14 +256,13 @@ class RealUnifiedMemoryClient extends events_1.EventEmitter {
         }
         const startTime = Date.now();
         try {
-            // Make REST API call to memory server for search using correct endpoint
+            // Make REST API call to memory server using correct schema
             const searchUrl = `${this.config.host === 'localhost' ? 'http://127.0.0.1' : `http://${this.config.host}`}:${this.config.port}/memory/search`;
             const requestBody = {
                 query: query,
-                agent_ids: ['oneagent_system'],
-                memory_types: memoryTypes || ['conversations', 'learnings', 'patterns'],
-                max_results: limit,
-                semantic_search: true
+                userId: userId || 'oneagent_system',
+                limit: limit,
+                metadata_filter: memoryTypes ? { memoryType: memoryTypes } : undefined
             };
             const response = await fetch(searchUrl, {
                 method: 'POST',

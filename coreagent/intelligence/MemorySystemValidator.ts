@@ -260,16 +260,15 @@ export class MemorySystemValidator implements IIntelligenceProvider {
     try {
       // Look for Gemini-specific features with unified memory API first
       let searchData: any = null;
-      
-      // Try unified memory search endpoint first
+        // Try unified memory search endpoint with correct schema
       try {
         const unifiedSearch = await fetch(`${endpoint}/memory/search`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             query: 'embedding test',
-            max_results: 10,
-            semantic_search: true
+            userId: 'system_validator',
+            limit: 10
           })
         });
 
@@ -506,16 +505,15 @@ export class MemorySystemValidator implements IIntelligenceProvider {
       if (!addResponse.ok) {
         return { quality: 'unknown', persistence: false, testResults: null };
       }      const addData = await addResponse.json();
-      
-      // Search for the memory using unified search endpoint
+        // Search for the memory using correct unified search endpoint schema
       const searchResponse = await fetch(`${endpoint}/memory/search`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           query: testId,
-          agent_ids: ['system_validator'],
-          memory_types: ['learnings'],
-          max_results: 1
+          userId: 'system_validator',
+          limit: 1,
+          metadata_filter: { memoryType: ['learnings'] }
         })
       });
 
@@ -672,15 +670,15 @@ export class MemorySystemValidator implements IIntelligenceProvider {
       }
       
       const features = ['unified_memory', 'constitutional_ai'];
-      
-      // Test search endpoint with unified memory API
+        // Test search endpoint with correct unified memory API schema
       try {
         const searchResponse = await fetch(`${endpoint}/memory/search`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             query: 'test',
-            maxResults: 1
+            userId: 'system_validator',
+            limit: 1
           })
         });
         
