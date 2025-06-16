@@ -11,7 +11,7 @@
  */
 
 import { ConstitutionalValidator } from '../../validation/ConstitutionalValidator';
-import { MemoryClient } from '../../memory/MemoryClient';
+import { MemoryClient, ConversationData, TimeWindow } from '../../memory/MemoryClient';
 import { PerformanceMonitor } from '../../monitoring/PerformanceMonitor';
 
 // ========================================
@@ -108,28 +108,6 @@ export interface EvolutionMetrics {
   nextEvolutionEligible: Date;
 }
 
-export interface TimeWindow {
-  startDate: Date;
-  endDate: Date;
-  minimumSamples: number;
-}
-
-export interface ConversationData {
-  conversationId: string;
-  userId: string;
-  timestamp: Date;
-  userSatisfaction: number; // 0-1 scale
-  taskCompleted: boolean;
-  responseTime: number;
-  constitutionalCompliant: boolean;
-  responseQuality: number; // 0-1 scale
-  contextTags: string[];
-  communicationStyle: string;
-  technicalLevel: string;
-  messageCount: number;
-  domain: string;
-}
-
 // ========================================
 // Error Classes
 // ========================================
@@ -182,12 +160,12 @@ export class ALITAAutoEvolution implements IALITAAutoEvolution {
 
     try {
       // Get conversation data from memory client
-      const conversationData = await this.memoryClient.getConversationsInWindow(timeWindow);
-      
-      // WHY: Minimum data threshold prevents overfitting to small samples
-      if (conversationData.length < timeWindow.minimumSamples) {
+      const conversationData = await this.memoryClient.getConversationsInWindow(timeWindow);      
+      // WHY: Minimum data threshold prevents overfitting to small samples  
+      const minimumSamples = timeWindow.minimumSamples || 10; // Default to 10 if not specified
+      if (conversationData.length < minimumSamples) {
         throw new InsufficientDataError(
-          `Need at least ${timeWindow.minimumSamples} conversations for pattern analysis, got ${conversationData.length}`
+          `Need at least ${minimumSamples} conversations for pattern analysis, got ${conversationData.length}`
         );
       }
 
@@ -196,7 +174,7 @@ export class ALITAAutoEvolution implements IALITAAutoEvolution {
         conversation.constitutionalCompliant === true
       );
 
-      if (safeConversations.length < Math.floor(timeWindow.minimumSamples * 0.7)) {
+      if (safeConversations.length < Math.floor(minimumSamples * 0.7)) {
         throw new ConstitutionalViolationError(
           'Insufficient constitutionally compliant conversations for safe evolution'
         );
@@ -419,12 +397,11 @@ export class ALITAAutoEvolution implements IALITAAutoEvolution {
     
     return patterns;
   }
-
   private groupConversationsByCharacteristics(conversations: ConversationData[]): Map<ResponseCharacteristics, ConversationData[]> {
     const groups = new Map<string, ConversationData[]>();
     
     for (const conversation of conversations) {
-      const key = `${conversation.communicationStyle}_${conversation.technicalLevel}`;
+      const key = `${conversation.communicationStyle || 'default'}_${conversation.technicalLevel || 'intermediate'}`;
       if (!groups.has(key)) {
         groups.set(key, []);
       }
@@ -436,13 +413,13 @@ export class ALITAAutoEvolution implements IALITAAutoEvolution {
     for (const [key, convos] of groups) {
       const [communicationStyle, technicalLevel] = key.split('_');
       const characteristics: ResponseCharacteristics = {
-        averageLength: convos.reduce((sum, c) => sum + c.messageCount, 0) / convos.length,
+        averageLength: convos.reduce((sum, c) => sum + (c.messageCount || c.conversationLength || 0), 0) / convos.length,
         technicalLevel: technicalLevel as any,
         communicationStyle: communicationStyle as any,
         examplePatterns: [],
-        codeExamples: convos.some(c => c.contextTags.includes('code')),
-        stepByStepBreakdown: convos.some(c => c.contextTags.includes('tutorial')),
-        contextualReferences: convos.some(c => c.contextTags.includes('reference'))
+        codeExamples: convos.some(c => c.contextTags?.includes('code') || c.topicTags?.includes('code')),
+        stepByStepBreakdown: convos.some(c => c.contextTags?.includes('tutorial') || c.topicTags?.includes('tutorial')),
+        contextualReferences: convos.some(c => c.contextTags?.includes('reference') || c.topicTags?.includes('reference'))
       };
       
       result.set(characteristics, convos);
@@ -454,12 +431,12 @@ export class ALITAAutoEvolution implements IALITAAutoEvolution {
   private describePattern(characteristics: ResponseCharacteristics): string {
     return `${characteristics.communicationStyle} communication with ${characteristics.technicalLevel} technical level`;
   }
-
   private extractContextTags(conversations: ConversationData[]): string[] {
     const tagCounts = new Map<string, number>();
     
     for (const conversation of conversations) {
-      for (const tag of conversation.contextTags) {
+      const tags = conversation.contextTags || conversation.topicTags || [];
+      for (const tag of tags) {
         tagCounts.set(tag, (tagCounts.get(tag) || 0) + 1);
       }
     }

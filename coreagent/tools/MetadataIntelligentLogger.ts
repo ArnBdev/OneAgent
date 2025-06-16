@@ -11,6 +11,8 @@
  */
 
 import { performance } from 'perf_hooks';
+import { ConversationData, TimeWindow, UserProfile } from '../memory/MemoryClient';
+import { ConversationMetadata, IMemoryClient as UnifiedIMemoryClient, PrivacyLevel as UnifiedPrivacyLevel, CommunicationStyle as UnifiedCommunicationStyle, ExpertiseLevel as UnifiedExpertiseLevel } from '../types/unified';
 
 // Constitutional AI Integration
 interface IConstitutionalValidator {
@@ -169,13 +171,20 @@ export class MetadataIntelligentLogger implements IMetadataIntelligentLogger {
         satisfactionIndicators: satisfaction,
         processingTimeMs: processingTime,
         constitutionalCompliant: constitutionalResult.passed
-      };
-
-      // WHY: Store metadata for ALITA learning
-      await this.memoryClient.storeConversationMetadata({
-        messageAnalysis: analysis,
+      };      // WHY: Store metadata for ALITA learning  
+      await this.memoryClient.storeConversationMetadata({        messageAnalysis: {
+          communicationStyle: analysis.communicationStyle as UnifiedCommunicationStyle,
+          expertiseLevel: analysis.expertiseLevel as UnifiedExpertiseLevel,
+          intentCategory: analysis.intent as any, // Map UserIntent to IntentCategory
+          contextTags: [analysis.contextDomain],
+          privacyLevel: analysis.privacyLevel as UnifiedPrivacyLevel,
+          sentimentScore: 0.5, // Default neutral sentiment
+          complexityScore: expertise === 'expert' ? 0.9 : expertise === 'advanced' ? 0.7 : expertise === 'intermediate' ? 0.5 : 0.3,
+          urgencyLevel: 0.5 // Default medium urgency
+        },
         userId: message.userId,
-        sessionId: message.sessionId
+        sessionId: message.sessionId,
+        timestamp: new Date()
       });
 
       return analysis;    } catch (error) {
@@ -215,13 +224,19 @@ export class MetadataIntelligentLogger implements IMetadataIntelligentLogger {
         helpfulnessScore: helpfulness,
         transparencyScore: transparency,
         processingTimeMs: processingTime
-      };
-
-      // WHY: Store response quality for ALITA learning
+      };      // WHY: Store response quality for ALITA learning
       await this.memoryClient.storeConversationMetadata({
-        responseAnalysis: analysis,
+        responseAnalysis: {
+          qualityScore: analysis.qualityScore,
+          helpfulnessScore: analysis.helpfulnessScore,
+          accuracyScore: transparency, // Map transparency to accuracy
+          constitutionalCompliance: analysis.constitutionalScore,
+          responseTimeMs: analysis.processingTimeMs,
+          tokensUsed: 0 // Default tokens used
+        },
         userId: response.userId,
-        sessionId: response.sessionId
+        sessionId: response.sessionId,
+        timestamp: new Date()
       });
 
       return analysis;    } catch (error) {
@@ -413,6 +428,76 @@ export class MetadataIntelligentLogger implements IMetadataIntelligentLogger {
       errorRate: (messageMetrics.errorRate + responseMetrics.errorRate) / 2
     };
   }
+  /**
+   * Log conversation with full metadata analysis
+   * WHY: Complete conversation logging enables ALITA auto-evolution
+   */
+  async logConversation(data: {
+    userMessage: string;
+    aiResponse: string;
+    timestamp: Date;
+    sessionId: string;
+    userId: string;
+    [key: string]: any;
+  }): Promise<{ id: string; timestamp: Date }> {
+    try {
+      const startTime = Date.now();
+      const messageId = `msg-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+      const responseId = `resp-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+
+      // Analyze user message
+      const messageAnalysis = await this.analyzeMessage({
+        id: messageId,
+        content: data.userMessage,
+        userId: data.userId,
+        timestamp: data.timestamp,
+        sessionId: data.sessionId
+      });
+
+      // Analyze AI response (without feedback for now)
+      const responseAnalysis = await this.analyzeResponse({
+        id: responseId,
+        content: data.aiResponse,
+        timestamp: data.timestamp,
+        sessionId: data.sessionId,
+        userId: data.userId
+      });      // Store conversation metadata
+      const conversationId = await this.memoryClient.storeConversationMetadata({
+        messageAnalysis: {
+          communicationStyle: messageAnalysis.communicationStyle as UnifiedCommunicationStyle,
+          expertiseLevel: messageAnalysis.expertiseLevel as UnifiedExpertiseLevel,
+          intentCategory: messageAnalysis.intent as any,
+          contextTags: [messageAnalysis.contextDomain],
+          privacyLevel: messageAnalysis.privacyLevel as UnifiedPrivacyLevel,
+          sentimentScore: 0.5,
+          complexityScore: 0.5,
+          urgencyLevel: 0.5
+        },
+        responseAnalysis: {
+          qualityScore: responseAnalysis.qualityScore,
+          helpfulnessScore: responseAnalysis.helpfulnessScore,
+          accuracyScore: responseAnalysis.transparencyScore,
+          constitutionalCompliance: responseAnalysis.constitutionalScore,
+          responseTimeMs: responseAnalysis.processingTimeMs,
+          tokensUsed: 0
+        },
+        userId: data.userId,
+        sessionId: data.sessionId,
+        timestamp: data.timestamp
+      });
+
+      const processingTime = Date.now() - startTime;
+      console.log(`✅ Conversation logged in ${processingTime}ms (ID: ${conversationId})`);
+
+      return {
+        id: conversationId,
+        timestamp: data.timestamp
+      };
+    } catch (error) {
+      console.error('Failed to log conversation:', error);
+      throw error;
+    }
+  }
 }
 
 // Supporting Types and Interfaces
@@ -436,13 +521,6 @@ export interface UserFeedback {
   helpfulnessScore: number;
   satisfactionScore: number;
   comments?: string;
-}
-
-export interface ConversationMetadata {
-  messageAnalysis?: MessageAnalysis;
-  responseAnalysis?: ResponseAnalysis;
-  userId: string;
-  sessionId: string;
 }
 
 export interface PerformanceMetrics {
@@ -474,28 +552,6 @@ export interface PrivacyAssessment {
 export interface ValidationResult {
   passed: boolean;
   reason?: string;
-}
-
-export interface TimeWindow {
-  start: Date;
-  end: Date;
-}
-
-export interface ConversationData {
-  id: string;
-  userId: string;
-  constitutionalCompliant: boolean;
-  userSatisfactionScore: number;
-  taskCompletionRate: number;
-  responseTimeMs: number;
-}
-
-export interface UserProfile {
-  userId: string;
-  communicationStyle: CommunicationStyle;
-  expertiseLevel: ExpertiseLevel;
-  preferredDomains: ContextDomain[];
-  privacyBoundaries: PrivacyLevel;
 }
 
 // Custom Errors

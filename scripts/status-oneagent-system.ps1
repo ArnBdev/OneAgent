@@ -108,14 +108,13 @@ function Show-DetailedInfo {
             Write-Host "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━" -ForegroundColor DarkGray
             
             $health = $service.HealthData
-            
-            # Display all health data
+              # Display all health data
             foreach ($key in $health.PSObject.Properties.Name) {
                 $value = $health.$key
                 if ($value -is [PSCustomObject]) {
-                    Write-Host "📊 $key:" -ForegroundColor Yellow
+                    Write-Host "📊 ${key}:" -ForegroundColor Yellow
                     foreach ($subKey in $value.PSObject.Properties.Name) {
-                        Write-Host "   $subKey`: $($value.$subKey)" -ForegroundColor Gray
+                        Write-Host "   ${subKey}: $($value.$subKey)" -ForegroundColor Gray
                     }
                 } elseif ($value -is [Array]) {
                     Write-Host "📋 $key`: $($value -join ', ')" -ForegroundColor Gray

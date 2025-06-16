@@ -275,7 +275,7 @@ export class OneAgentChatProvider {
         }
     }
     
-    private extractUserPreferences(userMessage: string, assistantResponse: string, responseData: any): Record<string, any> {
+    private extractUserPreferences(userMessage: string, _assistantResponse: string, responseData: any): Record<string, any> {
         const preferences: Record<string, any> = {};
         const message = userMessage.toLowerCase();
         

@@ -432,4 +432,28 @@ export class ProfileManager {
     // Save updated profile
     await this.saveProfile(this.currentProfile);
   }
+
+  /**
+   * Create a backup of the specified profile with a custom name
+   */
+  async backupProfile(profile: AgentProfile, backupName: string): Promise<string> {
+    try {
+      // Create timestamped backup filename
+      const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+      const backupFilename = `${backupName}-${timestamp}.json`;
+      const backupPath = path.join(this.archivePath, backupFilename);
+
+      // Ensure archive directory exists
+      await fs.mkdir(this.archivePath, { recursive: true });
+
+      // Save backup
+      await fs.writeFile(backupPath, JSON.stringify(profile, null, 2), 'utf8');
+      
+      console.log(`Profile backup created: ${backupFilename}`);
+      return backupPath;
+    } catch (error) {
+      console.error('Failed to create profile backup:', error);
+      throw error;
+    }
+  }
 }

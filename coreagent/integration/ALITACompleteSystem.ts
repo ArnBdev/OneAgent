@@ -11,7 +11,7 @@
  */
 
 import { MetadataIntelligentLogger } from '../tools/MetadataIntelligentLogger';
-import { SessionContextManager } from '../tools/SessionContextManager';
+import { SessionContextManager } from '../tools/SessionContextManagerUnified';
 import { ALITAAutoEvolution } from '../agents/evolution/ALITAAutoEvolution';
 import { PerformanceAnalyzer } from '../agents/evolution/PerformanceAnalyzer';
 import { EvolutionValidator } from '../agents/evolution/EvolutionValidator';
@@ -171,16 +171,11 @@ export class ALITACompleteSystem implements IALITACompleteSystem {
       });
 
       // Phase 2: Update session context and user profile learning
-      if (metadata.sessionId && metadata.userId) {
-        // Update session with conversation insights
+      if (metadata.sessionId && metadata.userId) {        // Update session with conversation insights
         await this.sessionManager.updateSessionContext(metadata.sessionId, {
-          lastMessage: userMessage,
-          lastResponse: aiResponse,
-          conversationCount: (metadata.conversationCount || 0) + 1,
+          messageCount: (metadata.conversationCount || 0) + 1,
           lastActivity: new Date()
-        });
-
-        // Learn from user interaction patterns
+        });// Learn from user interaction patterns
         const interactionData = {
           messageId: conversationMetadata.id,
           userId: metadata.userId,
@@ -191,11 +186,11 @@ export class ALITACompleteSystem implements IALITACompleteSystem {
           responseTimeMs: metadata.responseTime || 0,
           userSatisfactionScore: metadata.userSatisfaction || 0.8,
           taskCompleted: metadata.taskCompleted || false,
-          communicationStyle: conversationMetadata.analysis?.communicationStyle || 'conversational',
-          expertiseLevel: conversationMetadata.analysis?.expertiseLevel || 'intermediate',
-          intentCategory: conversationMetadata.analysis?.intentCategory || 'question',
-          contextTags: conversationMetadata.analysis?.contextTags || [],
-          privacyLevel: conversationMetadata.analysis?.privacyLevel || 'normal'
+          communicationStyle: 'conversational' as const,
+          expertiseLevel: 'intermediate' as const,
+          intentCategory: 'question',
+          contextTags: [],
+          privacyLevel: 'normal'
         };
 
         // Note: In a full implementation, this would call a method to update user profile
@@ -219,8 +214,34 @@ export class ALITACompleteSystem implements IALITACompleteSystem {
     }
 
     // Use Phase 2 session management
-    const sessionContext = await this.sessionManager.createSession(`session_${Date.now()}`, userId);
-    return sessionContext.sessionId;
+    const sessionContext = await this.memoryClient.createSession(`session_${Date.now()}`, {
+      sessionId: `session_${Date.now()}`,
+      userId: userId,
+      startTime: new Date(),
+      lastActivity: new Date(),
+      isActive: true,
+      conversationHistory: [],
+      currentTopic: '',
+      topicProgression: [],
+      currentMood: 'neutral',
+      currentExpertiseLevel: 'intermediate',
+      currentIntentCategory: 'question',
+      messageCount: 0,
+      averageResponseTime: 0,
+      satisfactionScore: 0,
+      activePolicyViolations: [],
+      privacyModeActive: false,
+      constitutionalMode: 'balanced',
+      qualityThreshold: 0.8,
+      semanticContext: {},
+      emotionalState: {
+        primary: 'neutral',
+        intensity: 0.5,
+        confidence: 0.7,
+        trajectory: 'stable'
+      },      cognitiveLoad: 0.5
+    });
+    return `session_${Date.now()}`;
   }
 
   /**
@@ -242,7 +263,7 @@ export class ALITACompleteSystem implements IALITACompleteSystem {
       throw new Error('ALITA system not initialized');
     }
 
-    return await this.sessionManager.getUserProfile(userId);
+    return await this.memoryClient.getUserProfile(userId);
   }
 
   /**

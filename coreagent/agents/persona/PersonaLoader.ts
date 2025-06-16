@@ -159,9 +159,9 @@ export class PersonaLoader extends EventEmitter {
       // Store in memory for persistence and learning
       await this.storePersonaInMemory(personaData, promptTemplate);
       
-      this.emit('personaLoaded', personaData.id, personaData);
-    } catch (error) {
-      throw new Error(`Failed to load persona from ${filename}: ${error.message}`);
+      this.emit('personaLoaded', personaData.id, personaData);    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
+      throw new Error(`Failed to load persona from ${filename}: ${errorMessage}`);
     }
   }
 

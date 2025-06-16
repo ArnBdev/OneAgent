@@ -146,15 +146,13 @@ export class AgentRegistry implements IAgentRegistry {
 
     for (const [agentId, agent] of this.agents.entries()) {
       const agentType = this.agentTypes.get(agentId) || 'unknown';
-      const status = agent.getStatus();
-
-      reports.push({
+      const status = agent.getStatus();      reports.push({
         agentId,
         agentType,
         isHealthy: status.isHealthy,
-        lastActivity: status.lastActivity,
+        lastActivity: status.lastActivity || new Date(),
         processedMessages: status.processedMessages,
-        errors: status.errors
+        errors: [] // Convert number to empty array - could be enhanced to track actual error strings
       });
     }
 

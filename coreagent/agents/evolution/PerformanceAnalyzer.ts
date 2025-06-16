@@ -7,7 +7,7 @@
  */
 
 import { PerformanceMonitor } from '../../monitoring/PerformanceMonitor';
-import { ConversationData } from './ALITAAutoEvolution';
+import { ConversationData } from '../../memory/MemoryClient';
 
 export interface SuccessMetrics {
   overallScore: number;
@@ -65,11 +65,9 @@ export class PerformanceAnalyzer {
       // Calculate constitutional compliance rate
       const complianceRate = conversations
         .filter(c => c.constitutionalCompliant)
-        .length / conversations.length;
-
-      // Calculate engagement score (based on message count)
+        .length / conversations.length;      // Calculate engagement score (based on message count)
       const averageEngagement = conversations
-        .reduce((sum, c) => sum + c.messageCount, 0) / conversations.length;
+        .reduce((sum, c) => sum + (c.messageCount || c.conversationLength || 1), 0) / conversations.length;
       const engagementScore = Math.min(averageEngagement / 10, 1.0); // Normalize to 0-1
 
       // Calculate overall score (weighted average)
@@ -228,11 +226,13 @@ export class PerformanceAnalyzer {
    * Extract context information from conversations
    */
   private extractContexts(conversations: ConversationData[]): string[] {
-    const contexts = new Set<string>();
-    
+    const contexts = new Set<string>();    
     for (const conversation of conversations) {
-      contexts.add(conversation.domain);
-      conversation.contextTags.forEach(tag => contexts.add(tag));
+      if (conversation.domain) {
+        contexts.add(conversation.domain);
+      }
+      conversation.contextTags?.forEach(tag => contexts.add(tag));
+      conversation.topicTags?.forEach(tag => contexts.add(tag));
     }
     
     return Array.from(contexts);

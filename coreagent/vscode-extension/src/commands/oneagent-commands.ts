@@ -1030,7 +1030,7 @@ function getDashboardWebviewContent(): string {
 
 // New v4.0.0 Professional Helper Functions
 
-function showSemanticAnalysisReport(analysis: any, analysisType: string) {
+function showSemanticAnalysisReport(_analysis: any, analysisType: string) {
     const panel = vscode.window.createWebviewPanel(
         'semanticAnalysis',
         'OneAgent Semantic Analysis',

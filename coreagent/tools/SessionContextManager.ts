@@ -11,6 +11,27 @@
 import { ConstitutionalValidator } from '../validation/ConstitutionalValidator';
 import { realUnifiedMemoryClient } from '../memory/RealUnifiedMemoryClient';
 import { PerformanceMonitor } from '../monitoring/PerformanceMonitor';
+import { 
+  UserProfile,
+  SessionContext,
+  ConversationData,
+  TimeWindow,
+  IMemoryClient,
+  CommunicationStyle,
+  ExpertiseLevel,
+  FormalityLevel,
+  ResponseLength,
+  MoodIndicator,
+  IntentCategory,
+  PrivacyLevel,
+  ConversationEntry,
+  TopicTransition,
+  EmotionalState,
+  LearningProgression,
+  InteractionPattern,
+  TimePattern,
+  PrivacyBoundaries
+} from '../types/unified';
 
 // ========================================
 // Interfaces for existing components
@@ -22,16 +43,7 @@ export interface IConstitutionalValidator {
   validatePattern?(pattern: any): Promise<{ passed: boolean; reasoning?: string }>;
 }
 
-export interface IMemoryClient {
-  storeConversationMetadata(metadata: any): Promise<void>;
-  getUserProfile(userId: string): Promise<UserProfile | null>;
-  updateUserProfile(userId: string, profile: UserProfile): Promise<void>;
-  createUserProfile(userId: string, profile: UserProfile): Promise<void>;
-  getSessionContext(sessionId: string): Promise<SessionContext | null>;
-  updateSessionContext(sessionId: string, context: SessionContext): Promise<void>;
-  createSession(sessionId: string, context: SessionContext): Promise<void>;
-  getConversationsInWindow?(timeWindow: any): Promise<any[]>;
-}
+
 
 export interface IPerformanceMonitor {
   recordLatency(operation: string, timeMs: number): Promise<void>;
@@ -61,167 +73,19 @@ export interface InteractionData {
   privacyLevel: PrivacyLevel;
 }
 
-export interface UserProfile {
-  userId: string;
-  createdAt: Date;
-  lastUpdated: Date;
-  totalInteractions: number;
-  
-  // Communication Preferences
-  preferredCommunicationStyle: CommunicationStyle;
-  preferredResponseLength: ResponseLength;
-  preferredTechnicalLevel: ExpertiseLevel;
-  preferredFormality: FormalityLevel;
-  
-  // Expertise Tracking
-  domainExpertise: Map<string, ExpertiseLevel>;
-  learningProgression: LearningProgression[];
-  
-  // Interaction Patterns
-  successfulPatterns: InteractionPattern[];
-  unsuccessfulPatterns: InteractionPattern[];
-  averageSessionLength: number;
-  preferredInteractionTimes: TimePattern[];
-  
-  // Privacy Boundaries
-  privacyBoundaries: PrivacyBoundaries;
-  sensitiveTopics: string[];
-  
-  // Evolution Metrics
-  satisfactionTrend: number; // Rolling average
-  engagementScore: number; // 0-1 scale
-  lastConstitutionalValidation: Date;
-}
 
-export interface SessionContext {
-  sessionId: string;
-  userId: string;
-  startTime: Date;
-  lastActivity: Date;
-  isActive: boolean;
-  
-  // Context Data
-  conversationHistory: ConversationEntry[];
-  currentTopic: string;
-  topicProgression: TopicTransition[];
-  
-  // User State
-  currentMood: MoodIndicator;
-  currentExpertiseLevel: ExpertiseLevel;
-  currentIntentCategory: IntentCategory;
-  
-  // Session Metrics
-  messageCount: number;
-  averageResponseTime: number;
-  satisfactionScore: number;
-  
-  // Privacy Context
-  activePolicyViolations: string[];
-  privacyModeActive: boolean;
-}
 
-export interface PrivacyBoundaries {
-  dataRetentionDays: number;
-  allowPersonalization: boolean;
-  allowCrossDomainLearning: boolean;
-  sensitiveTopicFiltering: boolean;
-  explicitConsentRequired: string[]; // Topics requiring explicit consent
-  neverLog: string[]; // Topics to never store
-  anonymizeAfterDays: number;
-}
 
-// Enums for type safety
-export enum CommunicationStyle {
-  FORMAL = 'formal',
-  CASUAL = 'casual',
-  TECHNICAL = 'technical',
-  CONVERSATIONAL = 'conversational',
-  INSTRUCTIONAL = 'instructional'
-}
 
-export enum ExpertiseLevel {
-  BEGINNER = 'beginner',
-  INTERMEDIATE = 'intermediate',
-  ADVANCED = 'advanced',
-  EXPERT = 'expert'
-}
 
-export enum IntentCategory {
-  QUESTION = 'question',
-  TASK = 'task',
-  EXPLORATION = 'exploration',
-  TROUBLESHOOTING = 'troubleshooting',
-  LEARNING = 'learning',
-  CREATIVE = 'creative'
-}
 
-export enum PrivacyLevel {
-  PUBLIC = 'public',
-  INTERNAL = 'internal',
-  CONFIDENTIAL = 'confidential',
-  RESTRICTED = 'restricted'
-}
 
-export enum ResponseLength {
-  CONCISE = 'concise',
-  MODERATE = 'moderate',
-  DETAILED = 'detailed',
-  COMPREHENSIVE = 'comprehensive'
-}
 
-export enum FormalityLevel {
-  CASUAL = 'casual',
-  PROFESSIONAL = 'professional',
-  ACADEMIC = 'academic',
-  FORMAL = 'formal'
-}
 
-export enum MoodIndicator {
-  NEUTRAL = 'neutral',
-  POSITIVE = 'positive',
-  FRUSTRATED = 'frustrated',
-  CURIOUS = 'curious',
-  FOCUSED = 'focused'
-}
 
-export interface InteractionPattern {
-  pattern: string;
-  frequency: number;
-  successRate: number;
-  averageSatisfaction: number;
-  contexts: string[];
-}
 
-export interface LearningProgression {
-  domain: string;
-  startLevel: ExpertiseLevel;
-  currentLevel: ExpertiseLevel;
-  progressionRate: number;
-  lastUpdate: Date;
-}
 
-export interface ConversationEntry {
-  messageId: string;
-  timestamp: Date;
-  userMessage: string;
-  aiResponse: string;
-  metadata: InteractionData;
-}
 
-export interface TopicTransition {
-  fromTopic: string;
-  toTopic: string;
-  timestamp: Date;
-  transitionSmooth: boolean;
-  contextRetained: boolean;
-}
-
-export interface TimePattern {
-  dayOfWeek: number;
-  hourOfDay: number;
-  frequency: number;
-  avgSatisfaction: number;
-}
 
 // ========================================
 // Privacy Engine Interface
@@ -316,7 +180,7 @@ class PrivacyEngine implements IPrivacyEngine {
         
         // Check sensitive topic handling
         if (profile.sensitiveTopics && profile.sensitiveTopics.length > 0) {
-          if (!profile.privacyBoundaries.sensitiveTopicFiltering) {
+          if (!profile.privacyBoundaries.shareAnalytics) {
             timer.end({ success: false, reason: 'sensitive_topic_mismatch' });
             return false;
           }
@@ -341,7 +205,7 @@ class PrivacyEngine implements IPrivacyEngine {
       sanitized.aiResponse = this.removePII(data.aiResponse);
       
       // Apply privacy level constraints
-      if (data.privacyLevel === PrivacyLevel.RESTRICTED) {
+      if (data.privacyLevel === 'restricted' as PrivacyLevel) {
         sanitized.contextTags = [];
         sanitized.messageContent = '[RESTRICTED]';
       }
@@ -353,16 +217,15 @@ class PrivacyEngine implements IPrivacyEngine {
       throw new Error(`Data sanitization failed: ${errorMessage}`);
     }
   }
-
   async checkTopicSensitivity(topic: string, boundaries: PrivacyBoundaries): Promise<boolean> {
-    // Check against never-log topics
-    if (boundaries.neverLog.includes(topic.toLowerCase())) {
-      return false;
+    // Check against explicit consent topics
+    if (boundaries.explicitConsent.includes(topic.toLowerCase())) {
+      return false; // Topic requires explicit consent
     }
     
-    // Check against explicit consent requirements
-    if (boundaries.explicitConsentRequired.includes(topic.toLowerCase())) {
-      // In real implementation, this would check for user consent
+    // Check sensitivity level
+    if (boundaries.sensitivityLevel === 'confidential' as PrivacyLevel) {
+      // More restrictive checking for confidential boundaries
       return false;
     }
     
@@ -484,31 +347,27 @@ export class SessionContextManager implements ISessionContextManager {
   async createUserProfile(userId: string, initialBoundaries?: PrivacyBoundaries): Promise<UserProfile> {
     const timer = this.performanceMonitor.startTimer('create_user_profile');
     
-    try {
-      const defaultBoundaries: PrivacyBoundaries = {
+    try {      const defaultBoundaries: PrivacyBoundaries = {
         dataRetentionDays: 365,
+        shareAnalytics: true,
         allowPersonalization: true,
-        allowCrossDomainLearning: true,
-        sensitiveTopicFiltering: true,
-        explicitConsentRequired: [],
-        neverLog: ['password', 'ssn', 'credit_card'],
-        anonymizeAfterDays: 30
+        sensitivityLevel: 'internal' as PrivacyLevel,
+        explicitConsent: ['financial', 'medical', 'personal_details']
       };
 
       const profile: UserProfile = {
         userId,
         createdAt: new Date(),
         lastUpdated: new Date(),
-        totalInteractions: 0,
-        
+        totalInteractions: 0,        
         // Communication Preferences (defaults)
-        preferredCommunicationStyle: CommunicationStyle.CONVERSATIONAL,
-        preferredResponseLength: ResponseLength.MODERATE,
-        preferredTechnicalLevel: ExpertiseLevel.INTERMEDIATE,
-        preferredFormality: FormalityLevel.PROFESSIONAL,
+        preferredCommunicationStyle: 'conversational' as CommunicationStyle,
+        preferredResponseLength: 'moderate' as ResponseLength,
+        preferredTechnicalLevel: 'intermediate' as ExpertiseLevel,
+        preferredFormality: 'professional' as FormalityLevel,
         
         // Expertise Tracking
-        domainExpertise: new Map(),
+        domainExpertise: {},
         learningProgression: [],
         
         // Interaction Patterns
@@ -522,9 +381,14 @@ export class SessionContextManager implements ISessionContextManager {
         sensitiveTopics: [],
         
         // Evolution Metrics
-        satisfactionTrend: 0.5, // Neutral starting point
-        engagementScore: 0.5,
-        lastConstitutionalValidation: new Date()
+        satisfactionTrend: [0.5],        evolutionScore: 0.5,
+        adaptationRate: 0.3,
+        constitutionalPreferences: {
+          safetyThreshold: 0.8,
+          transparencyLevel: 'intermediate' as ExpertiseLevel,
+          helpfulnessWeight: 0.9,
+          accuracyRequirement: 0.85
+        }
       };
 
       // Validate and store
@@ -605,18 +469,30 @@ export class SessionContextManager implements ISessionContextManager {
         topicProgression: [],
         
         // User State
-        currentMood: MoodIndicator.NEUTRAL,
-        currentExpertiseLevel: ExpertiseLevel.INTERMEDIATE,
-        currentIntentCategory: IntentCategory.QUESTION,
+        currentMood: 'neutral' as MoodIndicator,
+        currentExpertiseLevel: 'intermediate' as ExpertiseLevel,
+        currentIntentCategory: 'question' as IntentCategory,
         
         // Session Metrics
         messageCount: 0,
         averageResponseTime: 0,
-        satisfactionScore: 0.5,
-        
+        satisfactionScore: 0.5,        
         // Privacy Context
         activePolicyViolations: [],
-        privacyModeActive: false
+        privacyModeActive: false,
+        
+        // Constitutional Context
+        constitutionalMode: 'balanced' as const,
+        qualityThreshold: 0.8,
+        
+        // Advanced Context
+        semanticContext: {},        emotionalState: {
+          primary: 'neutral' as MoodIndicator,
+          intensity: 0.5,
+          confidence: 0.7,
+          trajectory: 'stable' as const
+        },
+        cognitiveLoad: 0.3
       };
 
       // Store session
@@ -749,13 +625,12 @@ export class SessionContextManager implements ISessionContextManager {
         /\b(it|that|this|the previous|the last|earlier)\b/gi,
         /\b(what we discussed|what you mentioned|the topic)\b/gi
       ];
-      
-      for (const pattern of referencePatterns) {
+        for (const pattern of referencePatterns) {
         if (pattern.test(currentMessage)) {
           // Find relevant context from history
           for (const entry of history) {
-            if (entry.userMessage.length > 20) { // Substantive message
-              references.push(`Previous context: "${entry.userMessage.substring(0, 100)}..."`);
+            if (entry.content.length > 20 && entry.role === 'user') { // Substantive user message
+              references.push(`Previous context: "${entry.content.substring(0, 100)}..."`);
               break;
             }
           }
@@ -763,7 +638,8 @@ export class SessionContextManager implements ISessionContextManager {
       }
       
       timer.end({ success: true });
-      return references;    } catch (error) {
+      return references;
+    } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
       timer.end({ success: false, error: errorMessage });
       throw new Error(`Failed to resolve references: ${errorMessage}`);
@@ -785,8 +661,8 @@ export class SessionContextManager implements ISessionContextManager {
       const metrics: ProfileEvolutionMetrics = {
         profileAge,
         interactionCount: profile.totalInteractions,
-        satisfactionTrend: [profile.satisfactionTrend], // Would be expanded to array in full implementation
-        expertiseGrowth: new Map(Array.from(profile.domainExpertise.entries()).map(([domain, level]) => [domain, this.expertiseLevelToNumber(level)])),
+        satisfactionTrend: profile.satisfactionTrend,
+        expertiseGrowth: new Map(Object.entries(profile.domainExpertise).map(([domain, level]) => [domain, this.expertiseLevelToNumber(level)])),
         communicationStyleStability: 0.8, // Calculated based on style consistency
         lastEvolutionDate: profile.lastUpdated
       };
@@ -847,16 +723,20 @@ export class SessionContextManager implements ISessionContextManager {
         // In full implementation, would use proper weighted averaging
       }
     }
-    
-    // Update satisfaction trend
+      // Update satisfaction trend
     if (interactionData.userSatisfactionScore) {
-      updated.satisfactionTrend = updated.satisfactionTrend * (1 - weight) + 
-                                  interactionData.userSatisfactionScore * weight;
+      const currentTrend = updated.satisfactionTrend.length > 0 ? updated.satisfactionTrend[updated.satisfactionTrend.length - 1] : 0.5;
+      const newTrend = currentTrend * (1 - weight) + interactionData.userSatisfactionScore * weight;
+      updated.satisfactionTrend.push(newTrend);
+      // Keep only last 10 trend points
+      if (updated.satisfactionTrend.length > 10) {
+        updated.satisfactionTrend = updated.satisfactionTrend.slice(-10);
+      }
     }
     
     // Update domain expertise
     for (const tag of interactionData.contextTags) {
-      const currentLevel = updated.domainExpertise.get(tag) || ExpertiseLevel.BEGINNER;
+      const currentLevel = updated.domainExpertise[tag] || 'beginner' as ExpertiseLevel;
       // Gradual expertise progression based on successful interactions
       if (interactionData.userSatisfactionScore && interactionData.userSatisfactionScore > 0.8) {
         // Implementation would include expertise level progression logic
@@ -902,13 +782,12 @@ export class SessionContextManager implements ISessionContextManager {
     // Simple staleness check - in production would be more sophisticated
     return false; // For now, cache doesn't expire
   }
-
   private expertiseLevelToNumber(level: ExpertiseLevel): number {
     switch (level) {
-      case ExpertiseLevel.BEGINNER: return 1;
-      case ExpertiseLevel.INTERMEDIATE: return 2;
-      case ExpertiseLevel.ADVANCED: return 3;
-      case ExpertiseLevel.EXPERT: return 4;
+      case 'beginner': return 1;
+      case 'intermediate': return 2;
+      case 'advanced': return 3;
+      case 'expert': return 4;
       default: return 1;
     }
   }

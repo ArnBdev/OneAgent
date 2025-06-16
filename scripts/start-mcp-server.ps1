@@ -8,7 +8,7 @@ Write-Host "💊 Health: http://localhost:8083/health" -ForegroundColor Yellow
 Write-Host ""
 
 # Change to OneAgent directory
-Set-Location $PSScriptRoot
+Set-Location $PSScriptRoot\..
 
 # Check if dependencies are installed
 if (!(Test-Path "node_modules")) {
