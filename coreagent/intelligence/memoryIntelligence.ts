@@ -12,7 +12,7 @@
  */
 
 import { UnifiedMemoryClient } from '../memory/UnifiedMemoryClient';
-import { ConversationData, ConversationMetadata } from '../types/unified';
+import { ConversationData, ConversationMetadata, MemorySearchResult, MemoryRecord, IntelligenceInsight } from '../types/unified';
 
 // =====================================
 // Modern Clean Interfaces
@@ -23,22 +23,6 @@ export interface MemoryIntelligenceOptions {
   maxResults?: number;
   similarityThreshold?: number;
   enableConstitutionalValidation?: boolean;
-}
-
-export interface IntelligenceInsight {
-  type: 'pattern' | 'trend' | 'quality';
-  description: string;
-  confidence: number;
-  data: Record<string, any>;
-  actionable: boolean;
-  constitutionalCompliant: boolean;
-}
-
-export interface MemorySearchResult {
-  conversations: ConversationData[];
-  insights: IntelligenceInsight[];
-  totalFound: number;
-  searchTime: number;
 }
 
 // =====================================
@@ -83,28 +67,48 @@ export class MemoryIntelligence {
         query,
         userId,
         maxResults: options.maxResults || this.options.maxResults || 20
-      });
-
-      // Convert memory entries to ConversationData format
+      });      // Convert memory entries to ConversationData format
       const conversations = Array.isArray(memoryEntries) ? 
         memoryEntries.map(this.convertToConversationData.bind(this)) : [];
 
-      // Generate insights from the results
-      const insights = this.generateInsights(conversations);
+      // Convert to MemoryRecord format for unified interface
+      const results: MemoryRecord[] = conversations.map(conv => ({
+        id: conv.conversationId || 'unknown',
+        content: JSON.stringify(conv),
+        metadata: {
+          userId,
+          timestamp: conv.timestamp,
+          tags: conv.topicTags || [],
+          category: 'conversation'
+        },
+        userId,
+        timestamp: conv.timestamp,
+        lastAccessed: new Date(),
+        accessCount: 1,
+        relevanceScore: conv.qualityScore || 1.0
+      }));
 
       return {
-        conversations,
-        insights,
-        totalFound: conversations.length,
-        searchTime: Date.now() - startTime
+        results,
+        totalResults: results.length,
+        query,
+        searchTime: Date.now() - startTime,
+        metadata: {
+          conversations,
+          insights: this.generateInsights(conversations)
+        }
       };
     } catch (error) {
       console.error('Intelligent search failed:', error);
       return {
-        conversations: [],
-        insights: [],
-        totalFound: 0,
-        searchTime: Date.now() - startTime
+        results: [],
+        totalResults: 0,
+        query,
+        searchTime: Date.now() - startTime,
+        metadata: {
+          conversations: [],
+          insights: []
+        }
       };
     }
   }
@@ -165,30 +169,30 @@ export class MemoryIntelligence {
     // Trend insight
     insights.push({
       type: 'trend',
-      description: `Found ${conversations.length} relevant conversations`,
+      content: `Found ${conversations.length} relevant conversations`,
       confidence: 0.9,
-      data: { 
+      metadata: { 
         conversationCount: conversations.length,
-        avgQuality: this.calculateAverageQuality(conversations)
-      },
-      actionable: conversations.length < 5,
-      constitutionalCompliant: true
+        avgQuality: this.calculateAverageQuality(conversations),
+        actionable: conversations.length < 5
+      }
     });
 
     // Quality insight
     const avgQuality = this.calculateAverageQuality(conversations);
     if (avgQuality > 0) {
       insights.push({
-        type: 'quality',
-        description: `Average conversation quality: ${(avgQuality * 100).toFixed(1)}%`,
+        type: 'suggestion',
+        content: `Average conversation quality: ${(avgQuality * 100).toFixed(1)}%`,
         confidence: 0.8,
-        data: { averageQuality: avgQuality },
-        actionable: avgQuality < 0.7,
-        constitutionalCompliant: true
+        metadata: { 
+          averageQuality: avgQuality,
+          actionable: avgQuality < 0.7
+        }
       });
     }
 
-    return insights.filter(insight => insight.constitutionalCompliant);
+    return insights;
   }
 
   // =====================================
@@ -304,17 +308,18 @@ export class MemoryIntelligence {
 
   /**
    * Generate memory analytics
-   */
-  async generateMemoryAnalytics(userId: string): Promise<Record<string, any>> {
+   */  async generateMemoryAnalytics(userId: string): Promise<Record<string, any>> {
     try {
       const searchResult = await this.intelligentSearch('', userId, { maxResults: 100 });
+      const conversations = searchResult.metadata?.conversations || [];
+      const insights = searchResult.metadata?.insights || [];
       
       return {
-        totalConversations: searchResult.totalFound,
-        averageQuality: this.calculateAverageQuality(searchResult.conversations),
-        insights: searchResult.insights,
+        totalConversations: searchResult.totalResults,
+        averageQuality: this.calculateAverageQuality(conversations),
+        insights,
         searchTime: searchResult.searchTime,
-        constitutionalCompliance: searchResult.conversations.every(c => c.constitutionalCompliant)
+        constitutionalCompliance: conversations.every((c: ConversationData) => c.constitutionalCompliant)
       };
     } catch (error) {
       console.error('Generate analytics failed:', error);

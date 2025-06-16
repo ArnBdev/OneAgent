@@ -577,7 +577,7 @@ export class WebFindingsManager {
         };
       }
 
-      await this.memoryIntelligence.storeMemory(content, metadata, finding.metadata.userId);
+      await this.memoryIntelligence.storeMemory(content, finding.metadata.userId || 'system', metadata);
       console.log(`💾 Finding persisted to memory system: ${finding.id}`);
 
     } catch (error) {

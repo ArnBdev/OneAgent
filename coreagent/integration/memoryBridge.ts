@@ -10,6 +10,7 @@ import { MemoryIntelligence } from '../intelligence/memoryIntelligence';
 import { PerformanceAPI } from '../api/performanceAPI';
 import { SimpleAuditLogger, defaultAuditLogger } from '../audit/auditLogger';
 import { SecureErrorHandler, defaultSecureErrorHandler } from '../utils/secureErrorHandler';
+import { MemorySearchResult, MemoryRecord, MemorySearchOptions, MemoryAnalytics } from '../types/unified';
 
 export interface MemoryPerformanceMetrics {
   searchLatency: number;
@@ -25,21 +26,10 @@ export interface MemoryBridgeConfig {
   enableCaching: boolean;
   cacheTimeout: number;
   maxCacheSize: number;
-  performanceThresholds: {
-    searchWarning: number;
+  performanceThresholds: {    searchWarning: number;
     searchError: number;
     retrievalWarning: number;
     retrievalError: number;
-  };
-}
-
-export interface MemorySearchResult {
-  results: any[];
-  metadata: {
-    searchTime: number;
-    totalResults: number;
-    cached: boolean;
-    performanceScore: number;
   };
 }
 
@@ -116,12 +106,12 @@ export class MemoryBridge {
         if (cached) {
           const searchTime = Date.now() - startTime;
           await this.recordSearchMetrics(searchTime, true);
-          
-          return {
+            return {
             results: cached.data,
+            totalResults: cached.data.length,
+            query,
+            searchTime,
             metadata: {
-              searchTime,
-              totalResults: cached.data.length,
               cached: true,
               performanceScore: this.calculatePerformanceScore(searchTime)
             }
@@ -129,13 +119,10 @@ export class MemoryBridge {
         }
       }      // Perform actual search
       const searchResults = await this.memoryIntelligence.semanticSearch(
-        query,        {
-          limit: options.limit || 10,
-          ...(options.userId && { userId: options.userId })
-        },
+        query,
         {
-          topK: options.limit || 10,
-          similarityThreshold: options.threshold || 0.7
+          userId: options.userId || 'system',
+          maxResults: options.limit || 10
         }
       );
 
@@ -152,11 +139,13 @@ export class MemoryBridge {
       // Check performance thresholds
       await this.checkPerformanceThresholds('search', searchTime, options);
 
+      // Return unified MemorySearchResult format
       return {
-        results: searchResults,
+        results: searchResults.results || [],
+        totalResults: searchResults.totalResults || 0,
+        query,
+        searchTime,
         metadata: {
-          searchTime,
-          totalResults: searchResults.length,
           cached: false,
           performanceScore: this.calculatePerformanceScore(searchTime)
         }
@@ -183,7 +172,7 @@ export class MemoryBridge {
     const startTime = Date.now();
     
     try {
-      const result = await this.memoryIntelligence.getMemory(memoryId, options.userId);
+      const result = await this.memoryIntelligence.getMemory(memoryId);
       const retrievalTime = Date.now() - startTime;
       
       await this.recordRetrievalMetrics(retrievalTime);
@@ -211,11 +200,10 @@ export class MemoryBridge {
   ): Promise<string> {
     const startTime = Date.now();
     
-    try {
-      const memoryId = await this.memoryIntelligence.storeMemory(
+    try {      const memoryId = await this.memoryIntelligence.storeMemory(
         content,
-        metadata,
-        options.userId
+        options.userId || 'system',
+        metadata
       );
       
       const indexingTime = Date.now() - startTime;
@@ -241,7 +229,7 @@ export class MemoryBridge {
     cacheStats: { size: number; hitRate: number };
   }> {
     try {
-      const intelligenceData = await this.memoryIntelligence.getAnalytics(userId);
+      const intelligenceData = await this.memoryIntelligence.getAnalytics(userId || 'system');
       const cacheStats = this.getCacheStatistics();
       
       return {

@@ -41,6 +41,17 @@ import { GeminiEmbeddingsTool } from '../tools/geminiEmbeddings';
 import { realUnifiedMemoryClient } from '../memory/RealUnifiedMemoryClient';
 import { generateMemoryId } from '../memory/UnifiedMemoryInterface';
 
+// Import Context7 Documentation System
+import { UnifiedContext7MCPIntegration } from '../mcp/UnifiedContext7MCPIntegration';
+import { 
+  DocumentationSource, 
+  DocumentationQuery, 
+  DocumentationResult,
+  DocumentationSearchResult,
+  DocumentationPattern,
+  Context7CacheMetrics 
+} from '../types/unified';
+
 // Import OneAgent Monitoring and Error Handling
 import { ErrorMonitoringService } from '../monitoring/ErrorMonitoringService';
 import { TriageAgent } from '../agents/specialized/TriageAgent';
@@ -107,9 +118,16 @@ const geminiConfig = {
   apiKey: process.env.GOOGLE_API_KEY || process.env.GEMINI_API_KEY || 'your_google_gemini_api_key_here',
   ...(process.env.GEMINI_API_URL && { baseUrl: process.env.GEMINI_API_URL })
 };
+
+// Initialize Gemini client and AI assistant
 const geminiClient = new GeminiClient(geminiConfig);
-const aiAssistantTool = new AIAssistantTool(geminiClient);
-// const embeddingsTool = new GeminiEmbeddingsTool(geminiClient, unifiedMemoryClient);
+const aiAssistant = new AIAssistantTool(geminiClient);
+
+// Initialize Context7 Documentation System with Constitutional AI
+const context7Integration = new UnifiedContext7MCPIntegration('oneagent-context7');
+
+// Initialize Context7 - it already has sources configured internally
+console.log('✅ Context7 Documentation System initialized with Constitutional AI compliance');
 
 // Initialize OneAgent Error Monitoring and Recovery System
 const auditLogger = new SimpleAuditLogger({
@@ -490,6 +508,54 @@ async function processMcpMethod(message: any) {
                 },
                 required: []
               }
+            },
+            // Context7 Documentation Tools
+            {
+              name: 'oneagent_context7_query',
+              description: 'Query documentation with Context7 system for enhanced learning and pattern storage',
+              inputSchema: {
+                type: 'object',
+                properties: {
+                  source: { type: 'string', description: 'Documentation source (react, typescript, nodejs, etc.)' },
+                  query: { type: 'string', description: 'Documentation query' },
+                  context: { type: 'string', description: 'Optional context for the query' },
+                  maxResults: { type: 'number', description: 'Maximum number of results (default: 10)' },
+                  userId: { type: 'string', description: 'User ID for memory context' },
+                  sessionId: { type: 'string', description: 'Session ID for tracking' }
+                },
+                required: ['source', 'query']
+              }
+            },
+            {
+              name: 'oneagent_context7_sources',
+              description: 'Get available Context7 documentation sources',
+              inputSchema: {
+                type: 'object',
+                properties: {},
+                required: []
+              }
+            },
+            {
+              name: 'oneagent_context7_metrics',
+              description: 'Get Context7 cache and memory metrics',
+              inputSchema: {
+                type: 'object',
+                properties: {},
+                required: []
+              }
+            },
+            {
+              name: 'oneagent_context7_patterns',
+              description: 'Search Context7 memory for documentation patterns and learnings',
+              inputSchema: {
+                type: 'object',
+                properties: {
+                  query: { type: 'string', description: 'Pattern search query' },
+                  userId: { type: 'string', description: 'User ID for memory context' },
+                  limit: { type: 'number', description: 'Maximum patterns to retrieve (default: 20)' }
+                },
+                required: ['query', 'userId']
+              }
             }
           ]
         });
@@ -740,7 +806,7 @@ async function handleToolCall(params: any, id: any) {
         break;
 
       case 'oneagent_ai_assistant':
-        let aiResponse = await aiAssistantTool.ask(args.message);
+        let aiResponse = await aiAssistant.ask(args.message);
         
         if (args.applyConstitutional && aiResponse.success) {
           const validation = await constitutionalAI.validateResponse(
@@ -911,6 +977,159 @@ async function handleToolCall(params: any, id: any) {
         });
         break;
         
+      // Context7 Documentation Tools
+      case 'oneagent_context7_query':
+        try {
+          const documentationQuery = {
+            source: args.source,
+            query: args.query,
+            context: args.context,
+            maxResults: args.maxResults || 10,
+            userId: args.userId || 'mcp_user',
+            sessionId: args.sessionId || `mcp_${Date.now()}`
+          };
+
+          const documentationResults = await context7Integration.queryDocumentation(documentationQuery);
+
+          return createJsonRpcResponse(id, {
+            content: [{
+              type: 'text',
+              text: JSON.stringify({
+                query: documentationQuery,
+                results: documentationResults,
+                totalResults: documentationResults.length,
+                cached: documentationResults.some(r => r.cached),
+                memoryEnhanced: documentationResults.some(r => r.memoryEnhanced),
+                capabilities: [
+                  'Documentation search',
+                  'Memory-enhanced results',
+                  'Pattern learning',
+                  'Cross-agent intelligence'
+                ]
+              }, null, 2)
+            }],
+            isError: false
+          });
+        } catch (error) {
+          console.error(`Context7 query error:`, error);
+          return createJsonRpcResponse(id, null, createJsonRpcError(
+            -32603,
+            'Context7 documentation query failed',
+            error instanceof Error ? error.message : 'Unknown Context7 error'
+          ));
+        }
+
+      case 'oneagent_context7_sources':
+        try {
+          const availableSources = context7Integration.getAvailableSources();
+
+          return createJsonRpcResponse(id, {
+            content: [{
+              type: 'text',
+              text: JSON.stringify({
+                sources: availableSources,
+                totalSources: availableSources.length,
+                capabilities: [
+                  'Multi-framework support',
+                  'API documentation',
+                  'Language references',
+                  'Library documentation'
+                ]
+              }, null, 2)
+            }],
+            isError: false
+          });
+        } catch (error) {
+          console.error(`Context7 sources error:`, error);
+          return createJsonRpcResponse(id, null, createJsonRpcError(
+            -32603,
+            'Context7 sources retrieval failed',
+            error instanceof Error ? error.message : 'Unknown Context7 error'
+          ));
+        }
+
+      case 'oneagent_context7_metrics':
+        try {
+          const cacheMetrics = context7Integration.getCacheMetrics();
+
+          return createJsonRpcResponse(id, {
+            content: [{
+              type: 'text',
+              text: JSON.stringify({
+                metrics: cacheMetrics,
+                performance: {
+                  cacheHitRate: cacheMetrics.cacheHits > 0 ? 
+                    ((cacheMetrics.cacheHits / cacheMetrics.totalQueries) * 100).toFixed(1) + '%' : 
+                    '0%',
+                  averageResponseTime: `${cacheMetrics.averageResponseTime}ms`,
+                  memoryUtilization: 'active'
+                },
+                capabilities: [
+                  'Performance monitoring',
+                  'Cache optimization',
+                  'Memory tracking',
+                  'Quality scoring'
+                ]
+              }, null, 2)
+            }],
+            isError: false
+          });
+        } catch (error) {
+          console.error(`Context7 metrics error:`, error);
+          return createJsonRpcResponse(id, null, createJsonRpcError(
+            -32603,
+            'Context7 metrics retrieval failed',
+            error instanceof Error ? error.message : 'Unknown Context7 error'
+          ));
+        }      case 'oneagent_context7_patterns':
+        try {
+          // Search memory for documentation patterns using correct method
+          const searchResult = await realUnifiedMemoryClient.getMemoryContext(
+            args.query,
+            args.userId,
+            args.limit || 20
+          );
+
+          // Filter for documentation-related memories
+          const documentationPatterns = searchResult.memories.filter((memory: any) => 
+            memory.content.toLowerCase().includes('documentation') ||
+            memory.content.toLowerCase().includes('context7') ||
+            memory.metadata?.type === 'documentation' ||
+            memory.metadata?.source === 'context7'
+          );
+
+          return createJsonRpcResponse(id, {
+            content: [{
+              type: 'text',
+              text: JSON.stringify({
+                query: args.query,
+                patterns: documentationPatterns,
+                totalPatterns: documentationPatterns.length,
+                insights: {
+                  commonSources: [...new Set(documentationPatterns.map((p: any) => p.metadata?.source).filter(Boolean))],
+                  learningTrends: documentationPatterns.length > 0 ? 'active' : 'building',
+                  qualityScore: documentationPatterns.length > 0 ? 
+                    (documentationPatterns.reduce((sum: number, p: any) => sum + (p.similarity || 0), 0) / documentationPatterns.length * 100).toFixed(1) + '%' : 
+                    'insufficient-data'
+                },
+                capabilities: [
+                  'Pattern recognition',
+                  'Cross-agent learning',
+                  'Memory intelligence',
+                  'Documentation optimization'
+                ]
+              }, null, 2)
+            }],
+            isError: false
+          });
+        } catch (error) {
+          console.error(`Context7 patterns error:`, error);
+          return createJsonRpcResponse(id, null, createJsonRpcError(
+            -32603,
+            'Context7 patterns search failed',
+            error instanceof Error ? error.message : 'Unknown Context7 error'
+          ));        }
+
       default:
         // First check if this is a unified framework tool
         if (toolRegistry.hasTool(name)) {

@@ -351,6 +351,154 @@ export interface PerformanceProjection {
 }
 
 // ========================================
+// MEMORY SYSTEM INTERFACES
+// ========================================
+
+export interface MemoryMetadata {
+  userId: string;
+  timestamp: Date;
+  tags?: string[];
+  category?: string;
+  importance?: number;
+  [key: string]: any;
+}
+
+export interface MemoryRecord {
+  id: string;
+  content: string;
+  metadata: MemoryMetadata;
+  userId: string;
+  timestamp: Date;
+  lastAccessed: Date;
+  accessCount: number;
+  embedding?: number[];
+  relevanceScore?: number;
+}
+
+export interface MemorySearchOptions {
+  limit?: number;
+  threshold?: number;
+  includeMetadata?: boolean;
+  sortBy?: 'relevance' | 'timestamp' | 'accessCount';
+  filters?: Record<string, any>;
+}
+
+export interface MemorySearchQuery {
+  text: string;
+  options?: MemorySearchOptions;
+  userId: string;
+}
+
+export interface MemorySearchResult {
+  results: MemoryRecord[];
+  totalResults: number;
+  query: string;
+  searchTime: number;
+  metadata?: Record<string, any>;
+}
+
+export interface MemoryAnalytics {
+  totalMemories: number;
+  averageRelevance: number;
+  searchPerformance: number;
+  memoryGrowthRate: number;
+  userActivity: Record<string, any>;
+}
+
+export interface IntelligenceInsight {
+  type: 'pattern' | 'trend' | 'anomaly' | 'suggestion';
+  content: string;
+  confidence: number;
+  metadata: Record<string, any>;
+}
+
+export interface AgentHealthReport {
+  agentId: string;
+  name: string;
+  description: string;
+  initialized: boolean;
+  capabilities: string[];
+  memoryEnabled: boolean;
+  aiEnabled: boolean;
+  lastActivity?: Date;
+  isHealthy: boolean;
+  processedMessages: number;
+}
+
+// ========================================
+// CONTEXT7 DOCUMENTATION SYSTEM INTERFACES
+// ========================================
+
+export interface DocumentationSource {
+  name: string;
+  type: 'library' | 'framework' | 'api' | 'language' | 'internal';
+  endpoint?: string;
+  version?: string;
+  lastUpdated?: Date;
+  quality: number;
+  constitutionalCompliant: boolean;
+}
+
+export interface DocumentationQuery {
+  source: string;
+  query: string;
+  context?: string;
+  maxResults?: number;
+  userId: string;
+  sessionId?: string;
+  priority?: 'low' | 'medium' | 'high';
+}
+
+export interface DocumentationResult {
+  id: string;
+  source: string;
+  title: string;
+  content: string;
+  url?: string;
+  relevanceScore: number;
+  qualityScore: number;
+  cached: boolean;
+  memoryEnhanced?: boolean;
+  constitutionalValidated: boolean;
+  metadata: Record<string, any>;
+  timestamp: Date;
+}
+
+export interface DocumentationSearchResult {
+  results: DocumentationResult[];
+  totalResults: number;
+  query: string;
+  searchTime: number;
+  sources: string[];
+  cacheHitRatio: number;
+  memoryEnhanced: boolean;
+  metadata?: Record<string, any>;
+}
+
+export interface DocumentationPattern {
+  id: string;
+  queryPattern: string;
+  commonSources: string[];
+  successfulResults: number;
+  userSatisfaction: number;
+  averageRelevance: number;
+  lastUsed: Date;
+  constitutionalCompliant: boolean;
+  metadata: Record<string, any>;
+}
+
+export interface Context7CacheMetrics {
+  totalQueries: number;
+  cacheHits: number;
+  cacheMisses: number;
+  memoryHits: number;
+  averageResponseTime: number;
+  qualityScore: number;
+  constitutionalCompliance: number;
+  lastCacheCleanup: Date;
+}
+
+// ========================================
 // EXPORT ALL INTERFACES
 // ========================================
 

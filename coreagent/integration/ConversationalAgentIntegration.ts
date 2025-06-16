@@ -5,16 +5,15 @@
  * OneAgent infrastructure for practical deployment and testing.
  */
 
-import { DialogueFacilitatorFixed } from '../orchestrator/DialogueFacilitatorFixed';
-import { ConversationalAgent } from '../agents/ConversationalAgentFixed';
+import { DialogueFacilitator } from '../orchestrator/DialogueFacilitator';
+import { CoreAgent } from '../agents/specialized/CoreAgent';
 import { ConversationContext, AgentPersonality } from '../types/ConversationTypes';
 
 export class ConversationalAgentManager {
-  private facilitator: DialogueFacilitatorFixed;
-  private registeredAgents: Map<string, ConversationalAgent> = new Map();
-
+  private facilitator: DialogueFacilitator;
+  private registeredAgents: Map<string, CoreAgent> = new Map();
   constructor() {
-    this.facilitator = new DialogueFacilitatorFixed();
+    this.facilitator = new DialogueFacilitator();
     this.initializeDefaultAgents();
   }
 
@@ -55,16 +54,17 @@ export class ConversationalAgentManager {
         biases: ["status-quo-bias"],
         confidence: 0.80
       }
-    ];
-
-    defaultPersonalities.forEach((personality, index) => {
-      const agent = new ConversationalAgent(
-        `conversational-agent-${index + 1}`,
-        "conversational",
-        personality
-      );
-      this.registeredAgents.set(agent.agentId, agent);
-      this.facilitator.registerAgent(agent);
+    ];    defaultPersonalities.forEach((_personality, index) => {
+      const agent = new CoreAgent({
+        id: `conversational-agent-${index + 1}`,
+        name: `ConversationalAgent-${index + 1}`,
+        description: "Conversational agent for dialogue facilitation",
+        capabilities: ["conversation", "dialogue", "facilitation"],
+        memoryEnabled: true,
+        aiEnabled: true
+      });
+      this.registeredAgents.set(agent.config.id, agent);
+      // Note: DialogueFacilitator.registerAgent method needs to be implemented
     });
   }
 
@@ -206,11 +206,10 @@ export class ConversationalAgentManager {
         "collaborative-insights",
         "conversation-quality-assessment",
         "natural-language-communication"
-      ],
-      agentTypes: Array.from(this.registeredAgents.values()).map(agent => ({
-        id: agent.agentId,
-        perspective: agent['personality'].perspective,
-        expertise: agent['personality'].expertiseFocus
+      ],      agentTypes: Array.from(this.registeredAgents.values()).map(agent => ({
+        id: agent.config.id,
+        perspective: "analytical", // Default since CoreAgent doesn't have personality
+        expertise: agent.config.capabilities
       }))
     };
   }

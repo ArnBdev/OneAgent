@@ -25,8 +25,7 @@ export interface ISpecializedAgent {
   
   /** Execute a specific action */
   executeAction(action: string | AgentAction, params: any, context?: AgentContext): Promise<any>;
-  
-  /** Get agent status and health (BaseAgent compatibility) */
+    /** Get agent status and health (BaseAgent compatibility) */
   getStatus(): {
     agentId: string;
     name: string;
@@ -36,6 +35,9 @@ export interface ISpecializedAgent {
     memoryEnabled: boolean;
     aiEnabled: boolean;
     lastActivity?: Date;
+    isHealthy: boolean;
+    processedMessages: number;
+    errors: number;
   };
   
   /** Get agent name */

@@ -148,8 +148,10 @@ async function testMemoryOperations(client: UnifiedMemoryClient, results: any): 
       TEST_MEMORY_CONTENT,
       TEST_USER_ID,
       'long_term',
-      { category: 'test' },
-      ConstitutionalLevel.PROFESSIONAL
+      { 
+        category: 'test',
+        constitutionalLevel: 'PROFESSIONAL'
+      }
     );
 
     // Result should have proper structure even if server is not available

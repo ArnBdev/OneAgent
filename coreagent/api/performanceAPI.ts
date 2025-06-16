@@ -75,11 +75,10 @@ export class PerformanceAPI {
       const memories = await this.unifiedMemoryClient.searchMemories({
         query: "",
         userId: "system",
-        maxResults: 100
-      });
+        maxResults: 100      });
       const memoryData = Array.isArray(memories) ? memories : [];
       
-      const analytics = await this.memoryIntelligence.generateMemoryAnalytics();
+      const analytics = await this.memoryIntelligence.generateMemoryAnalytics("system");
         // Test service connections
       const services: SystemStatus['services'] = {
         gemini: 'unknown',
@@ -172,10 +171,9 @@ export class PerformanceAPI {
     try {      const memories = await this.unifiedMemoryClient.searchMemories({
         query: filter?.query || "",
         userId: filter?.userId || "system",
-        maxResults: filter?.limit || 100
-      });
+        maxResults: filter?.limit || 100      });
       const memoryData = Array.isArray(memories) ? memories : [];
-        const analytics = await this.memoryIntelligence.generateMemoryAnalytics();
+        const analytics = await this.memoryIntelligence.generateMemoryAnalytics(filter?.userId || "system");
       
       return {
         success: true,
