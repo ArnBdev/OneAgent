@@ -1,5 +1,5 @@
 # OneAgent v4.0.0 Professional - Comprehensive .gitignore
-# Last Updated: June 13, 2025 - Memory Bridge Implementation Update
+# Last Updated: June 16, 2025 - Post-Cleanup & Startup Scripts Reorganization
 
 # ================================
 # SECURITY & ENVIRONMENT - CRITICAL
@@ -33,8 +33,12 @@ gemini_memory_config.json
 mcp_secrets.json
 **/gemini_*.json
 **/oneagent_*.json
+
+# Log files (now organized in logs/ directory)
 oneagent_memory.log
 **/oneagent_*.log
+logs/*.log
+logs/**/*.log
 
 # ================================
 # BUILD ARTIFACTS & DEPENDENCIES
@@ -107,14 +111,21 @@ temp_*.txt
 *.code-workspace
 
 # ================================
-# ONEAGENT SPECIFIC - UPDATED FOR MEMORY BRIDGE
+# ONEAGENT SPECIFIC - UPDATED POST-CLEANUP (June 2025)
 # ================================
 
 # Data directories (contains personal and workflow data)
 data/
 temp/
 temp_*/
+
+# Cleaned up directories (removed during technical debt cleanup)
+backup/
 test-workspace/
+debug/
+demo/
+examples/
+dist/
 
 # Memory & AI databases (may contain sensitive user data) - CRITICAL
 oneagent_gemini_memory/
@@ -156,8 +167,6 @@ test*.json
 **/test_*
 **/tests/test-*
 **/tests/test_*
-tests/
-test/
 debug-*.ts
 debug-*.js
 debug_*.py
@@ -166,20 +175,35 @@ validate-*.py
 **/debug_*
 **/validate_*
 
+# Cleaned up file patterns (removed during June 2025 cleanup)
+CRITICAL_*.md
+SYSTEMATIC_*.md
+*_COMPLETE.md
+*_IMPLEMENTATION.md
+*_STATUS.md
+*_PROGRESS.md
+project-status.json
+memory_migration_*.py
+migrate_*.py
+git_cleanup_*.py
+security_validation*.py
+check_memories.py
+search_my_memories.py
+
+# Legacy PowerShell/batch files in root (moved to scripts/)
+# Note: Current organized scripts in scripts/ directory are allowed
+*.ps1
+*.bat
+!scripts/*.ps1
+!scripts/*.bat
+!start.ps1
+!start.bat
+
 # Manual testing and demo files
-**/demo/manual-*
-**/demo/test-*
 manual-test-*
 level-*-test-*
 
-# Documentation that may contain sensitive info
-**/reports/oneagent_*
-**/production/ONEAGENT_*
-
 # Migration and setup scripts (may contain sensitive paths)
-memory_migration_*.py
-migrate_*.py
-initialize-*.ps1
 **/migration_*
 **/migrate_*
 **/initialize_*
@@ -190,30 +214,6 @@ servers/test_*.py
 servers/oneagent_mem0_*.py
 !servers/oneagent_memory_server.py  # Production memory server - ALLOW
 !servers/requirements.txt            # Server dependencies - ALLOW
-
-# Backup directories and files
-backup/
-**/backup/
-*.backup
-*.bak
-
-# Temporary PowerShell and batch files
-*.ps1
-*.bat
-!start-mcp-copilot.ps1
-!start-mcp-copilot.bat
-!restart-optimized-server.ps1
-
-# Integration test workspace
-test-workspace/
-**/test-workspace/
-
-# Performance validation
-validate-memory-performance.js
-**/validate-*performance*
-
-# Security validation script (contains security logic)
-security_validation.py
 
 # ================================
 # SYSTEM & RUNTIME
@@ -236,16 +236,17 @@ pids/
 *.pid.lock
 .lock-wscript
 
-# Logs
+# Logs (centralized in logs/ directory)
 *.log
 logs/
+logs/**/*
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 lerna-debug.log*
 .npm/_logs/
 
-# Python (for server components)
+# Python runtime (for server components)
 __pycache__/
 *.py[cod]
 *$py.class
@@ -267,6 +268,29 @@ share/python-wheels/
 .installed.cfg
 *.egg
 MANIFEST
+
+# ================================
+# SCRIPTS ORGANIZATION (June 2025)
+# ================================
+
+# Allow organized scripts in scripts/ directory
+!scripts/start-*.ps1
+!scripts/start-*.bat
+!scripts/stop-*.ps1
+!scripts/status-*.ps1
+!scripts/restart-*.ps1
+!scripts/README.md
+
+# Allow root convenience scripts
+!start.ps1
+!start.bat
+
+# Block old/temporary scripts
+scripts/temp-*.ps1
+scripts/debug-*.ps1
+scripts/test-*.ps1
+scripts/*-temp.*
+scripts/validate-*performance*
 
 # ================================
 # DOCUMENTATION & BACKUP
