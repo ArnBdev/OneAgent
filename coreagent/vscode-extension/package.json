@@ -1,8 +1,7 @@
-{
-  "name": "oneagent-professional",
-  "displayName": "OneAgent Professional",
-  "description": "Professional AI Development Platform with Constitutional AI",
-  "version": "1.0.0",
+{  "name": "oneagent-professional",
+  "displayName": "OneAgent Professional v4.0.0",
+  "description": "Professional AI Development Platform with Constitutional AI, BMAD Framework, Evolution Analytics, Multi-Agent Coordination, and Quality-First TypeScript Standards",
+  "version": "1.2.0",
   "publisher": "oneagent",
   "engines": {
     "vscode": "^1.74.0"
@@ -39,10 +38,49 @@
         "command": "oneagent.qualityScore",
         "title": "Quality Score Selection",
         "category": "OneAgent"
-      },
-      {
+      },      {
         "command": "oneagent.memorySearch",
         "title": "Search Memory Context",
+        "category": "OneAgent"
+      },
+      {
+        "command": "oneagent.semanticAnalysis",
+        "title": "Semantic Analysis",
+        "category": "OneAgent Pro"
+      },
+      {
+        "command": "oneagent.enhancedSearch",
+        "title": "Enhanced Web Search",
+        "category": "OneAgent Pro"
+      },
+      {
+        "command": "oneagent.evolutionAnalytics",
+        "title": "Evolution Analytics",
+        "category": "OneAgent Pro"
+      },
+      {
+        "command": "oneagent.profileStatus",
+        "title": "Profile Status",
+        "category": "OneAgent Pro"
+      },
+      {
+        "command": "oneagent.evolveProfile",
+        "title": "Evolve Agent Profile",
+        "category": "OneAgent Pro"
+      },
+      {
+        "command": "oneagent.agentNetworkHealth",
+        "title": "Agent Network Health",
+        "category": "OneAgent Pro"
+      },
+      {
+        "command": "oneagent.coordinateAgents",
+        "title": "Coordinate Multi-Agents",
+        "category": "OneAgent Pro"
+      },
+      {
+        "command": "oneagent.systemHealth",
+        "title": "System Health Check",
         "category": "OneAgent"
       }
     ],
@@ -65,16 +103,35 @@
           "command": "oneagent.qualityScore",
           "when": "editorTextFocus",
           "group": "oneagent@2"
-        },
-        {
+        },        {
           "command": "oneagent.bmadAnalyze",
           "when": "editorTextFocus",
           "group": "oneagent@3"
+        },
+        {
+          "command": "oneagent.semanticAnalysis",
+          "when": "editorTextFocus",
+          "group": "oneagent-pro@1"
         }
       ],
       "commandPalette": [
         {
           "command": "oneagent.openDashboard"
+        },
+        {
+          "command": "oneagent.enhancedSearch"
+        },
+        {
+          "command": "oneagent.evolutionAnalytics"
+        },
+        {
+          "command": "oneagent.profileStatus"
+        },
+        {
+          "command": "oneagent.agentNetworkHealth"
+        },
+        {
+          "command": "oneagent.systemHealth"
         }
       ]
     },
@@ -89,13 +146,53 @@
           "type": "boolean",
           "default": true,
           "description": "Enable Constitutional AI validation"
-        },
-        "oneagent.qualityThreshold": {
+        },        "oneagent.qualityThreshold": {
           "type": "number",
           "default": 80,
           "minimum": 0,
           "maximum": 100,
           "description": "Minimum quality score threshold"
+        },
+        "oneagent.enableEvolutionAnalytics": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enable Evolution Analytics for profile improvement"
+        },
+        "oneagent.multiAgentCoordination": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enable Multi-Agent coordination capabilities"
+        },
+        "oneagent.autoEvolution": {
+          "type": "boolean",
+          "default": false,
+          "description": "Enable automatic profile evolution (requires manual approval)"
+        },
+        "oneagent.memoryRetention": {
+          "type": "string",
+          "enum": ["session", "short_term", "long_term"],
+          "default": "session",
+          "description": "Memory retention level for conversation context"
+        },
+        "oneagent.autoSyncSettings": {
+          "type": "boolean",
+          "default": true,
+          "description": "Automatically sync learned preferences to settings.json"
+        },
+        "oneagent.showAutoSyncNotifications": {
+          "type": "boolean",
+          "default": false,
+          "description": "Show notifications when OneAgent learns and updates preferences"
+        },
+        "oneagent.alitatAutoLearning": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enable ALITA auto-learning from VS Code chat interactions"
+        },
+        "oneagent.conversationAnalytics": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enable conversation pattern analysis for evolution triggers"
         }
       }
     },

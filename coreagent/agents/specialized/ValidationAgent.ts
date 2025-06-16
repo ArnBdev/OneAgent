@@ -31,8 +31,10 @@ export class ValidationAgent extends BaseAgent implements ISpecializedAgent {
   get id(): string {
     return this.config.id;
   }
-
   async initialize(): Promise<void> {
+    // Call parent initialize first (includes auto-registration)
+    await super.initialize();
+    
     console.log(`ValidationAgent ${this.id} initialized with Constitutional AI compliance`);
   }
 

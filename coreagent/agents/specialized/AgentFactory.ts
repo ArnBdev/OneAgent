@@ -38,12 +38,16 @@ export class AgentFactory {
 
   /**
    * Create or get existing DevAgent instance
-   */  static async createDevAgent(): Promise<BaseAgent> {
+   */
+  static async createDevAgent(): Promise<BaseAgent> {
     const agentId = 'DevAgent';
     
     if (this.instances.has(agentId)) {
+      console.log(`🔄 Returning existing ${agentId} instance`);
       return this.instances.get(agentId)!;
-    }    const config: AgentConfig = {
+    }
+
+    const config: AgentConfig = {
       id: agentId,
       name: 'Development Agent',
       description: 'Agent specialized in development tasks',
@@ -51,20 +55,23 @@ export class AgentFactory {
       memoryEnabled: true,
       aiEnabled: true
     };
+    
     const agent = new DevAgent(config);
-    await agent.initialize();
+    await agent.initialize(); // This now includes auto-registration
     
     this.instances.set(agentId, agent);
-    console.log('✅ DevAgent initialized with memory and AI capabilities');
+    console.log('✅ DevAgent initialized with memory, AI capabilities, and auto-registration');
     
     return agent;
   }
   /**
    * Create or get existing OfficeAgent instance
-   */  static async createOfficeAgent(): Promise<BaseAgent> {
+   */
+  static async createOfficeAgent(): Promise<BaseAgent> {
     const agentId = 'OfficeAgent';
     
     if (this.instances.has(agentId)) {
+      console.log(`🔄 Returning existing ${agentId} instance`);
       return this.instances.get(agentId)!;
     }
 
@@ -76,21 +83,24 @@ export class AgentFactory {
       memoryEnabled: true,
       aiEnabled: true
     };
+    
     const agent = new OfficeAgent(config);
-    await agent.initialize();
+    await agent.initialize(); // This now includes auto-registration
     
     this.instances.set(agentId, agent);
-    console.log('✅ OfficeAgent initialized with memory and AI capabilities');
+    console.log('✅ OfficeAgent initialized with memory, AI capabilities, and auto-registration');
     
     return agent;
   }
 
   /**
    * Create or get existing FitnessAgent instance
-   */  static async createFitnessAgent(): Promise<BaseAgent> {
+   */
+  static async createFitnessAgent(): Promise<BaseAgent> {
     const agentId = 'FitnessAgent';
     
     if (this.instances.has(agentId)) {
+      console.log(`🔄 Returning existing ${agentId} instance`);
       return this.instances.get(agentId)!;
     }
 

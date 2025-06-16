@@ -35,6 +35,41 @@ export interface AIAssistantRequest {
     qualityThreshold?: number;
 }
 
+// New v4.0.0 Professional interfaces
+export interface SemanticAnalysisRequest {
+    text: string;
+    analysisType: 'similarity' | 'classification' | 'clustering';
+}
+
+export interface EnhancedSearchRequest {
+    query: string;
+    filterCriteria?: string[];
+    includeQualityScore?: boolean;
+}
+
+export interface EvolutionAnalyticsRequest {
+    timeRange?: '1d' | '7d' | '30d' | 'all';
+    includeCapabilityAnalysis?: boolean;
+    includeQualityTrends?: boolean;
+}
+
+export interface AgentRegistrationRequest {
+    agentId: string;
+    agentType: string;
+    capabilities: any[];
+    endpoint: string;
+    qualityScore: number;
+}
+
+export interface AgentMessageRequest {
+    targetAgent: string;
+    messageType: 'coordination_request' | 'capability_query' | 'task_delegation' | 'status_update';
+    content: string;
+    priority?: 'low' | 'medium' | 'high' | 'urgent';
+    requiresResponse?: boolean;
+    confidenceLevel?: number;
+}
+
 export class OneAgentClient {
     private baseUrl: string;
     
@@ -96,6 +131,89 @@ export class OneAgentClient {
             content,
             userId,
             memoryType
+        });
+    }
+
+    // New v4.0.0 Professional Methods
+    
+    async semanticAnalysis(request: SemanticAnalysisRequest): Promise<OneAgentResponse> {
+        return this.makeRequest('/tools/oneagent_semantic_analysis', {
+            text: request.text,
+            analysisType: request.analysisType
+        });
+    }
+    
+    async enhancedSearch(request: EnhancedSearchRequest): Promise<OneAgentResponse> {
+        return this.makeRequest('/tools/oneagent_enhanced_search', {
+            query: request.query,
+            filterCriteria: request.filterCriteria,
+            includeQualityScore: request.includeQualityScore ?? true
+        });
+    }
+    
+    async evolutionAnalytics(request: EvolutionAnalyticsRequest = {}): Promise<OneAgentResponse> {
+        return this.makeRequest('/tools/oneagent_evolution_analytics', {
+            timeRange: request.timeRange ?? '7d',
+            includeCapabilityAnalysis: request.includeCapabilityAnalysis ?? true,
+            includeQualityTrends: request.includeQualityTrends ?? true
+        });
+    }
+    
+    async profileStatus(): Promise<OneAgentResponse> {
+        return this.makeRequest('/tools/oneagent_profile_status', {});
+    }
+    
+    async profileHistory(limit?: number): Promise<OneAgentResponse> {
+        return this.makeRequest('/tools/oneagent_profile_history', {
+            limit: limit ?? 10,
+            includeValidationDetails: true
+        });
+    }
+    
+    async evolveProfile(trigger: string = 'manual', aggressiveness: string = 'moderate'): Promise<OneAgentResponse> {
+        return this.makeRequest('/tools/oneagent_evolve_profile', {
+            trigger,
+            aggressiveness,
+            qualityThreshold: 80
+        });
+    }
+    
+    async webFetch(url: string, extractContent: boolean = true): Promise<OneAgentResponse> {
+        return this.makeRequest('/tools/oneagent_web_fetch', {
+            url,
+            extractContent,
+            extractMetadata: true
+        });
+    }
+    
+    async registerAgent(request: AgentRegistrationRequest): Promise<OneAgentResponse> {
+        return this.makeRequest('/tools/register_agent', request);
+    }
+    
+    async sendAgentMessage(request: AgentMessageRequest): Promise<OneAgentResponse> {
+        return this.makeRequest('/tools/send_agent_message', request);
+    }
+    
+    async queryAgentCapabilities(query: string, qualityFilter: boolean = true): Promise<OneAgentResponse> {
+        return this.makeRequest('/tools/query_agent_capabilities', {
+            query,
+            qualityFilter
+        });
+    }
+    
+    async getAgentNetworkHealth(): Promise<OneAgentResponse> {
+        return this.makeRequest('/tools/get_agent_network_health', {
+            includeDetailed: true,
+            timeframe: '5m'
+        });
+    }
+    
+    async coordinateAgents(task: string, requiredCapabilities: string[], priority: string = 'medium'): Promise<OneAgentResponse> {
+        return this.makeRequest('/tools/coordinate_agents', {
+            task,
+            requiredCapabilities,
+            priority,
+            qualityTarget: 85
         });
     }
       private async makeRequest(endpoint: string, data: any = {}, method: string = 'POST'): Promise<OneAgentResponse> {
@@ -185,11 +303,13 @@ export class OneAgentClient {
             };
         }
     }
-      /**
+    
+    /**
      * Update configuration and reinitialize client
      */
     updateConfiguration(): void {
-        this.baseUrl = getServerUrl();
+        const config = vscode.workspace.getConfiguration('oneagent');
+        this.baseUrl = config.get('serverUrl', 'http://localhost:8083');
     }
     
     /**
@@ -198,7 +318,7 @@ export class OneAgentClient {
     getConfiguration() {
         const config = vscode.workspace.getConfiguration('oneagent');
         return {
-            serverUrl: getServerUrl(),
+            serverUrl: config.get('serverUrl', 'http://localhost:8083'),
             enableConstitutionalAI: config.get('enableConstitutionalAI', true),
             qualityThreshold: config.get('qualityThreshold', 80)
         };

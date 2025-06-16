@@ -449,6 +449,13 @@ export class MultiAgentOrchestrator {
     return this.mcpServer;
   }
 
+  /**
+   * Get the communication protocol instance for agent registration
+   */
+  getCommunicationProtocol(): AgentCommunicationProtocol {
+    return this.communicationProtocol;
+  }
+
   // Private implementation methods
   
   private async autoRegisterExistingAgents(): Promise<void> {

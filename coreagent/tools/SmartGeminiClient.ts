@@ -192,7 +192,13 @@ export class SmartGeminiClient {
   }
 }
 
-// Export singleton instance for easy use
-export const smartGeminiClient = new SmartGeminiClient();
+// Export lazy-loaded singleton instance for easy use
+let _smartGeminiClient: SmartGeminiClient | null = null;
+export const smartGeminiClient = (): SmartGeminiClient => {
+  if (!_smartGeminiClient) {
+    _smartGeminiClient = new SmartGeminiClient();
+  }
+  return _smartGeminiClient;
+};
 
 export default SmartGeminiClient;

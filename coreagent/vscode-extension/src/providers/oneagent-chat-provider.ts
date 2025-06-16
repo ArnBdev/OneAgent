@@ -65,17 +65,56 @@ export class OneAgentChatProvider {
                 response.markdown('\n\n✅ **Constitutional AI Validated**: Response meets accuracy, transparency, helpfulness, and safety standards');
             }
             
-            // Store interaction in memory for context
+            // Enhanced Memory Storage with ALITA Integration
             try {
                 const userId = vscode.env.machineId;
+                const userMessage = request.prompt;
+                const assistantResponse = aiResponse.data?.content || aiResponse.data?.response;
+                
+                // Store basic interaction
                 await this.client.memoryCreate(
-                    `User: ${request.prompt}\nAssistant: ${aiResponse.data?.content || aiResponse.data?.response}`,
+                    `User: ${userMessage}\nAssistant: ${assistantResponse}`,
                     userId,
                     'session'
                 );
+                
+                // Store enhanced metadata for ALITA learning
+                await this.client.memoryCreate(
+                    JSON.stringify({
+                        type: 'copilot_chat_interaction',
+                        timestamp: new Date().toISOString(),
+                        userMessage,
+                        assistantResponse,
+                        qualityScore: aiResponse.data?.qualityScore,
+                        constitutionalCompliance: aiResponse.data?.constitutionalCompliance,
+                        context: {
+                            activeFile: vscode.window.activeTextEditor?.document.fileName,
+                            workspaceFolder: vscode.workspace.workspaceFolders?.[0]?.name,
+                            language: vscode.window.activeTextEditor?.document.languageId
+                        },
+                        userBehavior: {
+                            responseTime: Date.now(), // Could be enhanced with actual timing
+                            followupUsed: false // Will be updated if user uses followups
+                        }
+                    }),
+                    userId,
+                    'long_term'
+                );
+                
+                // Trigger ALITA Auto-Evolution if configured
+                const evolutionConfig = vscode.workspace.getConfiguration('oneagent');
+                if (evolutionConfig.get('autoEvolution', false)) {
+                    this.triggerALITAEvolution(userMessage, assistantResponse, aiResponse.data);
+                }
+                
+                // Auto-sync to settings.json if enabled
+                if (evolutionConfig.get('autoSyncSettings', true)) {
+                    this.syncToSettingsJson(userMessage, assistantResponse, aiResponse.data);
+                }
+                
             } catch (error) {
                 // Silent fail for memory storage - not critical
-                console.warn('Failed to store interaction in memory:', error);
+                console.warn('Failed to store enhanced interaction in memory:', error);
             }
               } catch (error) {
             const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
@@ -99,8 +138,7 @@ export class OneAgentChatProvider {
                 }
             ];
         }
-        
-        return [
+          return [
             {
                 prompt: 'Analyze this with BMAD framework',
                 label: '🔍 BMAD Analysis',
@@ -120,6 +158,26 @@ export class OneAgentChatProvider {
                 prompt: 'Search project memory context',
                 label: '🧠 Memory Search',
                 command: 'oneagent.memorySearch'
+            },
+            {
+                prompt: 'Perform semantic analysis on selection',
+                label: '🧬 Semantic Analysis',
+                command: 'oneagent.semanticAnalysis'
+            },
+            {
+                prompt: 'Search web with quality filtering',
+                label: '🔍 Enhanced Search',
+                command: 'oneagent.enhancedSearch'
+            },
+            {
+                prompt: 'View evolution analytics',
+                label: '📈 Evolution Analytics',
+                command: 'oneagent.evolutionAnalytics'
+            },
+            {
+                prompt: 'Check agent network health',
+                label: '🕸️ Network Health',
+                command: 'oneagent.agentNetworkHealth'
             },
             {
                 prompt: 'Open OneAgent dashboard',
@@ -143,5 +201,116 @@ export class OneAgentChatProvider {
         if (score >= 70) return 'C';
         if (score >= 60) return 'D';
         return 'F';
+    }
+    
+    // ALITA Auto-Evolution Integration
+    private async triggerALITAEvolution(userMessage: string, assistantResponse: string, responseData: any): Promise<void> {
+        try {
+            // Analyze conversation patterns for evolution triggers
+            const shouldEvolve = await this.shouldTriggerEvolution(userMessage, assistantResponse, responseData);
+            
+            if (shouldEvolve) {
+                console.log('🧬 ALITA Auto-Evolution triggered by conversation pattern');
+                
+                // Trigger evolution with conversation context
+                const evolutionResult = await this.client.evolveProfile('conversation_analysis', 'moderate');
+                
+                if (evolutionResult.success) {
+                    // Notify user of evolution
+                    vscode.window.showInformationMessage(
+                        '🧬 OneAgent evolved based on your conversation patterns!',
+                        'View Changes'
+                    ).then(selection => {
+                        if (selection === 'View Changes') {
+                            vscode.commands.executeCommand('oneagent.evolutionAnalytics');
+                        }
+                    });
+                }
+            }
+        } catch (error) {
+            console.warn('ALITA auto-evolution failed:', error);
+        }
+    }
+    
+    private async shouldTriggerEvolution(userMessage: string, assistantResponse: string, responseData: any): Promise<boolean> {
+        // Evolution triggers based on conversation analysis
+        const triggers = [
+            responseData?.qualityScore < 70, // Low quality response
+            userMessage.toLowerCase().includes('improve') || userMessage.toLowerCase().includes('better'),
+            userMessage.toLowerCase().includes('error') || userMessage.toLowerCase().includes('wrong'),
+            assistantResponse.length < 50, // Very short responses might indicate inadequacy
+            responseData?.constitutionalCompliance === false
+        ];
+        
+        // Trigger if any condition is met and it's been some time since last evolution
+        return triggers.some(trigger => trigger);
+    }
+    
+    // Settings.json Auto-Sync Integration
+    private async syncToSettingsJson(userMessage: string, assistantResponse: string, responseData: any): Promise<void> {
+        try {
+            // Extract learnable preferences from conversation
+            const preferences = this.extractUserPreferences(userMessage, assistantResponse, responseData);
+            
+            if (preferences && Object.keys(preferences).length > 0) {
+                // Update VS Code settings with learned preferences
+                const config = vscode.workspace.getConfiguration('oneagent');
+                
+                for (const [key, value] of Object.entries(preferences)) {
+                    await config.update(key, value, vscode.ConfigurationTarget.Global);
+                }
+                
+                console.log('📝 Auto-synced preferences to settings.json:', preferences);
+                
+                // Optionally notify user
+                const showNotification = config.get('showAutoSyncNotifications', false);
+                if (showNotification) {
+                    vscode.window.showInformationMessage(
+                        `📝 OneAgent learned your preferences and updated settings.json`
+                    );
+                }
+            }
+        } catch (error) {
+            console.warn('Settings.json auto-sync failed:', error);
+        }
+    }
+    
+    private extractUserPreferences(userMessage: string, assistantResponse: string, responseData: any): Record<string, any> {
+        const preferences: Record<string, any> = {};
+        const message = userMessage.toLowerCase();
+        
+        // Quality threshold learning
+        if (responseData?.qualityScore) {
+            if (message.includes('good') || message.includes('excellent') || message.includes('perfect')) {
+                if (responseData.qualityScore < 90) {
+                    preferences.qualityThreshold = Math.min(responseData.qualityScore + 5, 95);
+                }
+            } else if (message.includes('bad') || message.includes('poor') || message.includes('wrong')) {
+                if (responseData.qualityScore > 70) {
+                    preferences.qualityThreshold = Math.max(responseData.qualityScore + 10, 85);
+                }
+            }
+        }
+        
+        // Constitutional AI preference learning
+        if (message.includes('be more careful') || message.includes('safety') || message.includes('validate')) {
+            preferences.enableConstitutionalAI = true;
+        }
+        
+        // Memory retention learning
+        if (message.includes('remember') || message.includes('context') || message.includes('previous')) {
+            preferences.memoryRetention = 'long_term';
+        } else if (message.includes('forget') || message.includes('clear') || message.includes('reset')) {
+            preferences.memoryRetention = 'session';
+        }
+        
+        // Evolution preferences
+        if (message.includes('improve') || message.includes('evolve') || message.includes('learn')) {
+            preferences.autoEvolution = true;
+        } else if (message.includes('stop learning') || message.includes('no changes')) {
+            preferences.autoEvolution = false;
+        }
+        
+        return preferences;
     }
 }

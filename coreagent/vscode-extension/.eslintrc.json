@@ -8,12 +8,24 @@
     "plugins": [
         "@typescript-eslint"
     ],
-    "rules": {
-        "@typescript-eslint/naming-convention": [
+    "rules": {        "@typescript-eslint/naming-convention": [
             "warn",
             {
-                "selector": "import",
-                "format": ["camelCase", "PascalCase"]
+                "selector": "default",
+                "format": ["camelCase"]
+            },
+            {
+                "selector": "variable",
+                "format": ["camelCase", "UPPER_CASE"]
+            },
+            {
+                "selector": "parameter",
+                "format": ["camelCase"],
+                "leadingUnderscore": "allow"
+            },
+            {
+                "selector": "typeLike",
+                "format": ["PascalCase"]
             }
         ],
         "@typescript-eslint/semi": "warn",

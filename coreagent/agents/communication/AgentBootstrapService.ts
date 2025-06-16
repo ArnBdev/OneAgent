@@ -14,18 +14,30 @@ import { BaseAgent } from '../base/BaseAgent';
 import { AgentFactory as BaseAgentFactory, AgentFactoryConfig } from '../base/AgentFactory';
 import { AgentFactory as SpecializedAgentFactory } from '../specialized/AgentFactory';
 import { AgentDiscoveryService } from './AgentDiscoveryService';
+import { AgentCommunicationProtocol } from './AgentCommunicationProtocol';
 
 export class AgentBootstrapService {
   private agents: Map<string, BaseAgent> = new Map();
   private isBootstrapped: boolean = false;
   private sharedDiscoveryService: AgentDiscoveryService | undefined = undefined;
-
+  private communicationProtocol: AgentCommunicationProtocol | undefined = undefined;
   /**
    * Set the shared discovery service (called from main server)
    */
   setSharedDiscoveryService(discoveryService: AgentDiscoveryService): void {
     this.sharedDiscoveryService = discoveryService;
     console.log('🔗 AgentBootstrapService: Shared discovery service connected');
+  }  /**
+   * Set the communication protocol for agent registration
+   */
+  async setCommunicationProtocol(protocol: AgentCommunicationProtocol): Promise<void> {
+    this.communicationProtocol = protocol;
+    console.log('🔗 AgentBootstrapService: Communication protocol connected');
+    
+    // If agents are already bootstrapped, register them immediately
+    if (this.isBootstrapped && this.agents.size > 0) {
+      await this.registerAllExistingAgents();
+    }
   }
 
   /**
@@ -43,12 +55,14 @@ export class AgentBootstrapService {
     try {      
       // Create all 5 REAL agents with memory and AI capabilities
       const realAgents = await SpecializedAgentFactory.createAllCoreAgents();
-      
-      // Store them in our local map
+        // Store them in our local map
       for (const agent of realAgents) {
         const config = agent.getConfig();
         this.agents.set(config.id, agent);
         console.log(`📝 Registered REAL agent: ${config.id} (${config.capabilities.length} capabilities)`);
+        
+        // Auto-register each agent with the communication protocol
+        await this.registerAgentWithCommunicationProtocol(agent);
       }
         console.log('✅ REAL Agent Registration Complete:');
       console.log('   🧠 CoreAgent: Constitutional AI + BMAD orchestrator WITH MEMORY');
@@ -214,6 +228,69 @@ export class AgentBootstrapService {
 
     console.log(`✅ Agent ${agentId} removed successfully`);
     return true;
+  }
+
+  /**
+   * Centrally register an agent with the communication protocol
+   * This ensures all agents are discoverable through the multi-agent system
+   */
+  private async registerAgentWithCommunicationProtocol(agent: BaseAgent): Promise<void> {
+    if (!this.communicationProtocol) {
+      console.warn(`⚠️ Communication protocol not available for ${agent.getConfig().id} registration`);
+      return;
+    }
+
+    try {
+      const config = agent.getConfig();
+      
+      // Create agent registration data
+      const registration = {
+        agentId: config.id,
+        agentType: config.name.toLowerCase().replace(/agent/i, '').replace(/\s+/g, ''),        capabilities: config.capabilities.map(cap => ({
+          name: cap,
+          description: `${cap} capability provided by ${config.name}`,
+          version: '1.0.0',
+          parameters: {},
+          qualityThreshold: 85,
+          constitutionalCompliant: true
+        })),
+        endpoint: `http://localhost:8083/agent/${config.id}`,
+        status: 'online' as const,
+        loadLevel: 0,
+        qualityScore: 90,
+        lastSeen: new Date()
+      };
+
+      // Register with communication protocol
+      const success = await this.communicationProtocol.registerAgent(registration);
+      
+      if (success) {
+        console.log(`✅ Agent ${config.id} registered with communication protocol`);
+      } else {
+        console.warn(`⚠️ Failed to register ${config.id} with communication protocol`);
+      }
+    } catch (error) {
+      console.error(`❌ Error registering ${agent.getConfig().id} with communication protocol:`, error);
+    }
+  }
+
+  /**
+   * Register all existing agents with the communication protocol
+   * Called when the communication protocol is set after agents are already created
+   */
+  async registerAllExistingAgents(): Promise<void> {
+    if (!this.communicationProtocol) {
+      console.warn('⚠️ Communication protocol not available for bulk registration');
+      return;
+    }
+
+    console.log('🔄 Registering all existing agents with communication protocol...');
+    
+    for (const agent of this.agents.values()) {
+      await this.registerAgentWithCommunicationProtocol(agent);
+    }
+    
+    console.log(`✅ Registered ${this.agents.size} agents with communication protocol`);
   }
 }
 

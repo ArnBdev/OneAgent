@@ -23,8 +23,10 @@ export class FitnessAgent extends BaseAgent implements ISpecializedAgent {
   get id(): string {
     return this.config.id;
   }
-
   async initialize(): Promise<void> {
+    // Call parent initialize first (includes auto-registration)
+    await super.initialize();
+    
     console.log(`FitnessAgent ${this.id} initialized`);
   }
 

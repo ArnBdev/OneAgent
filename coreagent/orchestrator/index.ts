@@ -9,7 +9,7 @@
  * - Chat Interface Coordination
  */
 
-import { UnifiedMemoryClient } from '../memory/UnifiedMemoryClient';
+import { realUnifiedMemoryClient } from '../memory/RealUnifiedMemoryClient';
 
 // Core Orchestrator Components
 export { AgentRegistry } from './agentRegistry';
@@ -48,7 +48,7 @@ export async function initializeOrchestrator() {
     
     try {        // Initialize core components
         const agentRegistry = new AgentRegistry();
-        const memoryClient = new UnifiedMemoryClient();
+        const memoryClient = realUnifiedMemoryClient;
         const memoryBridge = new MemoryContextBridge(memoryClient);
         const requestRouter = new RequestRouter(agentRegistry);
         

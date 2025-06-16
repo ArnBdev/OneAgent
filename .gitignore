@@ -189,7 +189,6 @@ servers/gemini_*.py
 servers/test_*.py
 servers/oneagent_mem0_*.py
 !servers/oneagent_memory_server.py  # Production memory server - ALLOW
-!servers/unified_memory_server.py   # Legacy memory server - ALLOW
 !servers/requirements.txt            # Server dependencies - ALLOW
 
 # Backup directories and files

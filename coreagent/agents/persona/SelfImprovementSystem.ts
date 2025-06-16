@@ -132,18 +132,17 @@ export class SelfImprovementSystem extends EventEmitter {
     }
     
     this.performanceHistory.set(metrics.agentId, history);
-    
-    // Store in memory for persistence
-    await realUnifiedMemoryClient.createMemory({
-      content: `Performance metrics for ${metrics.agentId}: Quality ${metrics.averageQualityScore}%, Compliance ${metrics.constitutionalCompliance}%`,
-      metadata: {
+      // Store in memory for persistence
+    await realUnifiedMemoryClient.createMemory(
+      `Performance metrics for ${metrics.agentId}: Quality ${metrics.averageQualityScore}%, Compliance ${metrics.constitutionalCompliance}%`,
+      'system',
+      'session',
+      {
         type: 'performance_metrics',
         agentId: metrics.agentId,
-        timestamp: metrics.timestamp,
-        metrics: metrics
-      },
-      userId: 'system'
-    });
+        timestamp: metrics.timestamp,        metrics: metrics
+      }
+    );
     
     // Check if immediate evaluation is needed
     if (this.needsImmediateAttention(metrics)) {
@@ -182,18 +181,18 @@ export class SelfImprovementSystem extends EventEmitter {
       overallHealth,
       recommendedActions
     };
-    
-    // Store evaluation results
-    await realUnifiedMemoryClient.createMemory({
-      content: `Self-evaluation for ${agentId}: ${overallHealth} health, ${improvements.length} improvement suggestions`,
-      metadata: {
+      // Store evaluation results
+    await realUnifiedMemoryClient.createMemory(
+      `Self-evaluation for ${agentId}: ${overallHealth} health, ${improvements.length} improvement suggestions`,
+      'system',
+      'session',
+      {
         type: 'self_evaluation',
         agentId,
         evaluation,
         timestamp: evaluation.timestamp
-      },
-      userId: 'system'
-    });
+      }
+    );
     
     // Apply high-priority improvements automatically
     await this.applyAutomaticImprovements(agentId, improvements);
@@ -303,18 +302,18 @@ export class SelfImprovementSystem extends EventEmitter {
         await personaLoader.updatePersona(agentId, suggestion.proposedChange);
         
         console.log(`[SelfImprovementSystem] Auto-applied improvement for ${agentId}: ${suggestion.description}`);
-        
-        // Record the improvement
-        await realUnifiedMemoryClient.createMemory({
-          content: `Auto-applied improvement: ${suggestion.description}`,
-          metadata: {
+          // Record the improvement
+        await realUnifiedMemoryClient.createMemory(
+          `Auto-applied improvement: ${suggestion.description}`,
+          'system',
+          'long_term',
+          {
             type: 'auto_improvement',
             agentId,
             suggestion,
             timestamp: new Date().toISOString()
-          },
-          userId: 'system'
-        });
+          }
+        );
         
       } catch (error) {
         console.error(`[SelfImprovementSystem] Failed to apply improvement for ${agentId}:`, error);
@@ -505,12 +504,13 @@ export class SelfImprovementSystem extends EventEmitter {
    * Load historical performance data from memory
    */
   private async loadPerformanceHistory(): Promise<void> {
-    try {
-      const memories = await realUnifiedMemoryClient.searchMemories({
-        query: 'performance_metrics',
-        limit: 1000,
-        userId: 'system'
-      });
+    try {      const memoriesResult = await realUnifiedMemoryClient.getMemoryContext(
+        'performance_metrics',
+        'system',
+        1000
+      );
+      
+      const memories = memoriesResult.memories || [];
       
       for (const memory of memories) {
         if (memory.metadata?.type === 'performance_metrics' && memory.metadata?.metrics) {

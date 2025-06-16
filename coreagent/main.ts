@@ -8,7 +8,7 @@
 
 import { listWorkflows, listUserWorkflows } from './tools/listWorkflows';
 import { createMCPAdapter, defaultMCPConfig } from './mcp/adapter';
-import { UnifiedMemoryClient } from './memory/UnifiedMemoryClient';
+import { realUnifiedMemoryClient } from './memory/RealUnifiedMemoryClient';
 import { BraveSearchClient } from './tools/braveSearchClient';
 import { WebSearchTool } from './tools/webSearch';
 import { GeminiClient } from './tools/geminiClient';
@@ -27,7 +27,7 @@ dotenv.config();
 class CoreAgent {
   private currentUser: User | null = null;
   private mcpAdapter: any;
-  private unifiedMemoryClient: UnifiedMemoryClient;
+  private unifiedMemoryClient: typeof realUnifiedMemoryClient;
   private braveSearchClient: BraveSearchClient;
   private webSearchTool: WebSearchTool;
   private geminiClient: GeminiClient;
@@ -37,9 +37,8 @@ class CoreAgent {
   
   constructor() {
     console.log("🚀 Hello CoreAgent!");
-    console.log("OneAgent CoreAgent is starting...");
-      // Initialize clients
-    this.unifiedMemoryClient = new UnifiedMemoryClient();
+    console.log("OneAgent CoreAgent is starting...");    // Initialize clients
+    this.unifiedMemoryClient = realUnifiedMemoryClient;
     
     // Initialize Brave Search client
     const braveConfig = {
@@ -217,7 +216,7 @@ class CoreAgent {
         5
       );
       
-      console.log(`🔍 Found ${searchResult.entries.length} memories`);
+      console.log(`🔍 Found ${searchResult.memories.length} memories`);
     } catch (error) {
       console.warn(`⚠️  Unified Memory integration test failed: ${error}`);
     }

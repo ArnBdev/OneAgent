@@ -28,8 +28,7 @@
 ## 🚨 CRITICAL DISCOVERY: Multiple Memory Servers
 
 **Problem**: Found 3 different memory server files causing confusion:
-1. **`servers/oneagent_memory_server.py`** - Currently running on port 8001 ✅
-2. **`servers/unified_memory_server.py`** - Different server, defaults to port 8000 ❌  
+1. **`servers/oneagent_memory_server.py`** - Production memory server running on port 8001 ✅
 3. **`servers/gemini_mem0_server_v2.py`** - Legacy server ❌
 
 **Root Cause**: This explains why port references are inconsistent across the system!

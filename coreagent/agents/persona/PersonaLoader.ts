@@ -106,10 +106,9 @@ export class PersonaLoader extends EventEmitter {
       this.isInitialized = true;
       this.emit('initialized');
       
-      console.log(`[PersonaLoader] Initialized successfully. Loaded ${this.personas.size} personas.`);
-    } catch (error) {
+      console.log(`[PersonaLoader] Initialized successfully. Loaded ${this.personas.size} personas.`);    } catch (error) {
       console.error('[PersonaLoader] Initialization failed:', error);
-      throw new Error(`PersonaLoader initialization failed: ${error.message}`);
+      throw new Error(`PersonaLoader initialization failed: ${error instanceof Error ? error.message : String(error)}`);
     }
   }
 
@@ -340,20 +339,19 @@ Please respond according to your persona configuration and quality standards.`;
    * Store persona in memory for persistence and learning
    */
   private async storePersonaInMemory(persona: PersonaConfig, template: PromptTemplate): Promise<void> {
-    try {
-      await realUnifiedMemoryClient.createMemory({
-        content: `Persona Configuration: ${persona.name} (${persona.id}) - ${persona.role}`,
-        metadata: {
+    try {      await realUnifiedMemoryClient.createMemory(
+        `Persona Configuration: ${persona.name} (${persona.id}) - ${persona.role}`,
+        'oneagent_system',
+        'long_term',
+        {
           type: 'persona_config',
-          agentId: persona.id,
-          version: persona.version,
+          agentId: persona.id,          version: persona.version,
           qualityScore: persona.quality_standards.minimum_score,
           constitutionalPrinciples: persona.constitutionalPrinciples,
           capabilities: persona.capabilities.primary,
           systemPrompt: template.systemPrompt
-        },
-        userId: 'system'
-      });
+        }
+      );
     } catch (error) {
       console.error(`[PersonaLoader] Failed to store persona in memory:`, error);
     }

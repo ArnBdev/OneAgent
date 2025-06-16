@@ -104,10 +104,11 @@ export function deactivate() {
 
 async function showWelcomeMessage(_client: OneAgentClient) {
     const action = await vscode.window.showInformationMessage(
-        '🚀 Welcome to OneAgent Professional! A sophisticated AI development platform with Constitutional AI, BMAD Framework analysis, and quality-first development principles.',
+        '🚀 Welcome to OneAgent Professional v4.0.0! A sophisticated AI development platform featuring Constitutional AI, BMAD Framework analysis, Evolution Analytics, Multi-Agent Coordination, and quality-first development principles.',
         'Open Dashboard',
         'View Commands',
-        'Check Connection'
+        'Check Network Health',
+        'Evolution Analytics'
     );
     
     switch (action) {
@@ -117,8 +118,11 @@ async function showWelcomeMessage(_client: OneAgentClient) {
         case 'View Commands':
             vscode.commands.executeCommand('workbench.action.showCommands', 'OneAgent');
             break;
-        case 'Check Connection':
-            vscode.commands.executeCommand('oneagent.systemHealth');
+        case 'Check Network Health':
+            vscode.commands.executeCommand('oneagent.agentNetworkHealth');
+            break;
+        case 'Evolution Analytics':
+            vscode.commands.executeCommand('oneagent.evolutionAnalytics');
             break;
     }
 }

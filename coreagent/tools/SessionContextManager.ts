@@ -9,7 +9,7 @@
  */
 
 import { ConstitutionalValidator } from '../validation/ConstitutionalValidator';
-import { MemoryClient } from '../memory/MemoryClient';
+import { realUnifiedMemoryClient } from '../memory/RealUnifiedMemoryClient';
 import { PerformanceMonitor } from '../monitoring/PerformanceMonitor';
 
 // ========================================

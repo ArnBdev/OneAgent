@@ -88,8 +88,10 @@ export abstract class BaseAgent {
    * Initialize the agent with necessary clients and advanced prompt engineering
    */
   async initialize(): Promise<void> {
-    try {      // Initialize memory client if enabled
-      if (this.config.memoryEnabled) {        this.memoryClient = new UnifiedMemoryClient({
+    try {
+      // Initialize memory client if enabled
+      if (this.config.memoryEnabled) {
+        this.memoryClient = new UnifiedMemoryClient({
           host: oneAgentConfig.memoryUrl.replace(/^https?:\/\//, '').replace(/:\d+$/, ''),
           port: parseInt(oneAgentConfig.memoryUrl.match(/:(\d+)$/)?.[1] || '8083'),
           timeout: 30000,
@@ -97,24 +99,75 @@ export abstract class BaseAgent {
           retryDelay: 1000,
           enableSSL: oneAgentConfig.memoryUrl.startsWith('https')
         });
-      }      // Initialize AI client if enabled
+      }
+
+      // Initialize AI client if enabled
       if (this.config.aiEnabled) {
         this.aiClient = new SmartGeminiClient({
           apiKey: process.env.GOOGLE_API_KEY || process.env.GEMINI_API_KEY,
           model: 'gemini-2.0-flash-exp'
         });
-      }// Initialize Advanced Prompt Engineering System
+      }
+
+      // Initialize Advanced Prompt Engineering System
       await this.initializePromptEngineering();
 
-      // Auto-register with multi-agent system
-      await this.autoRegisterWithNetwork();
+      // AUTO-REGISTRATION: Register agent with communication protocol
+      await this.autoRegisterAgent();
 
       this.isInitialized = true;
     } catch (error) {
       console.error(`Failed to initialize agent ${this.config.id}:`, error);
       throw error;
     }
+  }  /**
+   * Automatically register agent with the communication protocol
+   * This ensures all agents are discoverable and prevents phantom agent issues
+   */
+  private async autoRegisterAgent(): Promise<void> {
+    try {
+      // Import AgentCommunicationProtocol dynamically to avoid circular deps
+      const { AgentCommunicationProtocol } = await import('../communication/AgentCommunicationProtocol');
+      const protocol = AgentCommunicationProtocol.getInstance();
+
+      if (!protocol) {
+        console.warn(`⚠️ Communication protocol not available for ${this.config.id} auto-registration`);
+        return;
+      }
+
+      // Create agent registration data with Constitutional AI validation
+      const registration = {
+        agentId: this.config.id,
+        agentType: this.config.name.toLowerCase().replace(/agent/i, '').replace(/\s+/g, ''),
+        capabilities: this.config.capabilities.map(cap => ({
+          name: cap,
+          description: `${cap} capability provided by ${this.config.name}`,
+          version: '1.0.0',
+          parameters: {},
+          qualityThreshold: 85,
+          constitutionalCompliant: true
+        })),
+        endpoint: `http://localhost:8083/agent/${this.config.id}`,
+        status: 'online' as const,
+        loadLevel: 0,
+        qualityScore: 90,
+        lastSeen: new Date()
+      };
+
+      // Register with communication protocol
+      const success = await protocol.registerAgent(registration);
+      
+      if (success) {
+        console.log(`✅ AUTO-REGISTERED: ${this.config.id} with communication protocol`);
+      } else {
+        console.warn(`⚠️ AUTO-REGISTRATION FAILED: ${this.config.id} with communication protocol`);
+      }
+    } catch (error) {
+      console.error(`❌ Auto-registration error for ${this.config.id}:`, error);
+      // Don't throw - registration failure shouldn't prevent agent initialization
+    }
   }
+
   /**
    * Initialize the advanced prompt engineering system
    */
@@ -140,82 +193,10 @@ export abstract class BaseAgent {
       // Continue without enhanced prompting if initialization fails
     }
   }
-
-  /**
-   * Auto-register this agent with the multi-agent network
-   * This allows agents to be discovered and used by other agents
-   */
-  private async autoRegisterWithNetwork(): Promise<void> {
-    try {
-      // Skip auto-registration if it's disabled or if this is a factory
-      if (this.config.id === 'AgentFactory' || this.config.id.includes('Factory')) {
-        console.log(`⏭️  Skipping auto-registration for factory: ${this.config.id}`);
-        return;
-      }
-
-      // Call the registration API
-      const registrationData = {
-        agentId: this.config.id,
-        agentType: this.config.name.toLowerCase().replace(/agent/i, ''),
-        capabilities: this.config.capabilities.map(cap => ({
-          name: cap,
-          description: `${cap} capability provided by ${this.config.name}`,
-          version: '1.0.0',
-          qualityThreshold: 85,
-          constitutionalCompliant: true
-        })),
-        endpoint: `http://localhost:8083/agent/${this.config.id}`,
-        qualityScore: 90
-      };
-
-      // Make HTTP request to register the agent
-      const response = await this.makeRegistrationRequest(registrationData);
-      
-      if (response.success) {
-        console.log(`✅ Auto-registered ${this.config.id} with multi-agent network`);
-      } else {
-        console.warn(`⚠️  Auto-registration failed for ${this.config.id}:`, response.error);
-      }
-    } catch (error) {
-      console.warn(`⚠️  Auto-registration error for ${this.config.id}:`, error);
-      // Don't throw - agent should still work even if registration fails
-    }
-  }  /**
-   * Make HTTP request to register agent with multi-agent system
-   */
-  private async makeRegistrationRequest(data: any): Promise<any> {
-    try {
-      // Use fetch to call the MCP server registration endpoint  
-      const mcpServerUrl = oneAgentConfig.mcpUrl;
-      
-      const response = await fetch(`${mcpServerUrl}/mcp`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          jsonrpc: '2.0',
-          id: `reg-${Date.now()}`,
-          method: 'tools/call',
-          params: {
-            name: 'register_agent',
-            arguments: data
-          }
-        })
-      });
-
-      const result = await response.json();
-      return result.result || { success: false, error: 'Unknown registration error' };
-    } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-      return { success: false, error: errorMessage };
-    }
-  }
-
   /**
    * Process a user message and generate a response
    */
-  abstract processMessage(context: AgentContext, message: string): Promise<AgentResponse>;  /**
+  abstract processMessage(context: AgentContext, message: string): Promise<AgentResponse>;/**
    * Add memory for the user
    */
   protected async addMemory(userId: string, content: string, metadata?: Record<string, any>): Promise<void> {

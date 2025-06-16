@@ -8,7 +8,7 @@ import { AgentFactory } from '../agents/base/AgentFactory';
 import { AgentRegistry } from '../orchestrator/agentRegistry';
 import { RequestRouter } from '../orchestrator/requestRouter';
 import { MemoryContextBridge } from '../orchestrator/memoryContextBridge';
-import { UnifiedMemoryClient } from '../memory/UnifiedMemoryClient';
+import { realUnifiedMemoryClient } from '../memory/RealUnifiedMemoryClient';
 import { AgentContext } from '../agents/base/BaseAgent';
 import type { ISpecializedAgent } from '../agents/base/ISpecializedAgent';
 import type { ConversationMessage } from '../types/conversation';
@@ -20,10 +20,8 @@ class BMADMVSDemo {
     private agentRegistry: AgentRegistry;
     private requestRouter: RequestRouter;
     private memoryBridge: MemoryContextBridge;
-    private demoSession: string;
-
-    constructor() {        this.agentRegistry = new AgentRegistry();
-        const memoryClient = new UnifiedMemoryClient();
+    private demoSession: string;    constructor() {        this.agentRegistry = new AgentRegistry();
+        const memoryClient = realUnifiedMemoryClient;
         this.memoryBridge = new MemoryContextBridge(memoryClient);
         this.requestRouter = new RequestRouter(this.agentRegistry);
         this.demoSession = `demo-${Date.now()}`;

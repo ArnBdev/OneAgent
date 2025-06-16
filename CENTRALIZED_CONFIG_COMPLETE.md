@@ -14,7 +14,7 @@
 - ✅ **Implemented**: TypeScript configuration module with type safety
 
 #### **2. Server Consolidation**
-- ✅ **Single Memory Server**: `servers/unified_memory_server.py` (Port 8001)
+- ✅ **Single Memory Server**: `servers/oneagent_memory_server.py` (Port 8001)
 - ✅ **Single MCP Server**: `coreagent/server/oneagent-mcp-copilot.ts` (Port 8083)
 - ✅ **Removed**: `servers/gemini_mem0_server_v2.py` (legacy duplicate)
 

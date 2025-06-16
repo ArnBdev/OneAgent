@@ -54,8 +54,10 @@ export class DevAgent extends BaseAgent implements ISpecializedAgent {
   get id(): string {
     return this.config.id;
   }
-
   async initialize(): Promise<void> {
+    // Call parent initialize first (includes auto-registration)
+    await super.initialize();
+    
     // Initialize any DevAgent-specific resources
     this.conversationHistory = [];
     console.log(`DevAgent ${this.id} initialized`);
