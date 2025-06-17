@@ -11,7 +11,7 @@ class GeminiClient {
     constructor(config) {
         this.mockMode = false;
         this.config = {
-            model: 'gemini-2.5-pro-preview-05-06',
+            model: process.env.GOOGLE_MODEL || 'gemini-2.0-flash',
             baseUrl: 'https://generativelanguage.googleapis.com/v1beta',
             timeout: 30000,
             retryAttempts: 3,

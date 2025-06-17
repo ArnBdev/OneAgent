@@ -1,0 +1,123 @@
+# Gemini Model Registry - 2025 Latest Models
+# ==========================================
+# Comprehensive registry of all available Gemini models with specifications
+# Updated: June 2025 with latest models and pricing
+
+# =============================================================================
+# LATEST 2025 MODELS (RECOMMENDED)
+# =============================================================================
+
+## Gemini 2.5 Flash Preview (NEWEST - June 2025)
+MODEL_NAME=gemini-2.5-flash-preview-05-20
+DESCRIPTION=Latest Gemini 2.5 Flash with thinking capabilities
+KNOWLEDGE_CUTOFF=Jan 2025
+INPUT_PRICING_PER_1M=$0.15
+OUTPUT_PRICING_PER_1M_THINKING=$3.50
+OUTPUT_PRICING_PER_1M_NON_THINKING=$0.60
+RATE_LIMIT_FREE=10 RPM, 500 req/day
+RATE_LIMIT_PAID=1000 RPM
+BEST_FOR=Large scale processing, Agentic use cases, Complex reasoning
+FEATURES=Thinking process, Native tool calling, PDF processing
+
+## Gemini 2.0 Flash (STABLE - Most Popular)
+MODEL_NAME=gemini-2.0-flash
+ALIAS=gemini-2.0-flash-001
+DESCRIPTION=Stable multimodal model with realtime capabilities
+KNOWLEDGE_CUTOFF=Aug 2024
+INPUT_PRICING_PER_1M=$0.10
+OUTPUT_PRICING_PER_1M=$0.40
+RATE_LIMIT_FREE=15 RPM, 1500 req/day
+RATE_LIMIT_PAID=2000 RPM
+BEST_FOR=Multimodal understanding, Realtime streaming, Native tool use
+FEATURES=Process 10K lines of code, Native tool calling, Stream video/images
+
+## Gemini 2.0 Flash Lite (HIGH THROUGHPUT)
+MODEL_NAME=gemini-2.0-flash-lite
+ALIAS=gemini-2.0-flash-lite-001
+DESCRIPTION=Lightweight version optimized for high throughput
+KNOWLEDGE_CUTOFF=Aug 2024
+INPUT_PRICING_PER_1M=$0.075
+OUTPUT_PRICING_PER_1M=$0.30
+RATE_LIMIT_FREE=30 RPM, 1500 req/day
+RATE_LIMIT_PAID=4000 RPM
+BEST_FOR=Long context, High volume tasks, Realtime streaming
+FEATURES=Highest rate limits, Cost effective, Native tool calling
+
+## Gemini 2.5 Pro Preview (PREMIUM - June 2025)
+MODEL_NAME=gemini-2.5-pro-preview-06-05
+DESCRIPTION=Most advanced reasoning and coding model
+KNOWLEDGE_CUTOFF=Jan 2025
+INPUT_PRICING_PER_1M_UNDER_200K=$1.25
+INPUT_PRICING_PER_1M_OVER_200K=$2.50
+OUTPUT_PRICING_PER_1M_UNDER_200K=$10.00
+OUTPUT_PRICING_PER_1M_OVER_200K=$15.00
+RATE_LIMIT_PAID=150 RPM
+BEST_FOR=Complex coding, Advanced reasoning, Large datasets
+FEATURES=Long context analysis, STEM problems, Codebase analysis
+
+# =============================================================================
+# LEGACY MODELS (Still Working)
+# =============================================================================
+
+## Gemini 1.5 Flash (LEGACY - Still works)
+MODEL_NAME=gemini-1.5-flash
+DESCRIPTION=Legacy flash model - reliable but older
+KNOWLEDGE_CUTOFF=Apr 2024
+RATE_LIMIT_FREE=15 RPM, 1500 req/day
+STATUS=Working but outdated
+
+## Gemini 1.5 Pro (LEGACY - Rate Limited)
+MODEL_NAME=gemini-1.5-pro
+DESCRIPTION=Legacy pro model - often rate limited
+STATUS=Working but often hits quota limits
+
+# =============================================================================
+# DEPRECATED MODELS (Do Not Use)
+# =============================================================================
+
+## Gemini Pro (DEPRECATED)
+MODEL_NAME=gemini-pro
+STATUS=404 - Not found, use gemini-1.5-pro or newer
+
+## Specific Versioned Models (DEPRECATED)
+MODEL_NAME=gemini-1.5-flash-001
+STATUS=404 - Not found, use alias names instead
+
+MODEL_NAME=gemini-1.5-pro-001
+STATUS=404 - Not found, use alias names instead
+
+# =============================================================================
+# RECOMMENDED MODEL SELECTION GUIDE
+# =============================================================================
+
+# For Production Multi-Agent Systems:
+RECOMMENDED_PRIMARY=gemini-2.0-flash
+RECOMMENDED_FALLBACK=gemini-2.0-flash-lite
+
+# For High-Volume Tasks:
+RECOMMENDED_HIGH_VOLUME=gemini-2.0-flash-lite
+
+# For Complex Reasoning (with billing):
+RECOMMENDED_PREMIUM=gemini-2.5-pro-preview-06-05
+
+# For Latest Features (experimental):
+RECOMMENDED_EXPERIMENTAL=gemini-2.5-flash-preview-05-20
+
+# For Free Tier Development:
+RECOMMENDED_FREE_TIER=gemini-2.0-flash
+
+# =============================================================================
+# QUOTA CONSIDERATIONS
+# =============================================================================
+
+# Free Tier Safe Models:
+# - gemini-2.0-flash (15 RPM, 1500 req/day)
+# - gemini-2.0-flash-lite (30 RPM, 1500 req/day) 
+# - gemini-2.5-flash-preview-05-20 (10 RPM, 500 req/day)
+
+# Paid Tier Required:
+# - gemini-2.5-pro-preview-06-05 (No free tier)
+
+# Often Rate Limited on Free Tier:
+# - gemini-1.5-pro
+# - gemini-2.5-pro-preview-05-06 (old version)

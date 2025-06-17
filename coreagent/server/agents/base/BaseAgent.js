@@ -46,7 +46,7 @@ class BaseAgent {
             if (this.config.aiEnabled) {
                 this.aiClient = new geminiClient_1.GeminiClient({
                     apiKey: process.env.GOOGLE_API_KEY || process.env.GEMINI_API_KEY || 'your_google_gemini_api_key_here',
-                    model: 'gemini-2.5-pro-preview-05-06'
+                    model: process.env.GOOGLE_MODEL || 'gemini-2.0-flash'
                 });
             } // Initialize Advanced Prompt Engineering System
             await this.initializePromptEngineering();
