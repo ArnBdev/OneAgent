@@ -206,7 +206,7 @@ export class UnifiedMemoryClient extends EventEmitter {
     try {
       if (this.isConnected) {
         // Clear pending requests
-        for (const [id, pending] of this.pendingRequests) {
+        for (const [id, pending] of Array.from(this.pendingRequests.entries())) {
           clearTimeout(pending.timeout);
           pending.reject(new Error('Connection closed'));
         }

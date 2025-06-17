@@ -259,12 +259,39 @@ export interface UnifiedMemoryInterface {
    * Used for monitoring and optimization
    */
   getSystemAnalytics(agentId?: string): Promise<MemoryAnalytics>;
-  
-  /**
+    /**
    * Get quality metrics for stored memories
    * Used for quality monitoring and improvement
    */
   getQualityMetrics(timeRange?: { start: Date; end: Date }): Promise<QualityMetrics>;
+
+  // =====================================
+  // Connection and Health Management
+  // =====================================
+  
+  /**
+   * Connect to the memory system
+   * Must be called before any memory operations
+   */
+  connect(): Promise<void>;
+  
+  /**
+   * Disconnect from the memory system
+   * Clean up resources and connections
+   */
+  disconnect(): Promise<void>;
+  
+  /**
+   * Check if the memory system is healthy
+   * Returns true if system is operational
+   */
+  isHealthy(): Promise<boolean>;
+  
+  /**
+   * Check if the memory system is ready for operations
+   * Returns true if connected and operational
+   */
+  isReady(): boolean;
 }
 
 // =====================================

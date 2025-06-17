@@ -231,11 +231,10 @@ export class MemoryContextBridge implements IMemoryContextBridge {
 
   /**
    * Get memory context for a specific conversation turn
-   */
-  async getMemoryContext(_userId: string, messageId: string): Promise<MemoryContext> {
+   */  async getMemoryContext(_userId: string, messageId: string): Promise<MemoryContext> {
     try {
       // Find the conversation turn with this message
-      for (const turns of this.conversationTurns.values()) {
+      for (const turns of Array.from(this.conversationTurns.values())) {
         const turn = turns.find(t => 
           t.userMessage.id === messageId || t.agentResponse.id === messageId
         );
@@ -267,10 +266,9 @@ export class MemoryContextBridge implements IMemoryContextBridge {
   async cleanupOldConversations(olderThanDays: number): Promise<number> {
     const cutoffDate = new Date();
     cutoffDate.setDate(cutoffDate.getDate() - olderThanDays);
-    
-    let cleanedCount = 0;
+      let cleanedCount = 0;
 
-    for (const [sessionId, turns] of this.conversationTurns.entries()) {
+    for (const [sessionId, turns] of Array.from(this.conversationTurns.entries())) {
       const filteredTurns = turns.filter(turn => turn.timestamp > cutoffDate);
       
       if (filteredTurns.length !== turns.length) {
@@ -478,12 +476,11 @@ export class MemoryContextBridge implements IMemoryContextBridge {
 
   /**
    * Search local conversations
-   */
-  private searchLocalConversations(userId: string, query: string, _options?: SearchOptions): MemorySearchResult[] {
+   */  private searchLocalConversations(userId: string, query: string, _options?: SearchOptions): MemorySearchResult[] {
     const results: MemorySearchResult[] = [];
     const queryLower = query.toLowerCase();
 
-    for (const [sessionId, turns] of this.conversationTurns.entries()) {
+    for (const [sessionId, turns] of Array.from(this.conversationTurns.entries())) {
       for (const turn of turns) {
         if (turn.userId !== userId) continue;
 

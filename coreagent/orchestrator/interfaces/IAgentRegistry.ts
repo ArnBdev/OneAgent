@@ -18,11 +18,16 @@ export interface IAgentRegistry {
    * Unregister an agent
    */
   unregisterAgent(agentId: string): Promise<void>;
-
   /**
    * Get an agent by ID
+   * @deprecated Use async version for better performance
    */
   getAgent(agentId: string): ISpecializedAgent | undefined;
+  
+  /**
+   * Get an agent by ID (async version for unified compatibility)
+   */
+  getAgentAsync?(agentId: string): Promise<ISpecializedAgent | null>;
 
   /**
    * Get all registered agents

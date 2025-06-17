@@ -5,7 +5,7 @@
  */
 
 import { AgentFactory } from '../agents/base/AgentFactory';
-import { AgentRegistry } from '../orchestrator/agentRegistry';
+import { UnifiedAgentRegistry } from '../orchestrator/UnifiedAgentRegistry';
 import { RequestRouter } from '../orchestrator/requestRouter';
 import { MemoryContextBridge } from '../orchestrator/memoryContextBridge';
 import { realUnifiedMemoryClient } from '../memory/RealUnifiedMemoryClient';
@@ -16,11 +16,10 @@ import type { ConversationMessage } from '../types/conversation';
 /**
  * Demo scenario showcasing BMAD-MVS architecture
  */
-class BMADMVSDemo {
-    private agentRegistry: AgentRegistry;
+class BMADMVSDemo {    private agentRegistry: UnifiedAgentRegistry;
     private requestRouter: RequestRouter;
     private memoryBridge: MemoryContextBridge;
-    private demoSession: string;    constructor() {        this.agentRegistry = new AgentRegistry();
+    private demoSession: string;    constructor() {        this.agentRegistry = new UnifiedAgentRegistry();
         const memoryClient = realUnifiedMemoryClient;
         this.memoryBridge = new MemoryContextBridge(memoryClient);
         this.requestRouter = new RequestRouter(this.agentRegistry);
@@ -292,13 +291,13 @@ class BMADMVSDemo {
      * Demonstrate orchestration capabilities
      */
     private async demonstrateOrchestration(): Promise<void> {
-        console.log('\n\n🎼 ORCHESTRATION Demonstration');
-        console.log('-' .repeat(40));
+        console.log('\n\n🎼 ORCHESTRATION Demonstration');        console.log('-' .repeat(40));
 
-        // Get registry statistics (mock since method doesn't exist yet)
+        // Get registry statistics
         console.log('\n📊 Registry Statistics:');
         console.log(`   - Total Agents: ${this.agentRegistry.getAgentCount()}`);
-        console.log(`   - Active Agents: ${this.agentRegistry.getAllAgents().length}`);
+        const allAgents = await this.agentRegistry.getAllAgents();
+        console.log(`   - Active Agents: ${allAgents.length}`);
         console.log(`   - Health Status: Monitoring active`);
 
         // Demonstrate load balancing

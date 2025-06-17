@@ -257,7 +257,7 @@ export class AgentCommunicationProtocol {
     const queryLower = query.toLowerCase();
     const results: AgentRegistration[] = [];
     
-    for (const [agentId, registration] of this.agentRegistry) {
+    for (const [agentId, registration] of Array.from(this.agentRegistry.entries())) {
       // Natural language capability matching
       const hasMatchingCapability = registration.capabilities.some(cap => {
         const capLower = `${cap.name} ${cap.description}`.toLowerCase();
