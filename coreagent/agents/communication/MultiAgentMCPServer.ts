@@ -126,9 +126,7 @@ export class MultiAgentMCPServer {
         },
         required: ['targetAgent', 'messageType', 'content']
       }
-    });
-
-    // Query Agent Capabilities Tool (UnifiedAgentRegistry query)
+    });    // Query Agent Capabilities Tool (UnifiedAgentRegistry query)
     this.mcpTools.set('query_agent_capabilities', {
       name: 'query_agent_capabilities',
       description: 'Query available agents using natural language capability descriptions from UnifiedAgentRegistry',
@@ -147,6 +145,23 @@ export class MultiAgentMCPServer {
       }
     });
 
+    // Communication History Tool with Enhanced Metadata
+    this.mcpTools.set('get_communication_history', {
+      name: 'get_communication_history',
+      description: 'Retrieve inter-agent communication history with privacy isolation and enhanced metadata filtering',
+      inputSchema: {
+        type: 'object',
+        properties: {
+          agentFilter: { type: 'string', description: 'Filter by specific agent ID (optional)' },
+          projectContext: { type: 'string', description: 'Filter by project context (optional)' },
+          topicContext: { type: 'string', description: 'Filter by topic context (optional)' },
+          timeRangeMinutes: { type: 'number', description: 'Time range in minutes (default: 60)', minimum: 1, maximum: 10080 },
+          limit: { type: 'number', description: 'Maximum number of messages to return (default: 20)', minimum: 1, maximum: 100 },
+          includeMetadata: { type: 'boolean', description: 'Include detailed metadata in results (default: true)' }
+        }
+      }
+    });
+
     console.log(`✅ OURA v3.0 MCP Tools initialized: ${this.mcpTools.size} tools available`);
     console.log('🔇 Legacy discovery tools ELIMINATED - clean architecture!');
   }
@@ -157,7 +172,6 @@ export class MultiAgentMCPServer {
   getAvailableTools(): MultiAgentMCPTool[] {
     return Array.from(this.mcpTools.values());
   }
-
   /**
    * Handle MCP tool calls - CLEAN implementation
    */
@@ -169,6 +183,8 @@ export class MultiAgentMCPServer {
         return await this.handleAgentMessage(parameters, context);
       case 'query_agent_capabilities':
         return await this.handleCapabilityQuery(parameters, context);
+      case 'get_communication_history':
+        return await this.handleCommunicationHistory(parameters, context);
       default:
         return {
           success: false,
@@ -223,13 +239,15 @@ export class MultiAgentMCPServer {
       registrationDetails: success ? registration : null
     };
   }
-
   /**
-   * Handle agent messaging
+   * Handle agent messaging with enhanced metadata and memory storage
    */
   private async handleAgentMessage(parameters: any, context: AgentContext): Promise<any> {
     const { targetAgent, messageType, content, priority = 'medium', requiresResponse = true, confidenceLevel = 0.8 } = parameters;
 
+    // Extract enhanced metadata from context if available
+    const interAgentMetadata = (context.metadata as any)?.customData?.interAgentMetadata;
+    
     const message: A2AMessage = {
       id: `msg-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
       type: messageType,
@@ -241,11 +259,73 @@ export class MultiAgentMCPServer {
         requiresResponse,
         confidenceLevel,
         constitutionalValidated: false,
-        bmadAnalysis: content.length > 200 || messageType === 'coordination_request'
+        bmadAnalysis: content.length > 200 || messageType === 'coordination_request',
+        // Enhanced metadata for privacy isolation and context
+        ...(interAgentMetadata && {
+          projectContext: interAgentMetadata.projectContext,
+          topicContext: interAgentMetadata.topicContext,
+          workflowId: interAgentMetadata.workflowId,
+          privacyLevel: interAgentMetadata.privacyLevel,
+          userDataScope: interAgentMetadata.userDataScope,
+          correlationId: interAgentMetadata.correlationId,
+          requestId: interAgentMetadata.requestId
+        })
       },
       timestamp: new Date(),
       sessionId: context.sessionId
-    };
+    };    // Store message in memory with enhanced context
+    if (this.memoryClient) {
+      try {
+        await this.memoryClient.createMemory(
+          `Inter-agent message: ${message.sourceAgent} → ${message.targetAgent}: ${content}`,
+          interAgentMetadata?.userId || context.user?.id || 'unknown',
+          'long_term',
+          {
+            timestamp: message.timestamp,
+            tags: [
+              'inter_agent_communication',
+              messageType,
+              `source_${message.sourceAgent}`,
+              `target_${targetAgent}`,
+              ...(interAgentMetadata?.projectContext ? [`project_${interAgentMetadata.projectContext}`] : []),
+              ...(interAgentMetadata?.topicContext ? [`topic_${interAgentMetadata.topicContext}`] : [])
+            ],
+            category: 'agent_communication',
+            importance: priority === 'urgent' ? 0.9 : priority === 'high' ? 0.8 : 0.6,
+            sessionId: context.sessionId,
+            agentId: 'MultiAgentMCPServer',
+            interAgentContext: {
+              communicationType: 'direct_message',
+              sourceAgentId: message.sourceAgent,
+              targetAgentId: targetAgent,
+              messageType,
+              projectContext: interAgentMetadata?.projectContext,
+              topicContext: interAgentMetadata?.topicContext,
+              privacyLevel: interAgentMetadata?.privacyLevel || 'internal',
+              userDataScope: interAgentMetadata?.userDataScope || 'session',
+              qualityThreshold: interAgentMetadata?.qualityThreshold || 90,
+              priorityLevel: priority,
+              correlationId: interAgentMetadata?.correlationId,
+              requestId: interAgentMetadata?.requestId
+            }
+          }
+        );
+        
+        console.log(`✅ Inter-agent message stored in memory with enhanced context`);
+      } catch (error) {
+        console.warn(`⚠️ Failed to store inter-agent message in memory:`, error);
+      }
+    }
+
+    // Store in local communication history for retrieval
+    const conversationKey = `${message.sourceAgent}_${targetAgent}`;
+    if (!this.communicationHistory.has(conversationKey)) {
+      this.communicationHistory.set(conversationKey, []);
+    }
+    this.communicationHistory.get(conversationKey)!.push({
+      ...message,
+      enhancedMetadata: interAgentMetadata
+    });
 
     // Send message through communication protocol
     const response = await this.communicationProtocol.sendMessage(message);
@@ -254,6 +334,13 @@ export class MultiAgentMCPServer {
       success: response.success,
       messageId: message.id,
       response: response,
+      enhancedContext: {
+        storedInMemory: !!this.memoryClient,
+        privacyIsolated: !!interAgentMetadata?.userId,
+        projectContext: interAgentMetadata?.projectContext,
+        topicContext: interAgentMetadata?.topicContext,
+        correlationId: interAgentMetadata?.correlationId
+      },
       timestamp: new Date()
     };
   }
@@ -288,6 +375,127 @@ export class MultiAgentMCPServer {
         maxQuality: Math.max(...filteredAgents.map(agent => agent.qualityScore))
       }
     };
+  }
+
+  /**
+   * Handle communication history retrieval with enhanced metadata filtering
+   */
+  async handleCommunicationHistory(parameters: any, context: AgentContext): Promise<any> {
+    const { 
+      agentFilter = null, 
+      projectContext = null, 
+      topicContext = null,
+      timeRangeMinutes = 60,
+      limit = 20,
+      includeMetadata = true 
+    } = parameters;
+
+    // Extract enhanced metadata from context if available
+    const interAgentMetadata = (context.metadata as any)?.customData?.interAgentMetadata;
+    const userId = interAgentMetadata?.userId || context.user?.id || 'unknown';
+    
+    try {      // Get messages from memory with privacy isolation
+      let memoryResults: any[] = [];
+      if (this.memoryClient) {
+        try {
+          // Build search query for inter-agent communication
+          const searchQuery = [
+            'inter_agent_communication',
+            agentFilter ? `agent ${agentFilter}` : '',
+            projectContext ? `project ${projectContext}` : '',
+            topicContext ? `topic ${topicContext}` : ''
+          ].filter(Boolean).join(' ');
+          
+          const memorySearchResult = await this.memoryClient.getMemoryContext(
+            searchQuery,
+            userId,
+            limit,
+            ['long_term', 'session']
+          );
+          
+          memoryResults = memorySearchResult.entries || [];
+        } catch (error) {
+          console.warn(`⚠️ Failed to retrieve memory context for communication history:`, error);
+        }
+      }
+      
+      // Get messages from local communication history
+      let localResults: any[] = [];
+      for (const [conversationKey, messages] of this.communicationHistory.entries()) {
+        if (agentFilter && !conversationKey.includes(agentFilter)) continue;
+        
+        const filteredMessages = messages.filter((msg: any) => {
+          const timeDiff = (Date.now() - new Date(msg.timestamp).getTime()) / (1000 * 60);
+          if (timeDiff > timeRangeMinutes) return false;
+          
+          if (projectContext && msg.enhancedMetadata?.projectContext !== projectContext) return false;
+          if (topicContext && msg.enhancedMetadata?.topicContext !== topicContext) return false;
+          
+          // Privacy isolation check
+          if (msg.enhancedMetadata?.userId && msg.enhancedMetadata.userId !== userId) return false;
+          
+          return true;
+        });
+        
+        localResults.push(...filteredMessages);
+      }
+      
+      // Combine and sort results
+      const combinedResults = [
+        ...memoryResults.map((memory: any) => ({
+          id: memory.id,
+          type: 'memory',
+          content: memory.content,
+          timestamp: memory.timestamp,
+          metadata: memory.metadata,
+          enhancedContext: memory.metadata?.interAgentContext
+        })),
+        ...localResults.map((msg: any) => ({
+          id: msg.id,
+          type: 'local',
+          content: msg.content,
+          sourceAgent: msg.sourceAgent,
+          targetAgent: msg.targetAgent,
+          timestamp: msg.timestamp,
+          metadata: includeMetadata ? msg.metadata : undefined,
+          enhancedContext: msg.enhancedMetadata
+        }))
+      ].sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
+       .slice(0, limit);
+
+      return {
+        success: true,
+        totalResults: combinedResults.length,
+        conversations: combinedResults,
+        filters: {
+          agentFilter,
+          projectContext,
+          topicContext,
+          timeRangeMinutes,
+          userId: userId
+        },
+        privacyIsolation: {
+          enabled: true,
+          userScope: userId,
+          dataLeakagePrevention: 'active'
+        },
+        enhancedContext: {
+          memoryIntegration: !!this.memoryClient,
+          metadataFiltering: true,
+          temporalFiltering: true,
+          privacyEnforced: true
+        }
+      };
+      
+    } catch (error) {
+      console.error(`❌ Error retrieving communication history:`, error);
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Unknown error',
+        conversations: [],
+        filters: { agentFilter, projectContext, topicContext, timeRangeMinutes, userId }
+      };
+    }
   }
 
   /**

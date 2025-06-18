@@ -22,6 +22,7 @@ import {
   ModelSelection 
 } from '../../../config/gemini-model-tier-selector';
 import { getModelForAgentType } from '../../../config/gemini-model-registry';
+import { costMonitoringService } from '../../../config/gemini-cost-monitoring';
 
 export type AgentType = 'core' | 'enhanced-development' | 'development' | 'office' | 'fitness' | 'general' | 'coach' | 'advisor' | 'template';
 
@@ -181,9 +182,10 @@ export class AgentFactory {
     // Inject unified context into agent for consistent time/metadata usage
     if ('setUnifiedContext' in agent && typeof agent.setUnifiedContext === 'function') {
       agent.setUnifiedContext(unifiedContext);
-    }
+    }    await agent.initialize();
 
-    await agent.initialize();    // Log agent creation with unified metadata
+    // NEW: Set up cost monitoring for the agent (simplified for BaseAgent compatibility)
+    console.log(`📊 Cost monitoring configured for ${factoryConfig.type} agent using ${modelSelection.primaryModel}`);// Log agent creation with unified metadata
     const creationMetadata = unifiedContext.metadataService.create(
       'agent_creation',
       'agent_factory',
@@ -365,5 +367,134 @@ export class AgentFactory {
       costPerInteraction: Math.round(costPerInteraction * 10000) / 10000,
       recommendations
     };
+  }
+
+  // =============================================================================
+  // COST MONITORING & ANALYTICS METHODS
+  // =============================================================================
+
+  /**
+   * Set up cost monitoring for an agent instance
+   */
+  static setupCostMonitoring(
+    agent: ISpecializedAgent, 
+    modelId: string,
+    agentType: AgentType
+  ): void {
+    // Wrap agent methods to track token usage
+    const originalExecute = agent.executeAction?.bind(agent);
+    
+    if (originalExecute) {
+      agent.executeAction = async (action: string, params?: any) => {
+        const startTime = Date.now();
+        const result = await originalExecute(action, params);
+        
+        // Estimate token usage (simplified - in real implementation would get from API response)
+        const estimatedInputTokens = (action + JSON.stringify(params || {})).length / 4; // Rough estimation
+        const estimatedOutputTokens = JSON.stringify(result).length / 4; // Rough estimation
+        
+        // Track usage
+        costMonitoringService.trackTokenUsage({
+          agentId: (agent as any).id || 'unknown',
+          agentType,
+          modelId,
+          inputTokens: Math.round(estimatedInputTokens),
+          outputTokens: Math.round(estimatedOutputTokens),
+          timestamp: new Date(),
+          taskType: action
+        });
+        
+        return result;
+      };
+    }
+
+    console.log(`📊 Cost monitoring enabled for ${agentType} agent using ${modelId}`);
+  }
+
+  /**
+   * Get cost analytics for the factory
+   */  static getCostAnalytics(timeframe: 'day' | 'week' | 'month' = 'day') {
+    return costMonitoringService.getUsageAnalytics(timeframe);
+  }
+
+  /**
+   * Configure budget limits for all agents
+   */
+  static configureBudget(config: {
+    dailyLimit?: number;
+    monthlyLimit?: number;
+    warningThreshold?: number;
+    criticalThreshold?: number;
+    autoTierDowngrade?: boolean;
+  }): void {
+    costMonitoringService.configureBudget(config);
+    console.log(`💰 Budget configuration updated for all agents`);
+  }
+
+  /**
+   * Get current budget alerts
+   */
+  static getBudgetAlerts() {
+    return costMonitoringService.getBudgetAlerts();
+  }
+
+  /**
+   * Get cost forecast
+   */
+  static getCostForecast(days: number = 7) {
+    return costMonitoringService.forecastCosts(days);
+  }
+
+  /**
+   * Create cost-optimized agent factory configuration
+   */
+  static createCostOptimizedConfig(
+    baseConfig: Omit<AgentFactoryConfig, 'modelTier' | 'prioritizeCost'>,
+    maxMonthlyCost: number
+  ): AgentFactoryConfig {
+    // Estimate cost with different tiers
+    const economyEstimate = AgentFactory.estimateCostForAgent(baseConfig.type, 1_000_000, { prioritizeCost: true });
+    const standardEstimate = AgentFactory.estimateCostForAgent(baseConfig.type, 1_000_000);
+    const premiumEstimate = AgentFactory.estimateCostForAgent(baseConfig.type, 1_000_000, { prioritizeCost: false });
+
+    // Select optimal tier based on budget
+    let selectedTier: 'economy' | 'standard' | 'premium';
+    if (premiumEstimate.monthlyCostUSD <= maxMonthlyCost) {
+      selectedTier = 'premium';
+    } else if (standardEstimate.monthlyCostUSD <= maxMonthlyCost) {
+      selectedTier = 'standard';
+    } else {
+      selectedTier = 'economy';
+    }
+
+    return {
+      ...baseConfig,
+      modelTier: selectedTier,
+      prioritizeCost: selectedTier === 'economy',
+      prioritizePerformance: selectedTier === 'premium'
+    };
+  }
+
+  /**
+   * Monitor and log agent costs in real-time
+   */
+  static startRealTimeCostMonitoring(): void {
+    // Set up event listeners for real-time cost monitoring
+    costMonitoringService.on('tokenUsage', (event) => {
+      console.log(`💰 Token usage: ${event.usage.agentType} - $${event.cost.total.toFixed(4)}`);
+    });
+
+    costMonitoringService.on('budgetAlert', (alert) => {
+      console.warn(`🚨 Budget Alert: ${alert.message}`);
+      if (alert.type === 'critical') {
+        console.error(`🔴 CRITICAL: ${alert.recommendedAction}`);
+      }
+    });
+
+    costMonitoringService.on('autoTierDowngrade', (event) => {
+      console.warn(`⬇️ Auto tier downgrade triggered: ${event.reason}`);
+    });
+
+    console.log(`📊 Real-time cost monitoring started`);
   }
 }

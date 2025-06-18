@@ -13,6 +13,7 @@
 
 import { UnifiedMemoryClient } from '../memory/UnifiedMemoryClient';
 import { ConversationData, ConversationMetadata, MemorySearchResult, MemoryRecord, IntelligenceInsight } from '../types/unified';
+import { OneAgentUnifiedBackbone } from '../utils/UnifiedBackboneService.js';
 
 // =====================================
 // Modern Clean Interfaces
@@ -32,12 +33,14 @@ export interface MemoryIntelligenceOptions {
 export class MemoryIntelligence {
   private unifiedMemoryClient: UnifiedMemoryClient;
   private options: MemoryIntelligenceOptions;
+  private unifiedBackbone: OneAgentUnifiedBackbone;
 
   constructor(
     unifiedMemoryClient: UnifiedMemoryClient,
     options: MemoryIntelligenceOptions = {}
   ) {
     this.unifiedMemoryClient = unifiedMemoryClient;
+    this.unifiedBackbone = OneAgentUnifiedBackbone.getInstance();
     this.options = {
       enableSemanticSearch: true,
       maxResults: 50,
@@ -78,12 +81,11 @@ export class MemoryIntelligence {
         metadata: {
           userId,
           timestamp: conv.timestamp,
-          tags: conv.topicTags || [],
-          category: 'conversation'
+          tags: conv.topicTags || [],          category: 'conversation'
         },
         userId,
         timestamp: conv.timestamp,
-        lastAccessed: new Date(),
+        lastAccessed: new Date(this.unifiedBackbone.getServices().timeService.now().utc),
         accessCount: 1,
         relevanceScore: conv.qualityScore || 1.0
       }));
@@ -115,15 +117,16 @@ export class MemoryIntelligence {
 
   /**
    * Store conversation with intelligent metadata enhancement
-   */
-  async storeIntelligentConversation(
+   */  async storeIntelligentConversation(
     userId: string,
     metadata: ConversationMetadata
-  ): Promise<string> {    // Create properly structured ConversationData
+  ): Promise<string> {
+    // Create properly structured ConversationData
+    const conversationTimestamp = this.unifiedBackbone.getServices().timeService.now();
     const conversationData: ConversationData = {
       conversationId: `conv_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
       userId,
-      timestamp: new Date(),
+      timestamp: new Date(conversationTimestamp.utc),
       userSatisfaction: 0.8, // Default high satisfaction
       taskCompleted: true,
       qualityScore: metadata.qualityMetrics?.overallScore || 0.8,
@@ -246,11 +249,11 @@ export class MemoryIntelligence {
     _content: string, // Not used in this implementation, but kept for interface compatibility
     userId: string,
     metadata: Record<string, any> = {}
-  ): Promise<string> {
+  ): Promise<string> {    const metadataTimestamp = this.unifiedBackbone.getServices().timeService.now();
     const conversationMetadata: ConversationMetadata = {
       userId,
       sessionId: metadata.sessionId || 'system',
-      timestamp: new Date(),
+      timestamp: new Date(metadataTimestamp.utc),
       messageAnalysis: {
         communicationStyle: metadata.communicationStyle || 'formal',
         expertiseLevel: metadata.expertiseLevel || 'intermediate',
@@ -353,12 +356,12 @@ export class MemoryIntelligence {
 
   /**
    * Convert memory entry to ConversationData format
-   */
-  private convertToConversationData(memory: any): ConversationData {
+   */  private convertToConversationData(memory: any): ConversationData {
+    const conversionTimestamp = this.unifiedBackbone.getServices().timeService.now();
     return {
       conversationId: memory.id || memory.conversationId || `conv_${Date.now()}`,
       userId: memory.userId || 'unknown',
-      timestamp: memory.timestamp || new Date(),
+      timestamp: memory.timestamp || new Date(conversionTimestamp.utc),
       userSatisfaction: memory.userSatisfaction || 0.8,
       taskCompleted: memory.taskCompleted !== false,
       qualityScore: memory.qualityScore || 0.8,

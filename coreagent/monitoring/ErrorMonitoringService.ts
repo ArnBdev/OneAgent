@@ -8,6 +8,7 @@
 import { ConstitutionalAI } from '../agents/base/ConstitutionalAI';
 import { TriageAgent } from '../agents/specialized/TriageAgent';
 import { SimpleAuditLogger } from '../audit/auditLogger';
+import { OneAgentUnifiedBackbone } from '../utils/UnifiedBackboneService.js';
 
 export interface ErrorContext {
   agentId?: string;
@@ -47,6 +48,7 @@ export class ErrorMonitoringService {
   private auditLogger: SimpleAuditLogger;
   private errorReports: Map<string, ErrorReport> = new Map();
   private errorPatterns: Map<string, number> = new Map();
+  private unifiedBackbone: OneAgentUnifiedBackbone;
   
   constructor(
     constitutionalAI: ConstitutionalAI,
@@ -56,6 +58,7 @@ export class ErrorMonitoringService {
     this.constitutionalAI = constitutionalAI;
     this.auditLogger = auditLogger;
     this.triageAgent = triageAgent;
+    this.unifiedBackbone = OneAgentUnifiedBackbone.getInstance();
   }
 
   /**

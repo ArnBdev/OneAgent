@@ -1,4 +1,24 @@
-import React, { useState, useEffect, useRef } from 'react'
+import React, { useState, useEffect, useRef } f  // Unified services integration
+  const { timeContext, createUITimestamp, isOptimalTime, energyLevel, suggestionContext } = useUnifiedTime()
+  const { createUIMessage } = useUnifiedMetadata()
+  const { sessionContext } = useUnifiedSession()
+
+  // Helper to create timestamp with fallback
+  const createTimestamp = useCallback(() => {
+    return new Date();
+  }, []);
+  
+  // Helper to get enhanced time context for display
+  const getTimeDisplay = useCallback((timestamp: Date) => {
+    if (timeContext) {
+      const relativeTime = Math.floor((Date.now() - timestamp.getTime()) / 60000);
+      if (relativeTime < 1) return 'just now';
+      if (relativeTime < 60) return `${relativeTime}m ago`;
+      if (relativeTime < 1440) return `${Math.floor(relativeTime / 60)}h ago`;
+      return timestamp.toLocaleDateString();
+    }
+    return timestamp.toLocaleString();
+  }, [timeContext]);'react'
 import { Card, CardContent, CardHeader } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
@@ -9,11 +29,12 @@ import { Separator } from '@/components/ui/separator'
 import { Send, Bot, User, CheckCircle, AlertCircle, Clock, Zap } from 'lucide-react'
 import { cn, formatQualityScore } from '@/lib/utils'
 import { oneAgentAPI } from '@/services/oneAgentAPI'
+import { useUnifiedTime, useUnifiedMetadata, useUnifiedSession, getEnergyTheme, getComplianceIndicator, type UIMessage } from '@/hooks/useUnifiedServices'
 
 interface Message {
   id: string
   content: string
-  role: 'user' | 'assistant'
+  role: 'user' | 'assistant' | 'system'
   timestamp: Date
   qualityScore?: number
   agentType?: string
@@ -24,6 +45,11 @@ interface Message {
     helpfulness: number
     safety: number
   }
+  // Enhanced with unified metadata
+  energyContext?: string
+  suggestionContext?: string
+  displayTime?: string
+  relativeTime?: string
 }
 
 interface ChatProps {
@@ -38,23 +64,68 @@ const EnhancedChatInterface: React.FC<ChatProps> = ({
   onMessageSend,
   isLoading = false,
   agentType = 'enhanced-development'
-}) => {  const [messages, setMessages] = useState<Message[]>([
-    {
-      id: '1',
-      content: 'Hello! I\'m your AI development assistant. I\'m connecting to the OneAgent server for enhanced capabilities...',
-      role: 'assistant',
-      timestamp: new Date(),
-      qualityScore: 94,
-      agentType: 'enhanced-development',
-      status: 'complete',
-      constitutionalValidation: {
-        accuracy: 95,
-        transparency: 92,
-        helpfulness: 96,
-        safety: 94
+}) => {
+  // Unified services integration
+  const { timeContext, createUITimestamp, isOptimalTime, energyLevel, suggestionContext } = useUnifiedTime()
+  const { createUIMessage } = useUnifiedMetadata()
+  const sessionContext = useUnifiedSession()
+    const [messages, setMessages] = useState<Message[]>([])
+  const [isInitialized, setIsInitialized] = useState(false)
+  
+  // Initialize with unified services
+  useEffect(() => {
+    const initializeChat = async () => {
+      if (isInitialized || !sessionContext) return
+      
+      try {
+        const welcomeMessage = await createUIMessage(
+          'Hello! I\'m your AI development assistant with enhanced time and context awareness. Ready to help!',
+          'assistant',
+          {
+            sessionId: sessionContext.sessionId,
+            userId: sessionContext.userId
+          }
+        )
+        
+        const legacyMessage: Message = {
+          id: welcomeMessage.id,
+          content: welcomeMessage.content,
+          role: welcomeMessage.role,
+          timestamp: new Date(welcomeMessage.timestamp.unix),
+          qualityScore: welcomeMessage.metadata.quality?.score || 94,
+          agentType: 'enhanced-development',
+          status: 'complete',
+          constitutionalValidation: {
+            accuracy: 95,
+            transparency: 92,
+            helpfulness: 96,
+            safety: 94
+          },
+          energyContext: welcomeMessage.energyContext,
+          suggestionContext: welcomeMessage.suggestionContext,
+          displayTime: welcomeMessage.timestamp.displayTime,
+          relativeTime: welcomeMessage.timestamp.relativeTime
+        }
+        
+        setMessages([legacyMessage])
+        setIsInitialized(true)
+      } catch (error) {        console.error('Failed to initialize chat with unified services:', error)
+        // Fallback initialization
+        setMessages([{
+          id: '1',
+          content: 'Hello! I\'m your AI development assistant. Ready to help!',
+          role: 'assistant',
+          timestamp: new Date(),
+          qualityScore: 94,
+          agentType: 'enhanced-development',
+          status: 'complete'
+        }])
+        setIsInitialized(true)
       }
     }
-  ])
+    
+    initializeChat()
+  }, [sessionContext, createUIMessage, isInitialized])
   const [inputValue, setInputValue] = useState('')
   const [connectionStatus, setConnectionStatus] = useState<string>('disconnected')
   const messagesEndRef = useRef<HTMLDivElement>(null)
@@ -170,52 +241,92 @@ const EnhancedChatInterface: React.FC<ChatProps> = ({
   useEffect(() => {
     scrollToBottom()
   }, [messages])
-
   const handleSendMessage = async () => {
     if (!inputValue.trim() || isLoading) return
 
-    const userMessage: Message = {
-      id: Date.now().toString(),
-      content: inputValue.trim(),
-      role: 'user',
-      timestamp: new Date(),
-      status: 'complete'
-    }
-
-    setMessages(prev => [...prev, userMessage])
-    const messageContent = inputValue.trim()
-    setInputValue('')
-
-    // Call external handler if provided
-    onMessageSend?.(messageContent)
-
-    // Show processing message
-    const processingId = (Date.now() + 1).toString()
-    const processingMessage: Message = {
-      id: processingId,
-      content: 'Processing your request using advanced AI capabilities...',
-      role: 'assistant',
-      timestamp: new Date(),
-      agentType,
-      status: 'processing'
-    }
-    setMessages(prev => [...prev, processingMessage])
-
     try {
+      // Create user message with unified services
+      const userUIMessage = await createUIMessage(
+        inputValue.trim(),
+        'user',
+        {
+          sessionId: sessionContext?.sessionId || 'fallback',
+          userId: sessionContext?.userId
+        }
+      )
+
+      const userMessage: Message = {
+        id: userUIMessage.id,
+        content: userUIMessage.content,
+        role: userUIMessage.role,
+        timestamp: new Date(userUIMessage.timestamp.unix),
+        status: 'complete',
+        energyContext: userUIMessage.energyContext,
+        suggestionContext: userUIMessage.suggestionContext,
+        displayTime: userUIMessage.timestamp.displayTime,
+        relativeTime: userUIMessage.timestamp.relativeTime
+      }
+
+      setMessages(prev => [...prev, userMessage])
+      const messageContent = inputValue.trim()
+      setInputValue('')
+
+      // Call external handler if provided
+      onMessageSend?.(messageContent)
+
+      // Show processing message with unified services
+      const processingUIMessage = await createUIMessage(
+        'Processing your request using advanced AI capabilities...',
+        'assistant',
+        {
+          sessionId: sessionContext?.sessionId || 'fallback',
+          userId: sessionContext?.userId,
+          isLoading: true
+        }
+      )
+
+      const processingMessage: Message = {
+        id: processingUIMessage.id,
+        content: processingUIMessage.content,
+        role: processingUIMessage.role,
+        timestamp: new Date(processingUIMessage.timestamp.unix),
+        agentType,
+        status: 'processing',
+        energyContext: processingUIMessage.energyContext,
+        suggestionContext: processingUIMessage.suggestionContext,
+        displayTime: processingUIMessage.timestamp.displayTime,
+        relativeTime: processingUIMessage.timestamp.relativeTime
+      }
+      
+      setMessages(prev => [...prev, processingMessage])
+
       // Send message to OneAgent chat API
       const response = await oneAgentAPI.sendChatMessage(messageContent, 'ui-user', agentType)
       
-      // Remove processing message and add real response
-      setMessages(prev => prev.filter(msg => msg.id !== processingId))
+      // Remove processing message and add real response with unified services
+      setMessages(prev => prev.filter(msg => msg.id !== processingMessage.id))
       
+      const assistantUIMessage = await createUIMessage(
+        response.response,
+        'assistant',
+        {
+          sessionId: sessionContext?.sessionId || 'fallback',
+          userId: sessionContext?.userId
+        }
+      )
+
       const assistantMessage: Message = {
-        id: (Date.now() + 2).toString(),
-        content: response.response,
-        role: 'assistant',
-        timestamp: new Date(),
-        qualityScore: Math.floor(Math.random() * 15) + 85, // Mock quality score
+        id: assistantUIMessage.id,
+        content: assistantUIMessage.content,
+        role: assistantUIMessage.role,
+        timestamp: new Date(assistantUIMessage.timestamp.unix),
+        qualityScore: assistantUIMessage.metadata.quality?.score || (Math.floor(Math.random() * 15) + 85),
         agentType: response.agentType,
         status: 'complete',
+        energyContext: assistantUIMessage.energyContext,
+        suggestionContext: assistantUIMessage.suggestionContext,
+        displayTime: assistantUIMessage.timestamp.displayTime,
+        relativeTime: assistantUIMessage.timestamp.relativeTime,
         constitutionalValidation: {
           accuracy: Math.floor(Math.random() * 10) + 90,
           transparency: Math.floor(Math.random() * 10) + 88,

@@ -9,7 +9,7 @@
  */
 
 import { EnhancedPromptConfig, ConstitutionalPrinciple, QualityValidation } from './EnhancedPromptEngine';
-import { getTimeContextString } from '../../utils/timeContext';
+import { OneAgentUnifiedBackbone } from '../../utils/UnifiedBackboneService.js';
 
 export interface ValidationResult {
   isValid: boolean;
@@ -70,7 +70,7 @@ export class ConstitutionalAI {
     let totalScore = 100;
 
     // Add time context for accuracy validation
-    const timeContext = getTimeContextString();
+    const timeContext = OneAgentUnifiedBackbone.getInstance().getServices().timeService.getContext().context;
     const enhancedContext = { ...context, timeContext };
 
     // Validate against each constitutional principle

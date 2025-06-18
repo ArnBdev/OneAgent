@@ -14,6 +14,7 @@
 import { UnifiedMemoryClient } from '../../memory/UnifiedMemoryClient';
 import { ConversationMemory, MemorySearchQuery } from '../../memory/UnifiedMemoryInterface';
 import { oneAgentConfig } from '../../config/index';
+import { OneAgentUnifiedBackbone } from '../../utils/UnifiedBackboneService.js';
 import { SmartGeminiClient } from '../../tools/SmartGeminiClient';
 import { GeminiClient } from '../../tools/geminiClient';
 import { User } from '../../types/user';
@@ -42,6 +43,11 @@ export interface AgentContext {
   conversationHistory: Message[];
   memoryContext?: any[];
   enrichedContext?: EnrichedContext;  // Optional enriched context from MemoryContextBridge
+  
+  // Enhanced context for inter-agent communication
+  projectContext?: string; // Project identifier for context isolation
+  topicContext?: string; // Topic/domain for context organization
+  metadata?: any; // Unified metadata for enhanced tracking
 }
 
 export interface Message {
@@ -74,17 +80,18 @@ export abstract class BaseAgent {
   protected memoryClient?: UnifiedMemoryClient;
   protected aiClient?: SmartGeminiClient;
   protected isInitialized: boolean = false;
+  protected unifiedBackbone: OneAgentUnifiedBackbone;
   
   // Advanced Prompt Engineering Components
   protected promptEngine?: EnhancedPromptEngine;
   protected constitutionalAI?: ConstitutionalAI;
   protected bmadElicitation?: BMADElicitationEngine;
   protected promptConfig?: EnhancedPromptConfig;
-
   constructor(config: AgentConfig, promptConfig?: EnhancedPromptConfig) {
     this.config = config;
     this.promptConfig = promptConfig || this.getDefaultPromptConfig();
-  }  /**
+    this.unifiedBackbone = OneAgentUnifiedBackbone.getInstance();
+  }/**
    * Initialize the agent with necessary clients and advanced prompt engineering
    */
   async initialize(): Promise<void> {
@@ -495,9 +502,20 @@ Generate a refined response that addresses the improvement areas while maintaini
         id: 'default', 
         name: 'User',
         createdAt: new Date().toISOString(),
-        lastActiveAt: new Date().toISOString()
-      },
-      sessionId: `session-${Date.now()}`,
+        lastActiveAt: new Date().toISOString()      },
+      sessionId: this.unifiedBackbone.getServices().metadataService.create(
+        'agent-session',
+        'BaseAgent',
+        { 
+          content: { 
+            category: 'agent-session',
+            tags: ['base-agent'],
+            sensitivity: 'internal',
+            relevanceScore: 0.8,
+            contextDependency: 'session'
+          }
+        }
+      ).id,
       conversationHistory: [],
       memoryContext: []
     };

@@ -18,6 +18,8 @@ import { MemoryDrivenAgentCommunication } from './communication/MemoryDrivenAgen
 import { UnifiedContext7MCPIntegration, DocumentationResult } from '../mcp/UnifiedContext7MCPIntegration';
 import { CodeAnalysisResult } from './AdvancedCodeAnalysisEngine';
 import { realUnifiedMemoryClient } from '../memory/RealUnifiedMemoryClient';
+import { timeAwareness, getEnhancedTimeContext } from '../utils/EnhancedTimeAwareness.js';
+import { OneAgentUnifiedBackbone } from '../utils/UnifiedBackboneService.js';
 
 export interface LearnedPattern {
   id: string;
@@ -96,6 +98,7 @@ export class DevAgentLearningEngine {
   private memoryComm: MemoryDrivenAgentCommunication;
   private context7Integration: UnifiedContext7MCPIntegration;
   private agentId: string;
+  private unifiedBackbone: OneAgentUnifiedBackbone;
   
   // In-memory cache for fast access
   private patternCache: Map<string, LearnedPattern> = new Map();
@@ -113,11 +116,11 @@ export class DevAgentLearningEngine {
     mostUsedPatterns: [],
     emergingPatterns: []
   };
-
   constructor(agentId: string, memoryComm: MemoryDrivenAgentCommunication) {
     this.agentId = agentId;
     this.memoryComm = memoryComm;
     this.context7Integration = new UnifiedContext7MCPIntegration(agentId);
+    this.unifiedBackbone = OneAgentUnifiedBackbone.getInstance();
   }
 
   /**
@@ -263,12 +266,12 @@ export class DevAgentLearningEngine {
       }
       
       // Update pattern metrics
-      pattern.timesUsed++;
-      if (wasSuccessful) {
+      pattern.timesUsed++;      if (wasSuccessful) {
         pattern.timesSuccessful++;
       }
       pattern.successRate = pattern.timesSuccessful / pattern.timesUsed;
-      pattern.lastUsed = new Date();
+      const usageTimestamp = this.unifiedBackbone.getServices().timeService.now();
+      pattern.lastUsed = new Date(usageTimestamp.utc);
       
       // Adjust confidence based on success
       if (wasSuccessful) {
@@ -315,9 +318,9 @@ export class DevAgentLearningEngine {
           removed++;
           continue;
         }
-        
-        // Mark old patterns for review
-        const daysSinceLastUsed = (Date.now() - pattern.lastUsed.getTime()) / (1000 * 60 * 60 * 24);
+          // Mark old patterns for review
+        const currentTime = this.unifiedBackbone.getServices().timeService.now();
+        const daysSinceLastUsed = (currentTime.unix - pattern.lastUsed.getTime()) / (1000 * 60 * 60 * 24);
         if (daysSinceLastUsed > 90 && pattern.timesUsed < 3) {
           pattern.confidence = Math.max(0.1, pattern.confidence - 0.2);
           await this.updatePatternInMemory(pattern);
@@ -378,9 +381,21 @@ export class DevAgentLearningEngine {
     solution: string,
     language: string,
     context: LearningContext
-  ): Promise<LearnedPattern | null> {
-    // Use AI to extract meaningful patterns
-    const patternId = `pattern_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+  ): Promise<LearnedPattern | null> {    // Use AI to extract meaningful patterns
+    const unifiedMetadata = this.unifiedBackbone.getServices().metadataService.create(
+      'learning-pattern',
+      'DevAgentLearningEngine',
+      { 
+        content: { 
+          category: 'dev-pattern',
+          tags: [language, context.framework].filter(Boolean) as string[],
+          sensitivity: 'internal',
+          relevanceScore: 0.8,
+          contextDependency: 'session'
+        }
+      }
+    );
+    const patternId = unifiedMetadata.id;
     
     // Determine category based on problem type
     const category = this.determinePatternCategory(problem, solution);
@@ -407,11 +422,10 @@ export class DevAgentLearningEngine {
       contexts: [context.problemType],
       dependencies: this.extractDependencies(solution),
       complexity,
-      
-      qualityScore: context.analysisResult?.qualityScore || 80,
+        qualityScore: context.analysisResult?.qualityScore || 80,
       constitutionallyValid: context.analysisResult?.constitutionalCompliance || true,
-      lastValidated: new Date(),
-      lastUsed: new Date(),
+      lastValidated: new Date(this.unifiedBackbone.getServices().timeService.now().utc),
+      lastUsed: new Date(this.unifiedBackbone.getServices().timeService.now().utc),
       
       learnedFrom: 'user-interaction',
       sourceDetails: {
@@ -439,9 +453,21 @@ export class DevAgentLearningEngine {
     // Look for code examples and best practices in documentation
     const codeBlocks = this.extractCodeBlocks(doc.content);
     const bestPractices = this.extractBestPractices(doc.content);
-    
-    for (const codeBlock of codeBlocks) {
-      const patternId = `context7_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+      for (const codeBlock of codeBlocks) {
+      const patternMetadata = this.unifiedBackbone.getServices().metadataService.create(
+        'context7-pattern',
+        'DevAgentLearningEngine',
+        { 
+          content: { 
+            category: 'context7-learning',
+            tags: [language, 'context7', 'documentation'],
+            sensitivity: 'internal',
+            relevanceScore: 0.85,
+            contextDependency: 'session'
+          }
+        }
+      );
+      const patternId = patternMetadata.id;
       
       const pattern: LearnedPattern = {
         id: patternId,
@@ -463,10 +489,9 @@ export class DevAgentLearningEngine {
         contexts: [problemContext],
         dependencies: this.extractDependencies(codeBlock),
         complexity: 'intermediate',
-        
-        qualityScore: 90,
+          qualityScore: 90,
         constitutionallyValid: true,
-        lastValidated: new Date(),
+        lastValidated: new Date(getEnhancedTimeContext().realTime.utc),
         lastUsed: new Date(0), // Never used yet
           learnedFrom: 'context7',
         ...(doc.url && { sourceDetails: { documentationUrl: doc.url } }),
@@ -705,12 +730,12 @@ export class DevAgentLearningEngine {
     const pattern = this.patternCache.get(patternId)!;
     
     // Update metrics
-    pattern.timesUsed++;
-    if (context.successfulOutcome) {
+    pattern.timesUsed++;    if (context.successfulOutcome) {
       pattern.timesSuccessful++;
     }
     pattern.successRate = pattern.timesSuccessful / pattern.timesUsed;
-    pattern.lastUsed = new Date();
+    const contextUsageTimestamp = this.unifiedBackbone.getServices().timeService.now();
+    pattern.lastUsed = new Date(contextUsageTimestamp.utc);
     
     // Update confidence
     if (context.successfulOutcome) {
@@ -725,14 +750,13 @@ export class DevAgentLearningEngine {
       'global', // Store updated patterns globally
       'long_term',
       {
-        type: 'learned_pattern',
-        category: pattern.category,
+        type: 'learned_pattern',        category: pattern.category,
         language: pattern.language,
         patternId: pattern.id,
         confidence: pattern.confidence,
         agentId: this.agentId,
         globalPattern: true,
-        lastUpdated: new Date().toISOString()
+        lastUpdated: this.unifiedBackbone.getServices().timeService.now().utc
       }
     );
   }
@@ -762,9 +786,9 @@ export class DevAgentLearningEngine {
     // Most used patterns
     this.metrics.mostUsedPatterns = patterns
       .sort((a, b) => b.timesUsed - a.timesUsed)
-      .slice(0, 5);
-      // Emerging patterns (recent, low usage, high confidence)
-    const recentCutoff = Date.now() - (7 * 24 * 60 * 60 * 1000); // 7 days
+      .slice(0, 5);      // Emerging patterns (recent, low usage, high confidence)
+    const currentTime = this.unifiedBackbone.getServices().timeService.now();
+    const recentCutoff = currentTime.unix - (7 * 24 * 60 * 60 * 1000); // 7 days
     this.metrics.emergingPatterns = patterns
       .filter(p => {
         const lastValidatedTime = p.lastValidated instanceof Date 

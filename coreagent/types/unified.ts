@@ -20,6 +20,69 @@ export type ResponseLength = 'concise' | 'moderate' | 'detailed' | 'comprehensiv
 export type MoodIndicator = 'positive' | 'neutral' | 'frustrated' | 'confused' | 'satisfied';
 export type IntentCategory = 'question' | 'request' | 'complaint' | 'compliment' | 'exploration';
 export type PrivacyLevel = 'public' | 'internal' | 'confidential' | 'restricted';
+export type AgentType = 'core' | 'enhanced-development' | 'development' | 'office' | 'fitness' | 'general' | 'coach' | 'advisor' | 'template';
+
+// ========================================
+// INTER-AGENT COMMUNICATION METADATA
+// ========================================
+
+export interface InterAgentMetadata {
+  // Communication Context
+  communicationType: 'direct_message' | 'multi_agent' | 'broadcast' | 'coordination' | 'delegation';
+  sourceAgentId: string;
+  targetAgentId?: string; // undefined for broadcast/multi-agent
+  messageType: 'request' | 'response' | 'notification' | 'coordination' | 'status';
+  
+  // Project & Topic Context
+  projectContext?: string; // Project identifier for context isolation
+  topicContext?: string; // Topic/domain for context organization
+  workflowId?: string; // Workflow identifier for multi-step processes
+  parentMessageId?: string; // For message threading
+  
+  // User Privacy & Isolation
+  userId: string; // CRITICAL: Ensures user privacy isolation
+  sessionId: string; // Session-specific context
+  privacyLevel: PrivacyLevel; // Controls data access levels
+  userDataScope: 'global' | 'session' | 'project' | 'restricted'; // Data access boundaries
+  
+  // Quality & Compliance
+  qualityThreshold: number; // Minimum quality requirement for this communication
+  constitutionalCompliance: boolean; // Constitutional AI validation required
+  priorityLevel: 'low' | 'medium' | 'high' | 'urgent'; // Message priority
+  
+  // Traceability
+  timestamp: Date;
+  correlationId?: string; // For cross-agent tracing
+  requestId?: string; // For request/response correlation
+}
+
+export interface AgentCommunicationContext {
+  // Enhanced context for inter-agent messaging
+  metadata: InterAgentMetadata;
+  conversationHistory?: Array<{
+    agentId: string;
+    message: string;
+    timestamp: Date;
+    metadata: InterAgentMetadata;
+  }>;
+  
+  // User Context (with privacy isolation)
+  userContext: {
+    userId: string;
+    sessionId: string;
+    projectId?: string;
+    accessLevel: 'full' | 'limited' | 'read_only';
+    preferences: Record<string, any>;
+  };
+  
+  // Agent Capabilities Context
+  availableAgents?: Array<{
+    agentId: string;
+    capabilities: string[];
+    qualityScore: number;
+    availability: 'online' | 'busy' | 'offline';
+  }>;
+}
 
 // ========================================
 // ADVANCED METADATA INTERFACES
@@ -48,6 +111,11 @@ export interface ConversationMetadata {
   sessionId: string;
   conversationId?: string;
   timestamp: Date;
+  
+  // Inter-Agent Communication Enhancement
+  interAgentMetadata?: InterAgentMetadata;
+  agentCommunicationContext?: AgentCommunicationContext;
+  
   // Constitutional AI Metadata
   constitutionalValidation?: {
     passed: boolean;
@@ -733,6 +801,321 @@ export interface OneAgentSystemHealth {
       throughput: string;
       errorRate: string;
     };
+  };
+}
+
+// ========================================
+// UNIFIED TIME AWARENESS SYSTEM
+// ========================================
+
+export interface UnifiedTimeContext {
+  // Real-time awareness
+  realTime: {
+    unix: number;
+    utc: string;
+    local: string;
+    timezone: string;
+    offset: number; // UTC offset in minutes
+  };
+  
+  // Context intelligence
+  context: {
+    dayOfWeek: 'monday' | 'tuesday' | 'wednesday' | 'thursday' | 'friday' | 'saturday' | 'sunday';
+    timeOfDay: 'early-morning' | 'morning' | 'afternoon' | 'evening' | 'late-night';
+    workingHours: boolean;
+    weekendMode: boolean;
+    seasonalContext: 'spring' | 'summer' | 'fall' | 'winter';
+    businessDay: boolean;
+    peakHours: boolean; // 9-11 AM, 2-4 PM typically
+  };
+  
+  // Intelligence features
+  intelligence: {
+    optimalFocusTime: boolean; // Based on circadian rhythms
+    energyLevel: 'low' | 'medium' | 'high' | 'peak';
+    suggestionContext: 'planning' | 'execution' | 'review' | 'rest';
+    motivationalTiming: 'start-strong' | 'mid-momentum' | 'end-sprint' | 'reflection';
+  };
+}
+
+export interface UnifiedTimestamp {
+  unix: number;
+  utc: string;
+  local: string;
+  timezone: string;
+  context: string; // timeOfDay-dayOfWeek-businessContext
+}
+
+// ========================================
+// UNIFIED METADATA SYSTEM
+// ========================================
+
+export interface UnifiedMetadata {
+  // Core identification
+  id: string;
+  type: string;
+  version: string;
+  
+  // Unified temporal data
+  temporal: {
+    created: UnifiedTimestamp;
+    updated: UnifiedTimestamp;
+    accessed?: UnifiedTimestamp;
+    contextSnapshot: {
+      timeOfDay: string;
+      dayOfWeek: string;
+      businessContext: boolean;
+      energyContext: string;
+    };
+  };
+  
+  // System context
+  system: {
+    source: string; // 'agent' | 'user' | 'system' | 'memory' | 'context7' | 'alita'
+    agent?: string; // AgentFactory type if applicable
+    component: string; // specific component/service
+    sessionId?: string;
+    userId?: string;
+  };
+  
+  // Quality and compliance
+  quality: {
+    score: number; // 0-100
+    constitutionalCompliant: boolean;
+    validationLevel: 'basic' | 'enhanced' | 'constitutional';
+    confidence: number; // 0-1
+  };
+  
+  // Content classification
+  content: {
+    category: string;
+    tags: string[];
+    sensitivity: 'public' | 'internal' | 'confidential' | 'restricted';
+    relevanceScore: number; // 0-1
+    contextDependency: 'none' | 'session' | 'user' | 'global';
+  };
+  
+  // Relationships and dependencies
+  relationships: {
+    parent?: string;
+    children: string[];
+    related: string[];
+    dependencies: string[];
+  };
+  
+  // Performance and analytics
+  analytics: {
+    accessCount: number;
+    lastAccessPattern: string;
+    performanceMetrics?: Record<string, number>;
+    usageContext: string[];
+  };
+}
+
+// ========================================
+// UNIFIED SERVICE INTERFACES
+// ========================================
+
+export interface UnifiedTimeService {
+  // Core time methods
+  now(): UnifiedTimestamp;
+  getContext(): UnifiedTimeContext;
+  
+  // Utility methods
+  isOptimalTime(type: 'focus' | 'creative' | 'social' | 'rest'): boolean;
+  getEnergyLevel(): 'low' | 'medium' | 'high' | 'peak';
+  getSuggestionContext(): 'planning' | 'execution' | 'review' | 'rest';
+  
+  // Metadata integration
+  createTimestamp(): UnifiedTimestamp;
+  enhanceWithContext(basicTime: Date): UnifiedTimestamp;
+}
+
+export interface UnifiedMetadataService {
+  // Core metadata methods
+  create(type: string, source: string, options?: Partial<UnifiedMetadata>): UnifiedMetadata;
+  update(id: string, changes: Partial<UnifiedMetadata>): UnifiedMetadata;
+  retrieve(id: string): UnifiedMetadata | null;
+  
+  // Inter-agent communication metadata
+  createInterAgentMetadata(
+    communicationType: 'direct_message' | 'multi_agent' | 'broadcast' | 'coordination' | 'delegation',
+    sourceAgentId: string,
+    userId: string,
+    sessionId: string,
+    options?: {
+      targetAgentId?: string;
+      messageType?: 'request' | 'response' | 'notification' | 'coordination' | 'status';
+      projectContext?: string;
+      topicContext?: string;
+      workflowId?: string;
+      parentMessageId?: string;
+      privacyLevel?: 'public' | 'internal' | 'confidential' | 'restricted';
+      userDataScope?: 'global' | 'session' | 'project' | 'restricted';
+      qualityThreshold?: number;
+      priorityLevel?: 'low' | 'medium' | 'high' | 'urgent';
+      correlationId?: string;
+      requestId?: string;
+    }
+  ): UnifiedMetadata;
+  
+  // Quality and validation
+  validateQuality(metadata: UnifiedMetadata): { valid: boolean; score: number; issues: string[] };
+  ensureConstitutionalCompliance(metadata: UnifiedMetadata): boolean;
+  
+  // Analytics and insights
+  getAnalytics(id: string): Record<string, any>;
+  updateAccess(id: string, context: string): void;
+}
+
+// ========================================
+// AGENT UNIFIED INTERFACES
+// ========================================
+
+export interface UnifiedAgentContext {
+  // Agent identification
+  agentId: string;
+  agentType: AgentType;
+  agentName: string;
+  
+  // Unified services
+  timeService: UnifiedTimeService;
+  metadataService: UnifiedMetadataService;
+  
+  // Session context
+  sessionId: string;
+  userId?: string;
+  
+  // Capabilities context
+  capabilities: string[];
+  memoryEnabled: boolean;
+  aiEnabled: boolean;
+  
+  // Current operation context
+  currentOperation?: {
+    type: string;
+    startTime: UnifiedTimestamp;
+    metadata: UnifiedMetadata;
+  };
+}
+
+export interface UnifiedAgentAction {
+  // Action identification
+  actionId: string;
+  actionType: string;
+  
+  // Unified metadata
+  metadata: UnifiedMetadata;
+  
+  // Execution context
+  execute(context: UnifiedAgentContext, input: any): Promise<any>;
+  validate(context: UnifiedAgentContext, input: any): boolean;
+  
+  // Quality assurance
+  getQualityScore(): number;
+  isConstitutionalCompliant(): boolean;
+}
+
+// ========================================
+// MEMORY UNIFIED INTERFACES
+// ========================================
+
+export interface UnifiedMemoryEntry {
+  // Core data
+  id: string;
+  content: string;
+  type: 'conversation' | 'learning' | 'context' | 'system' | 'user';
+  
+  // Unified metadata
+  metadata: UnifiedMetadata;
+  
+  // Memory-specific context
+  memoryContext: {
+    relevanceScore: number;
+    accessPattern: string;
+    retentionPolicy: 'session' | 'short_term' | 'long_term' | 'permanent';
+    encryptionLevel: 'none' | 'basic' | 'enhanced';
+  };
+  
+  // Temporal intelligence
+  temporalContext: {
+    createdAt: UnifiedTimestamp;
+    expiresAt?: UnifiedTimestamp;
+    lastRelevantAt?: UnifiedTimestamp;
+    optimalRetrievalTime?: string; // time pattern for best retrieval
+  };
+}
+
+export interface UnifiedMemoryService {
+  // Core operations
+  store(entry: Omit<UnifiedMemoryEntry, 'id' | 'metadata'>): Promise<string>;
+  retrieve(id: string): Promise<UnifiedMemoryEntry | null>;
+  search(query: string, context?: any): Promise<UnifiedMemoryEntry[]>;
+  
+  // Context-aware operations
+  getRelevantMemories(context: UnifiedAgentContext): Promise<UnifiedMemoryEntry[]>;
+  storeWithContext(content: string, type: string, context: UnifiedAgentContext): Promise<string>;
+  
+  // Quality and maintenance
+  validateMemoryQuality(entry: UnifiedMemoryEntry): boolean;
+  cleanupExpiredMemories(): Promise<number>;
+  updateRelevanceScores(): Promise<void>;
+}
+
+// ========================================
+// ALITA UNIFIED INTEGRATION
+// ========================================
+
+export interface ALITAUnifiedContext {
+  // Real-time evolution tracking
+  evolutionTimestamp: UnifiedTimestamp;
+  
+  // Learning metadata
+  learningMetadata: UnifiedMetadata;
+  
+  // Evolution context
+  evolutionContext: {
+    trigger: string; // what triggered the evolution
+    confidence: number; // 0-1
+    impact: 'minor' | 'moderate' | 'significant' | 'major';
+    validationRequired: boolean;
+  };
+  
+  // Temporal learning patterns
+  learningPatterns: {
+    optimalLearningTime: string; // when ALITA learns best
+    evolutionFrequency: number; // evolutions per time period
+    qualityTrend: number[]; // quality improvement over time
+  };
+}
+
+// ========================================
+// SYSTEM VALIDATION INTERFACES
+// ========================================
+
+export interface UnifiedSystemHealth {
+  timeService: {
+    operational: boolean;
+    accuracy: number; // timezone/time accuracy score
+    performance: number; // response time metrics
+  };
+  
+  metadataService: {
+    operational: boolean;
+    qualityScore: number; // average metadata quality
+    consistency: number; // metadata consistency across systems
+  };
+  
+  agentSystems: {
+    operational: boolean;
+    unifiedCompliance: number; // % using unified services
+    performanceImpact: number; // overhead from unified services
+  };
+  
+  memorySystem: {
+    operational: boolean;
+    temporalAccuracy: number; // temporal metadata accuracy
+    retrievalPerformance: number; // memory retrieval with unified context
   };
 }
 

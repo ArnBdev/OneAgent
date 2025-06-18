@@ -21,6 +21,7 @@ import { v4 as uuidv4 } from 'uuid';
 import * as fs from 'fs/promises';
 import * as path from 'path';
 import { oneAgentConfig } from '../config/index';
+import { OneAgentUnifiedBackbone } from '../utils/UnifiedBackboneService.js';
 import { 
   UnifiedMemoryInterface, 
   ConversationMemory, 
@@ -96,6 +97,7 @@ export class RealUnifiedMemoryClient extends EventEmitter implements UnifiedMemo
   private config: ConnectionConfig;
   private isConnected: boolean = false;
   private collection: any = null; // ChromaDB collection instance
+  private unifiedBackbone: OneAgentUnifiedBackbone;
   
   // Performance and quality metrics
   private metrics = {
@@ -110,10 +112,13 @@ export class RealUnifiedMemoryClient extends EventEmitter implements UnifiedMemo
     totalMemories: 0,
     uniqueUsers: new Set<string>(),
     uniqueAgents: new Set<string>()
-  };
-  constructor(config: Partial<ConnectionConfig> = {}) {
+  };  constructor(config: Partial<ConnectionConfig> = {}) {
     super();
-      // Default configuration with professional-grade settings
+    
+    // Initialize unified backbone
+    this.unifiedBackbone = OneAgentUnifiedBackbone.getInstance();
+    
+    // Default configuration with professional-grade settings
     this.config = {
       host: config.host || oneAgentConfig.host, // Use centralized config instead of localhost
       port: config.port || oneAgentConfig.memoryPort, // Use configured memory port
@@ -161,13 +166,13 @@ export class RealUnifiedMemoryClient extends EventEmitter implements UnifiedMemo
         }
           // Mark as connected and initialize collection reference
         this.isConnected = true;
-        
-        // Initialize collection reference for health checks
+          // Initialize collection reference for health checks
         // Since we use HTTP API, create a simple health test object
+        const healthTimestamp = this.unifiedBackbone.getServices().timeService.now();
         this.collection = {
           isInitialized: true,
           serverUrl: `http://${this.config.host}:${this.config.port}`,
-          lastHealthCheck: new Date()
+          lastHealthCheck: new Date(healthTimestamp.utc)
         };
         
         this.emit('connected', {
@@ -217,7 +222,6 @@ export class RealUnifiedMemoryClient extends EventEmitter implements UnifiedMemo
       this.emit('error', error);
     }
   }
-
   /**
    * Create a new memory entry with real persistence
    */  async createMemory(
@@ -232,7 +236,7 @@ export class RealUnifiedMemoryClient extends EventEmitter implements UnifiedMemo
       throw new Error('Memory client not connected');
     }
 
-    const startTime = Date.now();
+    const startTime = this.unifiedBackbone.getServices().timeService.now().unix;
     
     try {
       // Generate unique ID
@@ -252,6 +256,7 @@ export class RealUnifiedMemoryClient extends EventEmitter implements UnifiedMemo
 
       // Calculate quality score
       const qualityScore = await this.calculateQualityScore(content, metadata);      // Create memory entry
+      const storeTimestamp = this.unifiedBackbone.getServices().timeService.now();
       const memoryEntry: MemoryEntry = {
         id: memoryId,
         content,
@@ -259,35 +264,34 @@ export class RealUnifiedMemoryClient extends EventEmitter implements UnifiedMemo
           ...metadata,
           memoryType,
           userId,
-          timestamp: Date.now(),
+          timestamp: storeTimestamp.unix,
           qualityScore,
           constitutionalLevel: constitutionalLevel.toString(),
           constitutionalCompliance: constitutionalResult.valid
         },
-        timestamp: Date.now(),
+        timestamp: storeTimestamp.unix,
         userId,
         memoryType,
-        qualityScore      };
-        // Filter out null/undefined values from metadata to prevent ChromaDB errors
+        qualityScore      };// Filter out null/undefined values from metadata to prevent ChromaDB errors
       const cleanMetadata = this.cleanMetadata({
         ...metadata,
         memoryType,
         // Use ISO string timestamp instead of epoch number
-        timestamp: new Date().toISOString(),
+        timestamp: storeTimestamp.utc,
         qualityScore,
         // Remove potentially problematic fields for now
         // constitutionalLevel: constitutionalLevel.toString(),
         // constitutionalCompliance: constitutionalResult.valid
       });      // Make REST API call to memory server using correct endpoints
-      const createUrl = `${this.config.host === 'localhost' ? 'http://127.0.0.1' : `http://${this.config.host}`}:${this.config.port}/v1/memories`;
-        // Prepare request body to match memory server API schema
+      const createUrl = `${this.config.host === 'localhost' ? 'http://127.0.0.1' : `http://${this.config.host}`}:${this.config.port}/v1/memories`;      // Prepare request body to match memory server API schema
+      const requestTimestamp = this.unifiedBackbone.getServices().timeService.now();
       const requestBody = {
         content,
         userId, // Memory server expects 'userId' with alias to 'user_id'
         metadata: {
           ...cleanMetadata,
           agentId: metadata.agentId || 'oneagent_system',
-          timestamp: new Date().toISOString(),
+          timestamp: requestTimestamp.utc,
           memoryId,
           qualityScore,
           constitutionalCompliance: constitutionalResult.valid
@@ -1118,10 +1122,10 @@ export class RealUnifiedMemoryClient extends EventEmitter implements UnifiedMemo
 
   /**
    * Archive old memories
-   */
-  async archiveOldMemories(olderThanDays: number, agentId?: string): Promise<number> {
+   */  async archiveOldMemories(olderThanDays: number, agentId?: string): Promise<number> {
     try {
-      const cutoffDate = new Date();
+      const archiveTimestamp = this.unifiedBackbone.getServices().timeService.now();
+      const cutoffDate = new Date(archiveTimestamp.utc);
       cutoffDate.setDate(cutoffDate.getDate() - olderThanDays);
       
       console.log(`Archiving memories older than ${cutoffDate.toISOString()} for agent: ${agentId || 'all'}`);

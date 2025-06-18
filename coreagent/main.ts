@@ -16,6 +16,7 @@ import { AIAssistantTool } from './tools/aiAssistant';
 import { GeminiEmbeddingsTool } from './tools/geminiEmbeddings';
 import { TriageAgent } from './agents/specialized/TriageAgent';
 import { User } from './types/user';
+import { OneAgentUnifiedBackbone } from './utils/UnifiedBackboneService.js';
 import * as dotenv from 'dotenv';
 
 // Load environment variables
@@ -34,9 +35,11 @@ class CoreAgent {
   private aiAssistant: AIAssistantTool;
   private embeddingsTool: GeminiEmbeddingsTool;
   private triageAgent: TriageAgent;
+  private unifiedBackbone: OneAgentUnifiedBackbone;
   
   constructor() {
     console.log("🚀 Hello CoreAgent!");
+    this.unifiedBackbone = OneAgentUnifiedBackbone.getInstance();
     console.log("OneAgent CoreAgent is starting...");    // Initialize clients
     this.unifiedMemoryClient = realUnifiedMemoryClient;
     
@@ -84,14 +87,14 @@ class CoreAgent {
       // Initialize MCP adapter
       this.mcpAdapter = createMCPAdapter(defaultMCPConfig);
       console.log("✅ MCP Adapter initialized");
-      
-      // Set up demo user for testing
+        // Set up demo user for testing
+      const userTimestamp = this.unifiedBackbone.getServices().timeService.now();
       this.currentUser = {
         id: 'user-123',
         name: 'Demo User',
         email: 'demo@oneagent.ai',
-        createdAt: new Date().toISOString(),
-        lastActiveAt: new Date().toISOString(),
+        createdAt: userTimestamp.utc,
+        lastActiveAt: userTimestamp.utc,
         preferences: {
           language: 'no',
           timezone: 'Europe/Oslo'
@@ -148,13 +151,13 @@ class CoreAgent {
   }  /**
    * Test MCP communication
    */
-  private async testMCPCommunication(): Promise<void> {
-    console.log("\n🔗 Testing MCP communication:");
+  private async testMCPCommunication(): Promise<void> {    console.log("\n🔗 Testing MCP communication:");
     
     try {
       // Test local MCP adapter
+      const mcpTimestamp = this.unifiedBackbone.getServices().timeService.now();
       const response = await this.mcpAdapter.sendRequest('ping', { 
-        timestamp: new Date().toISOString() 
+        timestamp: mcpTimestamp.utc 
       });
       console.log(`✅ Local MCP Response: ${response.result?.message}`);
       
@@ -179,14 +182,26 @@ class CoreAgent {
    */
   private async testMemoryIntegration(): Promise<void> {
     console.log("\n🧠 Testing Unified Memory integration:");
-    
-    try {
-      // Test connection by trying to store a simple conversation
+      try {      // Test connection by trying to store a simple conversation
+      const memoryTimestamp = this.unifiedBackbone.getServices().timeService.now();
+      const testMetadata = this.unifiedBackbone.getServices().metadataService.create(
+        'test-conversation',
+        'CoreAgent',
+        {
+          content: {
+            category: 'system-test',
+            tags: ['initialization', 'memory-test'],
+            sensitivity: 'internal',
+            relevanceScore: 0.8,
+            contextDependency: 'session'
+          }
+        }
+      );
       const testConversation = {
-        id: `test-${Date.now()}`,
+        id: testMetadata.id,
         agentId: 'coreagent',
         userId: this.currentUser?.id || 'demo-user',
-        timestamp: new Date(),
+        timestamp: new Date(memoryTimestamp.utc),
         content: 'OneAgent CoreAgent initialization test',
         context: {
           actionType: 'system_test',
@@ -421,19 +436,29 @@ class CoreAgent {
   async processMessage(message: string, userId?: string): Promise<any> {
     if (!this.triageAgent) {
       throw new Error('TriageAgent not initialized');
-    }
-
-    // Create context for the task
+    }    // Create context for the task
+    const anonymousTimestamp = this.unifiedBackbone.getServices().timeService.now();
     const context = {
       user: this.currentUser || {
         id: userId || 'anonymous-user',
         name: 'Anonymous User',
         email: 'anonymous@oneagent.ai',
-        createdAt: new Date().toISOString(),
-        lastActiveAt: new Date().toISOString(),
-        preferences: { language: 'en', timezone: 'UTC' }
-      },
-      sessionId: `session-${Date.now()}`,
+        createdAt: anonymousTimestamp.utc,
+        lastActiveAt: anonymousTimestamp.utc,
+        preferences: { language: 'en', timezone: 'UTC' }      },
+      sessionId: this.unifiedBackbone.getServices().metadataService.create(
+        'anonymous-session',
+        'CoreAgent',
+        {
+          content: {
+            category: 'anonymous-session',
+            tags: ['anonymous', 'message-processing'],
+            sensitivity: 'internal',
+            relevanceScore: 0.7,
+            contextDependency: 'session'
+          }
+        }
+      ).id,
       conversationHistory: []
     };
 

@@ -32,6 +32,9 @@ import { AIAssistantTool } from '../tools/aiAssistant';
 // Import Unified Tool Framework
 import { toolRegistry } from '../tools/ToolRegistry';
 
+// Import Unified Backbone System
+import { OneAgentUnifiedBackbone } from '../utils/UnifiedBackboneService.js';
+
 // Import Multi-Agent Communication System
 import { MultiAgentMCPServer } from '../agents/communication/MultiAgentMCPServer';
 import { MultiAgentOrchestrator } from '../agents/communication/MultiAgentOrchestrator';
@@ -59,6 +62,9 @@ import { SimpleAuditLogger } from '../audit/auditLogger';
 
 const app = express();
 app.use(express.json());
+
+// Initialize OneAgent Unified Backbone
+const unifiedBackbone = OneAgentUnifiedBackbone.getInstance();
 
 // Initialize OneAgent Constitutional AI Framework
 const constitutionalPrinciples = [
@@ -947,24 +953,50 @@ async function handleToolCall(params: any, id: any) {
               ]
             }, null, 2)
           }],          isError: !fetchResult.success
-        });
-
-      // Multi-Agent Communication Tools
+        });      // Multi-Agent Communication Tools with Enhanced Metadata
       case 'register_agent':
       case 'send_agent_message':
       case 'query_agent_capabilities':
       case 'coordinate_agents':
       case 'get_agent_network_health':
       case 'get_communication_history':
+        // Create enhanced agent context with unified time and metadata
+        const agentTimestamp = unifiedBackbone.getServices().timeService.now();
+        
+        // Create enhanced inter-agent metadata with privacy isolation
+        const agentMetadata = unifiedBackbone.getServices().metadataService.createInterAgentMetadata(
+          name === 'coordinate_agents' ? 'multi_agent' :
+          name === 'send_agent_message' ? 'direct_message' :
+          name === 'get_communication_history' ? 'coordination' : 'coordination',
+          'OneAgent-MCP-Server',
+          args.userId || 'mcp_user',
+          args.sessionId || `mcp_${agentTimestamp.unix}`,
+          {
+            messageType: name === 'send_agent_message' ? 'request' : 'coordination',
+            projectContext: args.projectContext || 'general',
+            topicContext: args.topicContext || 'system',
+            privacyLevel: 'internal',
+            userDataScope: 'session',
+            qualityThreshold: 90,
+            priorityLevel: args.priority || 'medium',
+            correlationId: args.correlationId || `mcp_${agentTimestamp.unix}`,
+            requestId: `${name}_${agentTimestamp.unix}`
+          }
+        );
+        
         const agentContext: AgentContext = {
           user: { 
             id: args.userId || 'mcp_user', 
-            name: 'MCP User',
-            createdAt: new Date().toISOString(),
-            lastActiveAt: new Date().toISOString()
+            name: args.userName || 'MCP User',
+            createdAt: agentTimestamp.utc,
+            lastActiveAt: agentTimestamp.utc
           },
-          sessionId: `mcp_${Date.now()}`,
-          conversationHistory: []
+          sessionId: args.sessionId || `mcp_${agentTimestamp.unix}`,
+          conversationHistory: [],
+          // Enhanced context for inter-agent communication
+          projectContext: args.projectContext,
+          topicContext: args.topicContext,
+          metadata: agentMetadata
         };
         
         const multiAgentResult = await multiAgentOrchestrator.processMultiAgentMCPTool(name, args, agentContext);

@@ -18,6 +18,7 @@ import { EvolutionValidator } from '../agents/evolution/EvolutionValidator';
 import { ConstitutionalValidator } from '../validation/ConstitutionalValidator';
 import { MemoryClient } from '../memory/MemoryClient';
 import { PerformanceMonitor } from '../monitoring/PerformanceMonitor';
+import { OneAgentUnifiedBackbone } from '../utils/UnifiedBackboneService.js';
 
 // ========================================
 // ALITA Complete System Interface
@@ -75,17 +76,24 @@ export class ALITACompleteSystem implements IALITACompleteSystem {
   private constitutionalValidator: ConstitutionalValidator;
   private memoryClient: MemoryClient;
   private performanceMonitor: PerformanceMonitor;
+    // Unified backbone integration
+  private unifiedBackbone: OneAgentUnifiedBackbone;
   
   // System state
   private isInitialized: boolean = false;
-  private systemStartTime: Date = new Date();
+  private systemStartTime: Date;
   private evolutionCycleCount: number = 0;
 
   constructor() {
+    // Initialize unified backbone first
+    this.unifiedBackbone = OneAgentUnifiedBackbone.getInstance();
+    
     // Initialize core infrastructure
     this.constitutionalValidator = new ConstitutionalValidator();
     this.memoryClient = new MemoryClient();
-    this.performanceMonitor = new PerformanceMonitor();
+    this.performanceMonitor = new PerformanceMonitor();    // Initialize system start time with unified time service
+    const timestamp = this.unifiedBackbone.getServices().timeService.now();
+    this.systemStartTime = new Date(timestamp.utc);
     
     // Initialize phase components
     this.metadataLogger = new MetadataIntelligentLogger(
@@ -151,20 +159,19 @@ export class ALITACompleteSystem implements IALITACompleteSystem {
    * Log conversation with full ALITA processing pipeline
    * Phase 1: Intelligent metadata analysis and logging
    * Phase 2: User profile learning and session context update
-   */
-  async logConversation(userMessage: string, aiResponse: string, metadata: any = {}): Promise<void> {
+   */  async logConversation(userMessage: string, aiResponse: string, metadata: any = {}): Promise<void> {
     if (!this.isInitialized) {
       throw new Error('ALITA system not initialized. Call initializeSystem() first.');
     }
 
-    const startTime = Date.now();
+    const startTime = this.unifiedBackbone.getServices().timeService.now().unix;
     
-    try {
-      // Phase 1: Intelligent conversation logging with metadata analysis
+    try {      // Phase 1: Intelligent conversation logging with metadata analysis
+      const unifiedTimestamp = this.unifiedBackbone.getServices().timeService.now();
       const conversationMetadata = await this.metadataLogger.logConversation({
         userMessage,
         aiResponse,
-        timestamp: new Date(),
+        timestamp: new Date(unifiedTimestamp.utc),
         sessionId: metadata.sessionId || 'unknown',
         userId: metadata.userId || 'anonymous',
         ...metadata
@@ -172,15 +179,18 @@ export class ALITACompleteSystem implements IALITACompleteSystem {
 
       // Phase 2: Update session context and user profile learning
       if (metadata.sessionId && metadata.userId) {        // Update session with conversation insights
+        const activityTimestamp = this.unifiedBackbone.getServices().timeService.now();
         await this.sessionManager.updateSessionContext(metadata.sessionId, {
           messageCount: (metadata.conversationCount || 0) + 1,
-          lastActivity: new Date()
-        });// Learn from user interaction patterns
+          lastActivity: new Date(activityTimestamp.utc)        });
+
+        // Learn from user interaction patterns
+        const interactionTimestamp = this.unifiedBackbone.getServices().timeService.now();
         const interactionData = {
           messageId: conversationMetadata.id,
           userId: metadata.userId,
           sessionId: metadata.sessionId,
-          timestamp: new Date(),
+          timestamp: new Date(interactionTimestamp.utc),
           messageContent: userMessage,
           aiResponse: aiResponse,
           responseTimeMs: metadata.responseTime || 0,
@@ -197,7 +207,7 @@ export class ALITACompleteSystem implements IALITACompleteSystem {
         // For now, we track the interaction for future evolution analysis
       }
 
-      await this.performanceMonitor.recordLatency('complete_conversation_logging', Date.now() - startTime);
+      await this.performanceMonitor.recordLatency('complete_conversation_logging', this.unifiedBackbone.getServices().timeService.now().unix - startTime);
       
     } catch (error) {
       await this.performanceMonitor.recordError('complete_conversation_logging', error as Error);
@@ -211,14 +221,32 @@ export class ALITACompleteSystem implements IALITACompleteSystem {
   async createUserSession(userId: string): Promise<string> {
     if (!this.isInitialized) {
       throw new Error('ALITA system not initialized');
-    }
-
-    // Use Phase 2 session management
-    const sessionContext = await this.memoryClient.createSession(`session_${Date.now()}`, {
-      sessionId: `session_${Date.now()}`,
+    }    // Use Phase 2 session management
+    const sessionTimestamp = this.unifiedBackbone.getServices().timeService.now();
+    const sessionMetadata = this.unifiedBackbone.getServices().metadataService.create(
+      'session',
+      'ALITACompleteSystem',
+      { 
+        content: { 
+          category: 'alita-session',
+          tags: ['alita', 'session'],
+          sensitivity: 'internal',
+          relevanceScore: 0.9,
+          contextDependency: 'session'
+        },
+        system: { 
+          source: 'ALITACompleteSystem',
+          userId, 
+          component: 'session-manager' 
+        }
+      }
+    );
+    const sessionId = sessionMetadata.id;
+    const sessionContext = await this.memoryClient.createSession(sessionId, {
+      sessionId: sessionId,
       userId: userId,
-      startTime: new Date(),
-      lastActivity: new Date(),
+      startTime: new Date(sessionTimestamp.utc),
+      lastActivity: new Date(sessionTimestamp.utc),
       isActive: true,
       conversationHistory: [],
       currentTopic: '',
@@ -239,9 +267,8 @@ export class ALITACompleteSystem implements IALITACompleteSystem {
         intensity: 0.5,
         confidence: 0.7,
         trajectory: 'stable'
-      },      cognitiveLoad: 0.5
-    });
-    return `session_${Date.now()}`;
+      },      cognitiveLoad: 0.5    });
+    return sessionId;
   }
 
   /**
@@ -276,12 +303,11 @@ export class ALITACompleteSystem implements IALITACompleteSystem {
     }
 
     console.log('🧬 Starting ALITA Evolution Analysis...');
-    
-    try {
-      // Define analysis time window (last 7 days)
+      try {      // Define analysis time window (last 7 days)
+      const endTimestamp = this.unifiedBackbone.getServices().timeService.now();
       const timeWindow = {
-        startDate: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000),
-        endDate: new Date(),
+        startDate: new Date(endTimestamp.unix - 7 * 24 * 60 * 60 * 1000),
+        endDate: new Date(endTimestamp.utc),
         minimumSamples: 100
       };
 
@@ -324,9 +350,9 @@ export class ALITACompleteSystem implements IALITACompleteSystem {
     try {
       // Get Phase 3 evolution metrics
       const evolutionMetrics = await this.evolutionEngine.getEvolutionMetrics();
-      
-      // Calculate overall health score
-      const uptimeHours = (Date.now() - this.systemStartTime.getTime()) / (1000 * 60 * 60);
+        // Calculate overall health score
+      const currentTime = this.unifiedBackbone.getServices().timeService.now();
+      const uptimeHours = (currentTime.unix - this.systemStartTime.getTime()) / (1000 * 60 * 60);
       const healthScore = Math.min(95, 70 + (this.evolutionCycleCount * 5)); // Base 70 + 5 per evolution
 
       return {

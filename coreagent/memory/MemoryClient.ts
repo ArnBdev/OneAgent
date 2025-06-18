@@ -18,6 +18,7 @@ import {
   ConversationQuery,
   ConstitutionalMetrics
 } from '../types/unified';
+import { OneAgentUnifiedBackbone } from '../utils/UnifiedBackboneService.js';
 
 // Re-export types for backward compatibility
 export { 
@@ -37,10 +38,12 @@ export {
  */
 export class MemoryClient implements IMemoryClient {
   private memoryEndpoint: string;
+  private unifiedBackbone: OneAgentUnifiedBackbone;
   
   constructor(memoryEndpoint: string = 'http://localhost:8001') {
     this.memoryEndpoint = memoryEndpoint;
-  }  /**
+    this.unifiedBackbone = OneAgentUnifiedBackbone.getInstance();
+  }/**
    * Store conversation metadata for ALITA learning
    * WHY: Rich metadata enables personalization and evolution
    */
@@ -227,12 +230,12 @@ export class MemoryClient implements IMemoryClient {
       // - Communication styles
       // - Topic tags
       // - Time windows
-      
-      // For now, return filtered mock data based on query
+        // For now, return filtered mock data based on query
+      const queryTimestamp = this.unifiedBackbone.getServices().timeService.now();
       const allConversations = await this.getConversationsInWindow(
         query.timeWindow || {
           startDate: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000),
-          endDate: new Date()
+          endDate: new Date(queryTimestamp.utc)
         }
       );
       
