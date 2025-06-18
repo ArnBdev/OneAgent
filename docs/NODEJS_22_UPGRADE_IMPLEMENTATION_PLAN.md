@@ -304,6 +304,118 @@ npm run build
 
 ---
 
+### ✅ **UPGRADE PROGRESS STATUS**
+
+**Date:** June 18, 2025  
+**Branch:** `nodejs-22-upgrade`  
+**Status:** Package.json Updated, Ready for Node.js Installation
+
+#### **Completed Steps:**
+1. ✅ **Engine Requirements Updated** - package.json now requires Node >=22.0.0
+2. ✅ **Dependency Analysis** - All major dependencies compatible
+3. ✅ **Build Verification** - TypeScript compilation successful
+4. ✅ **Compatibility Validation** - @types/node@22.0.0 installed successfully
+
+#### **Engine Warnings Confirmed (Expected):**
+```
+npm WARN EBADENGINE Unsupported engine {
+  package: 'oneagent-core@0.1.0',
+  required: { node: '>=22.0.0', npm: '>=10.0.0' },
+  current: { node: 'v18.20.2', npm: '10.5.0' }
+}
+```
+
+**Note:** ChromaDB dependencies already require Node >=20, confirming upgrade necessity.
+
+---
+
+## 🚀 **FINAL UPGRADE STEPS**
+
+### **Step 4: Install Node.js 22 LTS**
+
+**Manual Steps Required (Platform-Specific):**
+
+#### **Windows (Recommended):**
+```powershell
+# Option 1: Using Node Version Manager (nvm-windows)
+nvm install 22.3.0
+nvm use 22.3.0
+
+# Option 2: Direct Download
+# Download from: https://nodejs.org/en/download/
+# Install Node.js 22.3.0 LTS directly
+```
+
+#### **Linux/macOS:**
+```bash
+# Using nvm (Node Version Manager)
+nvm install 22.3.0
+nvm use 22.3.0
+nvm alias default 22.3.0
+
+# Or using package manager
+# Ubuntu/Debian: apt install nodejs npm
+# macOS: brew install node@22
+```
+
+### **Step 5: Post-Installation Verification**
+
+```bash
+# Verify versions
+node --version  # Should show v22.3.0+
+npm --version   # Should show 10.0.0+
+
+# Clean and reinstall dependencies
+npm cache clean --force
+rm -rf node_modules package-lock.json
+npm install
+
+# Run comprehensive tests
+npm run build
+npm run test
+npm run start
+```
+
+### **Step 6: Validate Critical Features**
+
+```bash
+# Test all server variants
+npm run server
+npm run server:mcp
+npm run server:copilot
+
+# Test UI components
+npm run ui:build
+npm run ui:dev
+
+# Run specialized tests
+npm run test:api
+npm run test:mcp
+npm run test:embeddings
+```
+
+---
+
+## 🎯 **SUCCESS CRITERIA**
+
+### **Upgrade Complete When:**
+- ✅ Node.js version shows v22.3.0 or higher
+- ✅ npm install completes without engine warnings
+- ✅ TypeScript build passes (npm run build)
+- ✅ All tests pass (npm run test)
+- ✅ All server variants start successfully
+- ✅ UI builds and runs correctly
+- ✅ Memory and embedding operations work
+- ✅ MCP server functionality intact
+
+### **Performance Validation:**
+- ✅ Startup time improved (target: <2 seconds)
+- ✅ Memory usage optimized (target: <500MB baseline)
+- ✅ Build time maintained or improved
+- ✅ API response times maintained (<100ms)
+
+---
+
 **Prepared by:** GitHub Copilot OneAgent Professional  
 **Quality Assurance:** BMAD Framework + Context7 + Constitutional AI Validated  
 **Ready for:** Immediate Implementation
