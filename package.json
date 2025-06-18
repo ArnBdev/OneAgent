@@ -55,7 +55,8 @@
   "author": "Arne",
   "license": "MIT",
   "engines": {
-    "node": ">=18.0.0"
+    "node": ">=22.0.0",
+    "npm": ">=10.0.0"
   },
   "dependencies": {
     "@chroma-core/default-embed": "^0.1.8",
@@ -83,7 +84,7 @@
     "@types/express": "^4.17.20",
     "@types/js-yaml": "^4.0.9",
     "@types/jsdom": "^21.1.7",
-    "@types/node": "^20.10.0",
+    "@types/node": "^22.0.0",
     "@types/react": "^18.2.0",
     "@types/react-dom": "^18.2.0",
     "@types/ws": "^8.5.8",
