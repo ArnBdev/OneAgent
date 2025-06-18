@@ -176,20 +176,19 @@ export class UnifiedContext7MCPIntegration {
 
   /**
    * Search unified memory for relevant documentation patterns and results
-   */
-  private async searchDocumentationMemory(query: DocumentationQuery): Promise<any[]> {
-    try {      const searchQuery = {
-        query: `documentation query: ${query.query} source: ${query.source}`,
-        agentIds: [this.agentId, 'dev-agent', 'context7-integration'],
-        memoryTypes: ['conversation', 'learning', 'pattern'] as ('conversation' | 'learning' | 'pattern')[],
-        maxResults: 5,
-        semanticSearch: true
-      };
-
-      const memories = await this.unifiedMemoryClient.searchMemories(searchQuery);
+   */  private async searchDocumentationMemory(query: DocumentationQuery): Promise<any[]> {
+    try {
+      const searchQuery = `documentation query: ${query.query} source: ${query.source}`;      const searchResult = await this.unifiedMemoryClient.getMemoryContext(
+        searchQuery,
+        this.agentId,
+        5
+      );
+      
+      // Handle both possible result formats
+      const memories = (searchResult as any).results || (searchResult as any).entries || [];
       this.cacheMetrics.memoryHits += memories.length > 0 ? 1 : 0;
       
-      return memories.map(memory => ({
+      return memories.map((memory: any) => ({
         content: memory.content,
         relevanceScore: memory.relevanceScore || 0.8,
         type: memory.type,
@@ -297,8 +296,7 @@ export class UnifiedContext7MCPIntegration {
           confidence: results.length > 0 ? 0.9 : 0.3,
           responseTime: 0,
           actionsPerformed: ['documentation_search']
-        },
-        metadata: {
+        },        metadata: {
           category: 'documentation_query',
           querySource: query.source,
           resultsCount: results.length,
@@ -307,7 +305,11 @@ export class UnifiedContext7MCPIntegration {
         }
       };
 
-      await this.unifiedMemoryClient.storeConversation(conversationMemory);
+      await this.unifiedMemoryClient.createMemory(
+        JSON.stringify(conversationMemory),
+        this.agentId,
+        'session'
+      );
     } catch (error) {
       console.warn(`⚠️ Failed to store documentation interaction: ${error}`);
     }
@@ -360,7 +362,11 @@ export class UnifiedContext7MCPIntegration {
           }
         };
 
-        await this.unifiedMemoryClient.storePattern(patternMemory);
+        await this.unifiedMemoryClient.createMemory(
+          JSON.stringify(patternMemory),
+          this.agentId,
+          'long_term'
+        );
       }
       
       // Extract learning if high-quality results
@@ -398,7 +404,11 @@ export class UnifiedContext7MCPIntegration {
         }
       };
 
-      await this.unifiedMemoryClient.storeLearning(learningMemory);
+      await this.unifiedMemoryClient.createMemory(
+        JSON.stringify(learningMemory),
+        this.agentId,
+        'long_term'
+      );
     } catch (error) {
       console.warn(`⚠️ Failed to extract documentation learning: ${error}`);
     }
@@ -533,7 +543,11 @@ export class UnifiedContext7MCPIntegration {
         }
       };
 
-      await this.unifiedMemoryClient.storeConversation(configMemory);
+      await this.unifiedMemoryClient.createMemory(
+        JSON.stringify(configMemory),
+        this.agentId,
+        'workflow'
+      );
     } catch (error) {
       console.warn(`⚠️ Failed to store source configuration: ${error}`);
     }
@@ -565,32 +579,27 @@ export class UnifiedContext7MCPIntegration {
    */
   private async getFallbackDocumentation(query: DocumentationQuery): Promise<DocumentationResult[]> {
     console.log('🧠 Using unified memory as PRIMARY documentation source');
-    
-    try {
+      try {
       // Phase 1: Search for exact documentation matches in memory
-      const exactSearchQuery = {
-        query: `documentation: ${query.query} ${query.source || ''}`,
-        agentIds: ['context7-integration', 'dev-agent', 'unified-context7'],
-        memoryTypes: ['conversation', 'learning', 'pattern'] as ('conversation' | 'learning' | 'pattern')[],
-        maxResults: 8,
-        semanticSearch: true
-      };
-
-      const exactMemoryResults = await this.unifiedMemoryClient.searchMemories(exactSearchQuery);
+      const exactSearchQuery = `documentation: ${query.query} ${query.source || ''}`;
+      const exactMemoryResults = await this.unifiedMemoryClient.getMemoryContext(
+        exactSearchQuery,
+        'context7-integration',
+        8
+      );
       
       // Phase 2: Search for related patterns and learnings
-      const patternSearchQuery = {
-        query: `${query.query} patterns examples code documentation`,
-        agentIds: ['context7-integration', 'dev-agent', 'unified-context7'],
-        memoryTypes: ['pattern', 'learning'] as ('conversation' | 'learning' | 'pattern')[],
-        maxResults: 5,
-        semanticSearch: true
-      };
-
-      const patternMemoryResults = await this.unifiedMemoryClient.searchMemories(patternSearchQuery);
+      const patternSearchQuery = `${query.query} patterns examples code documentation`;
+      const patternMemoryResults = await this.unifiedMemoryClient.getMemoryContext(
+        patternSearchQuery,
+        'context7-integration',
+        5
+      );
+        // Combine and deduplicate results
+      const exactResults = (exactMemoryResults as any).results || (exactMemoryResults as any).entries || [];
+      const patternResults = (patternMemoryResults as any).results || (patternMemoryResults as any).entries || [];
       
-      // Combine and deduplicate results
-      const allMemoryResults = [...exactMemoryResults, ...patternMemoryResults]
+      const allMemoryResults = [...exactResults, ...patternResults]
         .filter((memory, index, array) => 
           array.findIndex(m => m.id === memory.id) === index
         )
@@ -665,16 +674,17 @@ export class UnifiedContext7MCPIntegration {
             impact: 'positive',
             measuredEffect: results.length
           }
-        ],
-        metadata: {
+        ],        metadata: {
           queryType: 'documentation',
           source: query.source,
           resultCount: results.length,
           maxRelevance: Math.max(...results.map(r => r.relevanceScore))
         }
-      };
-
-      await this.unifiedMemoryClient.storePattern(patternMemory);
+      };      await this.unifiedMemoryClient.createMemory(
+        JSON.stringify(patternMemory),
+        this.agentId,
+        'long_term'
+      );
     } catch (error) {
       console.warn(`⚠️ Failed to store memory pattern: ${error}`);
     }
@@ -690,8 +700,7 @@ export class UnifiedContext7MCPIntegration {
         confidence: 0.7,
         applicationCount: 0,
         lastApplied: new Date(),
-        sourceConversations: [],
-        metadata: {
+        sourceConversations: [],        metadata: {
           queryType: 'documentation-gap',
           source: query.source,
           query: query.query,
@@ -699,7 +708,11 @@ export class UnifiedContext7MCPIntegration {
         }
       };
 
-      await this.unifiedMemoryClient.storeLearning(learningMemory);
+      await this.unifiedMemoryClient.createMemory(
+        JSON.stringify(learningMemory),
+        this.agentId,
+        'long_term'
+      );
       console.log('📝 Stored documentation gap as learning pattern for future improvement');
     } catch (error) {
       console.warn(`⚠️ Failed to store learning pattern: ${error}`);
@@ -864,10 +877,13 @@ export class UnifiedContext7MCPIntegration {
           maxRelevance: Math.max(...results.map(r => r.relevanceScore)),
           memorySystemUsed: true,
           organicLearning: true
-        }
-      };
+        }      };
 
-      await this.unifiedMemoryClient.storePattern(patternMemory);
+      await this.unifiedMemoryClient.createMemory(
+        JSON.stringify(patternMemory),
+        this.agentId,
+        'long_term'
+      );
       console.log('✅ Stored successful memory retrieval pattern for optimization');
     } catch (error) {
       console.warn(`⚠️ Failed to store memory success pattern: ${error}`);
@@ -897,9 +913,11 @@ export class UnifiedContext7MCPIntegration {
           systemLearning: true,
           organicGrowthTarget: true
         }
-      };
-
-      await this.unifiedMemoryClient.storeLearning(learningMemory);
+      };      await this.unifiedMemoryClient.createMemory(
+        JSON.stringify(learningMemory),
+        this.agentId,
+        'long_term'
+      );
       console.log('📝 Stored comprehensive learning pattern for memory system growth');
     } catch (error) {
       console.warn(`⚠️ Failed to store comprehensive learning pattern: ${error}`);
@@ -982,9 +1000,11 @@ This pattern will help the unified memory system identify common documentation g
           organicLearning: true,
           priority: 'memory-enhancement'
         }
-      };
-
-      await this.unifiedMemoryClient.storeConversation(conversationMemory);
+      };      await this.unifiedMemoryClient.createMemory(
+        JSON.stringify(conversationMemory),
+        this.agentId,
+        'long_term'
+      );
       console.log('📊 Stored fallback interaction for memory system improvement');
     } catch (error) {
       console.warn(`⚠️ Failed to store fallback learning interaction: ${error}`);

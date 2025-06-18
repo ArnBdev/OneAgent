@@ -70,13 +70,13 @@ export class PerformanceAPI {
    */
   async getSystemStatus(): Promise<PerformanceAPIResponse<SystemStatus>> {
     try {
-      const report = globalProfiler.generateReport();
-        // Get memory analytics
-      const memories = await this.unifiedMemoryClient.searchMemories({
-        query: "",
-        userId: "system",
-        maxResults: 100      });
-      const memoryData = Array.isArray(memories) ? memories : [];
+      const report = globalProfiler.generateReport();        // Get memory analytics
+      const memoryResult = await this.unifiedMemoryClient.getMemoryContext(
+        "",
+        "system",
+        100
+      );
+      const memoryData = memoryResult.entries;
       
       const analytics = await this.memoryIntelligence.generateMemoryAnalytics("system");
         // Test service connections
@@ -86,15 +86,11 @@ export class PerformanceAPI {
         embedding: 'unknown'
       };      try {
         // Test connection by attempting a simple search
-        await this.unifiedMemoryClient.searchMemories({
-          query: "test",
-          userId: "system",
-          maxResults: 1
-        });
+        await this.unifiedMemoryClient.getMemoryContext("test", "system", 1);
         services.mem0 = 'connected';
       } catch {
         services.mem0 = 'error';
-      }      try {
+      }try {
         // Test would go here - for now assume embeddings work if memory works
         services.embedding = services.mem0 === 'connected' ? 'connected' : 'unknown';
         services.gemini = 'connected'; // Assume Gemini is available if we got this far
@@ -166,12 +162,13 @@ export class PerformanceAPI {
 
   /**
    * Get memory intelligence analytics
-   */
-  async getMemoryAnalytics(filter?: any): Promise<PerformanceAPIResponse> {
-    try {      const memories = await this.unifiedMemoryClient.searchMemories({
-        query: filter?.query || "",
-        userId: filter?.userId || "system",
-        maxResults: filter?.limit || 100      });
+   */  async getMemoryAnalytics(filter?: any): Promise<PerformanceAPIResponse> {
+    try {
+      const memories = await this.unifiedMemoryClient.getMemoryContext(
+        filter?.query || "",
+        filter?.userId || "system",
+        filter?.limit || 100
+      );
       const memoryData = Array.isArray(memories) ? memories : [];
         const analytics = await this.memoryIntelligence.generateMemoryAnalytics(filter?.userId || "system");
       
@@ -204,13 +201,13 @@ export class PerformanceAPI {
           memories: searchResults.results.map(r => r.memory),
           analytics: searchResults.analytics,
           searchType: 'semantic'
-        };
-      } else {        // Use basic search
-        const memories = await this.unifiedMemoryClient.searchMemories({
-          query: filter?.query || "",
-          userId: filter?.userId || "system",
-          maxResults: filter?.limit || 50
-        });
+        };      } else {
+        // Use basic search
+        const memories = await this.unifiedMemoryClient.getMemoryContext(
+          filter?.query || "",
+          filter?.userId || "system",
+          filter?.limit || 50
+        );
         results = {
           memories: Array.isArray(memories) ? memories : [],
           searchType: 'basic'

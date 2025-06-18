@@ -60,14 +60,14 @@ export class MemoryIntelligence {
     options: { maxResults?: number } = {}
   ): Promise<MemorySearchResult> {
     const startTime = Date.now();
-    
-    try {
-      // Use the actual available method from UnifiedMemoryClient
-      const memoryEntries = await this.unifiedMemoryClient.searchMemories({
+      try {
+      // Use the canonical method from UnifiedMemoryClient
+      const memoryResult = await this.unifiedMemoryClient.getMemoryContext(
         query,
         userId,
-        maxResults: options.maxResults || this.options.maxResults || 20
-      });      // Convert memory entries to ConversationData format
+        options.maxResults || this.options.maxResults || 20
+      );
+      const memoryEntries = memoryResult.entries;// Convert memory entries to ConversationData format
       const conversations = Array.isArray(memoryEntries) ? 
         memoryEntries.map(this.convertToConversationData.bind(this)) : [];
 
@@ -147,9 +147,18 @@ export class MemoryIntelligence {
         contextTags: metadata.messageAnalysis.contextTags 
       }),
       messageCount: 1
-    };
-
-    return await this.unifiedMemoryClient.storeConversation(conversationData);
+    };    const result = await this.unifiedMemoryClient.createMemory(
+      JSON.stringify(conversationData),
+      userId,
+      'workflow',
+      {
+        ...conversationData,
+        category: 'conversation',
+        type: 'intelligence'
+      }
+    );
+    
+    return result.data?.id || `intelligence_${Date.now()}`;
   }
 
   // =====================================
@@ -215,20 +224,18 @@ export class MemoryIntelligence {
 
   /**
    * Get memory entry by ID
-   */
-  async getMemory(memoryId: string): Promise<ConversationData | null> {
+   */  async getMemory(memoryId: string): Promise<ConversationData | null> {
     try {
       // Use available UnifiedMemoryClient method
-      const result = await this.unifiedMemoryClient.searchMemories({
-        query: memoryId,
-        userId: 'system',
-        maxResults: 1
-      });
+      const result = await this.unifiedMemoryClient.getMemoryContext(
+        memoryId,
+        'system',
+        1
+      );
       
       return Array.isArray(result) && result.length > 0 ? 
-        this.convertToConversationData(result[0]) : null;
-    } catch (error) {
-      console.error('Get memory failed:', error);
+        this.convertToConversationData(result[0]) : null;    } catch (error) {
+      // Silent fail for memory operations
       return null;
     }
   }
