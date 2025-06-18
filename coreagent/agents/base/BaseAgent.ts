@@ -221,32 +221,28 @@ export abstract class BaseAgent {
       },      outcome: {
         success: true,
         satisfaction: 'high',
-        learningsExtracted: 1,
-        qualityScore: 0.8
+        learningsExtracted: 1,        qualityScore: 0.8
       },
       metadata: metadata || {}
     };
 
-    await this.memoryClient.storeConversation(conversation);
-  }
-  /**
+    await this.memoryClient.createMemory(
+      JSON.stringify(conversation),
+      'oneagent_system',
+      'long_term',
+      { source: 'agent_conversation', agentId: this.config.id, ...metadata }
+    );
+  }  /**
    * Search for relevant memories
    */
   protected async searchMemories(_userId: string, query: string, limit: number = 10): Promise<any[]> {
     if (!this.memoryClient) {
       return [];
     }
-
-    const searchQuery: MemorySearchQuery = {
-      query: query,
-      agentIds: [this.config.id],
-      maxResults: limit,
-      semanticSearch: true
-    };
     
-    const results = await this.memoryClient.searchMemories(searchQuery);
-    return results || [];
-  }  /**
+    const result = await this.memoryClient.getMemoryContext(query, _userId, limit);
+    return result.entries || [];
+  }/**
    * Generate AI response using advanced prompt engineering system
    */
   protected async generateResponse(prompt: string, context?: any[]): Promise<string> {

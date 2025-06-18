@@ -19,6 +19,7 @@ dotenv.config();
 import { randomUUID } from 'crypto';
 import { OneAgentEngine, OneAgentRequest, OneAgentResponse } from '../OneAgentEngine';
 import { oneAgentConfig } from '../config/index';
+import { SimpleAuditLogger } from '../audit/auditLogger';
 
 const express = require('express');
 const app = express();
@@ -107,6 +108,12 @@ interface MCPServerCapabilities {
   };
 }
 
+// Initialize audit logger
+const auditLogger = new SimpleAuditLogger({
+  logDirectory: 'logs/mcp-server',
+  enableConsoleOutput: process.env.NODE_ENV === 'development'
+});
+
 // Store server state
 let serverInitialized = false;
 let clientInfo: any = null;
@@ -116,18 +123,21 @@ let clientInfo: any = null;
  */
 async function initializeServer(): Promise<void> {
   try {
-    console.log('🚀 Initializing OneAgent Unified MCP Server...');
+    await auditLogger.logInfo('MCP_SERVER', 'Initializing OneAgent Unified MCP Server...', {});
     
     await oneAgent.initialize('mcp-http');
     
-    console.log('✅ OneAgent Unified MCP Server ready');
-    console.log(`📡 HTTP MCP Protocol: http://localhost:${oneAgentConfig.mcpPort}/mcp`);
-    console.log('🎯 Constitutional AI: ACTIVE');
-    console.log('🧠 BMAD Framework: ACTIVE');
-    console.log('🔧 Unified Tools: ACTIVE');
+    await auditLogger.logInfo('MCP_SERVER', 'OneAgent Unified MCP Server ready', {
+      protocol: `http://localhost:${oneAgentConfig.mcpPort}/mcp`,
+      constitutionalAI: 'ACTIVE',
+      bmadFramework: 'ACTIVE',
+      unifiedTools: 'ACTIVE'
+    });
     
   } catch (error) {
-    console.error('❌ Server initialization failed:', error);
+    await auditLogger.logError('MCP_SERVER', 'Server initialization failed', { 
+      error: error instanceof Error ? error.message : String(error)
+    });
     throw error;
   }
 }

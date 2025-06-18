@@ -76,15 +76,14 @@ export class ChatAPI {
           timestamp: Date.now(),
           agentType,
           confidence: agentResponse.metadata?.confidence || 0.8
-        }
-      );      // Get relevant memory context for response
+        }      );
+      
+      // Get relevant memory context for response
       const relevantMemories = memoryContext ? 
-        await this.unifiedMemoryClient.searchMemories({
-          query: message,
-          userId: userId,
-          maxResults: 3
-        }) : 
-        [];const response: ChatResponse = {
+        (await this.unifiedMemoryClient.getMemoryContext(message, userId, 3)).entries : 
+        [];
+        
+      const response: ChatResponse = {
         response: agentResponse.content,
         agentType: agentResponse.metadata?.agentType || agentType,        memoryContext: relevantMemories.length > 0 ? {
           relevantMemories: relevantMemories.length,
@@ -119,11 +118,12 @@ export class ChatAPI {
         res.status(400).json({ error: 'Missing userId parameter' });
         return;
       }      // Search for chat messages in memory
-      const memories = await this.unifiedMemoryClient.searchMemories({
-        query: 'chat message',
-        userId: userId,
-        maxResults: parseInt(limit as string)
-      });
+      const memoryResult = await this.unifiedMemoryClient.getMemoryContext(
+        'chat message',
+        userId,
+        parseInt(limit as string)
+      );
+      const memories = memoryResult.entries;
 
       // Filter and format chat messages
       const chatHistory = memories.length > 0 ? 
