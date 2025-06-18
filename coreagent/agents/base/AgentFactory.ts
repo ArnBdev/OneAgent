@@ -12,6 +12,16 @@ import { FitnessAgent } from '../specialized/FitnessAgent';
 import { DevAgent } from '../specialized/DevAgent';
 import { CoreAgent } from '../specialized/CoreAgent';
 import { TemplateAgent } from '../templates/TemplateAgent';
+import { unifiedBackbone } from '../../utils/UnifiedBackboneService.js';
+import type { UnifiedAgentContext } from '../../types/unified.js';
+
+// NEW: Import tier system for intelligent model selection
+import { 
+  ModelTierSelector, 
+  ModelSelectionCriteria,
+  ModelSelection 
+} from '../../../config/gemini-model-tier-selector';
+import { getModelForAgentType } from '../../../config/gemini-model-registry';
 
 export type AgentType = 'core' | 'enhanced-development' | 'development' | 'office' | 'fitness' | 'general' | 'coach' | 'advisor' | 'template';
 
@@ -23,9 +33,19 @@ export interface AgentFactoryConfig {
   customCapabilities?: string[];
   memoryEnabled?: boolean;
   aiEnabled?: boolean;
+  sessionId?: string;
+  userId?: string;
+  
+  // NEW: Tier system configuration
+  modelTier?: 'economy' | 'standard' | 'premium';
+  prioritizeCost?: boolean;
+  prioritizePerformance?: boolean;
+  expectedVolume?: 'low' | 'medium' | 'high' | 'ultra-high';
+  customModel?: string; // Override automatic selection
 }
 
-export class AgentFactory {  private static readonly DEFAULT_CAPABILITIES = {
+export class AgentFactory {
+  private static readonly DEFAULT_CAPABILITIES = {
     'core': ['system_coordination', 'agent_integration', 'service_management', 'health_monitoring', 'resource_allocation', 'security_management', 'rise_plus_methodology', 'constitutional_ai', 'quality_validation', 'advanced_prompting', 'bmad_analysis', 'chain_of_verification'],
     'enhanced-development': ['advanced_prompting', 'constitutional_ai', 'bmad_elicitation', 'chain_of_verification', 'quality_validation', 'self_correction', 'adaptive_prompting', 'code_analysis', 'test_generation', 'documentation_sync', 'refactoring'],
     'development': ['code_analysis', 'test_generation', 'documentation_sync', 'refactoring', 'performance_optimization', 'security_scanning', 'git_workflow', 'dependency_management'],
@@ -36,10 +56,90 @@ export class AgentFactory {  private static readonly DEFAULT_CAPABILITIES = {
     advisor: ['analysis', 'recommendations', 'strategic_planning', 'consultation'],
     template: ['unified_memory', 'multi_agent_coordination', 'constitutional_ai', 'bmad_analysis', 'quality_scoring', 'time_awareness', 'comprehensive_error_handling', 'extensible_design', 'best_practices']
   };
+
+  // NEW: Agent type to tier mapping for intelligent model selection
+  private static readonly AGENT_TYPE_TIER_MAPPING = {
+    'core': 'premium',              // System coordination requires maximum capability
+    'enhanced-development': 'premium',  // Advanced development needs premium models
+    'development': 'premium',       // DevAgent needs premium for coding tasks
+    'office': 'standard',          // Office tasks work well with standard models
+    'fitness': 'standard',         // Fitness coaching uses standard models
+    'general': 'standard',         // General purpose uses balanced models
+    'coach': 'standard',           // Coaching uses standard models
+    'advisor': 'premium',          // Advisory requires advanced reasoning
+    'template': 'standard'         // Templates use standard models
+  } as const;
+
+  private static modelTierSelector = ModelTierSelector.getInstance();  /**
+   * NEW: Select optimal model for agent based on tier system
+   */
+  private static selectOptimalModel(factoryConfig: AgentFactoryConfig): ModelSelection {
+    // Use custom model if specified
+    if (factoryConfig.customModel) {
+      console.log(`🎯 Using custom model: ${factoryConfig.customModel}`);
+      return {
+        primaryModel: factoryConfig.customModel,
+        fallbackModels: [],
+        reasoning: 'Custom model specified by user',
+        tier: 'standard', // Default tier for custom models
+        estimatedCostPer1M: { input: 0, output: 0 }, // Unknown for custom
+        capabilities: {
+          reasoning: 'good', coding: 'good', bulk: 'good',
+          realtime: 'good', multimodal: 'good', agentic: 'good'
+        },
+        rateLimits: { rpm: 0 }
+      };
+    }
+
+    // Build selection criteria based on agent configuration
+    const criteria: ModelSelectionCriteria = {
+      agentType: factoryConfig.type === 'enhanced-development' ? 'DevAgent' : 
+                factoryConfig.type === 'development' ? 'DevAgent' :
+                factoryConfig.type === 'office' ? 'OfficeAgent' :
+                factoryConfig.type === 'fitness' ? 'FitnessAgent' :
+                factoryConfig.type === 'core' ? 'CoreAgent' :
+                `${factoryConfig.type}Agent`,
+      prioritizeCost: factoryConfig.prioritizeCost || false,
+      prioritizePerformance: factoryConfig.prioritizePerformance || false,
+      expectedVolume: factoryConfig.expectedVolume || 'medium',
+      fallbackStrategy: 'tier-down' // Conservative fallback for production
+    };
+
+    // Override tier if explicitly specified
+    if (factoryConfig.modelTier) {
+      criteria.prioritizeCost = factoryConfig.modelTier === 'economy';
+      criteria.prioritizePerformance = factoryConfig.modelTier === 'premium';
+    }
+
+    const selection = AgentFactory.modelTierSelector.selectOptimalModel(criteria);
+    
+    console.log(`🧠 Intelligent model selection for ${factoryConfig.type}:`);
+    console.log(`   Model: ${selection.primaryModel} (${selection.tier} tier)`);
+    console.log(`   Reasoning: ${selection.reasoning}`);
+    console.log(`   Cost: $${selection.estimatedCostPer1M.output}/1M output tokens`);
+    console.log(`   Fallbacks: ${selection.fallbackModels.join(', ')}`);
+
+    return selection;
+  }
+
   /**
    * Create a specialized agent based on type and configuration
-   */
-  static async createAgent(factoryConfig: AgentFactoryConfig): Promise<ISpecializedAgent> {
+   */  static async createAgent(factoryConfig: AgentFactoryConfig): Promise<ISpecializedAgent> {
+    // NEW: Select optimal model using tier system
+    const modelSelection = AgentFactory.selectOptimalModel(factoryConfig);
+      // Create unified agent context for consistent time/metadata across all agents
+    const unifiedContext = unifiedBackbone.createAgentContext(
+      factoryConfig.id,
+      factoryConfig.type,
+      {
+        sessionId: factoryConfig.sessionId || `session_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+        ...(factoryConfig.userId && { userId: factoryConfig.userId }),
+        capabilities: factoryConfig.customCapabilities || AgentFactory.DEFAULT_CAPABILITIES[factoryConfig.type],
+        memoryEnabled: factoryConfig.memoryEnabled ?? true,
+        aiEnabled: factoryConfig.aiEnabled ?? true
+      }
+    );
+    
     const agentConfig: AgentConfig = {
       id: factoryConfig.id,
       name: factoryConfig.name,
@@ -47,7 +147,9 @@ export class AgentFactory {  private static readonly DEFAULT_CAPABILITIES = {
       capabilities: factoryConfig.customCapabilities || AgentFactory.DEFAULT_CAPABILITIES[factoryConfig.type],
       memoryEnabled: factoryConfig.memoryEnabled ?? true,
       aiEnabled: factoryConfig.aiEnabled ?? true
-    };    let agent: BaseAgent | undefined;
+    };
+
+    let agent: BaseAgent | undefined;
 
     switch (factoryConfig.type) {
       case 'core':
@@ -76,7 +178,45 @@ export class AgentFactory {  private static readonly DEFAULT_CAPABILITIES = {
       throw new Error(`Failed to create agent of type: ${factoryConfig.type}`);
     }
 
-    await agent.initialize();
+    // Inject unified context into agent for consistent time/metadata usage
+    if ('setUnifiedContext' in agent && typeof agent.setUnifiedContext === 'function') {
+      agent.setUnifiedContext(unifiedContext);
+    }
+
+    await agent.initialize();    // Log agent creation with unified metadata
+    const creationMetadata = unifiedContext.metadataService.create(
+      'agent_creation',
+      'agent_factory',
+      {
+        system: {
+          source: 'agent_factory',
+          component: 'AgentFactory',
+          sessionId: unifiedContext.sessionId,
+          ...(unifiedContext.userId && { userId: unifiedContext.userId }),
+          agent: factoryConfig.type
+        },
+        content: {
+          category: 'agent_lifecycle',
+          tags: ['agent', 'creation', factoryConfig.type, factoryConfig.id, modelSelection.tier],
+          sensitivity: 'internal',
+          relevanceScore: 0.8,
+          contextDependency: 'session'
+        },
+        quality: {
+          score: 90,
+          constitutionalCompliant: true,
+          validationLevel: 'enhanced',
+          confidence: 0.9
+        }
+      }
+    );
+    
+    console.log(`✅ Agent created with tier-optimized model: ${factoryConfig.type}/${factoryConfig.id}`);
+    console.log(`   📱 Model: ${modelSelection.primaryModel} (${modelSelection.tier} tier)`);
+    console.log(`   💰 Cost: $${modelSelection.estimatedCostPer1M.output}/1M tokens`);
+    console.log(`   🔄 Fallbacks: ${modelSelection.fallbackModels.slice(0, 2).join(', ')}`);
+    console.log(`   📊 Metadata: ${creationMetadata.id}`);
+    
     return agent as unknown as ISpecializedAgent;
   }
 
@@ -105,8 +245,7 @@ export class AgentFactory {  private static readonly DEFAULT_CAPABILITIES = {
     if (!AgentFactory.DEFAULT_CAPABILITIES[config.type]) {
       throw new Error(`Unsupported agent type: ${config.type}`);
     }
-  }
-  /**
+  }  /**
    * Create multiple agents from configurations
    */
   static async createAgents(configs: AgentFactoryConfig[]): Promise<ISpecializedAgent[]> {
@@ -123,5 +262,108 @@ export class AgentFactory {  private static readonly DEFAULT_CAPABILITIES = {
     }
 
     return agents;
+  }
+
+  // =============================================================================
+  // NEW: Tier System Utility Methods
+  // =============================================================================
+
+  /**
+   * Create agent with cost optimization
+   */
+  static async createCostOptimizedAgent(config: Omit<AgentFactoryConfig, 'prioritizeCost'>): Promise<ISpecializedAgent> {
+    return AgentFactory.createAgent({
+      ...config,
+      prioritizeCost: true,
+      modelTier: 'economy'
+    });
+  }
+
+  /**
+   * Create agent with performance optimization
+   */
+  static async createPerformanceOptimizedAgent(config: Omit<AgentFactoryConfig, 'prioritizePerformance'>): Promise<ISpecializedAgent> {
+    return AgentFactory.createAgent({
+      ...config,
+      prioritizePerformance: true,
+      modelTier: 'premium'
+    });
+  }
+
+  /**
+   * Create agent with specific tier
+   */
+  static async createAgentWithTier(config: AgentFactoryConfig, tier: 'economy' | 'standard' | 'premium'): Promise<ISpecializedAgent> {
+    return AgentFactory.createAgent({
+      ...config,
+      modelTier: tier
+    });
+  }
+
+  /**
+   * Get recommended tier for agent type
+   */
+  static getRecommendedTier(agentType: AgentType): 'economy' | 'standard' | 'premium' {
+    return AgentFactory.AGENT_TYPE_TIER_MAPPING[agentType] as 'economy' | 'standard' | 'premium';
+  }
+
+  /**
+   * Get optimal model selection for agent type (without creating agent)
+   */
+  static getOptimalModelForAgentType(agentType: AgentType, options?: {
+    prioritizeCost?: boolean;
+    prioritizePerformance?: boolean;
+    expectedVolume?: 'low' | 'medium' | 'high' | 'ultra-high';
+  }): ModelSelection {
+    const criteria: ModelSelectionCriteria = {
+      agentType: agentType === 'enhanced-development' ? 'DevAgent' : 
+                agentType === 'development' ? 'DevAgent' :
+                agentType === 'office' ? 'OfficeAgent' :
+                agentType === 'fitness' ? 'FitnessAgent' :
+                agentType === 'core' ? 'CoreAgent' :
+                `${agentType}Agent`,
+      prioritizeCost: options?.prioritizeCost || false,
+      prioritizePerformance: options?.prioritizePerformance || false,
+      expectedVolume: options?.expectedVolume || 'medium',
+      fallbackStrategy: 'tier-down'
+    };
+
+    return AgentFactory.modelTierSelector.selectOptimalModel(criteria);
+  }
+
+  /**
+   * Estimate cost for agent type based on usage
+   */
+  static estimateCostForAgent(
+    agentType: AgentType, 
+    estimatedTokensPerMonth: number,
+    options?: { prioritizeCost?: boolean }
+  ): {
+    tier: string;
+    model: string;
+    monthlyCostUSD: number;
+    costPerInteraction: number;
+    recommendations: string[];
+  } {
+    const selection = AgentFactory.getOptimalModelForAgentType(agentType, options);
+    const tokensIn1M = 1_000_000;
+    const monthlyCost = (estimatedTokensPerMonth / tokensIn1M) * selection.estimatedCostPer1M.output;
+    const costPerInteraction = monthlyCost / (estimatedTokensPerMonth / 1000); // Assuming 1k tokens per interaction
+
+    const recommendations: string[] = [];
+    if (monthlyCost > 100 && !options?.prioritizeCost) {
+      recommendations.push('Consider enabling cost optimization for high-volume usage');
+    }
+    if (selection.tier === 'premium' && estimatedTokensPerMonth > 10_000_000) {
+      recommendations.push('Consider economy tier for ultra-high volume processing');
+    }
+
+    return {
+      tier: selection.tier,
+      model: selection.primaryModel,
+      monthlyCostUSD: Math.round(monthlyCost * 100) / 100,
+      costPerInteraction: Math.round(costPerInteraction * 10000) / 10000,
+      recommendations
+    };
   }
 }
