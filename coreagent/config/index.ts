@@ -11,7 +11,7 @@ import { config } from 'dotenv';
 import * as path from 'path';
 
 // Load environment variables from .env file
-config({ path: path.join(__dirname, '..', '.env') });
+config({ path: path.join(__dirname, '..', '..', '..', '.env') });
 
 export interface ServerConfig {
   // Core Configuration
@@ -29,11 +29,19 @@ export interface ServerConfig {
   // UI Server
   uiPort: number;
   uiUrl: string;
-  
-  // API Keys
+    // API Keys
   geminiApiKey: string;
   braveApiKey: string;
   githubToken: string;
+    // OURA v3.0 Configuration
+  legacyAutoRegistrationDisabled: boolean;
+  broadcastDiscoveryDisabled: boolean;
+  unifiedRegistryEnabled: boolean;
+  constitutionalAIRequired: boolean;
+  minimumQualityScore: number;
+  requireVersioning: boolean;
+  memoryFirstArchitecture: boolean;
+  healthMonitoringEnabled: boolean;
   
   // Memory Storage
   memoryStoragePath: string;
@@ -65,11 +73,19 @@ export const oneAgentConfig: ServerConfig = {
   // UI Server Configuration
   uiPort: parseInt(process.env.ONEAGENT_UI_PORT || '8080', 10),
   uiUrl: process.env.ONEAGENT_UI_URL || 'http://127.0.0.1:8080',
-  
-  // API Keys
+    // API Keys
   geminiApiKey: process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY || '',
   braveApiKey: process.env.BRAVE_API_KEY || '',
   githubToken: process.env.GITHUB_TOKEN || '',
+    // OURA v3.0 Configuration
+  legacyAutoRegistrationDisabled: process.env.OURA_V3_LEGACY_AUTOREGISTER_DISABLED === 'true',
+  broadcastDiscoveryDisabled: process.env.OURA_V3_BROADCAST_DISCOVERY_DISABLED === 'true',
+  unifiedRegistryEnabled: process.env.OURA_V3_UNIFIED_REGISTRY_ENABLED === 'true',
+  constitutionalAIRequired: process.env.OURA_V3_CONSTITUTIONAL_AI_REQUIRED === 'true',
+  minimumQualityScore: parseInt(process.env.OURA_V3_MINIMUM_QUALITY_SCORE || '80', 10),
+  requireVersioning: process.env.OURA_V3_REQUIRE_VERSIONING === 'true',
+  memoryFirstArchitecture: process.env.OURA_V3_MEMORY_FIRST_ARCHITECTURE === 'true',
+  healthMonitoringEnabled: process.env.OURA_V3_HEALTH_MONITORING_ENABLED === 'true',
   
   // Memory Storage Configuration
   memoryStoragePath: process.env.MEMORY_STORAGE_PATH || './oneagent_unified_memory',

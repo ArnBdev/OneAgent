@@ -499,6 +499,244 @@ export interface Context7CacheMetrics {
 }
 
 // ========================================
+// ONEAGENT UNIFIED PLATFORM INTERFACES
+// ========================================
+
+/**
+ * OneAgent Constitutional AI Validation Interface
+ * Used by: oneagent_constitutional_validate tool
+ */
+export interface OneAgentConstitutionalValidation {
+  content: string;
+  userMessage: string;
+  validationResult: {
+    isValid: boolean;
+    score: number;
+    violations: string[];
+    suggestions: string[];
+    constitutionalPrinciples: string[];
+  };
+  timestamp: Date;
+  qualityGrade: 'A' | 'B' | 'C' | 'D' | 'F';
+}
+
+/**
+ * OneAgent BMAD Framework Analysis Interface
+ * Used by: oneagent_bmad_analyze tool
+ */
+export interface OneAgentBMADAnalysis {
+  task: string;
+  analysis: {
+    beliefAssessment: string;
+    motivationMapping: string;
+    authorityIdentification: string;
+    dependencyMapping: string;
+    constraintAnalysis: string;
+    riskAssessment: string;
+    successMetrics: string;
+    timelineConsiderations: string;
+    resourceRequirements: string;
+  };
+  framework: '9-point BMAD analysis';
+  recommendations: string[];
+  timestamp: Date;
+  qualityScore: number;
+}
+
+/**
+ * OneAgent Quality Scoring Interface
+ * Used by: oneagent_quality_score tool
+ */
+export interface OneAgentQualityScore {
+  content: string;
+  criteria: string[];
+  score: number; // 0-100
+  grade: 'A' | 'B' | 'C' | 'D' | 'F';
+  breakdown: {
+    accuracy: number;
+    helpfulness: number;
+    safety: number;
+    transparency: number;
+    constitutionalCompliance: number;
+  };
+  suggestions: string[];
+  timestamp: Date;
+  professionalStandard: boolean;
+}
+
+/**
+ * OneAgent Engine Response Interface
+ * Unified response format for all OneAgent operations
+ */
+export interface OneAgentEngineResponse {
+  id: string;
+  success: boolean;
+  data?: any;
+  error?: {
+    code: string;
+    message: string;
+    details?: any;
+  };
+  constitutionalValidated: boolean;
+  qualityScore: number;
+  metadata: {
+    processingTimeMs: number;
+    memoryUsed: boolean;
+    multiAgentInvolved: boolean;
+    bmadAnalyzed: boolean;
+  };
+  timestamp: Date;
+}
+
+/**
+ * OneAgent Tool Registry Interface
+ * Canonical definition for all OneAgent tools
+ */
+export interface OneAgentToolDefinition {
+  name: string;
+  description: string;
+  inputSchema: {
+    type: 'object';
+    properties: Record<string, any>;
+    required: string[];
+  };
+  constitutionalLevel: 'basic' | 'enhanced' | 'critical';
+  qualityThreshold: number;
+  category: 'constitutional' | 'bmad' | 'memory' | 'search' | 'agent' | 'system';
+}
+
+/**
+ * OneAgent Memory Search Interface
+ * Used by: oneagent_memory_search tool
+ */
+export interface OneAgentMemorySearch {
+  query: string;
+  userId: string;
+  memoryType: 'short_term' | 'long_term' | 'workflow' | 'session' | 'all';
+  limit: number;
+  results: {
+    id: string;
+    content: string;
+    relevance: number;
+    timestamp: Date;
+    memoryType: string;
+    userId: string;
+  }[];
+  total: number;
+  executionTime: string;
+  searchType: 'semantic' | 'keyword' | 'hybrid';
+}
+
+/**
+ * OneAgent Enhanced Search Interface
+ * Used by: oneagent_enhanced_search tool
+ */
+export interface OneAgentEnhancedSearch {
+  query: string;
+  sources: string[];
+  qualityThreshold: number;
+  maxResults: number;
+  results: {
+    title: string;
+    url: string;
+    snippet: string;
+    qualityScore: number;
+    source: string;
+    timestamp: Date;
+    constitutionalCompliant: boolean;
+  }[];
+  totalResults: number;
+  qualityFiltered: boolean;
+  averageQuality: number;
+  searchTime: string;
+}
+
+/**
+ * OneAgent Agent Coordination Interface
+ * Used by: oneagent_agent_coordinate tool
+ */
+export interface OneAgentAgentCoordination {
+  task: string;
+  preferredAgents: string[];
+  priority: 'low' | 'medium' | 'high' | 'critical';
+  timeout: number;
+  assignedAgents: {
+    agentId: string;
+    role: string;
+    capabilities: string[];
+    status: 'assigned' | 'active' | 'completed' | 'failed';
+  }[];
+  executionPlan: {
+    steps: string[];
+    estimatedTime: string;
+    riskAssessment: 'low' | 'medium' | 'high';
+  };
+  coordinationId: string;
+  status: 'initialized' | 'running' | 'completed' | 'failed';
+}
+
+/**
+ * OneAgent System Health Interface
+ * Used by: oneagent_system_health tool
+ */
+export interface OneAgentSystemHealth {
+  overall: {
+    status: 'healthy' | 'degraded' | 'unhealthy';
+    uptime: number;
+    timestamp: Date;
+    version: string;
+  };
+  components: {
+    memory?: {
+      status: string;
+      usage: NodeJS.MemoryUsage;
+      connectionStatus: string;
+      operations: {
+        successful: number;
+        failed: number;
+        successRate: string;
+      };
+    };
+    agents?: {
+      status: string;
+      activeAgents: number;
+      registeredAgents: string[];
+      averageResponseTime: string;
+      healthScore: number;
+    };
+    mcp?: {
+      status: string;
+      protocol: string;
+      port: number;
+      toolsAvailable: number;
+      resourcesAvailable: number;
+      promptsAvailable: number;
+      requestsHandled: number;
+      errorRate: string;
+    };
+    constitutional?: {
+      status: string;
+      principles: number;
+      validationsPerformed: number;
+      averageQualityScore: number;
+      complianceRate: string;
+      threshold: number;
+    };
+    performance?: {
+      status: string;
+      cpuUsage: string;
+      responseTime: {
+        average: string;
+        p95: string;
+        p99: string;
+      };
+      throughput: string;
+      errorRate: string;
+    };
+  };
+}
+
+// ========================================
 // EXPORT ALL INTERFACES
 // ========================================
 

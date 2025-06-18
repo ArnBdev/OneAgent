@@ -211,13 +211,12 @@ export class AgentFactory {
 
   /**
    * Get agent capabilities summary
-   */
-  static getAgentCapabilitiesSummary(): Record<string, string[]> {
+   */  static getAgentCapabilitiesSummary(): Record<string, string[]> {
     const summary: Record<string, string[]> = {};
     
-    for (const [agentId, agent] of this.instances) {
+    Array.from(this.instances.entries()).forEach(([agentId, agent]) => {
       summary[agentId] = agent.getConfig().capabilities;
-    }
+    });
     
     return summary;
   }

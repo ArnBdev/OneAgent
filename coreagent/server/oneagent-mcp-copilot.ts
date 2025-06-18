@@ -1408,16 +1408,10 @@ if (require.main === module) {  app.listen(PORT, async () => {
     } catch (error) {
       console.error('⚠️  Memory system connection failed, but server will continue:', error);
       console.log('🔄 Memory system will retry connection on first use');
-    }
-    console.log('🤖 Starting automatic agent initialization...');
+    }      console.log('🤖 Starting automatic agent initialization...');
     try {
-      // Connect the shared discovery service from the orchestrator
-      const sharedDiscoveryService = multiAgentOrchestrator.getDiscoveryService();
-      agentBootstrap.setSharedDiscoveryService(sharedDiscoveryService);
-      
       await agentBootstrap.bootstrapAllAgents();
-      console.log('✅ All agents initialized and ready for discovery!');
-      console.log('📡 Agents will automatically respond to CoreAgent "Who\'s awake?" broadcasts');
+      console.log('✅ All agents initialized and ready!');
     } catch (error) {
       console.error('❌ Failed to bootstrap agents:', error);
       console.log('⚠️  Manual agent registration may be required via MCP tools');

@@ -5,6 +5,10 @@
 
 import { UnifiedMCPTool } from './UnifiedMCPTool';
 import { MemoryCreateTool } from './MemoryCreateTool';
+import { MemorySearchTool } from './MemorySearchTool';
+import { EnhancedSearchTool } from './EnhancedSearchTool';
+import { AgentCoordinationTool } from './AgentCoordinationTool';
+import { SystemHealthTool } from './SystemHealthTool';
 
 export class ToolRegistry {
   private tools: Map<string, UnifiedMCPTool> = new Map();
@@ -17,8 +21,18 @@ export class ToolRegistry {
   private registerDefaultTools(): void {
     // Memory management tools (Constitutional AI compliant - append-only)
     this.registerTool(new MemoryCreateTool());
+    this.registerTool(new MemorySearchTool());
     
-    console.log(`[ToolRegistry] Registered ${this.tools.size} unified memory tools (append-only for Constitutional AI compliance)`);
+    // Enhanced search with quality filtering
+    this.registerTool(new EnhancedSearchTool());
+    
+    // Multi-agent coordination
+    this.registerTool(new AgentCoordinationTool());
+    
+    // System monitoring and health
+    this.registerTool(new SystemHealthTool());
+    
+    console.log(`[ToolRegistry] Registered ${this.tools.size} unified tools (Constitutional AI compliant)`);
   }
 
   /**

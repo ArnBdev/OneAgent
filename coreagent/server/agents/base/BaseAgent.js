@@ -48,10 +48,13 @@ class BaseAgent {
                     apiKey: process.env.GOOGLE_API_KEY || process.env.GEMINI_API_KEY || 'your_google_gemini_api_key_here',
                     model: process.env.GOOGLE_MODEL || 'gemini-2.0-flash'
                 });
-            } // Initialize Advanced Prompt Engineering System
+            }            // Initialize Advanced Prompt Engineering System
             await this.initializePromptEngineering();
-            // Auto-register with multi-agent system
-            await this.autoRegisterWithNetwork();
+            
+            // OURA v3.0: Professional agents are registered via UnifiedAgentRegistry only
+            // Legacy auto-registration has been eliminated for clean architecture
+            console.log(`🔇 OURA v3.0: Legacy auto-registration disabled for ${this.config.id} - use UnifiedAgentRegistry instead`);
+            
             this.isInitialized = true;
         }
         catch (error) {
@@ -82,74 +85,10 @@ class BaseAgent {
             // Continue without enhanced prompting if initialization fails
         }
     }
-    /**
-     * Auto-register this agent with the multi-agent network
-     * This allows agents to be discovered and used by other agents
-     */
-    async autoRegisterWithNetwork() {
-        try {
-            // Skip auto-registration if it's disabled or if this is a factory
-            if (this.config.id === 'AgentFactory' || this.config.id.includes('Factory')) {
-                console.log(`⏭️  Skipping auto-registration for factory: ${this.config.id}`);
-                return;
-            }
-            // Call the registration API
-            const registrationData = {
-                agentId: this.config.id,
-                agentType: this.config.name.toLowerCase().replace(/agent/i, ''),
-                capabilities: this.config.capabilities.map(cap => ({
-                    name: cap,
-                    description: `${cap} capability provided by ${this.config.name}`,
-                    version: '1.0.0',
-                    qualityThreshold: 85,
-                    constitutionalCompliant: true
-                })),
-                endpoint: `http://localhost:8083/agent/${this.config.id}`,
-                qualityScore: 90
-            };
-            // Make HTTP request to register the agent
-            const response = await this.makeRegistrationRequest(registrationData);
-            if (response.success) {
-                console.log(`✅ Auto-registered ${this.config.id} with multi-agent network`);
-            }
-            else {
-                console.warn(`⚠️  Auto-registration failed for ${this.config.id}:`, response.error);
-            }
-        }
-        catch (error) {
-            console.warn(`⚠️  Auto-registration error for ${this.config.id}:`, error);
-            // Don't throw - agent should still work even if registration fails
-        }
-    } /**
-     * Make HTTP request to register agent with multi-agent system
-     */
-    async makeRegistrationRequest(data) {
-        try {
-            // Use fetch to call the MCP server registration endpoint  
-            const mcpServerUrl = index_1.oneAgentConfig.mcpUrl;
-            const response = await fetch(`${mcpServerUrl}/mcp`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({
-                    jsonrpc: '2.0',
-                    id: `reg-${Date.now()}`,
-                    method: 'tools/call',
-                    params: {
-                        name: 'register_agent',
-                        arguments: data
-                    }
-                })
-            });
-            const result = await response.json();
-            return result.result || { success: false, error: 'Unknown registration error' };
-        }
-        catch (error) {
-            const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-            return { success: false, error: errorMessage };
-        }
-    }
+
+    // OURA v3.0: Legacy auto-registration methods DELETED for clean architecture
+    // Professional agents are registered via UnifiedAgentRegistry only
+
     async addMemory(userId, content, metadata) {
         if (!this.memoryClient) {
             throw new Error('Memory client not initialized');

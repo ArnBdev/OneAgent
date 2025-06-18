@@ -78,11 +78,10 @@ export class MultiAgentOrchestrator {
       console.log(`📊 Registered Agents: ${this.registeredAgents.size}`);
       console.log(`🔧 MCP Tools Available: ${this.mcpServer.getAvailableTools().length}`);
       console.log(`⚖️ Constitutional AI: Active | Quality Threshold: ${this.qualityThreshold}%`);
-      
-      // Start automated agent discovery
-      console.log('🔍 Starting automated agent discovery protocol...');
-      await this.triggerAgentDiscovery();
-      console.log('🎯 Agent discovery protocol activated - CoreAgent ready to ask "Who\'s awake?"');
+        // Initialize UnifiedAgentRegistry integration
+      console.log('� Connecting to UnifiedAgentRegistry...');
+      await this.queryAgentCapabilities("ping");
+      console.log('🎯 UnifiedAgentRegistry integration ready - OURA v3.0 clean architecture!');
       
     } catch (error) {
       console.error(`❌ Multi-Agent Orchestrator initialization failed:`, error);
@@ -418,13 +417,12 @@ export class MultiAgentOrchestrator {
       recommendations
     };
   }
-
   /**
    * Get multi-agent MCP tools for integration with existing OneAgent MCP server
-   * These 6 new tools extend the existing 12 OneAgent professional tools
+   * These tools extend the existing OneAgent professional tools
    */
   getMultiAgentMCPTools(): any[] {
-    return this.mcpServer.getToolDefinitions();
+    return this.mcpServer.getAvailableTools();
   }
 
   /**
@@ -432,14 +430,7 @@ export class MultiAgentOrchestrator {
    * Integrates with OneAgent's existing MCP tool processing pipeline
    */
   async processMultiAgentMCPTool(toolName: string, parameters: any, context: AgentContext): Promise<any> {
-    return await this.mcpServer.processToolCall(toolName, parameters, context);
-  }
-
-  /**
-   * Get the discovery service for agent auto-registration
-   */
-  getDiscoveryService(): any {
-    return this.mcpServer.getDiscoveryService();
+    return await this.mcpServer.handleToolCall(toolName, parameters, context);
   }
 
   /**
@@ -613,10 +604,9 @@ export class MultiAgentOrchestrator {
     }
     
     return capabilities;
-  }
-
-  private findAgentByType(agentType: string): string | null {
-    for (const [agentId, _] of this.registeredAgents) {
+  }  private findAgentByType(agentType: string): string | null {
+    const agentIds = Array.from(this.registeredAgents.keys());
+    for (const agentId of agentIds) {
       if (agentId.includes(agentType)) {
         return agentId;
       }
@@ -645,64 +635,6 @@ export class MultiAgentOrchestrator {
       // Update session activity
       session.lastActivity = new Date();
     }
-    
-    return `Coordination completed successfully:\n${results.join('\n')}`;
-  }
-
-  /**
-   * Trigger automated agent discovery
-   * CoreAgent broadcasts "Who's awake?" and agents respond with capabilities
-   */
-  async triggerAgentDiscovery(): Promise<any[]> {
-    try {
-      console.log('🔍 CoreAgent asking: "Who\'s awake?"');
-      const discoveredAgents = await this.mcpServer.triggerAgentDiscovery();
-      
-      console.log(`📡 Discovery complete: Found ${discoveredAgents.length} agents`);
-      discoveredAgents.forEach(agent => {
-        console.log(`   👋 ${agent.agentId} (${agent.agentType}): Quality ${agent.qualityScore}%`);
-      });
-      
-      return discoveredAgents;
-    } catch (error) {
-      console.error('❌ Agent discovery failed:', error);
-      return [];
-    }
-  }
-
-  /**
-   * Get discovery network status from the automated discovery protocol
-   */
-  getDiscoveryNetworkStatus(): any {
-    return this.mcpServer.getDiscoveryNetworkStatus();
+      return `Coordination completed successfully:\n${results.join('\n')}`;
   }
 }
-
-/**
- * Usage Examples for OneAgent Multi-Agent Integration:
- * 
- * // Initialize orchestrator
- * const orchestrator = new MultiAgentOrchestrator();
- * await orchestrator.initialize();
- * 
- * // Coordinate agents for complex task
- * const result = await orchestrator.coordinateAgentsForTask(
- *   "Analyze this TypeScript project, generate tests, and create documentation",
- *   context,
- *   { maxAgents: 3, enableBMAD: true }
- * );
- * 
- * // Send message between agents
- * const messageResult = await orchestrator.sendAgentMessage(
- *   'dev',
- *   'office',
- *   'Can you help document the API endpoints I just analyzed?',
- *   context,
- *   'coordination'
- * );
- * 
- * // Query for specific capabilities
- * const capableAgents = await orchestrator.queryAgentCapabilities(
- *   'Find agents that can process documents with high quality scores'
- * );
- */

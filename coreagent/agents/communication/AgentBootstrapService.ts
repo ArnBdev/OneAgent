@@ -13,21 +13,13 @@
 import { BaseAgent } from '../base/BaseAgent';
 import { AgentFactory as BaseAgentFactory, AgentFactoryConfig } from '../base/AgentFactory';
 import { AgentFactory as SpecializedAgentFactory } from '../specialized/AgentFactory';
-import { AgentDiscoveryService } from './AgentDiscoveryService';
 import { AgentCommunicationProtocol } from './AgentCommunicationProtocol';
 
 export class AgentBootstrapService {
   private agents: Map<string, BaseAgent> = new Map();
-  private isBootstrapped: boolean = false;
-  private sharedDiscoveryService: AgentDiscoveryService | undefined = undefined;
-  private communicationProtocol: AgentCommunicationProtocol | undefined = undefined;
+  private isBootstrapped: boolean = false;  private communicationProtocol: AgentCommunicationProtocol | undefined = undefined;
+  
   /**
-   * Set the shared discovery service (called from main server)
-   */
-  setSharedDiscoveryService(discoveryService: AgentDiscoveryService): void {
-    this.sharedDiscoveryService = discoveryService;
-    console.log('🔗 AgentBootstrapService: Shared discovery service connected');
-  }  /**
    * Set the communication protocol for agent registration
    */
   async setCommunicationProtocol(protocol: AgentCommunicationProtocol): Promise<void> {
@@ -179,13 +171,12 @@ export class AgentBootstrapService {
 
   /**
    * Get capabilities summary for all agents
-   */
-  getCapabilitiesSummary(): Record<string, string[]> {
+   */  getCapabilitiesSummary(): Record<string, string[]> {
     const summary: Record<string, string[]> = {};
     
-    for (const [agentId, agent] of this.agents) {
+    Array.from(this.agents.entries()).forEach(([agentId, agent]) => {
       summary[agentId] = agent.getConfig().capabilities;
-    }
+    });
     
     return summary;
   }
@@ -282,11 +273,10 @@ export class AgentBootstrapService {
     if (!this.communicationProtocol) {
       console.warn('⚠️ Communication protocol not available for bulk registration');
       return;
-    }
-
-    console.log('🔄 Registering all existing agents with communication protocol...');
+    }    console.log('🔄 Registering all existing agents with communication protocol...');
     
-    for (const agent of this.agents.values()) {
+    const agents = Array.from(this.agents.values());
+    for (const agent of agents) {
       await this.registerAgentWithCommunicationProtocol(agent);
     }
     
