@@ -249,7 +249,7 @@ function main() {
   if (process.argv.includes('--validate')) {
     log('\n🔍 Running structure validation...', 'cyan');
     const { spawn } = require('child_process');
-    spawn('node', ['scripts/validate-structure.js'], { stdio: 'inherit' });
+    spawn('node', ['scripts/validate-project-structure.js'], { stdio: 'inherit' });
   }
   
   return result;
