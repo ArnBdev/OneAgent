@@ -13,7 +13,7 @@ import { DevAgent } from '../specialized/DevAgent';
 import { CoreAgent } from '../specialized/CoreAgent';
 import { TemplateAgent } from '../templates/TemplateAgent';
 import { unifiedBackbone } from '../../utils/UnifiedBackboneService.js';
-import type { UnifiedAgentContext } from '../../types/unified.js';
+import type { UnifiedAgentContext } from '../../types/oneagent-backbone-types.js';
 
 // NEW: Import tier system for intelligent model selection
 import { 

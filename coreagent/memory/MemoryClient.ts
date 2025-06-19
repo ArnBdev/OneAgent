@@ -17,7 +17,7 @@ import {
   IMemoryClient,
   ConversationQuery,
   ConstitutionalMetrics
-} from '../types/unified';
+} from '../types/oneagent-backbone-types';
 import { OneAgentUnifiedBackbone } from '../utils/UnifiedBackboneService.js';
 
 // Re-export types for backward compatibility

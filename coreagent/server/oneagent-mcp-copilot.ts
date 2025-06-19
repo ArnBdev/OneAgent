@@ -53,7 +53,7 @@ import {
   DocumentationSearchResult,
   DocumentationPattern,
   Context7CacheMetrics 
-} from '../types/unified';
+} from '../types/oneagent-backbone-types';
 
 // Import OneAgent Monitoring and Error Handling
 import { ErrorMonitoringService } from '../monitoring/ErrorMonitoringService';

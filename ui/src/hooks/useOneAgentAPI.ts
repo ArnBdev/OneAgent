@@ -8,8 +8,8 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 
 // API Base URL
-const API_BASE = 'http://localhost:8081/api';
-const WS_URL = 'ws://localhost:8081';
+const API_BASE = import.meta.env.VITE_ONEAGENT_API_BASE ? `${import.meta.env.VITE_ONEAGENT_API_BASE}/api` : 'http://localhost:8081/api';
+const WS_URL = import.meta.env.VITE_ONEAGENT_WS_URL || 'ws://localhost:8081';
 
 // Types
 export interface APIResponse<T = any> {

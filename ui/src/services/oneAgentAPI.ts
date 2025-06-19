@@ -34,8 +34,8 @@ export interface ChatResponse {
 
 class OneAgentAPIService {
   private static instance: OneAgentAPIService
-  private chatBaseUrl = 'http://localhost:8080'
-  private systemBaseUrl = 'http://localhost:8081'
+  private chatBaseUrl = import.meta.env.VITE_ONEAGENT_MCP_URL || 'http://localhost:8083'
+  private systemBaseUrl = import.meta.env.VITE_ONEAGENT_API_BASE || 'http://localhost:8081'
   private ws: WebSocket | null = null
   private listeners: Map<string, (data: any) => void> = new Map()
 
@@ -47,17 +47,17 @@ class OneAgentAPIService {
     }
     return OneAgentAPIService.instance
   }
-
   /**
    * Initialize WebSocket connection to main server for real-time updates
    */
   async connectWebSocket(): Promise<void> {
     return new Promise((resolve, reject) => {
       try {
-        this.ws = new WebSocket('ws://localhost:8081')
+        const wsUrl = import.meta.env.VITE_ONEAGENT_WS_URL || 'ws://localhost:8081'
+        this.ws = new WebSocket(wsUrl)
         
         this.ws.onopen = () => {
-          console.log('Connected to OneAgent WebSocket (port 8081)')
+          console.log('Connected to OneAgent WebSocket:', wsUrl)
           resolve()
         }
 

@@ -12,7 +12,7 @@
 
 import { performance } from 'perf_hooks';
 import { ConversationData, TimeWindow, UserProfile } from '../memory/MemoryClient';
-import { ConversationMetadata, IMemoryClient as UnifiedIMemoryClient, PrivacyLevel as UnifiedPrivacyLevel, CommunicationStyle as UnifiedCommunicationStyle, ExpertiseLevel as UnifiedExpertiseLevel } from '../types/unified';
+import { ConversationMetadata, IMemoryClient as UnifiedIMemoryClient, PrivacyLevel as UnifiedPrivacyLevel, CommunicationStyle as UnifiedCommunicationStyle, ExpertiseLevel as UnifiedExpertiseLevel } from '../types/oneagent-backbone-types';
 
 // Constitutional AI Integration
 interface IConstitutionalValidator {

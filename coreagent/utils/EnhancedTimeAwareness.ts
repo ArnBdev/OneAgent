@@ -10,7 +10,7 @@
  */
 
 import { OneAgentUnifiedBackbone } from './UnifiedBackboneService.js';
-import { UnifiedTimeContext } from '../types/unified.js';
+import { UnifiedTimeContext } from '../types/oneagent-backbone-types.js';
 
 // =====================================
 // ENHANCED TIME AWARENESS INTERFACES

@@ -14,7 +14,7 @@
 import { UnifiedMemoryClient } from '../../memory/UnifiedMemoryClient';
 import { ConversationMemory, MemorySearchQuery } from '../../memory/UnifiedMemoryInterface';
 import { oneAgentConfig } from '../../config/index';
-import { OneAgentUnifiedBackbone } from '../../utils/UnifiedBackboneService.js';
+import { OneAgentUnifiedBackbone } from '../../utils/UnifiedBackboneService';
 import { SmartGeminiClient } from '../../tools/SmartGeminiClient';
 import { GeminiClient } from '../../tools/geminiClient';
 import { User } from '../../types/user';

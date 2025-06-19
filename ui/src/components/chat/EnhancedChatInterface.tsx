@@ -72,7 +72,8 @@ export const RevolutionaryChatInterface: React.FC<RevolutionaryChatProps> = ({
     
     try {
       // Constitutional AI principle: Transparency in connection process
-      wsRef.current = new WebSocket('ws://localhost:8081');
+      const wsUrl = import.meta.env.VITE_ONEAGENT_WS_URL || 'ws://localhost:8081'
+      wsRef.current = new WebSocket(wsUrl);
       
       wsRef.current.onopen = () => {
         setConnectionStatus('connected');
@@ -177,7 +178,8 @@ export const RevolutionaryChatInterface: React.FC<RevolutionaryChatProps> = ({
         wsRef.current.send(JSON.stringify(revolutionaryRequest));
       } else {
         // Fallback to HTTP API for revolutionary processing
-        const response = await fetch('http://localhost:8081/api/chat/revolutionary', {
+        const apiUrl = import.meta.env.VITE_ONEAGENT_API_BASE || 'http://localhost:8081'
+        const response = await fetch(`${apiUrl}/api/chat/revolutionary`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(revolutionaryRequest)

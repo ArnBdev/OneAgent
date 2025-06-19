@@ -83,10 +83,9 @@ export class BackboneNLACSOrchestrator extends EventEmitter {
 
   constructor() {
     super();
-    
-    this.config = {
-      memoryEndpoint: process.env.ONEAGENT_MEMORY_ENDPOINT || 'http://localhost:8083',
-      mcpEndpoint: process.env.ONEAGENT_MCP_ENDPOINT || 'http://localhost:8083',
+      this.config = {
+      memoryEndpoint: process.env.ONEAGENT_MEMORY_URL || 'http://localhost:8001',
+      mcpEndpoint: process.env.ONEAGENT_MCP_URL || 'http://localhost:8083',
       maxConcurrentConversations: parseInt(process.env.NLACS_MAX_CONVERSATIONS || '10'),
       defaultRetentionDays: parseInt(process.env.NLACS_RETENTION_DAYS || '90'),
       constitutionalAIEnabled: process.env.NLACS_CONSTITUTIONAL_AI === 'true'
@@ -107,10 +106,10 @@ export class BackboneNLACSOrchestrator extends EventEmitter {
     initialAgents?: string[]
   ): Promise<string> {
     const conversationId = `nlacs-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-    
-    // Create conversation metadata using backbone service
+      // Create conversation metadata using backbone service
     const conversationMetadata = createUnifiedMetadata('nlacs_conversation', 'nlacs-orchestrator', {
       system: {
+        source: 'nlacs-orchestrator',
         component: 'nlacs',
         sessionId: conversationId,
         userId: userId
@@ -118,12 +117,15 @@ export class BackboneNLACSOrchestrator extends EventEmitter {
       content: {
         category: 'agent_communication',
         tags: ['nlacs', 'conversation', topic, contextCategory],
-        sensitivity: this.determineSensitivity(contextCategory)
+        sensitivity: this.determineSensitivity(contextCategory),
+        relevanceScore: 85,
+        contextDependency: 'session'
       },
       quality: {
         score: 85,
         constitutionalCompliant: true,
-        validationLevel: 'enhanced'
+        validationLevel: 'enhanced',
+        confidence: 90
       }
     });
 
@@ -183,10 +185,10 @@ export class BackboneNLACSOrchestrator extends EventEmitter {
     }
 
     const messageId = `msg-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-    
-    // Create message metadata using backbone service
+      // Create message metadata using backbone service
     const messageMetadata = createUnifiedMetadata('nlacs_message', 'nlacs-orchestrator', {
       system: {
+        source: 'nlacs-orchestrator',
         component: 'nlacs',
         sessionId: conversationId,
         userId: conversation.userId,
@@ -195,13 +197,17 @@ export class BackboneNLACSOrchestrator extends EventEmitter {
       content: {
         category: 'agent_message',
         tags: ['nlacs', 'message', agentId, messageType],
-        sensitivity: 'internal'
+        sensitivity: 'internal',
+        relevanceScore: 80,
+        contextDependency: 'session'
       },
       relationships: {
         parent: conversation.metadataId,
+        children: [],
+        dependencies: [],
         related: this.extractReferences(content, conversation.messages).map(m => 
           conversation.messages.find(msg => msg.messageId === m)?.metadataId
-        ).filter(Boolean)
+        ).filter(Boolean) as string[]
       }
     });
 
@@ -502,10 +508,10 @@ Metadata ID: ${metadata.id}`;
     for (const insight of newInsights) {
       if (!conversation.emergentInsights.includes(insight)) {
         conversation.emergentInsights.push(insight);
-        
-        // Create insight metadata using backbone service
+          // Create insight metadata using backbone service
         const insightMetadata = createUnifiedMetadata('nlacs_insight', 'nlacs-orchestrator', {
           system: {
+            source: 'nlacs-orchestrator',
             component: 'nlacs',
             sessionId: conversation.conversationId,
             userId: conversation.userId
@@ -513,10 +519,15 @@ Metadata ID: ${metadata.id}`;
           content: {
             category: 'emergent_insight',
             tags: ['nlacs', 'insight', 'emergent', conversation.topic],
-            sensitivity: 'internal'
+            sensitivity: 'internal',
+            relevanceScore: 90,
+            contextDependency: 'session'
           },
           relationships: {
-            parent: conversation.metadataId
+            parent: conversation.metadataId,
+            children: [],
+            related: [],
+            dependencies: []
           }
         });
         

@@ -31,7 +31,7 @@ import {
   InteractionPattern,
   TimePattern,
   PrivacyBoundaries
-} from '../types/unified';
+} from '../types/oneagent-backbone-types';
 
 // ========================================
 // Interfaces for existing components

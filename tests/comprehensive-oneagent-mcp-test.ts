@@ -15,10 +15,10 @@ import { Mem0Client } from '../coreagent/tools/mem0Client';
 import { GeminiEmbeddingsTool } from '../coreagent/tools/geminiEmbeddings';
 
 // Test Configuration
-const ONEAGENT_API_BASE = 'http://localhost:8081/api';
-const ONEAGENT_WS_URL = 'ws://localhost:8081';
-const MEM0_SERVER_BASE = 'http://localhost:8000';
-const ONEAGENT_MCP_ENDPOINT = 'http://localhost:8081/mcp';
+const ONEAGENT_API_BASE = process.env.VITE_ONEAGENT_API_BASE || 'http://localhost:8081/api';
+const ONEAGENT_WS_URL = process.env.VITE_ONEAGENT_WS_URL || 'ws://localhost:8081';
+const MEM0_SERVER_BASE = process.env.ONEAGENT_MEMORY_URL || 'http://localhost:8001';
+const ONEAGENT_MCP_ENDPOINT = process.env.ONEAGENT_MCP_URL ? `${process.env.ONEAGENT_MCP_URL}/mcp` : 'http://localhost:8083/mcp';
 
 // Test Results Interface
 interface TestResult {
@@ -373,7 +373,7 @@ class ComprehensiveOneAgentTest {
     });
 
     this.log('\n🔗 System Architecture Validated:', 'info');
-    this.log('   ┌─ OneAgent MCP Server (Port 8081)', 'info');
+    this.log('   ┌─ OneAgent MCP Server (Configuration Port)', 'info');
     this.log('   ├─ HTTP MCP Adapter Communication', 'info');
     this.log('   ├─ Mem0 Memory Server (Port 8000)', 'info');
     this.log('   ├─ Gemini API Integration', 'info');

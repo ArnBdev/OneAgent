@@ -26,9 +26,8 @@ export default defineConfig({
       '/api/performance': {
         target: process.env.ONEAGENT_MCP_URL || 'http://127.0.0.1:8083',
         changeOrigin: true,
-      },
-      '/ws': {
-        target: 'ws://localhost:8080',
+      },      '/ws': {
+        target: process.env.VITE_ONEAGENT_WS_URL || 'ws://localhost:8081',
         ws: true,
       },
     },

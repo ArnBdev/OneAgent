@@ -85,9 +85,8 @@ export class UniversalNLACSOrchestrator extends EventEmitter implements NLACSOrc
     super();
     
     // Load configuration from environment
-    this.config = {
-      memoryEndpoint: process.env.ONEAGENT_MEMORY_ENDPOINT || 'http://localhost:8083',
-      mcpEndpoint: process.env.ONEAGENT_MCP_ENDPOINT || 'http://localhost:8083',
+    this.config = {      memoryEndpoint: process.env.ONEAGENT_MEMORY_URL || 'http://localhost:8001',
+      mcpEndpoint: process.env.ONEAGENT_MCP_URL || 'http://localhost:8083',
       maxConcurrentConversations: parseInt(process.env.NLACS_MAX_CONVERSATIONS || '10'),
       defaultRetentionDays: parseInt(process.env.NLACS_RETENTION_DAYS || '90'),
       constitutionalAIEnabled: process.env.NLACS_CONSTITUTIONAL_AI === 'true'

@@ -1,7 +1,7 @@
 import { useCallback } from 'react';
 import { MemoryContext } from '../types/chat';
 
-const API_BASE_URL = 'http://localhost:8081';
+const API_BASE_URL = import.meta.env.VITE_ONEAGENT_API_BASE || 'http://localhost:8081';
 
 export const useMemoryContext = (userId: string) => {
   const getMemoryContext = useCallback(async (query: string): Promise<MemoryContext | undefined> => {

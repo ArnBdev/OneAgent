@@ -2,7 +2,7 @@ import { useState, useCallback, useEffect } from 'react';
 import { Message, ChatState, ChatConfig } from '../types/chat';
 import { useMemoryContext } from './useMemoryContext';
 
-const API_BASE_URL = 'http://localhost:8081';
+const API_BASE_URL = import.meta.env.VITE_ONEAGENT_API_BASE || 'http://localhost:8081';
 
 export const useChat = (userId: string, agentType: string = 'general') => {
   const [chatState, setChatState] = useState<ChatState>({

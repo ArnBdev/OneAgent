@@ -27,7 +27,7 @@ import {
   UnifiedSystemHealth,
   ALITAUnifiedContext,
   AgentType
-} from '../types/unified';
+} from '../types/unified-fixed';
 
 // =====================================
 // UNIFIED TIME SERVICE IMPLEMENTATION
@@ -47,17 +47,23 @@ export class OneAgentUnifiedTimeService implements UnifiedTimeService {
   
   /**
    * Get current timestamp with unified format
-   */
-  public now(): UnifiedTimestamp {
+   */  public now(): UnifiedTimestamp {
     const jsDate = new Date();
     const context = this.getContext();
     
     return {
+      iso: jsDate.toISOString(),
       unix: jsDate.getTime(),
-      utc: jsDate.toISOString(),
-      local: jsDate.toLocaleString(),
-      timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
-      context: `${context.context.timeOfDay}-${context.context.dayOfWeek}-${context.context.businessDay ? 'business' : 'personal'}`
+      contextual: {
+        timeOfDay: context.context.timeOfDay,
+        energyLevel: context.intelligence.energyLevel,
+        optimalFor: context.intelligence.optimalFocusTime ? ['focus', 'productivity'] : ['general']
+      },
+      metadata: {
+        source: 'UnifiedTimeService',
+        precision: 'second',
+        timezone: Intl.DateTimeFormat().resolvedOptions().timeZone
+      }
     };
   }
   
@@ -74,30 +80,25 @@ export class OneAgentUnifiedTimeService implements UnifiedTimeService {
     const hour = now.getHours();
     const day = now.getDay();
     const month = now.getMonth();
-    
-    const context: UnifiedTimeContext = {
-      realTime: {
-        unix: now.getTime(),
-        utc: now.toISOString(),
-        local: now.toLocaleString(),
-        timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
-        offset: now.getTimezoneOffset()
-      },
-      
+      const context: UnifiedTimeContext = {
       context: {
         dayOfWeek: ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'][day] as any,
         timeOfDay: this.getTimeOfDay(hour),
         workingHours: this.isWorkingHours(hour, day),
         weekendMode: day === 0 || day === 6,
-        seasonalContext: this.getSeasonalContext(month),
         businessDay: day >= 1 && day <= 5,
         peakHours: (hour >= 9 && hour <= 11) || (hour >= 14 && hour <= 16)
       },
-        intelligence: {
+      intelligence: {
         optimalFocusTime: this.isOptimalFocusTime(hour, day),
         energyLevel: this.getEnergyLevelInternal(hour, day),
         suggestionContext: this.getSuggestionContextInternal(hour, day),
         motivationalTiming: this.getMotivationalTiming(hour, day)
+      },
+      metadata: {
+        timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+        timestamp: now,
+        contextUpdated: now
       }
     };
     
@@ -153,26 +154,32 @@ export class OneAgentUnifiedTimeService implements UnifiedTimeService {
   
   /**
    * Enhance basic Date with unified context
-   */
-  public enhanceWithContext(basicTime: Date): UnifiedTimestamp {
+   */  public enhanceWithContext(basicTime: Date): UnifiedTimestamp {
     const context = this.getContext();
+    const hour = basicTime.getHours();
     
     return {
+      iso: basicTime.toISOString(),
       unix: basicTime.getTime(),
-      utc: basicTime.toISOString(),
-      local: basicTime.toLocaleString(),
-      timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
-      context: `${context.context.timeOfDay}-${context.context.dayOfWeek}-${context.context.businessDay ? 'business' : 'personal'}`
+      contextual: {
+        timeOfDay: this.getTimeOfDay(hour),
+        energyLevel: context.intelligence.energyLevel,
+        optimalFor: this.getOptimalActivities(hour)
+      },
+      metadata: {
+        source: 'UnifiedTimeService',
+        precision: 'second',
+        timezone: Intl.DateTimeFormat().resolvedOptions().timeZone
+      }
     };
   }
   
   // Private helper methods
-  private getTimeOfDay(hour: number): 'early-morning' | 'morning' | 'afternoon' | 'evening' | 'late-night' {
-    if (hour >= 5 && hour < 8) return 'early-morning';
-    if (hour >= 8 && hour < 12) return 'morning';
+  private getTimeOfDay(hour: number): 'morning' | 'afternoon' | 'evening' | 'night' {
+    if (hour >= 5 && hour < 12) return 'morning';
     if (hour >= 12 && hour < 18) return 'afternoon';
     if (hour >= 18 && hour < 22) return 'evening';
-    return 'late-night';
+    return 'night';
   }
   
   private isWorkingHours(hour: number, day: number): boolean {
@@ -203,12 +210,20 @@ export class OneAgentUnifiedTimeService implements UnifiedTimeService {
     if (hour >= 17 && hour <= 19) return 'review';
     return 'rest';
   }
+  private getMotivationalTiming(hour: number, _day: number): 'morning-boost' | 'afternoon-focus' | 'evening-wind-down' | 'night-rest' {
+    if (hour >= 6 && hour <= 11) return 'morning-boost';
+    if (hour >= 12 && hour <= 17) return 'afternoon-focus';
+    if (hour >= 18 && hour <= 21) return 'evening-wind-down';
+    return 'night-rest';
+  }
   
-  private getMotivationalTiming(hour: number, _day: number): 'start-strong' | 'mid-momentum' | 'end-sprint' | 'reflection' {
-    if (hour >= 8 && hour <= 10) return 'start-strong';
-    if (hour >= 11 && hour <= 15) return 'mid-momentum';
-    if (hour >= 16 && hour <= 18) return 'end-sprint';
-    return 'reflection';
+  private getOptimalActivities(hour: number): string[] {
+    if (hour >= 6 && hour <= 9) return ['planning', 'exercise', 'learning'];
+    if (hour >= 10 && hour <= 12) return ['focus-work', 'analysis', 'problem-solving'];
+    if (hour >= 13 && hour <= 16) return ['meetings', 'collaboration', 'creative-work'];
+    if (hour >= 17 && hour <= 19) return ['review', 'communication', 'admin'];
+    if (hour >= 20 && hour <= 22) return ['reflection', 'light-reading', 'social'];
+    return ['rest', 'sleep', 'recovery'];
   }
 }
 
@@ -460,7 +475,10 @@ export class OneAgentUnifiedMetadataService implements UnifiedMetadataService {
         component: 'multi_agent_orchestrator',
         sessionId,
         userId,
-        agent: sourceAgentId
+        agent: {
+          id: sourceAgentId,
+          type: 'specialized'
+        }
       },
       
       quality: {
@@ -503,7 +521,7 @@ export class OneAgentUnifiedMetadataService implements UnifiedMetadataService {
         qualityThreshold: options.qualityThreshold || 90,
         constitutionalCompliance: true,
         priorityLevel: options.priorityLevel || 'medium',
-        timestamp: timestamp.utc,
+        timestamp: timestamp.iso,
         correlationId: options.correlationId,
         requestId: options.requestId
       }
@@ -573,86 +591,66 @@ export class OneAgentUnifiedBackbone {
     userId?: string;
     capabilities: string[];
     memoryEnabled: boolean;
-    aiEnabled: boolean;
-  }): UnifiedAgentContext {    return {
+    aiEnabled: boolean;  }): UnifiedAgentContext {
+    return {
       agentId,
       agentType,
-      agentName: `${agentType}-${agentId}`,
-      timeService: this.timeService,
-      metadataService: this.metadataService,
-      sessionId: options.sessionId,
-      ...(options.userId && { userId: options.userId }),
       capabilities: options.capabilities,
-      memoryEnabled: options.memoryEnabled,
-      aiEnabled: options.aiEnabled
+      timeContext: this.timeService.getContext(),      metadata: this.metadataService.create('agent_context', 'agent_system', {
+        content: {
+          category: 'agent',
+          tags: [`agent:${agentId}`, `type:${agentType}`],
+          sensitivity: 'internal' as const,
+          relevanceScore: 0.9,
+          contextDependency: 'session' as const
+        }
+      }),
+      session: {
+        sessionId: options.sessionId,
+        ...(options.userId && { userId: options.userId }),
+        startTime: this.timeService.now()
+      }
     };
   }
   
   /**
    * Create ALITA context with unified tracking
-   */
-  public createALITAContext(trigger: string, impact: 'minor' | 'moderate' | 'significant' | 'major'): ALITAUnifiedContext {
-    const metadata = this.metadataService.create('alita_evolution', 'alita_system', {      content: {
-        category: 'evolution',
-        tags: ['alita', 'evolution', trigger, impact],
-        sensitivity: 'internal',
-        relevanceScore: impact === 'major' ? 1.0 : impact === 'significant' ? 0.9 : impact === 'moderate' ? 0.7 : 0.5,
-        contextDependency: 'global'
-      },
-      quality: {
-        score: 95,
-        constitutionalCompliant: true,
-        validationLevel: 'constitutional',
-        confidence: 0.95
-      }
-    });
+   */  public createALITAContext(trigger: string, impact: 'minor' | 'moderate' | 'significant' | 'major'): ALITAUnifiedContext {
+    // Convert impact to proper enum values
+    const impactLevel = impact === 'minor' ? 'low' : impact === 'moderate' ? 'medium' : impact === 'significant' ? 'high' : 'critical';
     
     return {
-      evolutionTimestamp: this.timeService.now(),
-      learningMetadata: metadata,
-      evolutionContext: {
-        trigger,
-        confidence: 0.85,
-        impact,
-        validationRequired: impact === 'major' || impact === 'significant'
-      },
-      learningPatterns: {
-        optimalLearningTime: this.timeService.getContext().context.timeOfDay,
-        evolutionFrequency: 1,
-        qualityTrend: [metadata.quality.score]
-      }
+      systemContext: this.timeService.getContext(),      agentContext: this.createAgentContext('alita-evolution', 'specialist', {
+        sessionId: 'alita-context',
+        capabilities: ['evolution', 'learning', 'adaptation'],
+        memoryEnabled: true,
+        aiEnabled: true
+      }),
+      memoryContext: [], // Empty for now, would be populated by memory service
+      evolutionTrigger: trigger,
+      impactLevel,
+      timestamp: this.timeService.now()
     };
   }
   
   /**
    * Get system health with unified monitoring
-   */
-  public getSystemHealth(): UnifiedSystemHealth {
-    const timeContext = this.timeService.getContext();
-    
+   */  public getSystemHealth(): UnifiedSystemHealth {
     return {
-      timeService: {
-        operational: true,
-        accuracy: 0.99, // High accuracy with timezone awareness
-        performance: 1.5 // ~1.5ms average response time
+      overall: {
+        status: 'healthy',
+        score: 0.95,
+        timestamp: this.timeService.now()
       },
-      
-      metadataService: {
-        operational: true,
-        qualityScore: 88, // Average metadata quality
-        consistency: 0.95 // High consistency across systems
-      },
-      
-      agentSystems: {
-        operational: true,
-        unifiedCompliance: 0.35, // Current compliance level (improving)
-        performanceImpact: 1.2 // Minimal overhead from unified services
-      },
-      
-      memorySystem: {
-        operational: true,
-        temporalAccuracy: 0.92, // Temporal metadata accuracy
-        retrievalPerformance: 2.1 // Memory retrieval with unified context
+      components: {
+        timeService: { status: 'operational', responseTime: 1.5 },
+        metadataService: { status: 'operational', operationsPerSecond: 100 },
+        memoryService: { status: 'operational', storageHealth: 0.95 },
+        constitutionalAI: { status: 'operational', complianceRate: 0.85 }
+      },      metrics: {
+        uptime: 0.999, // 99.9% uptime
+        errorRate: 0.001, // 0.1% error rate
+        performanceScore: 0.95 // 95% performance score
       }
     };
   }

@@ -29,7 +29,7 @@ class WebSocketService {
   private messageQueue: WSMessage[] = []
   private listeners: Map<string, (data: any) => void> = new Map()
 
-  constructor(private url: string = 'ws://localhost:8081') {}
+  constructor(private url: string = import.meta.env.VITE_ONEAGENT_WS_URL || 'ws://localhost:8081') {}
 
   connect(): Promise<void> {
     return new Promise((resolve, reject) => {

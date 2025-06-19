@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { WebSocketMessage } from '../types/chat';
 
-const WEBSOCKET_URL = 'ws://localhost:8081';
+const WEBSOCKET_URL = import.meta.env.VITE_ONEAGENT_WS_URL || 'ws://localhost:8081';
 
 export const useWebSocketChat = () => {
   const [connectionStatus, setConnectionStatus] = useState<'connecting' | 'connected' | 'disconnected'>('connecting');

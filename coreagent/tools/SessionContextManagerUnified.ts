@@ -22,7 +22,7 @@ import {
   CommunicationStyle,
   ExpertiseLevel,
   ConversationMetadata
-} from '../types/unified';
+} from '../types/oneagent-backbone-types';
 
 // ========================================
 // Core Interfaces (Minimal - using unified types)

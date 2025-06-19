@@ -10,7 +10,7 @@ import { MemoryIntelligence } from '../intelligence/memoryIntelligence';
 import { PerformanceAPI } from '../api/performanceAPI';
 import { SimpleAuditLogger, defaultAuditLogger } from '../audit/auditLogger';
 import { SecureErrorHandler, defaultSecureErrorHandler } from '../utils/secureErrorHandler';
-import { MemorySearchResult, MemoryRecord, MemorySearchOptions, MemoryAnalytics } from '../types/unified';
+import { MemorySearchResult, MemoryRecord, MemorySearchOptions, MemoryAnalytics } from '../types/oneagent-backbone-types';
 
 export interface MemoryPerformanceMetrics {
   searchLatency: number;

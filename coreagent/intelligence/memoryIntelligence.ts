@@ -12,7 +12,7 @@
  */
 
 import { UnifiedMemoryClient } from '../memory/UnifiedMemoryClient';
-import { ConversationData, ConversationMetadata, MemorySearchResult, MemoryRecord, IntelligenceInsight } from '../types/unified';
+import { ConversationData, ConversationMetadata, MemorySearchResult, MemoryRecord, IntelligenceInsight } from '../types/oneagent-backbone-types';
 import { OneAgentUnifiedBackbone } from '../utils/UnifiedBackboneService.js';
 
 // =====================================
