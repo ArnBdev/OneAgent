@@ -125,24 +125,6 @@
     },
     {
       "text": "CONTEXT7 KNOWLEDGE ACCUMULATION: Every documentation lookup creates permanent memory entries. Before using enhanced search, ALWAYS check existing memory first via oneagent_memory_context. This prevents duplicate lookups and leverages accumulated knowledge. Build on previous findings rather than starting fresh each time."
-    },
-    {
-      "text": "CONTEXT7 CROSS-REFERENCE BUILDING: When storing new documentation, reference related stored knowledge. Create knowledge webs linking technologies, versions, and best practices. Example: 'Node.js v22 V8 caching relates to TypeScript 5.7 compile performance improvements - both leverage V8 optimizations for faster development workflows'."
-    },
-    {
-      "text": "CONTEXT7 SELF-IMPROVING SYSTEM: Each coding session builds the knowledge base. Store solutions, error fixes, optimization techniques, and architectural decisions with Context7 tags. Future similar problems will have instant access to proven solutions. Target: Eliminate repeated research, accelerate development velocity, maintain quality standards through accumulated wisdom."
-    },
-    {
-      "text": "CONTEXT7 KNOWLEDGE VALIDATION: All stored Context7 content must pass Constitutional AI validation (accuracy, transparency, helpfulness, safety). Apply oneagent_constitutional_validate before memory storage. Maintain 80%+ quality threshold. Flag outdated information when new versions are retrieved. Ensure knowledge base remains current and reliable."
-    },
-    {
-      "text": "CONTEXT7 AUTO-MEMORY STORAGE: MANDATORY - Every Context7 documentation retrieval MUST be automatically stored in memory using oneagent_memory_create. Include: 1) Source technology/framework, 2) Key features/concepts retrieved, 3) Best practices identified, 4) Version-specific information, 5) Implementation examples. This builds permanent institutional knowledge."
-    },
-    {
-      "text": "CONTEXT7 MEMORY CATEGORIZATION: Store retrieved documentation with structured tags: TECH-[technology], VERSION-[version], CATEGORY-[feature-type], BEST-PRACTICE-[domain]. Examples: 'TECH-nodejs VERSION-v22 CATEGORY-performance BEST-PRACTICE-v8-caching', 'TECH-typescript VERSION-5.7 CATEGORY-typing BEST-PRACTICE-never-initialized-vars'."
-    },
-    {
-      "text": "CONTEXT7 KNOWLEDGE ACCUMULATION: Every documentation lookup creates permanent memory entries. Before using enhanced search, ALWAYS check existing memory first via oneagent_memory_context. This prevents duplicate lookups and leverages accumulated knowledge. Build on previous findings rather than starting fresh each time."
     },    {
       "text": "CONTEXT7 CROSS-REFERENCE BUILDING: When storing new documentation, reference related stored knowledge. Create knowledge webs linking technologies, versions, and best practices. Example: 'Node.js v22 V8 caching relates to TypeScript 5.7 compile performance improvements - both leverage V8 optimizations for faster development workflows'."
     },

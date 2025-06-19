@@ -27,7 +27,7 @@ import {
   UnifiedSystemHealth,
   ALITAUnifiedContext,
   AgentType
-} from '../types/unified.js';
+} from '../types/unified';
 
 // =====================================
 // UNIFIED TIME SERVICE IMPLEMENTATION

@@ -22,7 +22,7 @@ import {
   ModelSelection 
 } from '../../../config/gemini-model-tier-selector';
 import { getModelForAgentType } from '../../../config/gemini-model-registry';
-import { costMonitoringService } from '../../../config/gemini-cost-monitoring';
+import { costMonitoringService } from '../../../config/gemini-cost-monitoring-v2';
 
 export type AgentType = 'core' | 'enhanced-development' | 'development' | 'office' | 'fitness' | 'general' | 'coach' | 'advisor' | 'template';
 

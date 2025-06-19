@@ -447,52 +447,143 @@ export interface ConversationMetadata extends OneAgentBaseMetadata {
   };
 }
 
-// User Profile Metadata
-export interface UserProfileMetadata extends OneAgentBaseMetadata {
-  type: 'user-profile';
+// NLACS MULTI-AGENT CONVERSATION METADATA
+// =====================================
+
+export interface NLACSConversationMetadata extends Omit<ConversationMetadata, 'type'> {
+  type: 'nlacs-conversation';
   
-  // User-specific properties
-  userProfile: {
-    // User Identity
-    userId: string;
-    preferences: {
-      communicationStyle: 'concise' | 'detailed' | 'technical' | 'conversational';
-      expertiseLevel: 'beginner' | 'intermediate' | 'advanced' | 'expert';
-      learningStyle: 'visual' | 'auditory' | 'kinesthetic' | 'reading';
-      responseLength: 'brief' | 'moderate' | 'comprehensive';
+  // NLACS-specific properties
+  nlacs: {
+    // Multi-agent orchestration
+    orchestration: {
+      conversationId: string;
+      orchestratorVersion: string;
+      agentCount: number;
+      agentTypes: string[];
+      emergentInsightsCount: number;
+      synthesesGenerated: number;
     };
     
-    // Learning Profile
-    learning: {
-      knownTechnologies: string[];
-      learningGoals: string[];
-      strugglingAreas: string[];
-      masteredConcepts: string[];
-      preferredTutorialStyle: string[];
-    };
+    // Agent participation tracking
+    agents: Array<{
+      agentId: string;
+      agentType: string;
+      role: 'primary' | 'secondary' | 'observer';
+      joinedAt: Date;
+      messageCount: number;
+      lastMessageAt?: Date;
+      confidenceAverage: number;
+      contributionQuality: number; // 0-100
+    }>;
     
-    // Interaction Patterns
-    interaction: {
-      averageSessionLength: number; // minutes
-      preferredTimeOfDay: string[];
-      typicalQuestionTypes: string[];
-      successPatterns: string[];
-      helpfulResponseTypes: string[];
-    };
-    
-    // Privacy and Permissions
-    privacy: {
-      dataRetention: 'session' | 'temporary' | 'permanent' | 'custom';
-      sharingPermissions: {
-        analytics: boolean;
-        improvements: boolean;
-        research: boolean;
+    // Message analysis
+    messageAnalysis: {
+      messageTypes: {
+        question: number;
+        response: number;
+        insight: number;
+        synthesis: number;
+        challenge: number;
       };
-      consentVersion: string;
-      consentDate: Date;
+      averageConfidence: number;
+      crossReferences: number;
+      emergentPatterns: string[];
+    };
+    
+    // Context and privacy
+    context: {
+      domain: string; // e.g., 'finance', 'health', 'coding', 'career'
+      contextTags: string[]; // e.g., ['budgeting', 'WORKPLACE'], ['investment', 'PRIVATE']
+      privacyLevel: 'PRIVATE' | 'WORKPLACE' | 'PUBLIC' | 'CONFIDENTIAL';
+      projectContext?: {
+        projectId?: string;
+        topicId?: string;
+        additionalTags?: string[];
+      };
+    };
+    
+    // Emergent intelligence tracking
+    emergentIntelligence: {
+      breakthroughMoments: Array<{
+        messageId: string;
+        timestamp: Date;
+        insight: string;
+        contributingAgents: string[];
+        confidenceScore: number;
+      }>;
+      crossDomainConnections: string[];
+      novelSolutions: string[];
+      workflowInnovations: string[];
+      qualityScore: number; // Overall conversation quality 0-100
+    };
+    
+    // Status and lifecycle
+    lifecycle: {
+      status: 'active' | 'concluded' | 'archived' | 'paused';
+      conclusion?: {
+        reason: 'goal-achieved' | 'consensus-reached' | 'user-concluded' | 'timeout';
+        summary: string;
+        actionItems: string[];
+        followUpRecommendations: string[];
+      };
     };
   };
 }
+
+// NLACS Domain Templates for common use cases
+export interface NLACSDomainTemplate {
+  domain: string;
+  description: string;
+  recommendedAgents: string[];
+  commonContextTags: string[];
+  privacyLevel: 'PRIVATE' | 'WORKPLACE' | 'PUBLIC';
+  exampleTopics: string[];
+  expectedOutcomes: string[];
+}
+
+export const NLACSDomainTemplates: Record<string, NLACSDomainTemplate> = {
+  finance: {
+    domain: 'finance',
+    description: 'Financial planning, budgeting, and investment decisions',
+    recommendedAgents: ['FinancialAnalyst', 'InvestmentAdvisor', 'TaxOptimizer', 'RiskAssessment'],
+    commonContextTags: ['budgeting', 'investment', 'tax-planning', 'risk-management'],
+    privacyLevel: 'PRIVATE',
+    exampleTopics: ['Budget optimization', 'Investment strategy', 'Tax planning', 'Risk assessment'],
+    expectedOutcomes: ['Optimized financial plans', 'Investment recommendations', 'Tax strategies', 'Risk mitigation']
+  },
+  
+  health: {
+    domain: 'health',
+    description: 'Health, wellness, and medical decision support',
+    recommendedAgents: ['HealthAdvisor', 'NutritionSpecialist', 'FitnessTrainer', 'MedicalResearcher'],
+    commonContextTags: ['wellness', 'nutrition', 'fitness', 'preventive-care'],
+    privacyLevel: 'PRIVATE',
+    exampleTopics: ['Nutrition planning', 'Fitness optimization', 'Health monitoring', 'Preventive care'],
+    expectedOutcomes: ['Personalized health plans', 'Nutrition strategies', 'Fitness routines', 'Health insights']
+  },
+  
+  career: {
+    domain: 'career',
+    description: 'Professional development and career advancement',
+    recommendedAgents: ['CareerCoach', 'SkillsAnalyst', 'NetworkingExpert', 'IndustryAnalyst'],
+    commonContextTags: ['professional-development', 'skill-building', 'networking', 'career-growth'],
+    privacyLevel: 'WORKPLACE',
+    exampleTopics: ['Career planning', 'Skill development', 'Job search strategy', 'Leadership growth'],
+    expectedOutcomes: ['Career roadmaps', 'Skill development plans', 'Networking strategies', 'Leadership insights']
+  },
+  
+  coding: {
+    domain: 'coding',
+    description: 'Software development and technical architecture',
+    recommendedAgents: ['SoftwareArchitect', 'CodeReviewer', 'PerformanceOptimizer', 'SecurityExpert'],
+    commonContextTags: ['software-development', 'architecture', 'performance', 'security'],
+    privacyLevel: 'WORKPLACE',
+    exampleTopics: ['Architecture design', 'Code optimization', 'Security review', 'Performance tuning'],
+    expectedOutcomes: ['Technical solutions', 'Architecture recommendations', 'Security improvements', 'Performance optimizations']
+  }
+};
+
 
 // =====================================
 // METADATA UTILITY TYPES
