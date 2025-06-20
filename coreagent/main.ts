@@ -17,6 +17,7 @@ import { GeminiEmbeddingsTool } from './tools/geminiEmbeddings';
 import { TriageAgent } from './agents/specialized/TriageAgent';
 import { User } from './types/user';
 import { OneAgentUnifiedBackbone } from './utils/UnifiedBackboneService.js';
+import { oneAgentConfig } from './config/index';
 import * as dotenv from 'dotenv';
 
 // Load environment variables
@@ -42,13 +43,12 @@ class CoreAgent {
     this.unifiedBackbone = OneAgentUnifiedBackbone.getInstance();
     console.log("OneAgent CoreAgent is starting...");    // Initialize clients
     this.unifiedMemoryClient = realUnifiedMemoryClient;
-    
-    // Initialize Brave Search client
+      // Initialize Brave Search client using centralized config
     const braveConfig = {
-      apiKey: process.env.BRAVE_API_KEY || 'your_brave_search_api_key_here',
-      ...(process.env.BRAVE_API_URL && { baseUrl: process.env.BRAVE_API_URL })
+      apiKey: oneAgentConfig.braveApiKey,
+      baseUrl: 'https://api.search.brave.com/res/v1/web/search'
     };
-    this.braveSearchClient = new BraveSearchClient(braveConfig);    
+    this.braveSearchClient = new BraveSearchClient(braveConfig);
     // Initialize web search tool
     this.webSearchTool = new WebSearchTool(this.braveSearchClient);
     

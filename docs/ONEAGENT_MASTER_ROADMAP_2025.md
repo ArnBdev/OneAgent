@@ -225,7 +225,402 @@ export interface SystemHealthReport {
 
 ### **Phase 5A: Agent Architecture Evolution**
 
-#### 1. 🤖 **ISpecializedAgent Implementation**
+#### 1. � **Intelligent Agent-Specific LLM Model Selection via AgentFactory**
+**Priority**: Critical | **Timeline**: 2-3 weeks | **BMAD Analyzed** ✅
+
+**CORE CHALLENGE**: Optimize cost and performance by automatically selecting appropriate Gemini models (2.5 Pro/Flash/Lite) based on agent type, workload complexity, and operational requirements.
+
+**BMAD ANALYSIS FINDINGS**:
+- **Belief Assessment**: Model selection directly impacts system efficiency and cost
+- **Motivation**: Reduce operational costs while maintaining quality standards
+- **Authority**: AgentFactory is the logical control point for model assignment
+- **Dependencies**: Requires model tier configuration and performance monitoring
+- **Constraints**: API rate limits, cost budgets, performance thresholds
+- **Risk Assessment**: Medium risk - improper selection could degrade performance
+- **Success Metrics**: 30% cost reduction, maintained 95% quality score
+- **Timeline**: 2-3 weeks with proper testing and validation
+- **Resources**: Existing ModelTierSelector and BaseAgent infrastructure
+
+##### **Implementation Plan - Week 1: Core Architecture**
+
+**Day 1-2: Enhanced AgentFactory Design**
+```typescript
+// File: coreagent/agents/factory/EnhancedAgentFactory.ts
+export interface AgentModelSelectionConfig {
+  agentType: AgentType;
+  workloadProfile: WorkloadProfile;
+  costTier: 'budget' | 'balanced' | 'performance';
+  performanceRequirements: PerformanceRequirements;
+  fallbackStrategy: FallbackStrategy;
+}
+
+export interface WorkloadProfile {
+  complexity: 'low' | 'medium' | 'high' | 'critical';
+  volume: 'light' | 'moderate' | 'heavy';
+  latency: 'tolerant' | 'standard' | 'strict';
+  accuracy: 'standard' | 'high' | 'critical';
+}
+
+export interface ModelSelectionMatrix {
+  [key: string]: {
+    primary: GeminiModel;
+    fallback: GeminiModel[];
+    costPerToken: number;
+    performanceScore: number;
+    suitableFor: AgentType[];
+  };
+}
+
+export class EnhancedAgentFactory {
+  private static modelMatrix: ModelSelectionMatrix = {
+    'critical-reasoning': {
+      primary: 'gemini-2.5-pro',
+      fallback: ['gemini-2.5-flash', 'gemini-2.5-lite'],
+      costPerToken: 0.00015,
+      performanceScore: 95,
+      suitableFor: ['research', 'analysis', 'decision-making']
+    },
+    'balanced-processing': {
+      primary: 'gemini-2.5-flash',
+      fallback: ['gemini-2.5-pro', 'gemini-2.5-lite'],
+      costPerToken: 0.00005,
+      performanceScore: 88,
+      suitableFor: ['general', 'conversation', 'moderate-analysis']
+    },
+    'high-throughput': {
+      primary: 'gemini-2.5-lite',
+      fallback: ['gemini-2.5-flash'],
+      costPerToken: 0.00002,
+      performanceScore: 78,
+      suitableFor: ['monitoring', 'simple-tasks', 'bulk-processing']
+    }
+  };
+
+  static async createAgentWithIntelligentModelSelection(
+    config: AgentFactoryConfig & { modelSelection?: AgentModelSelectionConfig }
+  ): Promise<ISpecializedAgent> {
+    const modelConfig = config.modelSelection || 
+      await this.inferModelRequirements(config);
+    
+    const selectedModel = await this.selectOptimalModel(modelConfig);
+    
+    const enhancedConfig = {
+      ...config,
+      aiConfig: {
+        ...config.aiConfig,
+        preferredModel: selectedModel.primary,
+        fallbackModels: selectedModel.fallback,
+        modelSelectionReasoning: selectedModel.reasoning
+      }
+    };
+
+    const agent = await this.createAgent(enhancedConfig);
+    
+    await this.logModelSelection(agent.id, selectedModel, modelConfig);
+    
+    return agent;
+  }
+}
+```
+
+**Day 3-4: Context-Aware Model Selection Logic**
+```typescript
+// File: coreagent/agents/factory/ModelSelectionEngine.ts
+export class ModelSelectionEngine {
+  async selectOptimalModel(config: AgentModelSelectionConfig): Promise<ModelSelection> {
+    const contextualFactors = await this.analyzeContextualFactors(config);
+    const costConstraints = await this.evaluateCostConstraints(config.costTier);
+    const performanceReq = config.performanceRequirements;
+    
+    // Multi-factor scoring algorithm
+    const modelScores = this.calculateModelScores({
+      workload: config.workloadProfile,
+      cost: costConstraints,
+      performance: performanceReq,
+      context: contextualFactors
+    });
+    
+    const optimalModel = this.selectFromScores(modelScores);
+    
+    return {
+      primary: optimalModel.model,
+      fallback: this.generateFallbackChain(optimalModel),
+      reasoning: this.generateSelectionReasoning(optimalModel, modelScores),
+      costEstimate: this.estimateCosts(optimalModel, config.workloadProfile),
+      qualityPrediction: optimalModel.qualityScore
+    };
+  }
+
+  private calculateModelScores(factors: SelectionFactors): ModelScore[] {
+    return Object.entries(EnhancedAgentFactory.modelMatrix).map(([tier, config]) => {
+      let score = 0;
+      
+      // Workload complexity alignment (30% weight)
+      score += this.scoreComplexityAlignment(factors.workload, config) * 0.3;
+      
+      // Cost efficiency (25% weight)
+      score += this.scoreCostEfficiency(factors.cost, config) * 0.25;
+      
+      // Performance requirements (25% weight)
+      score += this.scorePerformanceMatch(factors.performance, config) * 0.25;
+      
+      // Contextual factors (20% weight)
+      score += this.scoreContextualFit(factors.context, config) * 0.2;
+      
+      return {
+        model: config.primary,
+        tier,
+        score,
+        costPerToken: config.costPerToken,
+        qualityScore: config.performanceScore,
+        reasoning: this.generateScoreBreakdown(factors, config, score)
+      };
+    }).sort((a, b) => b.score - a.score);
+  }
+}
+```
+
+**Day 5-7: Integration with Existing BaseAgent**
+```typescript
+// File: coreagent/agents/base/BaseAgent.ts (Enhanced)
+export abstract class BaseAgent implements ISpecializedAgent {
+  protected modelSelectionConfig: ModelSelectionResult;
+  protected modelPerformanceTracker: ModelPerformanceTracker;
+  
+  async initialize(config: AgentConfig): Promise<void> {
+    // Enhanced initialization with intelligent model selection
+    if (config.aiConfig?.modelSelectionReasoning) {
+      this.modelSelectionConfig = config.aiConfig;
+      await this.logModelSelection();
+    }
+    
+    // Initialize performance tracking
+    this.modelPerformanceTracker = new ModelPerformanceTracker(
+      this.id,
+      this.modelSelectionConfig?.primary || 'gemini-2.5-flash'
+    );
+    
+    // Existing initialization code...
+  }
+
+  protected async makeAIRequest(prompt: string, context?: any): Promise<AIResponse> {
+    const startTime = Date.now();
+    
+    try {
+      // Use selected model with fallback strategy
+      const response = await this.tryModelWithFallback(prompt, context);
+      
+      // Track performance metrics
+      await this.modelPerformanceTracker.recordSuccess(
+        Date.now() - startTime,
+        prompt.length,
+        response.content.length
+      );
+      
+      return response;
+    } catch (error) {
+      await this.modelPerformanceTracker.recordFailure(error);
+      throw error;
+    }
+  }
+
+  private async tryModelWithFallback(prompt: string, context?: any): Promise<AIResponse> {
+    const models = [
+      this.modelSelectionConfig.primary,
+      ...this.modelSelectionConfig.fallback
+    ];
+
+    for (const model of models) {
+      try {
+        return await this.aiClient.generateResponse(prompt, { model, context });
+      } catch (error) {
+        if (model === models[models.length - 1]) {
+          throw error; // Last model failed, propagate error
+        }
+        
+        await this.auditLogger.logEvent('MODEL_FALLBACK', {
+          fromModel: model,
+          toModel: models[models.indexOf(model) + 1],
+          error: error.message
+        });
+      }
+    }
+  }
+}
+```
+
+##### **Implementation Plan - Week 2: Monitoring & Optimization**
+
+**Day 8-10: Performance Monitoring System**
+```typescript
+// File: coreagent/monitoring/ModelPerformanceTracker.ts
+export class ModelPerformanceTracker {
+  async recordModelUsage(data: ModelUsageData): Promise<void> {
+    const metrics = {
+      agentId: data.agentId,
+      model: data.model,
+      requestTime: data.duration,
+      tokenUsage: data.tokens,
+      cost: this.calculateCost(data.model, data.tokens),
+      qualityScore: await this.assessResponseQuality(data.response),
+      timestamp: new Date()
+    };
+
+    await this.persistMetrics(metrics);
+    await this.updateAggregates(metrics);
+    
+    // Trigger reselection if performance degrades
+    if (metrics.qualityScore < 80) {
+      await this.triggerModelReselection(data.agentId, metrics);
+    }
+  }
+
+  async generatePerformanceReport(): Promise<ModelPerformanceReport> {
+    const data = await this.aggregateMetrics();
+    
+    return {
+      costSavings: this.calculateCostSavings(data),
+      qualityMaintenance: this.calculateQualityMetrics(data),
+      recommendedOptimizations: await this.generateOptimizations(data),
+      modelEfficiencyRankings: this.rankModelEfficiency(data)
+    };
+  }
+}
+```
+
+**Day 11-12: Adaptive Model Selection**
+```typescript
+// File: coreagent/agents/factory/AdaptiveModelSelector.ts
+export class AdaptiveModelSelector {
+  async optimizeModelSelection(agentId: string): Promise<OptimizationResult> {
+    const performanceHistory = await this.getPerformanceHistory(agentId);
+    const currentWorkload = await this.analyzeCurrentWorkload(agentId);
+    
+    const optimizedSelection = await this.calculateOptimalModel(
+      performanceHistory,
+      currentWorkload
+    );
+    
+    if (optimizedSelection.recommendedChange) {
+      await this.implementModelChange(agentId, optimizedSelection);
+      
+      return {
+        success: true,
+        oldModel: optimizedSelection.current,
+        newModel: optimizedSelection.recommended,
+        expectedImprovement: optimizedSelection.improvement,
+        reasoning: optimizedSelection.reasoning
+      };
+    }
+    
+    return { success: false, message: 'Current model selection is optimal' };
+  }
+}
+```
+
+**Day 13-14: Cost Management & Budgeting**
+```typescript
+// File: coreagent/finance/ModelCostManager.ts
+export class ModelCostManager {
+  async manageCostBudgets(): Promise<CostManagementResult> {
+    const currentUsage = await this.getCurrentMonthUsage();
+    const projectedUsage = this.projectMonthlyUsage(currentUsage);
+    
+    if (projectedUsage.exceedsBudget) {
+      const optimizations = await this.generateCostOptimizations();
+      await this.implementEmergencyOptimizations(optimizations);
+      
+      return {
+        status: 'budget_exceeded',
+        optimizationsApplied: optimizations,
+        projectedSavings: optimizations.totalSavings
+      };
+    }
+    
+    return { status: 'within_budget', currentUsage, projectedUsage };
+  }
+}
+```
+
+##### **Implementation Plan - Week 3: Testing & Validation**
+
+**Day 15-17: Comprehensive Testing Framework**
+```typescript
+// File: tests/model-selection/ModelSelectionTests.ts
+describe('Intelligent Model Selection', () => {
+  test('Cost-Performance Optimization', async () => {
+    const testScenarios = [
+      { agentType: 'research', expectedModel: 'gemini-2.5-pro' },
+      { agentType: 'monitoring', expectedModel: 'gemini-2.5-lite' },
+      { agentType: 'general', expectedModel: 'gemini-2.5-flash' }
+    ];
+
+    for (const scenario of testScenarios) {
+      const agent = await EnhancedAgentFactory.createAgentWithIntelligentModelSelection({
+        type: scenario.agentType,
+        aiEnabled: true
+      });
+
+      expect(agent.modelConfig.primary).toBe(scenario.expectedModel);
+      
+      // Validate cost efficiency
+      const costEfficiency = await this.calculateCostEfficiency(agent);
+      expect(costEfficiency).toBeGreaterThan(0.8);
+    }
+  });
+
+  test('Fallback Strategy Validation', async () => {
+    // Test model fallback under failure conditions
+    const agent = await this.createTestAgent();
+    
+    // Simulate primary model failure
+    await this.simulateModelFailure(agent.modelConfig.primary);
+    
+    const response = await agent.processRequest('test prompt');
+    expect(response.model).toBe(agent.modelConfig.fallback[0]);
+  });
+
+  test('Performance Monitoring Integration', async () => {
+    const agent = await this.createTestAgent();
+    
+    await agent.processRequest('complex analysis task');
+    
+    const metrics = await agent.modelPerformanceTracker.getMetrics();
+    expect(metrics.qualityScore).toBeGreaterThan(80);
+    expect(metrics.cost).toBeLessThan(0.01);
+  });
+});
+```
+
+**Day 18-21: Production Validation & Deployment**
+
+##### **SUCCESS METRICS & VALIDATION**
+
+**Key Performance Indicators**:
+- **Cost Reduction**: Target 30% reduction in model usage costs
+- **Quality Maintenance**: Maintain 95%+ quality score across all agents
+- **Response Time**: No degradation in average response times
+- **Fallback Success Rate**: 98%+ successful fallback operations
+- **Agent Satisfaction**: Agents receive appropriate models for their workload
+
+**Constitutional AI Compliance**:
+- **Accuracy**: Model selection based on empirical performance data
+- **Transparency**: Clear reasoning logged for all model selection decisions
+- **Helpfulness**: Optimizes both cost and performance for user benefit
+- **Safety**: Fallback mechanisms prevent service degradation
+
+**BMAD Framework Validation**:
+✅ **Belief Assessment**: Model selection improves system efficiency  
+✅ **Motivation Mapping**: Clear cost and performance benefits  
+✅ **Authority**: AgentFactory has appropriate control over model assignment  
+✅ **Dependencies**: ModelTierSelector and monitoring systems ready  
+✅ **Constraints**: API limits and budget constraints properly handled  
+✅ **Risk Assessment**: Fallback strategies mitigate selection failures  
+✅ **Success Metrics**: Quantifiable cost and quality improvements  
+✅ **Timeline**: 3-week implementation with proper testing phases  
+✅ **Resources**: Existing infrastructure supports implementation
+
+#### 2. �🤖 **ISpecializedAgent Implementation**
 **Priority**: High | **Timeline**: 2-3 weeks
 
 ```typescript
@@ -236,6 +631,7 @@ export interface ISpecializedAgent {
   capabilities: AgentCapability[];
   memoryEnabled: boolean;
   aiEnabled: boolean;
+  modelConfig?: ModelSelectionResult;
   
   getAvailableActions(): AgentAction[];
   executeAction(action: string, params: any): Promise<AgentResult>;
@@ -245,7 +641,8 @@ export interface ISpecializedAgent {
 
 export class AgentFactory {
   static createAgent(config: AgentFactoryConfig): ISpecializedAgent {
-    // Constitutional AI validated agent creation
+    // Constitutional AI validated agent creation with intelligent model selection
+    return EnhancedAgentFactory.createAgentWithIntelligentModelSelection(config);
   }
 }
 ```

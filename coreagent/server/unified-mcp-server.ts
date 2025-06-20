@@ -14,7 +14,10 @@
 
 // Load environment variables first
 import * as dotenv from 'dotenv';
-dotenv.config();
+import * as path from 'path';
+
+// Load from root directory where all config is centralized
+dotenv.config({ path: path.join(__dirname, '../../.env') });
 
 import { randomUUID } from 'crypto';
 import { OneAgentEngine, OneAgentRequest, OneAgentResponse } from '../OneAgentEngine';

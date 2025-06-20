@@ -21,7 +21,7 @@ import { v4 as uuidv4 } from 'uuid';
 import * as fs from 'fs/promises';
 import * as path from 'path';
 import { oneAgentConfig } from '../config/index';
-import { OneAgentUnifiedBackbone } from '../utils/UnifiedBackboneService.js';
+import { OneAgentUnifiedBackbone } from '../utils/UnifiedBackboneService';
 import { 
   UnifiedMemoryInterface, 
   ConversationMemory, 
@@ -172,7 +172,7 @@ export class RealUnifiedMemoryClient extends EventEmitter implements UnifiedMemo
         this.collection = {
           isInitialized: true,
           serverUrl: `http://${this.config.host}:${this.config.port}`,
-          lastHealthCheck: new Date(healthTimestamp.utc)
+          lastHealthCheck: new Date(healthTimestamp.iso)
         };
         
         this.emit('connected', {
@@ -277,7 +277,7 @@ export class RealUnifiedMemoryClient extends EventEmitter implements UnifiedMemo
         ...metadata,
         memoryType,
         // Use ISO string timestamp instead of epoch number
-        timestamp: storeTimestamp.utc,
+        timestamp: storeTimestamp.iso,
         qualityScore,
         // Remove potentially problematic fields for now
         // constitutionalLevel: constitutionalLevel.toString(),
@@ -291,7 +291,7 @@ export class RealUnifiedMemoryClient extends EventEmitter implements UnifiedMemo
         metadata: {
           ...cleanMetadata,
           agentId: metadata.agentId || 'oneagent_system',
-          timestamp: requestTimestamp.utc,
+          timestamp: requestTimestamp.iso,
           memoryId,
           qualityScore,
           constitutionalCompliance: constitutionalResult.valid
@@ -1125,7 +1125,7 @@ export class RealUnifiedMemoryClient extends EventEmitter implements UnifiedMemo
    */  async archiveOldMemories(olderThanDays: number, agentId?: string): Promise<number> {
     try {
       const archiveTimestamp = this.unifiedBackbone.getServices().timeService.now();
-      const cutoffDate = new Date(archiveTimestamp.utc);
+      const cutoffDate = new Date(archiveTimestamp.iso);
       cutoffDate.setDate(cutoffDate.getDate() - olderThanDays);
       
       console.log(`Archiving memories older than ${cutoffDate.toISOString()} for agent: ${agentId || 'all'}`);

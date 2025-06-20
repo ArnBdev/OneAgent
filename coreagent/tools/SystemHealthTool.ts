@@ -4,6 +4,7 @@
  */
 
 import { UnifiedMCPTool, ToolExecutionResult, InputSchema } from './UnifiedMCPTool';
+import { oneAgentConfig } from '../config';
 
 export class SystemHealthTool extends UnifiedMCPTool {
   constructor() {
@@ -76,7 +77,7 @@ export class SystemHealthTool extends UnifiedMCPTool {
         healthMetrics.components.mcp = {
           status: 'operational',
           protocol: 'HTTP MCP 2024-11-05',
-          port: 8083,
+          port: oneAgentConfig.mcpPort,
           toolsAvailable: 7,
           resourcesAvailable: 3,
           promptsAvailable: 2,

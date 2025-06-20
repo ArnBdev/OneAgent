@@ -11,14 +11,13 @@
  * Achieves 20-95% improvements in accuracy, task adherence, and quality.
  */
 
-import { UnifiedMemoryClient } from '../../memory/UnifiedMemoryClient';
+import { realUnifiedMemoryClient } from '../../memory/RealUnifiedMemoryClient';
 import { ConversationMemory, MemorySearchQuery } from '../../memory/UnifiedMemoryInterface';
 import { oneAgentConfig } from '../../config/index';
 import { OneAgentUnifiedBackbone } from '../../utils/UnifiedBackboneService';
 import { SmartGeminiClient } from '../../tools/SmartGeminiClient';
 import { GeminiClient } from '../../tools/geminiClient';
 import { User } from '../../types/user';
-import { EnrichedContext } from '../../orchestrator/interfaces/IMemoryContextBridge';
 import { 
   EnhancedPromptEngine, 
   EnhancedPromptConfig, 
@@ -42,7 +41,7 @@ export interface AgentContext {
   sessionId: string;
   conversationHistory: Message[];
   memoryContext?: any[];
-  enrichedContext?: EnrichedContext;  // Optional enriched context from MemoryContextBridge
+  // enrichedContext?: any;  // Optional enriched context (interface removed)
   
   // Enhanced context for inter-agent communication
   projectContext?: string; // Project identifier for context isolation
@@ -77,7 +76,7 @@ export interface AgentAction {
  */
 export abstract class BaseAgent {
   public config: AgentConfig;
-  protected memoryClient?: UnifiedMemoryClient;
+  protected memoryClient: typeof realUnifiedMemoryClient;
   protected aiClient?: SmartGeminiClient;
   protected isInitialized: boolean = false;
   protected unifiedBackbone: OneAgentUnifiedBackbone;
@@ -95,24 +94,30 @@ export abstract class BaseAgent {
    * Initialize the agent with necessary clients and advanced prompt engineering
    */
   async initialize(): Promise<void> {
-    try {
-      // Initialize memory client if enabled
+    try {      // Initialize memory client if enabled
       if (this.config.memoryEnabled) {
-        this.memoryClient = new UnifiedMemoryClient({
-          host: oneAgentConfig.memoryUrl.replace(/^https?:\/\//, '').replace(/:\d+$/, ''),
-          port: parseInt(oneAgentConfig.memoryUrl.match(/:(\d+)$/)?.[1] || '8083'),
-          timeout: 30000,
-          retryAttempts: 3,
-          retryDelay: 1000,
-          enableSSL: oneAgentConfig.memoryUrl.startsWith('https')
-        });
-      }
-
-      // Initialize AI client if enabled
+        this.memoryClient = realUnifiedMemoryClient;
+      }// Initialize AI client if enabled with intelligent model selection
       if (this.config.aiEnabled) {
+        // Import intelligent model selection
+        const { ModelTierSelector } = await import('../../../config/gemini-model-tier-selector');
+        const tierSelector = ModelTierSelector.getInstance();
+        
+        // Select optimal model based on agent type and capabilities
+        const modelSelection = tierSelector.selectOptimalModel({
+          agentType: this.constructor.name,
+          taskType: 'general-purpose',
+          scenario: 'agent-initialization',
+          prioritizeCost: false, // Agents need good performance
+          prioritizePerformance: true
+        });
+        
+        console.log(`🧠 ${this.constructor.name} using intelligent model: ${modelSelection.primaryModel}`);
+        console.log(`   Tier: ${modelSelection.tier} | Reasoning: ${modelSelection.reasoning}`);
+        
         this.aiClient = new SmartGeminiClient({
           apiKey: process.env.GOOGLE_API_KEY || process.env.GEMINI_API_KEY,
-          model: 'gemini-2.0-flash-exp'
+          model: modelSelection.primaryModel
         });
       }
 
@@ -154,7 +159,7 @@ export abstract class BaseAgent {
           qualityThreshold: 85,
           constitutionalCompliant: true
         })),
-        endpoint: `http://localhost:8083/agent/${this.config.id}`,
+        endpoint: `${oneAgentConfig.mcpUrl}/agent/${this.config.id}`,
         status: 'online' as const,
         loadLevel: 0,
         qualityScore: 90,
@@ -246,9 +251,8 @@ export abstract class BaseAgent {
     if (!this.memoryClient) {
       return [];
     }
-    
-    const result = await this.memoryClient.getMemoryContext(query, _userId, limit);
-    return result.entries || [];
+      const result = await this.memoryClient.getMemoryContext(query, _userId, limit);
+    return result.memories || [];
   }/**
    * Generate AI response using advanced prompt engineering system
    */

@@ -14,6 +14,7 @@ import { BaseAgent } from '../base/BaseAgent';
 import { AgentFactory as BaseAgentFactory, AgentFactoryConfig } from '../base/AgentFactory';
 import { AgentFactory as SpecializedAgentFactory } from '../specialized/AgentFactory';
 import { AgentCommunicationProtocol } from './AgentCommunicationProtocol';
+import { oneAgentConfig } from '../../config/index';
 
 export class AgentBootstrapService {
   private agents: Map<string, BaseAgent> = new Map();
@@ -245,7 +246,7 @@ export class AgentBootstrapService {
           qualityThreshold: 85,
           constitutionalCompliant: true
         })),
-        endpoint: `http://localhost:8083/agent/${config.id}`,
+        endpoint: `${oneAgentConfig.mcpUrl}/agent/${config.id}`,
         status: 'online' as const,
         loadLevel: 0,
         qualityScore: 90,

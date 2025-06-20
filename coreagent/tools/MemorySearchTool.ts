@@ -30,11 +30,9 @@ export class MemorySearchTool extends UnifiedMCPTool {
         }
       },
       required: ['query', 'userId']
-    };
-
-    super(
+    };    super(
       'oneagent_memory_search',
-      'Search OneAgent persistent memory system with semantic matching',
+      'Search OneAgent memory with semantic matching and filtering capabilities',
       schema,
       'enhanced'
     );

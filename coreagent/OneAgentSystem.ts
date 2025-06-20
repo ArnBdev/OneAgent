@@ -27,7 +27,7 @@ import { OfficeAgent } from './agents/specialized/OfficeAgent';
 import { FitnessAgent } from './agents/specialized/FitnessAgent';
 import { TriageAgent } from './agents/specialized/TriageAgent';
 import { ValidationAgent } from './agents/specialized/ValidationAgent';
-import { MultiAgentOrchestrator } from './agents/communication/MultiAgentOrchestrator';
+import { UnifiedNLACSOrchestrator } from './nlacs/UnifiedNLACSOrchestrator';
 import { OneAgentUnifiedBackbone } from './utils/UnifiedBackboneService.js';
 
 // User interface for compatibility - matches existing user.ts
@@ -698,12 +698,12 @@ class CoreAgent implements SpecialistAgent {
  */
 class TeamMeetingEngine {
   private oneAgentSystem: OneAgentSystem;
-  private multiAgentOrchestrator: MultiAgentOrchestrator;
+  private multiAgentOrchestrator: UnifiedNLACSOrchestrator;
   private activeMeetings: Map<string, TeamMeeting> = new Map();
   
   constructor(oneAgentSystem: OneAgentSystem) {
     this.oneAgentSystem = oneAgentSystem;
-    this.multiAgentOrchestrator = new MultiAgentOrchestrator('OneAgent-Core-v4.0.0');
+    this.multiAgentOrchestrator = UnifiedNLACSOrchestrator.getInstance();
   }
   
   async conductMeeting(request: TeamMeetingRequest): Promise<TeamMeeting> {

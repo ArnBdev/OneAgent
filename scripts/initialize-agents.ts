@@ -9,7 +9,7 @@
  *   npx ts-node scripts/initialize-agents.ts
  */
 
-import { MultiAgentOrchestrator } from '../coreagent/agents/communication/MultiAgentOrchestrator';
+import { UnifiedNLACSOrchestrator } from '../coreagent/nlacs/UnifiedNLACSOrchestrator';
 import { AgentConfig } from '../coreagent/agents/base/BaseAgent';
 import { randomUUID } from 'crypto';
 // Import the memory system fix
@@ -21,9 +21,8 @@ async function initializeAgentNetwork() {
   console.log('🚀 OneAgent Network Initialization');
   console.log('===================================');
   
-  try {
-    // Create and initialize the orchestrator
-    const orchestrator = new MultiAgentOrchestrator();
+  try {    // Create and initialize the orchestrator
+    const orchestrator = UnifiedNLACSOrchestrator.getInstance();
     
     // Call the initialize method that was missing in the server startup
     await orchestrator.initialize();

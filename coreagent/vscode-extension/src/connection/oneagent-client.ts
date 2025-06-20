@@ -303,24 +303,21 @@ export class OneAgentClient {
             };
         }
     }
-    
-    /**
+      /**
      * Update configuration and reinitialize client
      */
     updateConfiguration(): void {
-        const config = vscode.workspace.getConfiguration('oneagent');
-        this.baseUrl = config.get('serverUrl', 'http://localhost:8083');
+        this.baseUrl = getServerUrl();
     }
     
     /**
      * Get current configuration
      */
     getConfiguration() {
-        const config = vscode.workspace.getConfiguration('oneagent');
         return {
-            serverUrl: config.get('serverUrl', 'http://localhost:8083'),
-            enableConstitutionalAI: config.get('enableConstitutionalAI', true),
-            qualityThreshold: config.get('qualityThreshold', 80)
+            serverUrl: getServerUrl(),
+            enableConstitutionalAI: vscode.workspace.getConfiguration('oneagent').get('enableConstitutionalAI', true),
+            qualityThreshold: vscode.workspace.getConfiguration('oneagent').get('qualityThreshold', 80)
         };
     }
 }

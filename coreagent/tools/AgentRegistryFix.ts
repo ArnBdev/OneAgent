@@ -14,6 +14,7 @@ import { OfficeAgent } from '../agents/specialized/OfficeAgent';
 import { FitnessAgent } from '../agents/specialized/FitnessAgent';
 import { CoreAgent } from '../agents/specialized/CoreAgent';
 import { TriageAgent } from '../agents/specialized/TriageAgent';
+import { oneAgentConfig } from '../config';
 
 interface AgentFixResult {
   success: boolean;
@@ -153,7 +154,7 @@ export class AgentRegistryFix {
             constitutionalCompliant: true
           }
         ],
-        endpoint: 'http://localhost:8083/agent/DevAgent',
+        endpoint: `${oneAgentConfig.mcpUrl}/agent/DevAgent`,
         qualityScore: 95
       },
       {
@@ -177,7 +178,7 @@ export class AgentRegistryFix {
             constitutionalCompliant: true
           }
         ],
-        endpoint: 'http://localhost:8083/agent/OfficeAgent',
+        endpoint: `${oneAgentConfig.mcpUrl}/agent/OfficeAgent`,
         qualityScore: 92
       },
       {
@@ -201,7 +202,7 @@ export class AgentRegistryFix {
             constitutionalCompliant: true
           }
         ],
-        endpoint: 'http://localhost:8083/agent/FitnessAgent',
+        endpoint: `${oneAgentConfig.mcpUrl}/agent/FitnessAgent`,
         qualityScore: 90
       },
       {
@@ -225,7 +226,7 @@ export class AgentRegistryFix {
             constitutionalCompliant: true
           }
         ],
-        endpoint: 'http://localhost:8083/agent/CoreAgent',
+        endpoint: `${oneAgentConfig.mcpUrl}/agent/CoreAgent`,
         qualityScore: 95
       },
       {
@@ -249,7 +250,7 @@ export class AgentRegistryFix {
             constitutionalCompliant: true
           }
         ],
-        endpoint: 'http://localhost:8083/agent/TriageAgent',
+        endpoint: `${oneAgentConfig.mcpUrl}/agent/TriageAgent`,
         qualityScore: 88
       }
     ];

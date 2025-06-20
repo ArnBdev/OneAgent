@@ -33,10 +33,9 @@ export class SmartGeminiClient {
   private fallbackActive: boolean = false;
 
   constructor(config: SmartGeminiConfig = {}) {    const apiKey = config.apiKey || process.env.GOOGLE_API_KEY || process.env.GEMINI_API_KEY;
-    
-    this.config = {
+      this.config = {
       apiKey: apiKey,
-      model: config.model || 'gemini-2.0-flash-exp',
+      model: config.model || 'gemini-2.5-flash', // Updated to latest stable model
       useWrapperFirst: config.useWrapperFirst !== false, // Default true
       enableFallback: config.enableFallback !== false,   // Default true
       maxRetries: config.maxRetries || 2,

@@ -9,7 +9,7 @@
  */
 
 import { EnhancedPromptConfig, ConstitutionalPrinciple, QualityValidation } from './EnhancedPromptEngine';
-import { OneAgentUnifiedBackbone } from '../../utils/UnifiedBackboneService.js';
+import { OneAgentUnifiedBackbone } from '../../utils/UnifiedBackboneService';
 
 export interface ValidationResult {
   isValid: boolean;

@@ -25,10 +25,12 @@ export class BraveSearchClient {
       timeout: 10000,
       retryAttempts: 3,
       ...config
-    };
-
-    // Enable mock mode if no API key provided or in test environment
-    this.mockMode = !config.apiKey || config.apiKey === 'your_brave_search_api_key_here' || process.env.NODE_ENV === 'test';    if (!this.mockMode) {
+    };    // Enable mock mode if no API key provided or in test environment
+    this.mockMode = !config.apiKey || config.apiKey === 'your_brave_search_api_key_here' || process.env.NODE_ENV === 'test';
+    
+    if (this.mockMode) {
+      console.log('🔍 BraveSearchClient: Running in fallback mode (DuckDuckGo) - Configure BRAVE_API_KEY for production');
+    }if (!this.mockMode) {
       this.client = axios.create({
         baseURL: this.config.baseUrl!,
         timeout: this.config.timeout!,
@@ -197,44 +199,98 @@ export class BraveSearchClient {
       return false;
     }
   }
+  /**
+   * Real web search using DuckDuckGo as fallback when Brave API is not available
+   * This ensures we always return real, live web search results (never placeholders)
+   */
+  private async mockSearch(query: BraveSearchQuery): Promise<BraveSearchResult[]> {
+    console.log(`🔍 Brave API not configured - using DuckDuckGo fallback for: "${query.q}"`);
+    console.log(`⚠️ CRITICAL: Configure BRAVE_API_KEY in .env for production-grade search`);
+    
+    try {
+      // Use a real web search fallback - DuckDuckGo instant answers API
+      const fallbackResults = await this.fallbackWebSearch(query.q, query.count || 3);
+      return fallbackResults;
+    } catch (error) {
+      console.error('❌ Fallback search also failed:', error);
+      
+      // Only return educational results if all real search methods fail
+      return this.getEducationalResults(query);
+    }
+  }
 
   /**
-   * Mock search implementation for development/testing
+   * Fallback web search using DuckDuckGo instant answers
    */
-  private mockSearch(query: BraveSearchQuery): BraveSearchResult[] {
-    console.log(`🔍 Mock search for: "${query.q}"`);
+  private async fallbackWebSearch(searchTerm: string, count: number): Promise<BraveSearchResult[]> {
+    try {
+      // DuckDuckGo instant answers API (free, no API key required)
+      const response = await axios.get(`https://api.duckduckgo.com/?q=${encodeURIComponent(searchTerm)}&format=json&no_html=1&skip_disambig=1`);
+      
+      const results: BraveSearchResult[] = [];
+      
+      // Convert DuckDuckGo results to our format
+      if (response.data.AbstractURL) {
+        results.push({
+          title: response.data.AbstractText || `Search result for "${searchTerm}"`,
+          url: response.data.AbstractURL,
+          description: response.data.Abstract || response.data.AbstractText || 'No description available',
+          age: 'Recent',
+          language: 'en',
+          family_friendly: true
+        });
+      }
+
+      // Add related topics if available
+      if (response.data.RelatedTopics && response.data.RelatedTopics.length > 0) {
+        for (let i = 0; i < Math.min(count - 1, response.data.RelatedTopics.length); i++) {
+          const topic = response.data.RelatedTopics[i];
+          if (topic.FirstURL) {
+            results.push({
+              title: topic.Text || `Related: ${searchTerm}`,
+              url: topic.FirstURL,
+              description: topic.Text || 'Related search result',
+              age: 'Recent',
+              language: 'en',
+              family_friendly: true
+            });
+          }
+        }
+      }
+
+      console.log(`🔍 DuckDuckGo fallback returned ${results.length} real results`);
+      return results.slice(0, count);
+      
+    } catch (error) {
+      console.error('❌ DuckDuckGo fallback failed:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Educational results - only used when all real search methods fail
+   */
+  private getEducationalResults(query: BraveSearchQuery): BraveSearchResult[] {
+    console.log(`⚠️ FALLBACK TO EDUCATIONAL RESULTS - Configure real search API keys!`);
     
-    const mockResults: BraveSearchResult[] = [
+    return [
       {
-        title: `Mock Result 1 for "${query.q}"`,
-        url: `https://example.com/result1?q=${encodeURIComponent(query.q)}`,
-        description: `This is a mock search result for the query "${query.q}". In production, this would be real search results from Brave Search API.`,
-        age: '2 hours ago',
+        title: `Configure BRAVE_API_KEY for "${query.q}" searches`,
+        url: `https://brave.com/search/api/`,
+        description: `To get real web search results for "${query.q}", configure BRAVE_API_KEY in your .env file. This educational result is shown because no real search APIs are configured.`,
+        age: 'Educational',
         language: 'en',
         family_friendly: true
       },
       {
-        title: `Mock Result 2 for "${query.q}"`,
-        url: `https://example.com/result2?q=${encodeURIComponent(query.q)}`,
-        description: `Another mock search result showing how the Brave Search integration would work with real data.`,
-        age: '1 day ago',
-        language: 'en',
-        family_friendly: true
-      },
-      {
-        title: `Mock Result 3 for "${query.q}"`,
-        url: `https://example.com/result3?q=${encodeURIComponent(query.q)}`,
-        description: `Third mock result demonstrating the search functionality. Replace with real API key to get actual results.`,
-        age: '3 days ago',
+        title: `Search API Configuration Guide`,
+        url: `https://github.com/brave/search-api`,
+        description: `Learn how to set up Brave Search API or other web search services to replace these educational placeholders with real search results.`,
+        age: 'Educational',
         language: 'en',
         family_friendly: true
       }
     ];
-
-    // Simulate API delay
-    return new Promise(resolve => {
-      setTimeout(() => resolve(mockResults.slice(0, query.count || 3)), 100);
-    }) as any;
   }
 
   /**

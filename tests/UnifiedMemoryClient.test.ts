@@ -7,13 +7,14 @@
  */
 
 import { UnifiedMemoryClient, ConstitutionalLevel } from './UnifiedMemoryClient';
+import { oneAgentConfig } from '../coreagent/config';
 
 /**
  * Test configuration
  */
 const TEST_CONFIG = {
   host: 'localhost',
-  port: 8083,
+  port: oneAgentConfig.mcpPort,
   timeout: 5000,
   retryAttempts: 2,
   retryDelay: 1000,

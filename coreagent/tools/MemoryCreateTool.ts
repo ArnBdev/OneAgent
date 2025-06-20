@@ -31,11 +31,9 @@ export class MemoryCreateTool extends UnifiedMCPTool {
         }
       },
       required: ['content', 'userId']
-    };
-
-    super(
+    };    super(
       'oneagent_memory_create',
-      'Create new memory with real-time learning capability',
+      'Store information in OneAgent persistent memory system with temporal tracking and Constitutional AI validation',
       schema,
       'enhanced' // Constitutional AI level
     );
