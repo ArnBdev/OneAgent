@@ -201,7 +201,7 @@ export class DevAgent extends BaseAgent implements ISpecializedAgent {
   }
 
   /**
-   * REAL AI-powered development response generation
+   * REAL AI-powered development response generation with personality enhancement
    */
   private async generateDevelopmentResponse(
     message: string, 
@@ -214,10 +214,36 @@ export class DevAgent extends BaseAgent implements ISpecializedAgent {
     // Build enhanced development prompt
     const developmentPrompt = this.buildDevelopmentPrompt(message, requestType, relevantMemories);
     
-    // Generate response using AI (REAL AI integration)
-    const response = await this.generateResponse(developmentPrompt, relevantMemories);
+    // Generate base response using AI
+    const baseResponse = await this.generateResponse(developmentPrompt, relevantMemories);
     
-    return response;
+    // Apply personality enhancement for authentic DevAgent perspective
+    const personalityEnhancedResponse = await this.generatePersonalityResponse(
+      baseResponse,
+      context,
+      message
+    );
+    
+    return personalityEnhancedResponse;
+  }
+
+  /**
+   * Override domain context for DevAgent personality
+   */
+  protected getDomainContext(): string {
+    return 'software-development';
+  }
+
+  /**
+   * Override domain keywords for DevAgent expertise assessment
+   */
+  protected getDomainKeywords(): string[] {
+    return [
+      'code', 'function', 'class', 'variable', 'method', 'api', 'bug', 'debug',
+      'test', 'architecture', 'database', 'algorithm', 'performance', 'security',
+      'framework', 'library', 'typescript', 'javascript', 'python', 'node',
+      'react', 'git', 'deployment', 'refactor', 'optimize', 'implement'
+    ];
   }
 
   /**

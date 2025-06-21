@@ -50,93 +50,127 @@ export class ConversationRetrievalTool extends UnifiedMCPTool {
         timeRangeHours, 
         includeFullLogs = true,
         maxResults = 50
-      } = args;      // Simple conversation retrieval from logs and memory
-      const fs = await import('fs/promises');
-      const path = await import('path');
+      } = args;
+
+      // Search for NLACS conversations in memory
+      const { MemorySearchTool } = await import('./MemorySearchTool');
+      const memorySearch = new MemorySearchTool();
       
-      const conversations: any[] = [];
-      let message = 'Conversation retrieval completed';
+      // Build search query
+      let searchQuery = 'NLACS_CONVERSATION';
+      if (agentType) {
+        searchQuery += ` ${agentType}`;
+      }
+      if (sessionId) {
+        searchQuery += ` ${sessionId}`;
+      }
       
+      // Search memory for conversations
+      const memoryResults = await memorySearch.execute(
+        {
+          query: searchQuery,
+          userId: 'arne', // TODO: Get from context
+          memoryType: 'session',
+          limit: maxResults
+        },
+        {} // Empty context
+      );
+      
+      let conversations: any[] = [];
+      
+      if (memoryResults.success && memoryResults.data?.searchResults?.results) {
+        conversations = memoryResults.data.searchResults.results
+          .filter((result: any) => 
+            result.content && 
+            result.content.includes('NLACS_CONVERSATION') &&
+            (!agentType || result.content.includes(agentType))
+          )
+          .map((result: any) => {
+            // Extract conversation data from memory content
+            const lines = result.content.split('\n');
+            const topicLine = lines.find((line: string) => line.startsWith('NLACS_CONVERSATION:'));
+            const participantsLine = lines.find((line: string) => line.startsWith('Participants:'));
+            const conversationIdLine = lines.find((line: string) => line.startsWith('Conversation ID:'));
+            const fullDataStart = lines.findIndex((line: string) => line.startsWith('Full Data:'));
+            
+            let fullData = null;
+            if (fullDataStart >= 0 && includeFullLogs) {
+              try {
+                const jsonData = lines.slice(fullDataStart + 1).join('\n');
+                fullData = JSON.parse(jsonData);
+              } catch (e) {
+                // If JSON parsing fails, include raw data
+                fullData = { rawContent: lines.slice(fullDataStart + 1).join('\n') };
+              }
+            }
+            
+            return {
+              conversationId: conversationIdLine?.split('Conversation ID: ')[1] || 'unknown',
+              topic: topicLine?.split('NLACS_CONVERSATION: ')[1] || 'Unknown Topic',
+              participants: participantsLine?.split('Participants: ')[1]?.split(', ') || [],
+              timestamp: result.timestamp || new Date().toISOString(),
+              memoryId: result.id,
+              relevance: result.relevance || 0,
+              fullData: includeFullLogs ? fullData : null,
+              sessionId: sessionId || 'unknown'
+            };
+          });
+      }
+      
+      // Also check NLACS orchestrator in-memory conversations
       try {
-        // Check OneAgent memory log
-        const memoryLogPath = path.join(process.cwd(), 'oneagent_memory.log');
-        try {
-          const memoryLog = await fs.readFile(memoryLogPath, 'utf-8');
-          const logEntries = memoryLog.split('\n').filter(line => line.trim());
-          
-          for (const entry of logEntries.slice(-maxResults)) {
-            if (entry.includes('conversation') || entry.includes('agent')) {
-              conversations.push({
-                timestamp: new Date().toISOString(),
-                type: 'memory_log',
-                content: entry.substring(0, 200),
-                sessionId: sessionId || 'unknown'
-              });
-            }
-          }
-        } catch (error) {
-          // Memory log not found, continue
-        }
+        const { UnifiedNLACSOrchestrator } = await import('../nlacs/UnifiedNLACSOrchestrator');
+        const nlacs = UnifiedNLACSOrchestrator.getInstance();
         
-        // Check for other log files
-        const logsDir = path.join(process.cwd(), 'logs');
-        try {
-          const logFiles = await fs.readdir(logsDir);
-          for (const logFile of logFiles.slice(0, 5)) { // Limit to 5 files
-            if (logFile.includes('conversation') || logFile.includes('agent')) {
-              const logPath = path.join(logsDir, logFile);
-              const logContent = await fs.readFile(logPath, 'utf-8');
-              conversations.push({
-                timestamp: new Date().toISOString(),
-                type: 'log_file',
-                file: logFile,
-                content: logContent.substring(0, 500),
-                sessionId: sessionId || 'unknown'
-              });
-            }
-          }
-        } catch (error) {
-          // Logs directory not found, continue
+        // Get active conversations from NLACS (privacy-respecting)
+        const systemStatus = await nlacs.getSystemStatus();
+        if (systemStatus.activeConversations > 0) {
+          conversations.push({
+            conversationId: 'active-sessions',
+            topic: 'Active NLACS Sessions',
+            participants: ['Multiple'],
+            timestamp: new Date().toISOString(),
+            memoryId: 'nlacs-active',
+            relevance: 1.0,
+            fullData: includeFullLogs ? {
+              activeConversations: systemStatus.activeConversations,
+              totalMessages: systemStatus.totalMessages,
+              uptime: systemStatus.uptime
+            } : null,
+            sessionId: 'active'
+          });
         }
-        
       } catch (error) {
-        message = `Partial conversation retrieval: ${error instanceof Error ? error.message : 'Unknown error'}`;
+        console.warn('Could not access NLACS active conversations:', (error as Error).message);
       }
 
-      const result = {
-        success: true,
-        conversations: conversations.slice(0, maxResults),
-        totalFound: conversations.length,
-        message,
-        timestamp: new Date().toISOString()
-      };
-
       return {
-        success: result.success,
+        success: true,
         data: {
-          ...result,
-          toolName: 'oneagent_conversation_retrieve',
+          conversations: conversations.slice(0, maxResults),
+          totalFound: conversations.length,
+          message: 'Conversation retrieval completed',
           timestamp: new Date().toISOString(),
+          toolName: this.name,
           metadata: {
             conversationRetrieval: true,
             toolFramework: 'unified_mcp_v1.0',
-            constitutionalLevel: 'enhanced',
+            constitutionalLevel: this.constitutionalLevel,
             fullLogsIncluded: includeFullLogs
           }
         }
       };
-
-    } catch (error) {
-      console.error('[ConversationRetrievalTool] Failed to retrieve conversations:', error);
       
+    } catch (error) {
       return {
         success: false,
         data: {
-          success: false,
           conversations: [],
-          error: error instanceof Error ? error.message : 'Unknown error',
-          message: 'Failed to retrieve conversation history',
-          timestamp: new Date().toISOString()
+          totalFound: 0,
+          message: `Conversation retrieval failed: ${(error as Error).message}`,
+          timestamp: new Date().toISOString(),
+          toolName: this.name,
+          error: (error as Error).message
         }
       };
     }

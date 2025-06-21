@@ -25,12 +25,12 @@
 export interface UnifiedTimeContext {
   context: {
     timeOfDay: 'morning' | 'afternoon' | 'evening' | 'night' | 'early-morning' | 'late-night';
-    dayOfWeek: string;
+    dayOfWeek: 'monday' | 'tuesday' | 'wednesday' | 'thursday' | 'friday' | 'saturday' | 'sunday';
     businessDay: boolean;
     workingHours: boolean;
     weekendMode: boolean;
     peakHours: boolean;
-    seasonalContext: string; // Added to match implementation usage
+    seasonalContext: 'spring' | 'summer' | 'fall' | 'winter';
   };
   intelligence: {
     energyLevel: 'low' | 'medium' | 'high' | 'peak';
@@ -38,21 +38,27 @@ export interface UnifiedTimeContext {
     suggestionContext: 'planning' | 'execution' | 'review' | 'rest';
     motivationalTiming: 'morning-boost' | 'afternoon-focus' | 'evening-wind-down' | 'night-rest' | 'start-strong' | 'mid-momentum' | 'end-sprint' | 'reflection';
   };
-  metadata?: { // Made optional to match implementation
+  metadata?: {
     timezone: string;
     timestamp: Date;
     contextUpdated: Date;
   };
-  realTime?: any; // Added to match implementation usage
+  realTime: {
+    unix: number;
+    utc: string;
+    local: string;
+    timezone: string;
+    offset: number;
+  };
 }
 
 export interface UnifiedTimestamp {
   iso: string;
   unix: number;
   utc: string;
-  local: string; // Added to match implementation usage
-  timezone: string; // Added to match implementation usage
-  context: string; // Added to match implementation usage
+  local: string;
+  timezone: string;
+  context: string;
   contextual: {
     timeOfDay: string;
     energyLevel: string;

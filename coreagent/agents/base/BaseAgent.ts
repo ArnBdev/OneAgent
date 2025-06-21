@@ -26,6 +26,7 @@ import {
 } from './EnhancedPromptEngine';
 import { ConstitutionalAI, ValidationResult } from './ConstitutionalAI';
 import { BMADElicitationEngine, ElicitationResult } from './BMADElicitationEngine';
+import { PersonalityEngine, PersonalityContext, PersonalityExpression } from '../personality/PersonalityEngine';
 
 export interface AgentConfig {
   id: string;
@@ -86,6 +87,7 @@ export abstract class BaseAgent {
   protected constitutionalAI?: ConstitutionalAI;
   protected bmadElicitation?: BMADElicitationEngine;
   protected promptConfig?: EnhancedPromptConfig;
+  protected personalityEngine?: PersonalityEngine;
   constructor(config: AgentConfig, promptConfig?: EnhancedPromptConfig) {
     this.config = config;
     this.promptConfig = promptConfig || this.getDefaultPromptConfig();
@@ -198,6 +200,9 @@ export abstract class BaseAgent {
 
       // Initialize BMAD Elicitation Engine
       this.bmadElicitation = new BMADElicitationEngine();
+
+      // Initialize Personality Engine
+      this.personalityEngine = new PersonalityEngine();
 
       console.log(`Advanced Prompt Engineering initialized for agent ${this.config.id}`);
     } catch (error) {
@@ -556,5 +561,126 @@ Generate a refined response that addresses the improvement areas while maintaini
       processedMessages: 0, // Could be enhanced to track actual processed messages
       errors: 0 // Could be enhanced to track actual errors
     };
+  }
+
+  /**
+   * Generate personality-enhanced response
+   */
+  protected async generatePersonalityResponse(
+    baseResponse: string, 
+    context: AgentContext,
+    userMessage: string
+  ): Promise<string> {
+    if (!this.personalityEngine) {
+      return baseResponse;
+    }
+
+    try {
+      // Build personality context from agent context
+      const personalityContext: PersonalityContext = {
+        conversation_history: context.conversationHistory?.map(m => m.content) || [],
+        domain_context: this.getDomainContext(),
+        user_relationship_level: this.calculateUserRelationshipLevel(context),
+        topic_expertise_level: this.calculateTopicExpertiseLevel(userMessage),
+        formality_level: this.calculateFormalityLevel(context, userMessage),
+        emotional_context: this.detectEmotionalContext(userMessage)
+      };
+
+      // Generate personality-enhanced response
+      const personalityExpression = await this.personalityEngine.generatePersonalityResponse(
+        this.config.id,
+        baseResponse,
+        personalityContext
+      );
+
+      // Log personality metrics for analysis
+      console.log(`[${this.config.id}] Personality Response Generated:`, {
+        authenticityScore: personalityExpression.authenticity_score,
+        constitutionalCompliance: personalityExpression.constitutional_compliance,
+        personalityMarkers: personalityExpression.personality_markers.length,
+        perspectiveIndicators: personalityExpression.perspective_indicators.length
+      });
+
+      return personalityExpression.content;
+    } catch (error) {
+      console.warn(`Personality enhancement failed for ${this.config.id}:`, error);
+      return baseResponse; // Fallback to base response
+    }
+  }
+
+  /**
+   * Get domain context for personality engine (override in specialized agents)
+   */
+  protected getDomainContext(): string {
+    return 'general-assistance';
+  }
+
+  /**
+   * Calculate user relationship level based on context
+   */
+  protected calculateUserRelationshipLevel(context: AgentContext): number {
+    // Simple heuristic based on conversation history length
+    const historyLength = context.conversationHistory?.length || 0;
+    return Math.min(1.0, historyLength / 10); // 0.0 to 1.0 scale
+  }
+
+  /**
+   * Calculate topic expertise level based on user message content
+   */
+  protected calculateTopicExpertiseLevel(userMessage: string): number {
+    // Default implementation - override in specialized agents
+    const domainKeywords = this.getDomainKeywords();
+    const messageLower = userMessage.toLowerCase();
+    const matchedKeywords = domainKeywords.filter(keyword => 
+      messageLower.includes(keyword.toLowerCase())
+    ).length;
+    
+    return Math.min(1.0, matchedKeywords / Math.max(1, domainKeywords.length * 0.3));
+  }
+
+  /**
+   * Get domain-specific keywords (override in specialized agents)
+   */
+  protected getDomainKeywords(): string[] {
+    return ['help', 'assist', 'support', 'question', 'problem'];
+  }
+  /**
+   * Calculate formality level based on context and message
+   */
+  protected calculateFormalityLevel(_context: AgentContext, userMessage: string): number {
+    // Simple heuristic based on message characteristics
+    const hasFormalGreeting = /\b(please|thank you|could you|would you)\b/i.test(userMessage);
+    const hasInformalLanguage = /\b(hey|hi|yo|gonna|wanna|isn't|don't)\b/i.test(userMessage);
+    const hasFullSentences = userMessage.split('.').length > 1;
+    
+    let formalityScore = 0.5; // Base neutral
+    if (hasFormalGreeting) formalityScore += 0.3;
+    if (hasFullSentences) formalityScore += 0.2;
+    if (hasInformalLanguage) formalityScore -= 0.3;
+    
+    return Math.max(0.0, Math.min(1.0, formalityScore));
+  }
+
+  /**
+   * Detect emotional context from user message
+   */
+  protected detectEmotionalContext(userMessage: string): string {
+    const frustrationKeywords = ['frustrated', 'annoyed', 'stuck', 'problem', 'broken', 'error'];
+    const excitementKeywords = ['excited', 'great', 'awesome', 'love', 'amazing'];
+    const urgencyKeywords = ['urgent', 'asap', 'quickly', 'immediately', 'rush'];
+    
+    const messageLower = userMessage.toLowerCase();
+    
+    if (frustrationKeywords.some(keyword => messageLower.includes(keyword))) {
+      return 'frustrated';
+    }
+    if (excitementKeywords.some(keyword => messageLower.includes(keyword))) {
+      return 'excited';
+    }
+    if (urgencyKeywords.some(keyword => messageLower.includes(keyword))) {
+      return 'urgent';
+    }
+    
+    return 'neutral';
   }
 }

@@ -367,12 +367,13 @@ export class UnifiedNLACSOrchestrator extends EventEmitter {
       confidence: 0.85,
       referencesTo: [],
       unifiedTimestamp: messageTime
-    };
-
-    conversation.messages.push(message);
+    };    conversation.messages.push(message);
 
     // Update unified metadata with message analytics
     await this.updateConversationMetadata(conversation);
+
+    // Store updated conversation in memory
+    await this.storeInUnifiedMemory(conversation);
 
     this.emit('messageAdded', { message, conversation, timestamp: messageTime });
 
@@ -529,11 +530,39 @@ export class UnifiedNLACSOrchestrator extends EventEmitter {
 
   /**
    * Store in unified memory system (future integration)
-   */
-  private async storeInUnifiedMemory(conversation: NLACSConversation): Promise<void> {
+   */  private async storeInUnifiedMemory(conversation: NLACSConversation): Promise<void> {
     try {
-      // TODO: Integrate with UnifiedMemoryClient
-      console.log(`💾 Storing in unified memory: ${conversation.conversationId}`);
+      // Store full conversation in OneAgent memory system
+      const { MemoryCreateTool } = await import('../tools/MemoryCreateTool');
+      const memoryTool = new MemoryCreateTool();
+      
+      const conversationContent = {
+        conversationId: conversation.conversationId,
+        topic: conversation.topic,
+        participants: conversation.participants,
+        messages: conversation.messages,
+        status: conversation.status,
+        metadata: conversation.unifiedMetadata,
+        projectContext: conversation.projectContext,
+        timestamp: new Date().toISOString()
+      };
+      
+      await memoryTool.execute({
+        content: `NLACS_CONVERSATION: ${conversation.topic}\n\nParticipants: ${conversation.participants.map(p => p.agentType).join(', ')}\n\nConversation ID: ${conversation.conversationId}\n\nMessages: ${conversation.messages.length}\n\nFull Data: ${JSON.stringify(conversationContent, null, 2)}`,
+        userId: conversation.userId,
+        memoryType: 'session',
+        metadata: {
+          type: 'nlacs_conversation',
+          conversationId: conversation.conversationId,
+          topic: conversation.topic,
+          participants: conversation.participants.map(p => p.agentType),
+          status: conversation.status,
+          messageCount: conversation.messages.length
+        }
+      }, 
+      `memory_${conversation.conversationId}_${Date.now()}`); // ID parameter
+      
+      console.log(`💾 Stored conversation in unified memory: ${conversation.conversationId}`);
     } catch (error) {
       console.warn('⚠️ Failed to store in unified memory:', error);
     }

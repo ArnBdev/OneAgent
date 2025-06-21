@@ -27,7 +27,7 @@ import {
   UnifiedSystemHealth,
   ALITAUnifiedContext,
   AgentType
-} from '../types/unified-fixed';
+} from '../types/oneagent-backbone-types';
 
 // =====================================
 // UNIFIED TIME SERVICE IMPLEMENTATION
@@ -54,6 +54,10 @@ export class OneAgentUnifiedTimeService implements UnifiedTimeService {
     return {
       iso: jsDate.toISOString(),
       unix: jsDate.getTime(),
+      utc: jsDate.toISOString(),
+      local: jsDate.toString(),
+      timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+      context: `${context.context.timeOfDay}_${context.intelligence.energyLevel}`,
       contextual: {
         timeOfDay: context.context.timeOfDay,
         energyLevel: context.intelligence.energyLevel,
@@ -79,15 +83,15 @@ export class OneAgentUnifiedTimeService implements UnifiedTimeService {
     const now = new Date();
     const hour = now.getHours();
     const day = now.getDay();
-    const month = now.getMonth();
-      const context: UnifiedTimeContext = {
+    const month = now.getMonth();    const context: UnifiedTimeContext = {
       context: {
-        dayOfWeek: ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'][day] as any,
+        dayOfWeek: ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'][day] as 'sunday' | 'monday' | 'tuesday' | 'wednesday' | 'thursday' | 'friday' | 'saturday',
         timeOfDay: this.getTimeOfDay(hour),
         workingHours: this.isWorkingHours(hour, day),
         weekendMode: day === 0 || day === 6,
         businessDay: day >= 1 && day <= 5,
-        peakHours: (hour >= 9 && hour <= 11) || (hour >= 14 && hour <= 16)
+        peakHours: (hour >= 9 && hour <= 11) || (hour >= 14 && hour <= 16),
+        seasonalContext: this.getSeasonalContext(month)
       },
       intelligence: {
         optimalFocusTime: this.isOptimalFocusTime(hour, day),
@@ -99,6 +103,13 @@ export class OneAgentUnifiedTimeService implements UnifiedTimeService {
         timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
         timestamp: now,
         contextUpdated: now
+      },
+      realTime: {
+        unix: now.getTime(),
+        utc: now.toISOString(),
+        local: now.toString(),
+        timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+        offset: now.getTimezoneOffset()
       }
     };
     
@@ -161,6 +172,10 @@ export class OneAgentUnifiedTimeService implements UnifiedTimeService {
     return {
       iso: basicTime.toISOString(),
       unix: basicTime.getTime(),
+      utc: basicTime.toISOString(),
+      local: basicTime.toString(),
+      timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+      context: `${this.getTimeOfDay(hour)}_${context.intelligence.energyLevel}`,
       contextual: {
         timeOfDay: this.getTimeOfDay(hour),
         energyLevel: context.intelligence.energyLevel,
@@ -641,13 +656,12 @@ export class OneAgentUnifiedBackbone {
         status: 'healthy',
         score: 0.95,
         timestamp: this.timeService.now()
-      },
-      components: {
-        timeService: { status: 'operational', responseTime: 1.5 },
-        metadataService: { status: 'operational', operationsPerSecond: 100 },
-        memoryService: { status: 'operational', storageHealth: 0.95 },
-        constitutionalAI: { status: 'operational', complianceRate: 0.85 }
-      },      metrics: {
+      },      components: {
+        timeService: { status: 'operational', responseTime: 1.5, operational: true },
+        metadataService: { status: 'operational', operationsPerSecond: 100, operational: true },
+        memoryService: { status: 'operational', storageHealth: 0.95, operational: true },
+        constitutionalAI: { status: 'operational', complianceRate: 0.85, operational: true }
+      },metrics: {
         uptime: 0.999, // 99.9% uptime
         errorRate: 0.001, // 0.1% error rate
         performanceScore: 0.95 // 95% performance score
