@@ -10,7 +10,6 @@
  */
 
 import { BaseAgent, AgentConfig, AgentContext, AgentResponse, Message } from '../base/BaseAgent';
-import { realUnifiedMemoryClient } from '../../memory/RealUnifiedMemoryClient';
 import { v4 as uuidv4 } from 'uuid';
 
 export interface Task {

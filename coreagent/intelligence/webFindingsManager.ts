@@ -13,8 +13,8 @@ import {
 import { BraveSearchResponse } from '../types/braveSearch';
 import { WebFetchResponse } from '../types/webFetch';
 import { MemoryIntelligence } from './memoryIntelligence';
+import { UnifiedMemoryClient } from '../types/oneagent-backbone-types';
 import { EmbeddingCache } from '../performance/embeddingCache';
-import { MemoryBridge } from '../integration/memoryBridge';
 import * as path from 'path';
 import { promises as fs } from 'fs';
 import * as crypto from 'crypto';
@@ -23,7 +23,7 @@ export class WebFindingsManager {
   private config: WebFindingsConfig;
   private memoryIntelligence: MemoryIntelligence | undefined;
   private embeddingCache: EmbeddingCache | undefined;
-  private memoryBridge: MemoryBridge | undefined;
+  private memoryClient: UnifiedMemoryClient | undefined;
   
   // In-memory caches
   private searchCache = new Map<string, WebSearchFinding>();
@@ -47,7 +47,7 @@ export class WebFindingsManager {
     config?: Partial<WebFindingsConfig>,
     memoryIntelligence?: MemoryIntelligence,
     embeddingCache?: EmbeddingCache,
-    memoryBridge?: MemoryBridge
+    memoryClient?: UnifiedMemoryClient
   ) {
     this.config = {
       storage: {
@@ -62,11 +62,10 @@ export class WebFindingsManager {
         autoClassify: true,
         importanceThreshold: 0.6,
         devAgentRelevanceBoost: 1.5
-      },
-      integration: {
+      },      integration: {
         memoryIntelligence: !!memoryIntelligence,
         embeddingCache: !!embeddingCache,
-        memoryBridge: !!memoryBridge
+        memoryBridge: !!memoryClient // Use memoryClient for memoryBridge compatibility
       },
       privacy: {
         obfuscateUrls: false,
@@ -79,11 +78,9 @@ export class WebFindingsManager {
         maxPersonalDataRetention: 30 // days
       },
       ...config
-    };
-
-    this.memoryIntelligence = memoryIntelligence;
+    };    this.memoryIntelligence = memoryIntelligence;
     this.embeddingCache = embeddingCache;
-    this.memoryBridge = memoryBridge;
+    this.memoryClient = memoryClient;
 
     // Setup file system paths
     this.basePath = path.join(process.cwd(), 'data', 'web-findings');

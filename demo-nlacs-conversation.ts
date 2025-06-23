@@ -166,9 +166,8 @@ async function demonstrateNLACSConversations(): Promise<void> {
       console.log(`Active Agents: ${health.activeAgents}`);
       console.log(`Average Response Time: ${health.averageResponseTime}ms`);
       console.log(`Quality Score: ${health.qualityScore}%`);
-      console.log(`Last Updated: ${health.timestamp}`);
-    } catch (error) {
-      console.log('Health check not available:', error.message);
+      console.log(`Last Updated: ${health.timestamp}`);    } catch (error) {
+      console.log('Health check not available:', error instanceof Error ? error.message : 'Unknown error');
     }
 
     console.log(`\n🎉 NLACS DEMONSTRATION COMPLETE!`);

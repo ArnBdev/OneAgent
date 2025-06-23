@@ -5,9 +5,12 @@
 
 import { UnifiedMCPTool, ToolExecutionResult, InputSchema } from './UnifiedMCPTool';
 import { WebFetchTool } from './webFetch';
+import { OneAgentMem0Bridge } from '../memory/OneAgentMem0Bridge';
+import { LearningMemory } from '../memory/UnifiedMemoryInterface';
 
 export class UnifiedWebFetchTool extends UnifiedMCPTool {
   private webFetchTool: WebFetchTool;
+  private memoryBridge: OneAgentMem0Bridge;
 
   constructor() {
     const schema: InputSchema = {
@@ -67,6 +70,7 @@ export class UnifiedWebFetchTool extends UnifiedMCPTool {
         'text/markdown'
       ]
     });
+    this.memoryBridge = new OneAgentMem0Bridge({}); // Canonical memory bridge
   }
 
   protected async executeCore(args: any): Promise<ToolExecutionResult> {
@@ -269,22 +273,31 @@ export class UnifiedWebFetchTool extends UnifiedMCPTool {
    */
   private async storeFetchLearning(url: string, fetchResult: any): Promise<void> {
     try {
-      const learningData = {
-        type: 'web_fetch_learning',
-        url,
-        success: fetchResult.success,
-        contentLength: fetchResult.content?.text?.length || 0,
-        safetyScore: fetchResult.content?.safetyScore || 0,
-        qualityScore: this.calculateContentQuality(fetchResult),
-        fetchTime: fetchResult.timing?.totalTime || 0,
-        timestamp: new Date().toISOString(),
-        insights: this.generateFetchInsights(url, fetchResult)
-      };      await this.unifiedMemoryClient.createMemory(
-        `web_fetch_${Date.now()}`,
-        JSON.stringify(learningData),
-        'long_term',
-        ['web_fetch', 'learning', 'content_analysis', new URL(url).hostname]
-      );
+      const learning: LearningMemory = {
+        id: `learning_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+        agentId: 'oneagent_web_fetch',
+        learningType: 'documentation_context',
+        content: JSON.stringify({
+          url,
+          success: fetchResult.success,
+          contentLength: fetchResult.content?.text?.length || 0,
+          safetyScore: fetchResult.content?.safetyScore || 0,
+          qualityScore: this.calculateContentQuality(fetchResult),
+          fetchTime: fetchResult.timing?.totalTime || 0,
+          timestamp: new Date().toISOString(),
+          insights: this.generateFetchInsights(url, fetchResult)
+        }),
+        confidence: 0.9,
+        applicationCount: 0,
+        lastApplied: new Date(),
+        sourceConversations: [],
+        metadata: {
+          tool: 'web_fetch',
+          operation: 'web_content_fetch',
+          domain: (() => { try { return new URL(url).hostname; } catch { return undefined; } })(),
+        }
+      };
+      await this.memoryBridge.storeLearning(learning);
     } catch (error) {
       console.warn('[UnifiedWebFetchTool] Failed to store fetch learning:', error);
     }

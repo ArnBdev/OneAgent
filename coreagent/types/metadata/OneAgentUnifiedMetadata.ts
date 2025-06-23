@@ -210,7 +210,7 @@ export interface OneAgentBaseMetadata {
     
     // Context at creation
     contextSnapshot: {
-      timeOfDay: 'early-morning' | 'morning' | 'afternoon' | 'evening' | 'late-night';
+      timeOfDay: 'morning' | 'afternoon' | 'evening' | 'night' | 'early-morning' | 'late-night';
       dayOfWeek: 'monday' | 'tuesday' | 'wednesday' | 'thursday' | 'friday' | 'saturday' | 'sunday';
       businessContext: boolean;
       seasonalContext: 'spring' | 'summer' | 'fall' | 'winter';
@@ -602,7 +602,6 @@ export type AnyMetadata =
   | DocumentationMetadata 
   | MemoryMetadata 
   | ConversationMetadata 
-  | UserProfileMetadata 
   | OneAgentBaseMetadata;
 
 // =====================================

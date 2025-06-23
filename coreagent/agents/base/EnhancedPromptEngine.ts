@@ -273,10 +273,11 @@ ${principles}
 
 These principles guide all responses and decision-making.`;
   }
-
   private buildPersonaSection(context: AgentContext): string {
     const persona = this.config.agentPersona;
-    const customInstructions = context.enrichedContext?.userProfile?.customInstructions;
+    // Note: enrichedContext was removed from AgentContext interface
+    // Custom instructions can be added via metadata if needed
+    const customInstructions = context.metadata?.customInstructions;
     
     let personaSection = `
 ${persona.role}

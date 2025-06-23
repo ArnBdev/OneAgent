@@ -13,7 +13,6 @@
 
 import { BaseAgent, AgentConfig, AgentContext, AgentResponse, Message, AgentAction } from '../base/BaseAgent';
 import { ISpecializedAgent, AgentStatus, AgentHealthStatus } from '../base/ISpecializedAgent';
-import { realUnifiedMemoryClient } from '../../memory/RealUnifiedMemoryClient';
 import { v4 as uuidv4 } from 'uuid';
 
 export interface OfficeTask {
@@ -375,13 +374,22 @@ Provide helpful, professional office assistance. If creating documents or emails
     };
 
     this.officeTasks.set(task.id, task);
-    
-    // Store task in memory for persistence
+      // Store task in memory with enhanced metadata for concern separation
     await this.addMemory(userId, `Office task created: ${description}`, {
       taskId: task.id,
       taskType: type,
       priority,
-      createdAt: task.createdAt.toISOString()
+      createdAt: task.createdAt.toISOString(),
+      // Enhanced metadata for unified backbone system
+      category: type === 'meeting' || type === 'calendar' ? 'WORKPLACE' : 'PROJECTS',
+      sensitivity: 'internal' as const,
+      contextDependency: 'user' as const,
+      tags: ['office', 'task-management', `type:${type}`, `priority:${priority}`, `agent:${this.config.id}`],
+      relevanceScore: priority === 'high' ? 0.9 : priority === 'medium' ? 0.7 : 0.5,
+      // Office-specific metadata
+      officeTaskType: type,
+      workflowStage: 'created',
+      productivityContext: this.determineProductivityContext(type, description)
     });
 
     return task;
@@ -500,5 +508,17 @@ Provide helpful, professional office assistance. If creating documents or emails
       pendingTasks: tasks.filter(t => t.status === 'pending').length,
       completedTasks: tasks.filter(t => t.status === 'completed').length,      conversationLength: this.conversationHistory.length
     };
+  }
+
+  /**
+   * Determine productivity context for a task (simple heuristic)
+   */
+  private determineProductivityContext(type: string, description: string): string {
+    if (type === 'meeting' || /meeting|call|sync/i.test(description)) return 'collaboration';
+    if (type === 'email' || /email|mail|inbox/i.test(description)) return 'communication';
+    if (type === 'document' || /doc|report|write|draft/i.test(description)) return 'documentation';
+    if (type === 'calendar' || /calendar|schedule|event/i.test(description)) return 'planning';
+    if (type === 'task' || /task|todo|action/i.test(description)) return 'execution';
+    return 'general';
   }
 }

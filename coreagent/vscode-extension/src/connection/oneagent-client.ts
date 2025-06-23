@@ -27,6 +27,25 @@ export interface MemorySearchRequest {
     query: string;
     userId: string;
     limit?: number;
+    includeInsights?: boolean; // Enhanced with Memory Intelligence
+}
+
+export interface MemoryCreateRequest {
+    content: string;
+    userId: string;
+    memoryType?: string;
+    metadata?: any;
+    useIntelligence?: boolean; // Enhanced with Memory Intelligence
+}
+
+export interface MemoryInsightsRequest {
+    userId: string;
+    domain?: string;
+}
+
+export interface MemoryAnalyticsRequest {
+    userId: string;
+    timeRange?: 'day' | 'week' | 'month';
 }
 
 export interface AIAssistantRequest {
@@ -117,20 +136,22 @@ export class OneAgentClient {
       async systemHealth(): Promise<OneAgentResponse> {
         return this.makeRequest('/tools/oneagent_system_health', {}, 'POST');
     }
-    
-    async memorySearch(request: MemorySearchRequest): Promise<OneAgentResponse> {
+      async memorySearch(request: MemorySearchRequest): Promise<OneAgentResponse> {
         return this.makeRequest('/tools/oneagent_memory_context', {
             query: request.query,
             userId: request.userId,
-            limit: request.limit ?? 10
+            limit: request.limit ?? 10,
+            includeInsights: request.includeInsights ?? false  // Pass intelligence parameter
         });
     }
     
-    async memoryCreate(content: string, userId: string, memoryType: string = 'session'): Promise<OneAgentResponse> {
+    async memoryCreate(request: MemoryCreateRequest): Promise<OneAgentResponse> {
         return this.makeRequest('/tools/oneagent_memory_create', {
-            content,
-            userId,
-            memoryType
+            content: request.content,
+            userId: request.userId,
+            memoryType: request.memoryType,
+            metadata: request.metadata,
+            useIntelligence: request.useIntelligence ?? true
         });
     }
 

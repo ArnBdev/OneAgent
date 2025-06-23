@@ -6,7 +6,7 @@
  */
 
 import { UnifiedMCPTool, ToolExecutionResult, InputSchema } from './UnifiedMCPTool';
-import { realUnifiedMemoryClient } from '../memory/RealUnifiedMemoryClient';
+import { OneAgentMem0Bridge } from '../memory/OneAgentMem0Bridge';
 import * as fs from 'fs/promises';
 import * as path from 'path';
 
@@ -23,6 +23,7 @@ export interface CodeAnalysisParams {
  * Code Analysis Tool for professional development workflows
  */
 export class CodeAnalysisTool extends UnifiedMCPTool {
+  private unifiedMemoryClient: OneAgentMem0Bridge;
 
   constructor() {
     const schema: InputSchema = {
@@ -63,6 +64,7 @@ export class CodeAnalysisTool extends UnifiedMCPTool {
       schema,
       'enhanced'
     );
+    this.unifiedMemoryClient = new OneAgentMem0Bridge({});
   }
 
   /**
@@ -298,17 +300,22 @@ export class CodeAnalysisTool extends UnifiedMCPTool {
         timestamp: analysis.timestamp
       };
 
-      await realUnifiedMemoryClient.createMemory(
-        JSON.stringify(memoryData),
-        'system',
-        'long_term',
-        {
+      // Use canonical bridge for memory storage
+      await this.unifiedMemoryClient.storeConversation({
+        id: analysis.id,
+        agentId: 'system',
+        userId: 'system',
+        content: JSON.stringify(memoryData),
+        timestamp: analysis.timestamp,
+        context: {},
+        outcome: { success: true },
+        metadata: {
           analysis_id: analysis.id,
           language,
           quality_score: analysis.quality.overallScore.toString(),
           source_file: sourceFile || 'direct'
         }
-      );
+      });
 
       console.log(`[CodeAnalysis] Stored analysis ${analysis.id} in memory`);
     } catch (error) {

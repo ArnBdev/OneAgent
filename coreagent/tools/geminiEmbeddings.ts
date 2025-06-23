@@ -7,7 +7,7 @@
  */
 
 import { GeminiClient } from './geminiClient';
-import { realUnifiedMemoryClient } from '../memory/RealUnifiedMemoryClient';
+import { OneAgentMem0Bridge } from '../memory/OneAgentMem0Bridge';
 import { MemorySearchQuery, MemoryResult, ConversationMemory, LearningMemory } from '../memory/UnifiedMemoryInterface';
 import { EmbeddingOptions, EmbeddingResult, EmbeddingTaskType } from '../types/gemini';
 import { globalProfiler } from '../performance/profiler';
@@ -45,18 +45,18 @@ export interface EmbeddingAnalytics {
  */
 export class GeminiEmbeddingsTool {
   private geminiClient: GeminiClient;
-  private unifiedMemoryClient: typeof realUnifiedMemoryClient;
+  private unifiedMemoryClient: OneAgentMem0Bridge;
   private embeddingCache: Map<string, EmbeddingResult> = new Map();
 
-  constructor(geminiClient: GeminiClient, unifiedMemoryClient?: typeof realUnifiedMemoryClient) {
+  constructor(geminiClient: GeminiClient, unifiedMemoryClient?: OneAgentMem0Bridge) {
     this.geminiClient = geminiClient;
-    this.unifiedMemoryClient = unifiedMemoryClient || realUnifiedMemoryClient;
-    console.log('🔢 GeminiEmbeddingsTool initialized with RealUnifiedMemoryClient');
+    this.unifiedMemoryClient = unifiedMemoryClient || new OneAgentMem0Bridge({});
+    console.log('🔢 GeminiEmbeddingsTool initialized with OneAgentMem0Bridge');
   }  /**
    * Perform semantic search across memories
    */
   async semanticSearch(
-    query: string, 
+    query: string,
     options?: MemoryEmbeddingOptions
   ): Promise<{ results: SemanticSearchResult[]; analytics: EmbeddingAnalytics }> {
     const startTime = Date.now();
@@ -69,15 +69,13 @@ export class GeminiEmbeddingsTool {
       const queryEmbedding = await this.geminiClient.generateEmbedding(query, {
         taskType: options?.taskType || 'SEMANTIC_SIMILARITY',
         model: options?.model || 'text-embedding-004'
-      });      // Step 2: Search memories using unified memory client
-      const memoriesResult = await this.unifiedMemoryClient.getMemoryContext(
+      });      // Step 2: Search memories using canonical bridge
+      const memories = await this.unifiedMemoryClient.searchMemories({
         query,
-        'system', // Default user for semantic search
-        options?.topK || 10
-      );
-      const memories = memoriesResult.memories || [];
-      
-      // Step 3: Generate embeddings for memory contents and calculate similarities
+        agentIds: ['system'],
+        maxResults: options?.topK || 10
+      });
+      // ...existing code...
       const memoryTexts = memories.map(memory => memory.content || '');
       const memoryEmbeddings = await Promise.all(
         memoryTexts.map(text => this.geminiClient.generateEmbedding(text, {
@@ -164,14 +162,17 @@ export class GeminiEmbeddingsTool {
 
       let memoryId: string;
       const timestamp = new Date();
-
-      // Store based on memory type
-      switch (memoryType) {        case 'conversation':
-          const conversationResult = await this.unifiedMemoryClient.createMemory(
-            content,
+      switch (memoryType) {
+        case 'conversation':
+          const conversationResult = await this.unifiedMemoryClient.storeConversation({
+            id: `conv_${Date.now()}`,
+            agentId,
             userId,
-            'session',
-            {
+            content,
+            timestamp,
+            context: {},
+            outcome: { success: true },
+            metadata: {
               type: 'conversation',
               agentId,
               timestamp,
@@ -179,26 +180,26 @@ export class GeminiEmbeddingsTool {
               outcome: { success: true, value: content, confidence: 0.9 },
               ...(metadata || {})
             }
-          );
-          memoryId = conversationResult.success ? 'conversation-stored' : '';
-          break;        case 'learning':
-          const learningResult = await this.unifiedMemoryClient.createMemory(
-            content,
+          });
+          memoryId = conversationResult ? 'conversation-stored' : '';
+          break;
+        case 'learning':
+          const learningResult = await this.unifiedMemoryClient.storeLearning({
+            id: `learn_${Date.now()}`,
             agentId,
-            'long_term',
-            {
+            learningType: 'pattern',
+            content,
+            confidence: 0.8,
+            applicationCount: 0,
+            lastApplied: timestamp,
+            sourceConversations: [],
+            metadata: {
               type: 'learning',
-              learningType: 'pattern',
-              confidence: 0.8,
-              applicationCount: 0,
-              lastApplied: timestamp,
-              sourceConversations: [],
               ...(metadata || {})
             }
-          );
-          memoryId = learningResult.success ? 'learning-stored' : '';
+          });
+          memoryId = learningResult ? 'learning-stored' : '';
           break;
-
         default:
           throw new Error(`Unsupported memory type: ${memoryType}`);
       }

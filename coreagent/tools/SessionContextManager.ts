@@ -9,8 +9,8 @@
  */
 
 import { ConstitutionalValidator } from '../validation/ConstitutionalValidator';
-import { realUnifiedMemoryClient } from '../memory/RealUnifiedMemoryClient';
 import { PerformanceMonitor } from '../monitoring/PerformanceMonitor';
+import { OneAgentMem0Bridge } from '../memory/OneAgentMem0Bridge';
 import { 
   UserProfile,
   SessionContext,
@@ -255,13 +255,15 @@ export class SessionContextManager implements ISessionContextManager {
   private sessionCache: Map<string, SessionContext> = new Map();
   private profileCache: Map<string, UserProfile> = new Map();
   private readonly CACHE_TTL = 5 * 60 * 1000; // 5 minutes
+  private memoryBridge: OneAgentMem0Bridge;
 
   constructor(
-    private memoryClient: IMemoryClient,
+    // Remove: private memoryClient: IMemoryClient,
     private constitutionalValidator: IConstitutionalValidator,
     private performanceMonitor: IPerformanceMonitor
   ) {
     this.privacyEngine = new PrivacyEngine(constitutionalValidator, performanceMonitor);
+    this.memoryBridge = new OneAgentMem0Bridge({}); // Canonical memory bridge
   }
 
   // ========================================
@@ -299,7 +301,7 @@ export class SessionContextManager implements ISessionContextManager {
       }
 
       // Store updated profile
-      await this.memoryClient.updateUserProfile(userId, updatedProfile);
+      await this.memoryBridge.updateUserProfile(userId, updatedProfile);
       
       // Update cache
       this.profileCache.set(userId, updatedProfile);
@@ -324,7 +326,7 @@ export class SessionContextManager implements ISessionContextManager {
       }
 
       // Fetch from memory client
-      const profile = await this.memoryClient.getUserProfile(userId);
+      const profile = await this.memoryBridge.getUserProfile(userId);
       
       if (!profile) {
         // Create new profile if doesn't exist
@@ -397,7 +399,7 @@ export class SessionContextManager implements ISessionContextManager {
         throw new Error('Failed to validate new user profile');
       }
 
-      await this.memoryClient.createUserProfile(userId, profile);
+      await this.memoryBridge.createUserProfile(userId, profile);
       
       // Update cache
       this.profileCache.set(userId, profile);
@@ -426,7 +428,7 @@ export class SessionContextManager implements ISessionContextManager {
       }
 
       // Fetch from memory client
-      let context = await this.memoryClient.getSessionContext(sessionId);
+      let context = await this.memoryBridge.getSessionContext(sessionId);
       
       if (!context) {
         timer.end({ success: false, reason: 'session_not_found' });
@@ -496,7 +498,7 @@ export class SessionContextManager implements ISessionContextManager {
       };
 
       // Store session
-      await this.memoryClient.createSession(id, context);
+      await this.memoryBridge.createSession(id, context);
       
       // Update cache
       this.sessionCache.set(id, context);
@@ -517,7 +519,7 @@ export class SessionContextManager implements ISessionContextManager {
       const updatedContext = { ...currentContext, ...update, lastActivity: new Date() };
       
       // Store update
-      await this.memoryClient.updateSessionContext(sessionId, updatedContext);
+      await this.memoryBridge.updateSessionContext(sessionId, updatedContext);
       
       // Update cache
       this.sessionCache.set(sessionId, updatedContext);
@@ -541,7 +543,7 @@ export class SessionContextManager implements ISessionContextManager {
         lastActivity: new Date()
       };
       
-      await this.memoryClient.updateSessionContext(sessionId, endedContext);
+      await this.memoryBridge.updateSessionContext(sessionId, endedContext);
       
       // Remove from cache
       this.sessionCache.delete(sessionId);
@@ -571,7 +573,7 @@ export class SessionContextManager implements ISessionContextManager {
         throw new Error('Invalid privacy boundaries');
       }
       
-      await this.memoryClient.updateUserProfile(userId, profile);
+      await this.memoryBridge.updateUserProfile(userId, profile);
       
       // Update cache
       this.profileCache.set(userId, profile);
@@ -748,7 +750,7 @@ export class SessionContextManager implements ISessionContextManager {
   private async assembleSessionContext(sessionId: string): Promise<SessionContext> {
     // This would assemble context from various sources
     // For now, return the basic context from memory client
-    const context = await this.memoryClient.getSessionContext(sessionId);
+    const context = await this.memoryBridge.getSessionContext(sessionId);
     if (!context) {
       throw new Error(`Session context not found for session: ${sessionId}`);
     }

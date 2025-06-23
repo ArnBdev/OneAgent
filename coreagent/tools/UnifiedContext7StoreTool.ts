@@ -7,7 +7,8 @@
 
 import { UnifiedMCPTool, ToolExecutionResult, InputSchema } from './UnifiedMCPTool';
 import { Context7MCPIntegration, DocumentationSource } from '../mcp/Context7MCPIntegration';
-import { realUnifiedMemoryClient } from '../memory/RealUnifiedMemoryClient';
+import { OneAgentMem0Bridge } from '../memory/OneAgentMem0Bridge';
+import { LearningMemory } from '../memory/UnifiedMemoryInterface';
 
 export interface Context7StoreParams {
   source: string;
@@ -28,6 +29,7 @@ export interface Context7StoreResult extends ToolExecutionResult {
  */
 export class UnifiedContext7StoreTool extends UnifiedMCPTool {
   private context7Integration: Context7MCPIntegration;
+  private memoryBridge: OneAgentMem0Bridge;
 
   constructor(context7Integration: Context7MCPIntegration) {
     const schema: InputSchema = {
@@ -52,6 +54,7 @@ export class UnifiedContext7StoreTool extends UnifiedMCPTool {
     );
     
     this.context7Integration = context7Integration;
+    this.memoryBridge = new OneAgentMem0Bridge({}); // Canonical memory bridge
   }
 
   /**
@@ -255,34 +258,36 @@ export class UnifiedContext7StoreTool extends UnifiedMCPTool {
    */
   private async storeLearning(args: Context7StoreParams, storeResult: any, operationTime: number): Promise<void> {
     try {
-      const learningData = {
-        type: 'context7_store',
-        source: args.source,
-        title: args.title,
-        contentLength: args.content.length,
-        operationTime,
-        documentId: storeResult.documentId,
-        timestamp: new Date().toISOString(),
-        quality: {
-          qualityScore: storeResult.qualityScore || 80,
-          hasUrl: !!args.url,
-          hasVersion: !!args.version,
-          hasMetadata: !!(args.metadata && Object.keys(args.metadata).length > 0)
-        }
-      };
-
-      await this.unifiedMemoryClient.createMemory(
-        JSON.stringify(learningData),
-        'oneagent-system',
-        'long_term',
-        { 
+      const learning: LearningMemory = {
+        id: `learning_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+        agentId: this.name, // Use tool name as agentId for now
+        learningType: 'documentation_context',
+        content: JSON.stringify({
+          source: args.source,
+          title: args.title,
+          contentLength: args.content.length,
+          operationTime,
+          documentId: storeResult.documentId,
+          timestamp: new Date().toISOString(),
+          quality: {
+            qualityScore: storeResult.qualityScore || 80,
+            hasUrl: !!args.url,
+            hasVersion: !!args.version,
+            hasMetadata: !!(args.metadata && Object.keys(args.metadata).length > 0)
+          }
+        }),
+        confidence: 0.9,
+        applicationCount: 0,
+        lastApplied: new Date(),
+        sourceConversations: [],
+        metadata: {
           tool: 'context7_store',
           source: args.source,
           documentId: storeResult.documentId,
           operation: 'documentation_storage'
         }
-      );
-
+      };
+      await this.memoryBridge.storeLearning(learning);
     } catch (error) {
       // Non-critical error - log but don't fail the main operation
       console.warn(`Failed to store Context7 learning: ${error instanceof Error ? error.message : 'Unknown error'}`);

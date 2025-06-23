@@ -192,9 +192,8 @@ export class AgentFactory {
       {
         system: {
           source: 'agent_factory',
-          component: 'AgentFactory',
-          sessionId: unifiedContext.sessionId,
-          ...(unifiedContext.userId && { userId: unifiedContext.userId }),
+          component: 'AgentFactory',          sessionId: unifiedContext.session.sessionId,
+          ...(unifiedContext.session.userId && { userId: unifiedContext.session.userId }),
           agent: factoryConfig.type
         },
         content: {

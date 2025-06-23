@@ -24,8 +24,7 @@
 
 import { BaseAgent, AgentConfig, AgentContext, AgentResponse, AgentAction } from '../base/BaseAgent';
 import { ISpecializedAgent, AgentStatus, AgentHealthStatus } from '../base/ISpecializedAgent';
-import { UnifiedMemoryClient } from '../../memory/UnifiedMemoryClient';
-import { ConversationMemory, LearningMemory, PatternType, LearningType } from '../../memory/UnifiedMemoryInterface';
+import { OneAgentMem0Bridge } from '../../memory/OneAgentMem0Bridge';
 
 export class TemplateAgent extends BaseAgent implements ISpecializedAgent {
   public readonly id: string;
@@ -354,7 +353,8 @@ export class TemplateAgent extends BaseAgent implements ISpecializedAgent {
    */
   private buildTemplatePrompt(message: string, memories: any[], context: AgentContext): string {
     // Extract customInstructions from enriched context userProfile
-    const customInstructions = context.enrichedContext?.userProfile?.customInstructions;
+    // Use backbone user context instead of removed enrichedContext
+    const customInstructions = context.metadata?.customInstructions;
     
     let prompt = `
 You are a Template Assistant AI specialized in [YOUR DOMAIN HERE].

@@ -14,7 +14,7 @@
 
 import { AgentPersona, EnhancedPromptConfig } from '../base/EnhancedPromptEngine';
 import { ConstitutionalAI, ValidationResult } from '../base/ConstitutionalAI';
-import { realUnifiedMemoryClient } from '../../memory/RealUnifiedMemoryClient';
+import { OneAgentMem0Bridge } from '../../memory/OneAgentMem0Bridge';
 import { PersonaLoader, PersonaConfig } from '../persona/PersonaLoader';
 
 export interface PersonalityTraits {
@@ -237,6 +237,7 @@ export class PersonalityEngine {
   private personalityProfiles: Map<string, PersonalityProfile> = new Map();
   private constitutionalAI: ConstitutionalAI;
   private personaLoader: PersonaLoader;
+  private memoryBridge = new OneAgentMem0Bridge({});
   constructor() {
     // Initialize Constitutional AI with default principles and threshold
     this.constitutionalAI = new ConstitutionalAI({
@@ -476,11 +477,10 @@ export class PersonalityEngine {
 
   /**
    * Select appropriate manifestations based on trait intensity and context
-   */
-  private selectManifestations(
+   */  private selectManifestations(
     trait: PersonalityTraits,
     intensity: number,
-    context: PersonalityContext
+    _context: PersonalityContext // Intentionally unused - future enhancement for ML ranking
   ): string[] {
     const numManifestations = Math.ceil(trait.manifestations.length * intensity);
     
@@ -658,7 +658,7 @@ export class PersonalityEngine {
         personality_markers_count: this.extractPersonalityMarkers(response, this.personalityProfiles.get(agentId)!).length
       };
 
-      await realUnifiedMemoryClient.storeConversation({
+      await this.memoryBridge.storeConversation({
         id: `personality_evolution_${agentId}_${Date.now()}`,
         agentId,
         userId: 'oneagent_system',
@@ -717,7 +717,7 @@ export class PersonalityEngine {
     updates: Partial<PersonalityProfile>
   ): Promise<void> {
     try {
-      await realUnifiedMemoryClient.storeConversation({
+      await this.memoryBridge.storeConversation({
         id: `personality_update_${agentId}_${Date.now()}`,
         agentId,
         userId: 'oneagent_system',
@@ -753,17 +753,17 @@ export class PersonalityEngine {
     improvementTrend: number;
   }> {
     try {
-      const evolutionData = await realUnifiedMemoryClient.getMemoryContext(
-        `personality_evolution ${agentId}`,
-        'oneagent_system',
-        100
-      );
+      const evolutionData = await this.memoryBridge.searchMemories({
+        query: `personality_evolution ${agentId}`,
+        agentIds: [agentId],
+        maxResults: 100
+      });
 
-      if (evolutionData.memories.length === 0) {
+      if (evolutionData.length === 0) {
         return { averageScore: 0, totalInteractions: 0, improvementTrend: 0 };
       }
 
-      const scores = evolutionData.memories.map((memory: any) => {
+      const scores = evolutionData.map((memory: any) => {
         try {
           const data = JSON.parse(memory.content);
           return data.authenticity_score || 0;
@@ -783,7 +783,7 @@ export class PersonalityEngine {
 
       return {
         averageScore,
-        totalInteractions: evolutionData.memories.length,
+        totalInteractions: evolutionData.length,
         improvementTrend
       };
     } catch (error) {

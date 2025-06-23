@@ -11,7 +11,7 @@
  */
 
 import { ConstitutionalValidator } from '../../validation/ConstitutionalValidator';
-import { MemoryClient, ConversationData, TimeWindow } from '../../memory/MemoryClient';
+import { UnifiedMemoryInterface as MemoryClient, ConversationData, TimeWindow } from '../../types/oneagent-backbone-types';
 import { PerformanceMonitor } from '../../monitoring/PerformanceMonitor';
 
 // ========================================

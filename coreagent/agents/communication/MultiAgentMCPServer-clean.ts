@@ -19,7 +19,7 @@ config({ path: path.join(__dirname, '..', '..', '..', '..', '.env') });
 
 import { AgentCommunicationProtocol, A2AMessage, A2AResponse, AgentRegistration } from './AgentCommunicationProtocol';
 import { AgentConfig, AgentContext } from '../base/BaseAgent';
-import { UnifiedMemoryClient } from '../../memory/UnifiedMemoryClient';
+import { UnifiedMemoryClient } from '../../types/oneagent-backbone-types';
 import { oneAgentConfig } from '../../config/index';
 
 export interface MultiAgentMCPTool {

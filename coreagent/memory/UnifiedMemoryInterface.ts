@@ -1,4 +1,5 @@
 import { oneAgentConfig } from '../config/index';
+import type { TimeWindow, ConversationData } from '../types/oneagent-backbone-types';
 
 /**
  * OneAgent Unified Memory System - Core Interface
@@ -221,12 +222,17 @@ export interface UnifiedMemoryInterface {
    * Used for agent-specific optimization
    */
   getAgentPatterns(agentId: string, patternType?: PatternType): Promise<PatternMemory[]>;
-  
-  /**
+    /**
    * Get conversation history for context
    * Used for maintaining conversation continuity
    */
   getConversationHistory(userId: string, agentId?: string, limit?: number): Promise<ConversationMemory[]>;
+
+  /**
+   * Get conversations within a specific time window
+   * Used for temporal analysis and evolution tracking
+   */
+  getConversationsInWindow(timeWindow: TimeWindow): Promise<ConversationData[]>;
 
   // =====================================
   // Organic Growth Operations
@@ -462,3 +468,5 @@ export interface Mem0SearchFilter {
 }
 
 export type MemoryType = 'conversation' | 'learning' | 'pattern' | 'context' | 'short_term' | 'long_term' | 'workflow' | 'session';
+
+export type { TimeWindow, ConversationData } from '../types/oneagent-backbone-types';

@@ -7,7 +7,8 @@
 
 import { UnifiedMCPTool, ToolExecutionResult, InputSchema } from './UnifiedMCPTool';
 import { Context7MCPIntegration, DocumentationQuery, DocumentationResult } from '../mcp/Context7MCPIntegration';
-import { realUnifiedMemoryClient } from '../memory/RealUnifiedMemoryClient';
+import { OneAgentMem0Bridge } from '../memory/OneAgentMem0Bridge';
+import { LearningMemory } from '../memory/UnifiedMemoryInterface';
 
 export interface Context7QueryParams {
   source?: string;
@@ -26,6 +27,7 @@ export interface Context7QueryResult extends ToolExecutionResult {
  */
 export class UnifiedContext7QueryTool extends UnifiedMCPTool {
   private context7Integration: Context7MCPIntegration;
+  private memoryBridge: OneAgentMem0Bridge;
 
   constructor(context7Integration: Context7MCPIntegration) {
     const schema: InputSchema = {
@@ -48,6 +50,7 @@ export class UnifiedContext7QueryTool extends UnifiedMCPTool {
     );
     
     this.context7Integration = context7Integration;
+    this.memoryBridge = new OneAgentMem0Bridge({}); // Canonical memory bridge
   }
 
   /**
@@ -203,38 +206,40 @@ export class UnifiedContext7QueryTool extends UnifiedMCPTool {
    */
   private async storeLearning(params: Context7QueryParams, results: DocumentationResult[], queryTime: number): Promise<void> {
     try {
-      const learningData = {
-        type: 'context7_query',
-        query: params.query,
-        source: params.source || 'multiple',
-        resultsCount: results.length,
-        queryTime,
-        timestamp: new Date().toISOString(),
-        quality: {
-          averageRelevance: results.reduce((sum, r) => sum + r.relevanceScore, 0) / results.length,
-          sourcesCovered: results.map(r => r.source).filter((s, i, arr) => arr.indexOf(s) === i).length,
-          cached: results.filter(r => r.cached).length
-        },
-        topResults: results.slice(0, 3).map(r => ({
-          title: r.title,
-          source: r.source,
-          relevanceScore: r.relevanceScore,
-          url: r.url
-        }))
-      };
-
-      await this.unifiedMemoryClient.createMemory(
-        JSON.stringify(learningData),
-        'oneagent-system',
-        'long_term',
-        { 
+      const learning: LearningMemory = {
+        id: `learning_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+        agentId: this.name, // Use tool name as agentId for now
+        learningType: 'documentation_context',
+        content: JSON.stringify({
+          query: params.query,
+          source: params.source || 'multiple',
+          resultsCount: results.length,
+          queryTime,
+          timestamp: new Date().toISOString(),
+          quality: {
+            averageRelevance: results.reduce((sum, r) => sum + r.relevanceScore, 0) / (results.length || 1),
+            sourcesCovered: results.map(r => r.source).filter((s, i, arr) => arr.indexOf(s) === i).length,
+            cached: results.filter(r => r.cached).length
+          },
+          topResults: results.slice(0, 3).map(r => ({
+            title: r.title,
+            source: r.source,
+            relevanceScore: r.relevanceScore,
+            url: r.url
+          }))
+        }),
+        confidence: 0.9,
+        applicationCount: 0,
+        lastApplied: new Date(),
+        sourceConversations: [],
+        metadata: {
           tool: 'context7_query',
           source: params.source || 'multiple',
           resultsCount: results.length,
-          query: params.query 
+          query: params.query
         }
-      );
-
+      };
+      await this.memoryBridge.storeLearning(learning);
     } catch (error) {
       // Non-critical error - log but don't fail the main operation
       console.warn(`Failed to store Context7 learning: ${error instanceof Error ? error.message : 'Unknown error'}`);

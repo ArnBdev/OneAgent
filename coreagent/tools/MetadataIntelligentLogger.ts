@@ -11,7 +11,7 @@
  */
 
 import { performance } from 'perf_hooks';
-import { ConversationData, TimeWindow, UserProfile } from '../memory/MemoryClient';
+import { ConversationData, TimeWindow, UserProfile } from '../types/oneagent-backbone-types';
 import { ConversationMetadata, IMemoryClient as UnifiedIMemoryClient, PrivacyLevel as UnifiedPrivacyLevel, CommunicationStyle as UnifiedCommunicationStyle, ExpertiseLevel as UnifiedExpertiseLevel } from '../types/oneagent-backbone-types';
 
 // Constitutional AI Integration
@@ -177,6 +177,7 @@ export class MetadataIntelligentLogger implements IMetadataIntelligentLogger {
           expertiseLevel: analysis.expertiseLevel as UnifiedExpertiseLevel,
           intentCategory: analysis.intent as any, // Map UserIntent to IntentCategory
           contextTags: [analysis.contextDomain],
+          contextCategory: 'TECHNICAL', // Default context category
           privacyLevel: analysis.privacyLevel as UnifiedPrivacyLevel,
           sentimentScore: 0.5, // Default neutral sentiment
           complexityScore: expertise === 'expert' ? 0.9 : expertise === 'advanced' ? 0.7 : expertise === 'intermediate' ? 0.5 : 0.3,
@@ -462,12 +463,12 @@ export class MetadataIntelligentLogger implements IMetadataIntelligentLogger {
         sessionId: data.sessionId,
         userId: data.userId
       });      // Store conversation metadata
-      const conversationId = await this.memoryClient.storeConversationMetadata({
-        messageAnalysis: {
+      const conversationId = await this.memoryClient.storeConversationMetadata({        messageAnalysis: {
           communicationStyle: messageAnalysis.communicationStyle as UnifiedCommunicationStyle,
           expertiseLevel: messageAnalysis.expertiseLevel as UnifiedExpertiseLevel,
           intentCategory: messageAnalysis.intent as any,
           contextTags: [messageAnalysis.contextDomain],
+          contextCategory: 'TECHNICAL', // Default context category
           privacyLevel: messageAnalysis.privacyLevel as UnifiedPrivacyLevel,
           sentimentScore: 0.5,
           complexityScore: 0.5,

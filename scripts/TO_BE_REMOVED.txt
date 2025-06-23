@@ -1,0 +1,46 @@
+# Scripts flagged for removal (2025-06-23)
+
+The following scripts are outdated, redundant, or not required for current system startup or operation. They are flagged for deletion:
+
+- a2a-improvement-conversation.ts
+- agent-conversation-demo.ts
+- analyze-root-files.js
+- cleanup-deprecated-docs.ps1
+- cleanup-docs-final.ps1
+- cleanup-docs-simple.ps1
+- cleanup-project-structure.js
+- cleanup-verification.js
+- dev-utils.js
+- devagent-production-integration.js
+- enhanced-context7-validation.js
+- fix-project-structure.js
+- fix-property-names.js
+- initialize-agents.ts
+- memory-intelligence-benchmark.ts
+- phase1-backup-validation.ps1
+- phase2-strategic-enhancement.ps1
+- postcss.config.js
+- pre-commit-hook.ps1
+- pre-commit-hook.sh
+- project-structure-cleanup.ps1
+- start-background-server.js
+- system-validation-summary.js
+- tailwind.config.js
+- test-context7-tools.ps1
+- validate-architecture.js
+- validate-devagent-dev-structure.js
+- validate-persona-optimization.js
+- validate-project-structure.js
+- verify-perfect-optimization.js
+- verifySessionContextManager.js
+- verify_uuid_complete.js
+- __pycache__/
+
+## To keep:
+- start-oneagent-system.ps1
+- start-memory-server.ps1
+- start.ps1
+- README.md
+- README_CLEANUP_LOG.md
+
+Please review and confirm before deletion.

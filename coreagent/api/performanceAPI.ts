@@ -8,7 +8,7 @@
 import { globalProfiler } from '../performance/profiler';
 import { MemoryIntelligence } from '../intelligence/memoryIntelligence';
 import { GeminiClient } from '../tools/geminiClient';
-import { UnifiedMemoryClient } from '../memory/UnifiedMemoryClient';
+import { UnifiedMemoryClient } from '../types/oneagent-backbone-types';
 import { GeminiEmbeddingsTool } from '../tools/geminiEmbeddings';
 
 export interface PerformanceAPIResponse<T = any> {
@@ -76,7 +76,7 @@ export class PerformanceAPI {
         "system",
         100
       );
-      const memoryData = memoryResult.entries;
+      const memoryData = memoryResult.memories;
       
       const analytics = await this.memoryIntelligence.generateMemoryAnalytics("system");
         // Test service connections

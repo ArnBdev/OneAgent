@@ -14,7 +14,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { watch, FSWatcher } from 'chokidar';
 import { EventEmitter } from 'events';
-import { realUnifiedMemoryClient } from '../../memory/RealUnifiedMemoryClient';
+import { OneAgentMem0Bridge } from '../../memory/OneAgentMem0Bridge';
 
 export interface PersonaConfig {
   id: string;
@@ -70,6 +70,7 @@ export class PersonaLoader extends EventEmitter {
   private watchers: Map<string, FSWatcher> = new Map();
   private readonly personasPath: string;
   private isInitialized = false;
+  private memoryBridge = new OneAgentMem0Bridge({});
 
   constructor(personasPath: string = 'prompts/personas') {
     super();
@@ -339,19 +340,37 @@ Please respond according to your persona configuration and quality standards.`;
    * Store persona in memory for persistence and learning
    */
   private async storePersonaInMemory(persona: PersonaConfig, template: PromptTemplate): Promise<void> {
-    try {      await realUnifiedMemoryClient.createMemory(
-        `Persona Configuration: ${persona.name} (${persona.id}) - ${persona.role}`,
-        'oneagent_system',
-        'long_term',
-        {
+    try {
+      await this.memoryBridge.storeConversation({
+        id: `persona_config_${persona.id}_${Date.now()}`,
+        agentId: persona.id,
+        userId: 'oneagent_system',
+        timestamp: new Date(),
+        content: `Persona Configuration: ${persona.name} (${persona.id}) - ${persona.role}`,
+        context: {
+          userId: persona.id,
+          agentId: persona.id,
+          sessionId: `persona_config_${Date.now()}`,
+          conversationId: `persona_config_${Date.now()}`,
+          messageType: 'system',
+          platform: 'oneagent'
+        },
+        outcome: {
+          success: true,
+          satisfaction: 'high',
+          learningsExtracted: 1,
+          qualityScore: persona.quality_standards.minimum_score / 100
+        },
+        metadata: {
           type: 'persona_config',
-          agentId: persona.id,          version: persona.version,
+          agentId: persona.id,
+          version: persona.version,
           qualityScore: persona.quality_standards.minimum_score,
           constitutionalPrinciples: persona.constitutionalPrinciples,
           capabilities: persona.capabilities.primary,
           systemPrompt: template.systemPrompt
         }
-      );
+      });
     } catch (error) {
       console.error(`[PersonaLoader] Failed to store persona in memory:`, error);
     }

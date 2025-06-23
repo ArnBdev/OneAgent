@@ -6,7 +6,7 @@
  */
 
 import { UnifiedMCPTool, ToolExecutionResult, InputSchema } from './UnifiedMCPTool';
-import { realUnifiedMemoryClient } from '../memory/RealUnifiedMemoryClient';
+import { OneAgentMem0Bridge } from '../memory/OneAgentMem0Bridge';
 
 export interface AIAssistantParams {
   prompt: string;
@@ -21,7 +21,6 @@ export interface AIAssistantParams {
  * Enhanced AI Assistant Tool for professional development workflows
  */
 export class EnhancedAIAssistantTool extends UnifiedMCPTool {
-
   constructor() {
     const schema: InputSchema = {
       type: 'object',
@@ -125,25 +124,24 @@ export class EnhancedAIAssistantTool extends UnifiedMCPTool {
    * Get relevant context from memory for the request
    */
   private async getRelevantMemoryContext(prompt: string): Promise<string> {
-    try {      // Search for relevant memories based on prompt keywords
-      const searchResult = await realUnifiedMemoryClient.searchMemories({
+    try {
+      // Search for relevant memories based on prompt keywords
+      const searchResult = await this.unifiedMemoryClient.searchMemories({
         query: prompt,
+        agentIds: ['system'],
         maxResults: 3
       });
-
       if (searchResult && searchResult.length > 0) {
         const relevantContext = searchResult
-          .slice(0, 3) // Take top 3 results
+          .slice(0, 3)
           .map((memory: any) => memory.content.substring(0, 200) + '...')
           .join('\n\n');
-        
         console.log(`[EnhancedAIAssistant] Found ${searchResult.length} relevant memories`);
         return relevantContext;
       }
     } catch (error) {
       console.warn('[EnhancedAIAssistant] Failed to retrieve memory context:', error);
     }
-    
     return '';
   }
 
@@ -307,33 +305,35 @@ This debugging approach follows Constitutional AI principles ensuring accuracy a
    * Store interaction in memory for future reference
    */
   private async storeInteractionInMemory(
-    prompt: string, 
-    response: any, 
-    taskType: string, 
+    prompt: string,
+    response: any,
+    taskType: string,
     language: string | undefined
   ): Promise<void> {
     try {
       const interactionData = {
         type: 'ai_assistant_interaction',
-        prompt: prompt.substring(0, 500), // Limit prompt length
+        prompt: prompt.substring(0, 500),
         taskType,
         language: language || 'not specified',
         responseQuality: response.quality,
         confidence: response.confidence,
         timestamp: new Date().toISOString()
       };
-
-      await realUnifiedMemoryClient.createMemory(
-        JSON.stringify(interactionData),
-        'system',
-        'long_term',
-        {
+      await this.unifiedMemoryClient.storeConversation({
+        id: `ai_interaction_${Date.now()}`,
+        agentId: 'system',
+        userId: 'system',
+        content: JSON.stringify(interactionData),
+        timestamp: new Date(),
+        context: {},
+        outcome: { success: true },
+        metadata: {
           task_type: taskType,
           language: language || 'general',
-          quality_score: response.quality.toString()
+          quality_score: response.quality?.toString() || '0'
         }
-      );
-
+      });
       console.log(`[EnhancedAIAssistant] Stored ${taskType} interaction in memory`);
     } catch (error) {
       console.warn('[EnhancedAIAssistant] Failed to store interaction in memory:', error);

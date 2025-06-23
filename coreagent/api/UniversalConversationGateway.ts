@@ -1,0 +1,359 @@
+/**
+ * Enhanced ChatAPI - Universal Conversation Gateway
+ * 
+ * Extends the existing ChatAPI to become the unified conversation system
+ * that handles user-to-agent AND agent-to-agent communication using
+ * the same pathways for architectural cohesion.
+ */
+
+import { Request, Response } from 'express';
+import { CoreAgent } from '../main';
+import { UnifiedMemoryClient } from '../types/oneagent-backbone-types';
+import { AgentFactory, AgentType } from '../agents/base/AgentFactory';
+import { ISpecializedAgent } from '../agents/base/ISpecializedAgent';
+import { AgentContext } from '../agents/base/BaseAgent';
+import { AuditLogEntry } from '../audit/auditLogger';
+import { User } from '../types/user';
+
+export interface ConversationParticipant {
+  id: string;
+  type: 'user' | 'agent';
+  name: string;
+  agentType?: string;
+}
+
+export interface ConversationMessage {
+  id: string;
+  fromParticipant: ConversationParticipant;
+  toParticipant?: ConversationParticipant;
+  content: string;
+  timestamp: Date;
+  conversationId: string;
+  metadata: {
+    confidence?: number;
+    reasoning?: string;
+    memoryRelevance?: number;
+    qualityScore?: number;
+  };
+}
+
+export interface ConversationRequest {
+  fromParticipant: ConversationParticipant;
+  content: string;
+  conversationId?: string;
+  toParticipant?: ConversationParticipant;
+  userId: string;
+}
+
+export interface ConversationResponse {
+  message: ConversationMessage;
+  success: boolean;
+  error?: string;
+}
+
+/**
+ * Enhanced ChatAPI - Now serves as Universal Conversation Gateway
+ * 
+ * This enhances the existing ChatAPI to support:
+ * 1. User to Agent conversations (existing functionality)
+ * 2. Agent to Agent conversations (new - using same pathways)
+ * 3. Multi-agent team meetings (orchestrated conversations)
+ * 4. Agent handoffs (conversation transfer)
+ */
+export class EnhancedChatAPI {
+  private coreAgent: CoreAgent;
+  private unifiedMemoryClient: UnifiedMemoryClient;
+
+  constructor(coreAgent: CoreAgent, unifiedMemoryClient: UnifiedMemoryClient) {
+    this.coreAgent = coreAgent;
+    this.unifiedMemoryClient = unifiedMemoryClient;
+  }
+
+  /**
+   * Enhanced message processing for universal conversations
+   * This method now handles BOTH user-to-agent AND agent-to-agent communication
+   */
+  async processUniversalMessage(request: ConversationRequest): Promise<ConversationResponse> {
+    try {
+      const messageId = this.generateMessageId();
+      const conversationId = request.conversationId || this.generateConversationId();      // Create the message
+      const message: ConversationMessage = {
+        id: messageId,
+        fromParticipant: request.fromParticipant,
+        ...(request.toParticipant && { toParticipant: request.toParticipant }),
+        content: request.content,
+        timestamp: new Date(),
+        conversationId: conversationId,
+        metadata: {
+          confidence: 1.0,
+          qualityScore: 0.8
+        }
+      };
+
+      // Determine target agent
+      const targetAgent = await this.selectTargetAgent(request);      // Process through agent using existing CoreAgent.processMessage pathway
+      const agentContext: AgentContext = {
+        user: { 
+          id: request.userId, 
+          name: 'User',
+          createdAt: new Date().toISOString(),
+          lastActiveAt: new Date().toISOString()
+        },
+        sessionId: request.conversationId || messageId,
+        conversationHistory: [],
+        metadata: {
+          fromParticipant: request.fromParticipant,
+          messageId: messageId
+        }
+      };      
+      const agentResponse = await (targetAgent as ISpecializedAgent).processMessage(agentContext, request.content);
+
+      // Store conversation in memory using existing memory system
+      await this.storeUniversalConversation(message, agentResponse, request.userId);
+
+      // Create response message
+      const responseMessage: ConversationMessage = {
+        id: this.generateMessageId(),
+        fromParticipant: {
+          id: 'coreagent',
+          type: 'agent',
+          name: targetAgent.constructor.name,
+          agentType: this.extractAgentType(targetAgent)
+        },
+        toParticipant: request.fromParticipant,
+        content: agentResponse.content,
+        timestamp: new Date(),
+        conversationId: conversationId,
+        metadata: {
+          confidence: agentResponse.metadata?.confidence || 0.8,
+          reasoning: agentResponse.metadata?.reasoning,
+          qualityScore: agentResponse.metadata?.qualityScore || 0.8
+        }
+      };
+
+      return {
+        message: responseMessage,
+        success: true
+      };
+
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      
+      return {
+        message: {
+          id: this.generateMessageId(),
+          fromParticipant: { id: 'system', type: 'agent', name: 'System' },
+          content: 'I apologize, but I encountered an error processing your message.',
+          timestamp: new Date(),
+          conversationId: request.conversationId || 'error',
+          metadata: { qualityScore: 0.0 }
+        },
+        success: false,
+        error: errorMessage
+      };
+    }
+  }
+
+  /**
+   * Agent-to-Agent communication using the same infrastructure
+   * This enables agents to communicate naturally with each other
+   */
+  async sendAgentMessage(
+    fromAgentType: string,
+    toAgentType: string,
+    content: string,
+    userId: string,
+    conversationId?: string
+  ): Promise<ConversationResponse> {
+    
+    const fromParticipant: ConversationParticipant = {
+      id: fromAgentType,
+      type: 'agent',
+      name: `${fromAgentType.charAt(0).toUpperCase() + fromAgentType.slice(1)}Agent`,
+      agentType: fromAgentType
+    };
+
+    const toParticipant: ConversationParticipant = {
+      id: toAgentType,
+      type: 'agent',
+      name: `${toAgentType.charAt(0).toUpperCase() + toAgentType.slice(1)}Agent`,
+      agentType: toAgentType
+    };    return this.processUniversalMessage({
+      fromParticipant,
+      toParticipant,
+      content,
+      ...(conversationId && { conversationId }),
+      userId
+    });
+  }
+
+  /**
+   * Team meeting orchestration using the same conversation pathways
+   */
+  async conductTeamMeeting(
+    topic: string,
+    participantAgentTypes: string[],
+    userId: string,
+    facilitator: string = 'core'
+  ): Promise<ConversationMessage[]> {
+    
+    const conversationId = this.generateConversationId();
+    const responses: ConversationMessage[] = [];
+
+    // Facilitator introduces the topic
+    const introResponse = await this.sendAgentMessage(
+      facilitator,
+      'team',
+      `Let's begin our team meeting about: ${topic}. I'd like to hear perspectives from each team member.`,
+      userId,
+      conversationId
+    );
+    
+    if (introResponse.success) {
+      responses.push(introResponse.message);
+    }
+
+    // Each agent contributes their perspective
+    for (const agentType of participantAgentTypes) {
+      if (agentType !== facilitator) {
+        const agentResponse = await this.sendAgentMessage(
+          agentType,
+          'team',
+          `As the ${agentType} specialist, here's my perspective on ${topic}...`,
+          userId,
+          conversationId
+        );
+        
+        if (agentResponse.success) {
+          responses.push(agentResponse.message);
+        }
+      }
+    }
+
+    // Facilitator provides synthesis
+    const synthesisResponse = await this.sendAgentMessage(
+      facilitator,
+      'team',
+      `Based on our discussion, here's my synthesis of the team's perspectives on ${topic}...`,
+      userId,
+      conversationId
+    );
+    
+    if (synthesisResponse.success) {
+      responses.push(synthesisResponse.message);
+    }
+
+    return responses;
+  }
+
+  /**
+   * Existing HTTP endpoint compatibility
+   */
+  async handleChatMessage(req: Request, res: Response): Promise<void> {
+    try {
+      const { message, userId, agentType = 'core' } = req.body;
+
+      if (!message || !userId) {
+        res.status(400).json({
+          error: 'Missing required fields: message and userId'
+        });
+        return;
+      }
+
+      const userParticipant: ConversationParticipant = {
+        id: userId,
+        type: 'user',
+        name: `User ${userId}`
+      };
+
+      const response = await this.processUniversalMessage({
+        fromParticipant: userParticipant,
+        content: message,
+        userId
+      });
+
+      res.json({
+        response: response.message.content,
+        agentType: response.message.fromParticipant.agentType || 'core',
+        success: response.success,
+        error: response.error
+      });
+
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      res.status(500).json({
+        response: 'I apologize, but I encountered an error processing your message.',
+        agentType: 'error',
+        success: false,
+        error: errorMessage
+      });
+    }
+  }
+
+  /**
+   * Select the appropriate agent to handle the message
+   */
+  private async selectTargetAgent(request: ConversationRequest): Promise<ISpecializedAgent | CoreAgent> {    // If directed to specific agent, try to create that agent
+    if (request.toParticipant?.agentType) {
+      try {
+        return AgentFactory.createAgent({
+          type: request.toParticipant.agentType as AgentType,
+          id: `${request.toParticipant.agentType}_${Date.now()}`,
+          name: request.toParticipant.name,
+          memoryEnabled: true,
+          aiEnabled: true,
+          userId: request.userId
+        });
+      } catch (error) {
+        // Fallback to CoreAgent if specific agent can't be created
+        return this.coreAgent;
+      }
+    }
+
+    // Default to CoreAgent for routing and general processing
+    return this.coreAgent;
+  }
+
+  /**
+   * Store conversation using existing memory system
+   */
+  private async storeUniversalConversation(
+    message: ConversationMessage,
+    agentResponse: any,
+    userId: string
+  ): Promise<void> {
+    
+    const conversationText = `${message.fromParticipant.name}: ${message.content}\n` +
+                           `${agentResponse.metadata?.agentType || 'Agent'}: ${agentResponse.content}`;
+
+    await this.unifiedMemoryClient.createMemory(
+      conversationText,
+      userId,
+      'session',
+      {
+        conversationId: message.conversationId,
+        participantTypes: [message.fromParticipant.type, 'agent'],
+        fromAgent: message.fromParticipant.agentType,
+        timestamp: message.timestamp,
+        source: 'universal_conversation'
+      }
+    );
+  }
+
+  /**
+   * Extract agent type from agent instance
+   */
+  private extractAgentType(agent: ISpecializedAgent | CoreAgent): string {
+    const className = agent.constructor.name.toLowerCase();
+    return className.replace('agent', '') || 'core';
+  }
+
+  // Utility methods
+  private generateConversationId(): string {
+    return `conv_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+  }
+
+  private generateMessageId(): string {
+    return `msg_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+  }
+}

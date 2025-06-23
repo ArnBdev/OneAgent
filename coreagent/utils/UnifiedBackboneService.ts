@@ -148,11 +148,10 @@ export class OneAgentUnifiedTimeService implements UnifiedTimeService {
   public getEnergyLevel(): 'low' | 'medium' | 'high' | 'peak' {
     return this.getContext().intelligence.energyLevel;
   }
-  
-  /**
+    /**
    * Get suggestion context
    */
-  public getSuggestionContext(): 'planning' | 'execution' | 'review' | 'rest' {
+  public getSuggestionContext(): 'planning' | 'execution' | 'review' | 'rest' | 'none' {
     return this.getContext().intelligence.suggestionContext;
   }
   

@@ -1,16 +1,9 @@
 /**
  * Agent Registry Interface
- * Legacy interface for backward compatibility - redirects to orchestrator interfaces
- * @deprecated Use IAgentRegistry from orchestrator/interfaces instead
+ * Redirects to backbone types for architectural consistency
  */
 
 export type { 
     IAgentRegistry,
-    AgentRegistrationRequest,
-    AgentStatus,
-    RegistryStatistics,
-    AgentHealthCheck,
-    AgentHealthReport,
-    AgentRegistryConfig,
-    AgentMatchCriteria
-} from '../orchestrator/interfaces/IAgentRegistry';
+    IUnifiedAgentRegistry
+} from '../types/oneagent-backbone-types';

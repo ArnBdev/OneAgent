@@ -1,12 +1,14 @@
 /**
- * OneAgent Memory Search Tool
- * Search through OneAgent persistent memory system
+ * OneAgent Memory Search Tool - Enhanced with Memory Intelligence
+ * Search through OneAgent persistent memory system with semantic insights and analytics
  */
 
 import { UnifiedMCPTool, ToolExecutionResult, InputSchema } from './UnifiedMCPTool';
-import { realUnifiedMemoryClient } from '../memory/RealUnifiedMemoryClient';
+import { MemoryIntelligence } from '../intelligence/memoryIntelligence';
 
 export class MemorySearchTool extends UnifiedMCPTool {
+  private memoryIntelligence: MemoryIntelligence;
+
   constructor() {
     const schema: InputSchema = {
       type: 'object',
@@ -27,79 +29,98 @@ export class MemorySearchTool extends UnifiedMCPTool {
         limit: { 
           type: 'number', 
           description: 'Maximum number of results (default: 10)' 
+        },
+        includeInsights: {
+          type: 'boolean',
+          description: 'Include intelligent insights and analytics (default: true)'
         }
       },
       required: ['query', 'userId']
-    };    super(
+    };
+
+    super(
       'oneagent_memory_search',
-      'Search OneAgent memory with semantic matching and filtering capabilities',
+      'Search OneAgent memory with semantic matching, filtering capabilities, and intelligent insights',
       schema,
       'enhanced'
     );
-  }
 
-  protected async executeCore(args: any): Promise<ToolExecutionResult> {
+    // Initialize Memory Intelligence
+    this.memoryIntelligence = new MemoryIntelligence();
+  }  protected async executeCore(args: any): Promise<ToolExecutionResult> {
     try {
-      const { query, userId, memoryType = 'all', limit = 10 } = args;
+      const { query, userId, memoryType = 'all', limit = 10, includeInsights = true } = args;
       
-      // Connect to memory system
-      await realUnifiedMemoryClient.connect();
+      // Use Memory Intelligence for enhanced search with insights
+      console.log('🧠 Using Memory Intelligence for enhanced search...');
       
-      // Perform semantic search (placeholder implementation)
-      const searchResults = {
+      const intelligentResult = await this.memoryIntelligence.intelligentSearch(
         query,
-        results: [
-          {
-            id: 'search_result_1',
-            content: `Search result for "${query}"`,
-            relevance: 0.95,
-            timestamp: new Date().toISOString(),
-            memoryType: memoryType,
-            userId: userId
-          }
-        ],
-        total: 1,
-        executionTime: '50ms',
-        searchType: 'semantic'
-      };
+        userId,
+        { maxResults: limit }
+      );
+
+      console.log('✅ Memory Intelligence search completed:', {
+        totalResults: intelligentResult.totalResults,
+        averageQuality: intelligentResult.averageQuality,
+        insightsCount: intelligentResult.metadata?.insights?.length || 0
+      });
 
       return {
         success: true,
         data: {
           success: true,
-          searchResults,
+          searchResults: {
+            query: intelligentResult.query,
+            results: intelligentResult.results.map(result => ({
+              id: result.id,
+              content: result.content,
+              relevance: result.metadata.relevanceScore || 0.8,
+              timestamp: result.metadata.timestamp.toISOString(),
+              memoryType: result.metadata.category || 'session',
+              userId: result.metadata.userId,
+              metadata: result.metadata,
+              qualityScore: result.qualityScore,
+              constitutionalStatus: result.constitutionalStatus
+            })),
+            total: intelligentResult.totalResults,
+            executionTime: `${intelligentResult.searchTime}ms`,
+            searchType: 'intelligent_semantic',
+            averageRelevance: intelligentResult.averageRelevance,
+            averageQuality: intelligentResult.averageQuality,
+            constitutionalCompliance: intelligentResult.constitutionalCompliance,
+            insights: intelligentResult.metadata?.insights || []
+          },
           query,
           userId,
           memoryType,
           limit,
-          message: 'Memory search completed successfully',
+          message: 'Intelligent memory search completed successfully with insights',
           capabilities: [
-            'Semantic search with embeddings',
+            'Intelligent semantic search with insights',
+            'Pattern recognition and analytics',
+            'Quality scoring and trend analysis',
+            'Constitutional AI compliance',
             'Multi-user memory isolation',
-            'Type-based filtering',
-            'Relevance scoring'
+            'Cross-conversation learning'
           ],
-          qualityScore: 95,
+          qualityScore: Math.round(intelligentResult.averageQuality * 100) || 95,
           toolName: 'oneagent_memory_search',
-          constitutionalCompliant: true,
+          constitutionalCompliant: intelligentResult.constitutionalCompliance > 0.8,
           timestamp: new Date().toISOString(),
           metadata: {
-            searchType: 'semantic',
+            searchType: 'intelligent_semantic',
             toolFramework: 'unified_mcp_v1.0',
-            constitutionalLevel: 'enhanced'
-          }
+            constitutionalLevel: 'enhanced',
+            memoryIntelligence: true          }
         }
       };
-
-    } catch (error) {
+    } catch (error: any) {
+      console.error('❌ Memory Intelligence search failed:', error.message);
+      
       return {
         success: false,
-        data: {
-          success: false,
-          error: error instanceof Error ? error.message : 'Unknown error',
-          query: args.query,
-          timestamp: new Date().toISOString()
-        }
+        data: { error: `Memory search failed: ${error.message}` }
       };
     }
   }

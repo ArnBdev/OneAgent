@@ -202,9 +202,13 @@ export function registerCommands(context: vscode.ExtensionContext, client: OneAg
                     cancellable: false
                 }, async (progress) => {
                     progress.report({ increment: 0, message: "Searching memory context..." });
-                    
-                    const userId = vscode.env.machineId;
-                    const result = await client.memorySearch({ query, userId, limit: 10 });
+                      const userId = vscode.env.machineId;
+                    const result = await client.memorySearch({ 
+                        query, 
+                        userId, 
+                        limit: 10,
+                        includeInsights: true  // Enable Memory Intelligence insights
+                    });
                     
                     progress.report({ increment: 100, message: "Search complete" });
                       if (result.success && result.data?.memories?.length) {

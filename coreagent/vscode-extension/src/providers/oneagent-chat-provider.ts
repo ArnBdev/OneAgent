@@ -70,17 +70,17 @@ export class OneAgentChatProvider {
                 const userId = vscode.env.machineId;
                 const userMessage = request.prompt;
                 const assistantResponse = aiResponse.data?.content || aiResponse.data?.response;
-                
-                // Store basic interaction
-                await this.client.memoryCreate(
-                    `User: ${userMessage}\nAssistant: ${assistantResponse}`,
+                  // Store basic interaction with Memory Intelligence
+                await this.client.memoryCreate({
+                    content: `User: ${userMessage}\nAssistant: ${assistantResponse}`,
                     userId,
-                    'session'
-                );
+                    memoryType: 'session',
+                    useIntelligence: true  // Enable intelligence for pattern recognition
+                });
                 
-                // Store enhanced metadata for ALITA learning
-                await this.client.memoryCreate(
-                    JSON.stringify({
+                // Store enhanced metadata for ALITA learning with Memory Intelligence
+                await this.client.memoryCreate({
+                    content: JSON.stringify({
                         type: 'copilot_chat_interaction',
                         timestamp: new Date().toISOString(),
                         userMessage,
@@ -95,11 +95,11 @@ export class OneAgentChatProvider {
                         userBehavior: {
                             responseTime: Date.now(), // Could be enhanced with actual timing
                             followupUsed: false // Will be updated if user uses followups
-                        }
-                    }),
+                        }                    }),
                     userId,
-                    'long_term'
-                );
+                    memoryType: 'long_term',
+                    useIntelligence: true  // Enable intelligence for enhanced metadata analysis
+                });
                 
                 // Trigger ALITA Auto-Evolution if configured
                 const evolutionConfig = vscode.workspace.getConfiguration('oneagent');

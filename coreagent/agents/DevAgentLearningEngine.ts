@@ -17,9 +17,9 @@
 import { MemoryDrivenAgentCommunication } from './communication/MemoryDrivenAgentCommunication';
 import { UnifiedContext7MCPIntegration, DocumentationResult } from '../mcp/UnifiedContext7MCPIntegration';
 import { CodeAnalysisResult } from './AdvancedCodeAnalysisEngine';
-import { realUnifiedMemoryClient } from '../memory/RealUnifiedMemoryClient';
 import { timeAwareness, getEnhancedTimeContext } from '../utils/EnhancedTimeAwareness.js';
 import { OneAgentUnifiedBackbone } from '../utils/UnifiedBackboneService.js';
+import { OneAgentMem0Bridge } from '../memory/OneAgentMem0Bridge';
 
 export interface LearnedPattern {
   id: string;
@@ -99,6 +99,7 @@ export class DevAgentLearningEngine {
   private context7Integration: UnifiedContext7MCPIntegration;
   private agentId: string;
   private unifiedBackbone: OneAgentUnifiedBackbone;
+  private memoryBridge = new OneAgentMem0Bridge({});
   
   // In-memory cache for fast access
   private patternCache: Map<string, LearnedPattern> = new Map();
@@ -343,13 +344,13 @@ export class DevAgentLearningEngine {
    */  private async loadExistingPatterns(): Promise<void> {
     try {
       // Query for all DevAgent learning patterns globally, not user-specific
-      const memoryResult = await realUnifiedMemoryClient.getMemoryContext(
-        'learned pattern solution best practice devagent',
-        'global' // Use global context to share patterns across all DevAgent instances
-      );
-      
-      console.log(`[LearningEngine] Found ${memoryResult.memories.length} potential patterns in global memory`);
-        for (const memory of memoryResult.memories) {
+      const memoryResult = await this.memoryBridge.searchMemories({
+        query: 'learned pattern solution best practice devagent',
+        agentIds: ['global'],
+        maxResults: 100
+      });
+      console.log(`[LearningEngine] Found ${memoryResult.length} potential patterns in global memory`);
+      for (const memory of memoryResult) {
         // Check multiple possible metadata structures for learned patterns
         const isLearningPattern = memory.metadata?.context?.type === 'learned_pattern' ||
                                  memory.metadata?.type === 'learned_pattern' ||
@@ -509,29 +510,27 @@ export class DevAgentLearningEngine {
    * Store a new pattern in persistent memory
    */  private async storeNewPattern(pattern: LearnedPattern): Promise<LearnedPattern> {
     try {
-      // Store in persistent memory using realUnifiedMemoryClient with global access
-      await realUnifiedMemoryClient.createMemory(
-        JSON.stringify(pattern),
-        'global', // Store patterns globally for all DevAgent instances to access
-        'long_term',
-        {
+      await this.memoryBridge.storeLearning({
+        id: `learned_pattern_${pattern.id}_${Date.now()}`,
+        agentId: this.agentId,
+        learningType: 'pattern',
+        content: JSON.stringify(pattern),
+        confidence: pattern.confidence,
+        applicationCount: pattern.timesUsed,
+        lastApplied: new Date(),
+        sourceConversations: [],
+        metadata: {
           type: 'learned_pattern',
           category: pattern.category,
           language: pattern.language,
           patternId: pattern.id,
           confidence: pattern.confidence,
-          agentId: this.agentId, // Track which agent created it
-          globalPattern: true // Mark as globally accessible
+          agentId: this.agentId,
+          globalPattern: true
         }
-      );
-      
-      // Update cache and indexes
+      });
       this.patternCache.set(pattern.id, pattern);
-      this.updateIndexes(pattern);
-      
-      console.log(`[LearningEngine] Stored new pattern: ${pattern.name}`);
       return pattern;
-      
     } catch (error) {
       console.error('[LearningEngine] Failed to store new pattern:', error);
       throw error;
@@ -674,10 +673,13 @@ export class DevAgentLearningEngine {
   ): Promise<LearnedPattern[]> {
     try {
       const searchQuery = `${language} ${category || ''} ${problem}`.trim();
-      const memoryResult = await realUnifiedMemoryClient.getMemoryContext(searchQuery, this.agentId);
-      
+      const memoryResult = await this.memoryBridge.searchMemories({
+        query: searchQuery,
+        agentIds: [this.agentId],
+        maxResults
+      });
       const patterns = [];
-      for (const memory of memoryResult.memories.slice(0, maxResults)) {
+      for (const memory of memoryResult.slice(0, maxResults)) {
         if (memory.metadata?.context?.type === 'learned_pattern') {
           try {
             const pattern: LearnedPattern = JSON.parse(memory.content);
@@ -687,7 +689,6 @@ export class DevAgentLearningEngine {
           }
         }
       }
-      
       return patterns;
     } catch (error) {
       console.error('[LearningEngine] Failed to search patterns in memory:', error);
@@ -745,12 +746,18 @@ export class DevAgentLearningEngine {
     await this.updatePatternInMemory(pattern);
     return pattern;
   }  private async updatePatternInMemory(pattern: LearnedPattern): Promise<void> {
-    await realUnifiedMemoryClient.createMemory(
-      JSON.stringify(pattern),
-      'global', // Store updated patterns globally
-      'long_term',
-      {
-        type: 'learned_pattern',        category: pattern.category,
+    await this.memoryBridge.storeLearning({
+      id: `learned_pattern_${pattern.id}_${Date.now()}`,
+      agentId: this.agentId,
+      learningType: 'pattern',
+      content: JSON.stringify(pattern),
+      confidence: pattern.confidence,
+      applicationCount: pattern.timesUsed,
+      lastApplied: new Date(),
+      sourceConversations: [],
+      metadata: {
+        type: 'learned_pattern',
+        category: pattern.category,
         language: pattern.language,
         patternId: pattern.id,
         confidence: pattern.confidence,
@@ -758,7 +765,7 @@ export class DevAgentLearningEngine {
         globalPattern: true,
         lastUpdated: this.unifiedBackbone.getServices().timeService.now().utc
       }
-    );
+    });
   }
 
   private async removePattern(patternId: string): Promise<void> {

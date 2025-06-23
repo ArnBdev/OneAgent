@@ -3,8 +3,8 @@
  * Constitutional AI-compliant tool architecture with predictable patterns
  */
 
-import { realUnifiedMemoryClient } from '../memory/RealUnifiedMemoryClient';
-import { generateMemoryId } from '../memory/UnifiedMemoryInterface';
+import { OneAgentMem0Bridge } from '../memory/OneAgentMem0Bridge';
+import { EnhancedMem0Client } from '../memory/EnhancedMem0Client';
 
 export interface ToolValidationResult {
   isValid: boolean;
@@ -43,7 +43,6 @@ export abstract class UnifiedMCPTool {
   public readonly description: string;
   public readonly schema: InputSchema;
   public readonly constitutionalLevel: 'basic' | 'enhanced' | 'critical';
-    protected unifiedMemoryClient: typeof realUnifiedMemoryClient;
 
   constructor(
     name: string,
@@ -55,7 +54,6 @@ export abstract class UnifiedMCPTool {
     this.description = description;
     this.schema = schema;
     this.constitutionalLevel = constitutionalLevel;
-    this.unifiedMemoryClient = realUnifiedMemoryClient;
   }
 
   /**

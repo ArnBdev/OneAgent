@@ -35,7 +35,7 @@ export interface UnifiedTimeContext {
   intelligence: {
     energyLevel: 'low' | 'medium' | 'high' | 'peak';
     optimalFocusTime: boolean;
-    suggestionContext: 'planning' | 'execution' | 'review' | 'rest';
+    suggestionContext: 'planning' | 'execution' | 'review' | 'rest' | 'none';
     motivationalTiming: 'morning-boost' | 'afternoon-focus' | 'evening-wind-down' | 'night-rest' | 'start-strong' | 'mid-momentum' | 'end-sprint' | 'reflection';
   };
   metadata?: {
@@ -76,7 +76,7 @@ export interface UnifiedTimeService {
   getContext(): UnifiedTimeContext;
   isOptimalTime(type: 'focus' | 'creative' | 'social' | 'rest'): boolean;
   getEnergyLevel(): 'low' | 'medium' | 'high' | 'peak';
-  getSuggestionContext(): 'planning' | 'execution' | 'review' | 'rest';
+  getSuggestionContext(): 'planning' | 'execution' | 'review' | 'rest' | 'none';
   createTimestamp(): UnifiedTimestamp;
 }
 
@@ -161,7 +161,12 @@ export type AgentType =
   | 'creative'
   | 'specialist'
   | 'coordinator'
-  | 'validator';
+  | 'validator'
+  | 'development'
+  | 'office'
+  | 'fitness'
+  | 'core'
+  | 'triage';
 
 export interface UnifiedAgentContext {
   agentId: string;
@@ -179,6 +184,18 @@ export interface UnifiedAgentContext {
   agentName?: string; // Added to match implementation usage
   timeService?: any; // Added to match implementation usage
   metadataService?: any; // Added to match implementation usage
+}
+
+// ========================================
+// TIME INTERFACES
+// ========================================
+
+export interface TimeWindow {
+  start: Date;
+  end: Date;
+  duration?: number; // in milliseconds
+  timezone?: string;
+  description?: string;
 }
 
 // ========================================
@@ -384,6 +401,7 @@ export interface MemorySearchOptions {
 export interface MemorySearchResult {
   results: MemoryRecord[];
   totalFound: number;
+  totalResults?: number; // Add compatibility property
   searchTime: number;
   averageRelevance: number;
   averageQuality: number;
@@ -391,6 +409,11 @@ export interface MemorySearchResult {
   queryContext: string[];
   suggestedRefinements: string[];
   relatedQueries: string[];
+  query?: string; // Add compatibility property
+  metadata?: {
+    conversations?: ConversationData[];
+    insights?: IntelligenceInsight[];
+  }; // Add metadata support
 }
 
 export interface MemoryAnalytics {
@@ -618,11 +641,14 @@ export interface ConversationData {
   startTime: Date;
   endTime?: Date;
   topics: string[];
+  topicTags?: string[]; // Add compatibility alias
   keyInsights: string[];
   decisions: string[];
   actionItems: string[];
   overallQuality: number;
+  qualityScore?: number; // Add compatibility alias
   constitutionalCompliance: number;
+  constitutionalCompliant?: boolean; // Add compatibility alias
   userSatisfaction: number;
   goalAchievement: number;
   newKnowledge: string[];
@@ -635,6 +661,16 @@ export interface ConversationData {
   responseTimings: number[];
   qualityTrends: number[];
   engagementLevels: number[];
+  timestamp?: Date; // Add explicit timestamp support
+  userId?: string; // Add explicit userId support
+  messageCount?: number; // Add message count support
+  conversationLength?: number; // Add conversation length alias
+  contextTags?: string[]; // Add context tags support
+  communicationStyle?: string; // Add communication style support
+  technicalLevel?: string; // Add technical level support
+  domain?: string; // Add domain support
+  taskCompleted?: boolean; // Add task completion support
+  responseTime?: number; // Add response time support
 }
 
 export interface ConversationQuery {
@@ -649,10 +685,11 @@ export interface ConversationQuery {
 
 export interface IntelligenceInsight {
   id: string;
-  type: 'pattern' | 'anomaly' | 'trend' | 'opportunity' | 'risk';
+  type: 'pattern' | 'anomaly' | 'trend' | 'opportunity' | 'risk' | 'suggestion'; // Add 'suggestion' type
   confidence: number;
   title: string;
   description: string;
+  content?: string; // Add content property for compatibility
   evidence: string[];
   implications: string[];
   userId?: string;

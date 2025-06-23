@@ -4,7 +4,7 @@
  */
 
 import { UnifiedMCPTool, ToolExecutionResult, InputSchema } from './UnifiedMCPTool';
-import { OneAgentMem0Bridge } from '../memory/OneAgentMem0Bridge';
+import { realUnifiedMemoryClient } from '../memory/RealUnifiedMemoryClient';
 import { MemoryIntelligence } from '../intelligence/memoryIntelligence';
 import { OneAgentUnifiedMetadataService } from '../utils/UnifiedBackboneService';
 import { oneAgentConfig } from '../config/index';
@@ -12,7 +12,6 @@ import { oneAgentConfig } from '../config/index';
 export class MemoryCreateTool extends UnifiedMCPTool {
   private memoryIntelligence: MemoryIntelligence;
   private metadataService: OneAgentUnifiedMetadataService;
-  private unifiedMemoryClient: OneAgentMem0Bridge;
 
   constructor() {
     const schema: InputSchema = {
@@ -51,16 +50,7 @@ export class MemoryCreateTool extends UnifiedMCPTool {
     );
 
     // Initialize Memory Intelligence and Backbone Services
-    this.unifiedMemoryClient = new OneAgentMem0Bridge({
-      provider: process.env.MEM0_PROVIDER,
-      model: process.env.MEM0_MODEL,
-      embeddingModel: process.env.MEM0_EMBEDDING_MODEL,
-      collection: process.env.MEM0_COLLECTION,
-      vectorPath: process.env.MEM0_VECTOR_PATH,
-      graphUrl: process.env.MEM0_GRAPH_URL,
-      apiKey: process.env.GEMINI_API_KEY
-    });
-    this.memoryIntelligence = new MemoryIntelligence(this.unifiedMemoryClient);
+    this.memoryIntelligence = new MemoryIntelligence(realUnifiedMemoryClient);
     this.metadataService = OneAgentUnifiedMetadataService.getInstance();
   }
 
@@ -68,6 +58,10 @@ export class MemoryCreateTool extends UnifiedMCPTool {
     try {
       const { content, userId, memoryType = 'session', metadata = {}, useIntelligence = true } = args;
       
+      // Connect to memory system
+      const { realUnifiedMemoryClient } = await import('../memory/RealUnifiedMemoryClient');
+      await realUnifiedMemoryClient.connect();
+
       // Create comprehensive backbone metadata (CANONICAL TRUTH)
       const backboneMetadata = this.createComprehensiveBackboneMetadata(
         content, 
@@ -130,19 +124,14 @@ export class MemoryCreateTool extends UnifiedMCPTool {
 
       // Fallback: Use backbone metadata with basic storage
       console.log('💾 Using Backbone Metadata with basic storage...');
-      const memoryId = await this.unifiedMemoryClient.storeConversation({
-        id: `mem_${Date.now()}`,
-        agentId: metadata?.agentId || 'oneagent_copilot',
-        userId,
+        const memoryId = await realUnifiedMemoryClient.createMemory(
         content,
-        timestamp: new Date(),
-        context: {},
-        outcome: { success: true },
-        metadata: {
-          ...backboneMetadata,
-          memoryType
+        userId,
+        memoryType,
+        {
+          ...backboneMetadata
         }
-      });
+      );
 
       console.log('✅ Backbone metadata storage completed:', { memoryId });
 

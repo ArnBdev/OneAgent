@@ -13,7 +13,7 @@
 import { BaseAgent, AgentConfig, AgentContext, AgentResponse, Message, AgentAction } from '../base/BaseAgent';
 import { ISpecializedAgent, AgentStatus, AgentHealthStatus } from '../base/ISpecializedAgent';
 import { GeminiClient } from '../../tools/geminiClient';
-import { realUnifiedMemoryClient } from '../../memory/RealUnifiedMemoryClient';
+import { OneAgentMem0Bridge } from '../../memory/OneAgentMem0Bridge';
 import { v4 as uuidv4 } from 'uuid';
 
 export interface DevAgentCapabilities {
@@ -294,37 +294,169 @@ Provide helpful, actionable development guidance with specific examples where ap
     
     return 'general_development';
   }
-
   /**
-   * Store user message in memory (REAL memory integration)
+   * Store user message in memory with unified metadata and memory intelligence
    */
   private async storeUserMessage(userId: string, message: string, context: AgentContext): Promise<void> {
     const content = `User development request: ${message}`;
+    
+    // Use unified backbone metadata system for proper concern separation
     const metadata = {
       messageType: 'user_request',
       agentId: this.config.id,
       sessionId: context.sessionId,
       timestamp: new Date().toISOString(),
-      userId: userId
+      userId: userId,
+      // Enhanced metadata for unified backbone system
+      category: context.projectContext ? 'PROJECTS' : 'WORKPLACE', // Project vs workplace categorization
+      sensitivity: 'internal' as const,
+      contextDependency: 'user' as const,
+      tags: ['development', 'user-request', `agent:${this.config.id}`],
+      relevanceScore: 0.8,
+      // Development-specific metadata
+      requestType: this.analyzeRequestType(message),
+      technicalComplexity: this.assessTechnicalComplexity(message),
+      domainKeywords: this.extractDomainKeywords(message)
     };
 
     await this.addMemory(userId, content, metadata);
   }
-
   /**
-   * Store agent response in memory (REAL memory integration)
+   * Store agent response in memory with unified metadata and memory intelligence
    */
   private async storeAgentResponse(userId: string, response: string, context: AgentContext): Promise<void> {
     const content = `DevAgent response: ${response}`;
+    
+    // Use unified backbone metadata system
     const metadata = {
       messageType: 'agent_response',
       agentId: this.config.id,
       sessionId: context.sessionId,
       timestamp: new Date().toISOString(),
-      userId: userId
+      userId: userId,
+      qualityScore: 85, // TODO: Calculate actual quality score
+      // Enhanced metadata for unified backbone system
+      category: context.projectContext ? 'PROJECTS' : 'WORKPLACE',
+      sensitivity: 'internal' as const,
+      contextDependency: 'user' as const,
+      tags: ['development', 'agent-response', `agent:${this.config.id}`],
+      relevanceScore: 0.9,
+      // Development-specific metadata
+      responseType: 'development_assistance',
+      technicalLevel: 'intermediate',
+      constitutionalCompliant: true
     };
 
     await this.addMemory(userId, content, metadata);
+  }
+
+  // =============================================================================
+  // ENHANCED MEMORY INTELLIGENCE METHODS
+  // =============================================================================
+
+  /**
+   * Assess technical complexity of a development request
+   */
+  private assessTechnicalComplexity(message: string): 'simple' | 'intermediate' | 'complex' {
+    const complexKeywords = ['architecture', 'microservices', 'distributed', 'scalability', 'optimization', 'design patterns'];
+    const intermediateKeywords = ['database', 'api', 'framework', 'testing', 'deployment'];
+    
+    const messageLower = message.toLowerCase();
+    
+    if (complexKeywords.some(keyword => messageLower.includes(keyword))) {
+      return 'complex';
+    } else if (intermediateKeywords.some(keyword => messageLower.includes(keyword))) {
+      return 'intermediate';
+    }
+    return 'simple';
+  }
+
+  /**
+   * Extract domain-specific keywords from message
+   */
+  private extractDomainKeywords(message: string): string[] {
+    const allKeywords = this.getDomainKeywords();
+    const messageLower = message.toLowerCase();
+    
+    return allKeywords.filter(keyword => 
+      messageLower.includes(keyword.toLowerCase())
+    );
+  }
+
+  /**
+   * Generate development insights using memory intelligence
+   */
+  async generateDevelopmentInsights(userId: string, query?: string): Promise<any[]> {
+    const insights = await this.generateMemoryInsights(userId, query, {
+      category: 'PROJECTS',
+      includeInstitutionalKnowledge: true,
+      sensitivity: 'internal'
+    });
+    
+    // Add development-specific insight processing
+    return insights.map(insight => ({
+      ...insight,
+      developmentContext: true,
+      technicalRelevance: this.calculateTechnicalRelevance(insight),
+      actionableSteps: this.generateActionableSteps(insight)
+    }));
+  }
+
+  /**
+   * Analyze development conversation patterns
+   */
+  async analyzeDevelopmentPatterns(userId: string): Promise<{
+    patterns: any[];
+    insights: any[];
+    quality: number;
+    developmentMetrics: any;
+  }> {
+    const baseAnalysis = await this.analyzeConversationPatterns(userId);
+    
+    // Add development-specific metrics
+    const developmentMetrics = {
+      codeReviewFrequency: 0, // TODO: Calculate from memory
+      debuggingSuccessRate: 0, // TODO: Calculate from memory
+      architectureDiscussions: 0, // TODO: Calculate from memory
+      testingCoverage: 0 // TODO: Calculate from memory
+    };
+    
+    return {
+      ...baseAnalysis,
+      developmentMetrics
+    };
+  }
+
+  /**
+   * Calculate technical relevance of an insight
+   */
+  private calculateTechnicalRelevance(insight: any): number {
+    // Simple heuristic based on technical keywords in insight content
+    const technicalKeywords = this.getDomainKeywords();
+    const content = insight.content || insight.description || '';
+    const matches = technicalKeywords.filter(keyword => 
+      content.toLowerCase().includes(keyword.toLowerCase())
+    ).length;
+    
+    return Math.min(1.0, matches / 10); // Normalize to 0-1 scale
+  }
+
+  /**
+   * Generate actionable steps from insight
+   */
+  private generateActionableSteps(insight: any): string[] {
+    // Basic implementation - could be enhanced with AI
+    const insightType = insight.type || 'general';    
+    switch (insightType) {
+      case 'pattern':
+        return ['Review pattern implementation', 'Consider optimization opportunities', 'Document best practices'];
+      case 'anomaly':
+        return ['Investigate root cause', 'Implement monitoring', 'Create prevention strategy'];
+      case 'trend':
+        return ['Monitor trend progression', 'Adapt development practices', 'Share findings with team'];
+      default:
+        return ['Review insight details', 'Plan implementation', 'Monitor results'];
+    }
   }
 
   /**

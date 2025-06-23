@@ -12,7 +12,7 @@
  */
 
 import { LocalMCPAdapter, MCPServerConfig } from './adapter';
-import { UnifiedMemoryClient } from '../memory/UnifiedMemoryClient';
+import { UnifiedMemoryClient } from '../types/oneagent-backbone-types';
 import { 
   ConversationMemory, 
   LearningMemory, 

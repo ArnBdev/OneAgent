@@ -7,7 +7,7 @@
  */
 
 import { PerformanceMonitor } from '../../monitoring/PerformanceMonitor';
-import { ConversationData } from '../../memory/MemoryClient';
+import { ConversationData } from '../../types/oneagent-backbone-types';
 
 export interface SuccessMetrics {
   overallScore: number;
@@ -56,11 +56,9 @@ export class PerformanceAnalyzer {
       // Calculate completion rate
       const completionRate = conversations
         .filter(c => c.taskCompleted)
-        .length / conversations.length;
-
-      // Calculate average response time
+        .length / conversations.length;      // Calculate average response time
       const averageResponseTime = conversations
-        .reduce((sum, c) => sum + c.responseTime, 0) / conversations.length;
+        .reduce((sum, c) => sum + (c.responseTime || 0), 0) / conversations.length;
 
       // Calculate constitutional compliance rate
       const complianceRate = conversations
@@ -245,9 +243,8 @@ export class PerformanceAnalyzer {
     const indicators: string[] = [];
     
     const highPerformers = conversations.filter(c => c.userSatisfaction >= 0.9);
-    
-    if (highPerformers.length > 0) {
-      const avgResponseTime = highPerformers.reduce((sum, c) => sum + c.responseTime, 0) / highPerformers.length;
+      if (highPerformers.length > 0) {
+      const avgResponseTime = highPerformers.reduce((sum, c) => sum + (c.responseTime || 0), 0) / highPerformers.length;
       
       if (avgResponseTime < 2000) {
         indicators.push('fast_response');

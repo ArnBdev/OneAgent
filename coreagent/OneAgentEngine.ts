@@ -18,7 +18,7 @@ import { oneAgentConfig } from './config/index';
 // Import core systems
 import { ConstitutionalAI } from './agents/base/ConstitutionalAI';
 import { BMADElicitationEngine } from './agents/base/BMADElicitationEngine';
-import { realUnifiedMemoryClient } from './memory/RealUnifiedMemoryClient';
+import { OneAgentMem0Bridge } from './memory/OneAgentMem0Bridge';
 import { UnifiedNLACSOrchestrator } from './nlacs/UnifiedNLACSOrchestrator';
 import { agentBootstrap } from './agents/communication/AgentBootstrapService';
 
@@ -95,10 +95,12 @@ export class OneAgentEngine extends EventEmitter {
   private webSearch?: WebSearchTool;
   private aiAssistant?: AIAssistantTool;
   private embeddings?: GeminiEmbeddingsTool;
+  private memoryBridge: OneAgentMem0Bridge;
 
   constructor(config?: Partial<OneAgentConfig>) {
     super();
     this.config = this.mergeConfig(config);
+    this.memoryBridge = new OneAgentMem0Bridge({});
     this.initializeCoreSystems();
   }
 
@@ -400,12 +402,11 @@ export class OneAgentEngine extends EventEmitter {
 
   private async initializeMemorySystem(): Promise<void> {
     if (!this.config.memory.enabled) return;
-    
     try {
-      await realUnifiedMemoryClient.connect();
-      console.log('✅ Memory system connected');
+      await this.memoryBridge.connect?.();
+      console.log('✅ Canonical memory system (Mem0Bridge) connected');
     } catch (error) {
-      console.warn('⚠️ Memory system connection failed:', error);
+      console.warn('⚠️ Canonical memory system connection failed:', error);
     }
   }
 
@@ -623,13 +624,11 @@ export class OneAgentEngine extends EventEmitter {
    */
   async shutdown(): Promise<void> {
     console.log('🛑 Shutting down OneAgent Engine...');
-    
     try {
       // Close memory connections
       if (this.config.memory.enabled) {
-        await realUnifiedMemoryClient.disconnect?.();
+        await this.memoryBridge.disconnect?.();
       }
-      
       // Shutdown multi-agent system
       if (this.multiAgentOrchestrator) {
         // TODO: Add shutdown method to orchestrator
@@ -637,7 +636,6 @@ export class OneAgentEngine extends EventEmitter {
       
       this.emit('shutdown', { timestamp: new Date().toISOString() });
       console.log('✅ OneAgent Engine shutdown complete');
-      
     } catch (error) {
       console.error('❌ Error during shutdown:', error);
     }
