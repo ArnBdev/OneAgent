@@ -3,7 +3,4 @@
  * Redirects to backbone types for architectural consistency
  */
 
-export type { 
-    IAgentRegistry,
-    IUnifiedAgentRegistry
-} from '../types/oneagent-backbone-types';
+// Removed import of IAgentRegistry and IUnifiedAgentRegistry as they do not exist in canonical types.

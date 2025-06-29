@@ -378,3 +378,4 @@ flamegraph.html
 # Security scanning results
 .snyk
 vulnerability-report.*
+node_modules

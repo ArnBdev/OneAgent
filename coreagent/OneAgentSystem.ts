@@ -308,46 +308,47 @@ export class OneAgentSystem extends EventEmitter {
   }
     /**
    * Register all specialist agents using existing AgentFactory
+   * Canonical, extensible, and future-proof implementation
    */
   private async registerSpecialistAgents(): Promise<void> {
     try {
       console.log('🚀 Registering specialist agents via AgentFactory...');
 
-      // Register DevAgent with proper adapter
-      const devAgent = await AgentFactory.createAgent({
-        type: 'enhanced-development',
-        id: 'DevAgent',
-        name: 'Development Specialist',
-        description: 'Expert in coding, architecture, and development best practices',
-        memoryEnabled: true,
-        aiEnabled: true
-      });
-      this.specialists.set('DevAgent', this.createAgentAdapter(devAgent, 'DevAgent'));
+      // Canonical agent registration config array for extensibility
+      const agentConfigs: AgentFactoryConfig[] = [
+        {
+          type: 'development',
+          id: 'DevAgent',
+          name: 'Development Specialist',
+          description: 'Expert in coding, architecture, and development best practices',
+          memoryEnabled: true,
+          aiEnabled: true
+        },
+        {
+          type: 'office',
+          id: 'OfficeAgent',
+          name: 'Office Productivity Specialist',
+          description: 'Expert in document management, scheduling, and office workflows',
+          memoryEnabled: true,
+          aiEnabled: true
+        },
+        {
+          type: 'fitness',
+          id: 'FitnessAgent',
+          name: 'Fitness and Health Specialist',
+          description: 'Expert in workout planning, nutrition, and health optimization',
+          memoryEnabled: true,
+          aiEnabled: true
+        }
+      ];
 
-      // Register OfficeAgent with proper adapter
-      const officeAgent = await AgentFactory.createAgent({
-        type: 'office',
-        id: 'OfficeAgent', 
-        name: 'Office Productivity Specialist',
-        description: 'Expert in document management, scheduling, and office workflows',
-        memoryEnabled: true,
-        aiEnabled: true
-      });
-      this.specialists.set('OfficeAgent', this.createAgentAdapter(officeAgent, 'OfficeAgent'));
-
-      // Register FitnessAgent with proper adapter
-      const fitnessAgent = await AgentFactory.createAgent({
-        type: 'fitness',
-        id: 'FitnessAgent',
-        name: 'Fitness and Health Specialist', 
-        description: 'Expert in workout planning, nutrition, and health optimization',
-        memoryEnabled: true,
-        aiEnabled: true
-      });
-      this.specialists.set('FitnessAgent', this.createAgentAdapter(fitnessAgent, 'FitnessAgent'));
+      // Register all agents in a canonical, extensible loop
+      for (const config of agentConfigs) {
+        const agent = await AgentFactory.createAgent(config);
+        this.specialists.set(config.id, this.createAgentAdapter(agent, config.id));
+      }
 
       console.log(`✅ Registered ${this.specialists.size} specialist agents successfully`);
-      
     } catch (error) {
       console.error('❌ Failed to register specialist agents:', error);
       throw error;

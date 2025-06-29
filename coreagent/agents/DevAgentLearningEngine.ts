@@ -19,7 +19,7 @@ import { UnifiedContext7MCPIntegration, DocumentationResult } from '../mcp/Unifi
 import { CodeAnalysisResult } from './AdvancedCodeAnalysisEngine';
 import { timeAwareness, getEnhancedTimeContext } from '../utils/EnhancedTimeAwareness.js';
 import { OneAgentUnifiedBackbone } from '../utils/UnifiedBackboneService.js';
-import { OneAgentMem0Bridge } from '../memory/OneAgentMem0Bridge';
+import { OneAgentMemory } from '../memory/OneAgentMemory';
 
 export interface LearnedPattern {
   id: string;
@@ -99,7 +99,7 @@ export class DevAgentLearningEngine {
   private context7Integration: UnifiedContext7MCPIntegration;
   private agentId: string;
   private unifiedBackbone: OneAgentUnifiedBackbone;
-  private memoryBridge = new OneAgentMem0Bridge({});
+  private memoryBridge = new OneAgentMemory({});
   
   // In-memory cache for fast access
   private patternCache: Map<string, LearnedPattern> = new Map();
@@ -340,35 +340,34 @@ export class DevAgentLearningEngine {
 
   // PRIVATE IMPLEMENTATION METHODS
   /**
-   * Load existing patterns from persistent memory
-   */  private async loadExistingPatterns(): Promise<void> {
+   * Load existing patterns from persistent memory (canonical format only)
+   */
+  private async loadExistingPatterns(): Promise<void> {
     try {
       // Query for all DevAgent learning patterns globally, not user-specific
-      const memoryResult = await this.memoryBridge.searchMemories({
+      const memoryResult = await this.memoryBridge.searchMemory('learned-patterns', {
         query: 'learned pattern solution best practice devagent',
-        agentIds: ['global'],
-        maxResults: 100
+        user_id: 'global',
+        limit: 100,
+        semanticSearch: true
       });
-      console.log(`[LearningEngine] Found ${memoryResult.length} potential patterns in global memory`);
-      for (const memory of memoryResult) {
-        // Check multiple possible metadata structures for learned patterns
-        const isLearningPattern = memory.metadata?.context?.type === 'learned_pattern' ||
-                                 memory.metadata?.type === 'learned_pattern' ||
-                                 memory.content.includes('"type":"learned_pattern"');
-        
-        if (isLearningPattern) {
-          try {
-            const pattern: LearnedPattern = JSON.parse(memory.content);
-            this.patternCache.set(pattern.id, pattern);
-            this.updateIndexes(pattern);
-            console.log(`[LearningEngine] Loaded global pattern: ${pattern.name} (${pattern.language})`);
-          } catch (parseError) {
-            console.warn('[LearningEngine] Failed to parse stored pattern:', parseError);
+      const loadedPatterns: string[] = [];
+      if (Array.isArray(memoryResult)) {
+        for (const memory of memoryResult) {
+          // Canonical: expect metadata.type === 'learned_pattern' and content is valid JSON
+          if (memory.metadata?.type === 'learned_pattern') {
+            try {
+              const pattern: LearnedPattern = JSON.parse(memory.content);
+              this.patternCache.set(pattern.id, pattern);
+              this.updateIndexes(pattern);
+              loadedPatterns.push(pattern.name);
+            } catch (parseError) {
+              console.warn('[LearningEngine] Failed to parse stored pattern (canonical):', parseError);
+            }
           }
         }
       }
-      
-      console.log(`[LearningEngine] Loaded ${this.patternCache.size} existing patterns from global repository`);
+      console.log(`[LearningEngine] Loaded ${this.patternCache.size} existing patterns from global repository: ${loadedPatterns.join(', ')}`);
     } catch (error) {
       console.warn('[LearningEngine] Failed to load existing patterns:', error);
     }
@@ -508,9 +507,10 @@ export class DevAgentLearningEngine {
   }
   /**
    * Store a new pattern in persistent memory
-   */  private async storeNewPattern(pattern: LearnedPattern): Promise<LearnedPattern> {
+   */
+  private async storeNewPattern(pattern: LearnedPattern): Promise<LearnedPattern> {
     try {
-      await this.memoryBridge.storeLearning({
+      await this.memoryBridge.addMemory('learned-patterns', {
         id: `learned_pattern_${pattern.id}_${Date.now()}`,
         agentId: this.agentId,
         learningType: 'pattern',
@@ -521,15 +521,11 @@ export class DevAgentLearningEngine {
         sourceConversations: [],
         metadata: {
           type: 'learned_pattern',
-          category: pattern.category,
           language: pattern.language,
-          patternId: pattern.id,
-          confidence: pattern.confidence,
-          agentId: this.agentId,
-          globalPattern: true
+          framework: pattern.framework,
+          category: pattern.category
         }
       });
-      this.patternCache.set(pattern.id, pattern);
       return pattern;
     } catch (error) {
       console.error('[LearningEngine] Failed to store new pattern:', error);
@@ -673,19 +669,21 @@ export class DevAgentLearningEngine {
   ): Promise<LearnedPattern[]> {
     try {
       const searchQuery = `${language} ${category || ''} ${problem}`.trim();
-      const memoryResult = await this.memoryBridge.searchMemories({
+      const memoryResult = await this.memoryBridge.searchMemory('learned-patterns', {
         query: searchQuery,
-        agentIds: [this.agentId],
-        maxResults
+        user_id: this.agentId,
+        limit: maxResults,
+        semanticSearch: true
       });
-      const patterns = [];
-      for (const memory of memoryResult.slice(0, maxResults)) {
-        if (memory.metadata?.context?.type === 'learned_pattern') {
+      const patterns: LearnedPattern[] = [];
+      for (const memory of (memoryResult || []).slice(0, maxResults)) {
+        // Canonical: expect metadata.type === 'learned_pattern' and content is valid JSON
+        if (memory.metadata?.type === 'learned_pattern') {
           try {
             const pattern: LearnedPattern = JSON.parse(memory.content);
             patterns.push(pattern);
           } catch (error) {
-            console.warn('[LearningEngine] Failed to parse stored pattern');
+            console.warn('[LearningEngine] Failed to parse stored pattern (canonical):', error);
           }
         }
       }
@@ -746,7 +744,7 @@ export class DevAgentLearningEngine {
     await this.updatePatternInMemory(pattern);
     return pattern;
   }  private async updatePatternInMemory(pattern: LearnedPattern): Promise<void> {
-    await this.memoryBridge.storeLearning({
+    await this.memoryBridge.addMemory('learned-patterns', {
       id: `learned_pattern_${pattern.id}_${Date.now()}`,
       agentId: this.agentId,
       learningType: 'pattern',
@@ -757,13 +755,9 @@ export class DevAgentLearningEngine {
       sourceConversations: [],
       metadata: {
         type: 'learned_pattern',
-        category: pattern.category,
         language: pattern.language,
-        patternId: pattern.id,
-        confidence: pattern.confidence,
-        agentId: this.agentId,
-        globalPattern: true,
-        lastUpdated: this.unifiedBackbone.getServices().timeService.now().utc
+        framework: pattern.framework,
+        category: pattern.category
       }
     });
   }

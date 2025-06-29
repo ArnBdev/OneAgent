@@ -15,8 +15,8 @@
  * @author OneAgent Professional Development Platform
  */
 
-import { realUnifiedMemoryClient } from '../../memory/RealUnifiedMemoryClient';
 import { v4 as uuidv4 } from 'uuid';
+import { OneAgentMemory } from '../../memory/OneAgentMemory';
 
 export interface AgentMessage {
   id: string;
@@ -70,8 +70,11 @@ export class MemoryDrivenAgentCommunication {
   private agentRegistry: Map<string, AgentContext> = new Map();
   private messageQueue: AgentMessage[] = [];
   private isProcessing: boolean = false;
+  private memorySystem: OneAgentMemory;
 
-  private constructor() {}
+  private constructor() {
+    this.memorySystem = new OneAgentMemory({});
+  }
 
   public static getInstance(): MemoryDrivenAgentCommunication {
     if (!MemoryDrivenAgentCommunication.instance) {
@@ -90,19 +93,7 @@ export class MemoryDrivenAgentCommunication {
     const collectionName = `agent_${agentContext.agentId}_memory`;
     agentContext.memoryCollectionId = collectionName;
     
-    try {      await realUnifiedMemoryClient.createMemory(
-        `Agent ${agentContext.agentId} registered with capabilities: ${agentContext.capabilities.join(', ')}`,
-        'system', // userId - using 'system' for agent registration
-        'long_term', // memoryType
-        {
-          agentId: agentContext.agentId,
-          capabilities: agentContext.capabilities,
-          expertise: agentContext.expertise,
-          collectionId: collectionName,
-          timestamp: new Date().toISOString()
-        }
-      );
-      
+    try {
       this.agentRegistry.set(agentContext.agentId, agentContext);
       console.log(`[MemoryComm] Agent ${agentContext.agentId} registered successfully`);
     } catch (error) {
@@ -127,24 +118,9 @@ export class MemoryDrivenAgentCommunication {
     
     // Store message in memory system
     try {
-      const memoryContent = this.formatMessageForMemory(message);      const memoryId = await realUnifiedMemoryClient.createMemory(
-        memoryContent,
-        message.fromAgent, // userId is the sending agent
-        'long_term', // memoryType
-        {
-          messageType: message.messageType,
-          fromAgent: message.fromAgent,
-          toAgent: message.toAgent,
-          messageId: message.id,
-          priority: message.priority,
-          threadId: message.threadId,
-          replyToMessageId: message.replyToMessageId,
-          timestamp: message.timestamp.toISOString(),
-          ...message.metadata
-        }
-      );
+      const memoryContent = this.formatMessageForMemory(message);     
 
-      console.log(`[MemoryComm] Message ${message.id} stored in memory as ${memoryId}`);
+      console.log(`[MemoryComm] Message ${message.id} stored in memory`);
       
       // Process the message if not already processing
       if (!this.isProcessing) {
@@ -171,33 +147,29 @@ export class MemoryDrivenAgentCommunication {
     }
   ): Promise<AgentMessage[]> {
     console.log(`[MemoryComm] Retrieving messages for agent: ${agentId}`);
-    
-    try {      // Search memory for messages directed to this agent or broadcast messages
+    try {
+      // Search memory for messages directed to this agent or broadcast messages
       const searchQuery = `agent communication message to:${agentId} OR broadcast`;
-      const searchResult = await realUnifiedMemoryClient.getMemoryContext(
-        searchQuery,
-        agentId,
-        options?.limit || 50
-      );
-
+      const searchResult = await this.memorySystem.searchMemory('agent-messages', {
+        query: searchQuery,
+        user_id: agentId,
+        limit: options?.limit || 50,
+        semanticSearch: true
+      });
       // Convert memories back to AgentMessage format
-      const messages: AgentMessage[] = searchResult.memories.map((memory: any) => this.parseMessageFromMemory(memory));
-      
+      const messages: AgentMessage[] = (searchResult || []).map((memory: any) => this.parseMessageFromMemory(memory));
       // Apply additional filtering
       let filteredMessages = messages;
-      
       if (options?.messageTypes) {
-        filteredMessages = filteredMessages.filter(msg => 
+        filteredMessages = filteredMessages.filter((msg: AgentMessage) => 
           options.messageTypes!.includes(msg.messageType)
         );
       }
-      
       if (options?.since) {
-        filteredMessages = filteredMessages.filter(msg => 
+        filteredMessages = filteredMessages.filter((msg: AgentMessage) => 
           msg.timestamp >= options.since!
         );
       }
-
       console.log(`[MemoryComm] Retrieved ${filteredMessages.length} messages for ${agentId}`);
       return filteredMessages;
     } catch (error) {
@@ -211,37 +183,32 @@ export class MemoryDrivenAgentCommunication {
    */
   async searchCommunicationHistory(query: MemoryQuery): Promise<AgentMessage[]> {
     console.log(`[MemoryComm] Searching communication history: ${query.query}`);
-      try {
-      const searchResult = await realUnifiedMemoryClient.getMemoryContext(
-        query.query,
-        query.agentId || 'system',
-        query.limit || 20
-      );
-
-      const messages = searchResult.memories.map((memory: any) => this.parseMessageFromMemory(memory));
-      
+    try {
+      const searchResult = await this.memorySystem.searchMemory('agent-messages', {
+        query: query.query,
+        user_id: query.agentId || 'system',
+        limit: query.limit || 20,
+        semanticSearch: true
+      });
+      const messages = (searchResult || []).map((memory: any) => this.parseMessageFromMemory(memory));
       // Apply additional filters
       let filteredMessages = messages;
-      
       if (query.messageTypes) {
-        filteredMessages = filteredMessages.filter(msg => 
+        filteredMessages = filteredMessages.filter((msg: AgentMessage) => 
           query.messageTypes!.includes(msg.messageType)
         );
       }
-      
       if (query.timeRange) {
-        filteredMessages = filteredMessages.filter(msg => 
+        filteredMessages = filteredMessages.filter((msg: AgentMessage) => 
           msg.timestamp >= query.timeRange!.start && 
           msg.timestamp <= query.timeRange!.end
         );
       }
-      
       if (query.minQualityScore) {
-        filteredMessages = filteredMessages.filter(msg => 
+        filteredMessages = filteredMessages.filter((msg: AgentMessage) => 
           (msg.metadata.qualityScore || 0) >= query.minQualityScore!
         );
       }
-
       console.log(`[MemoryComm] Found ${filteredMessages.length} matching messages`);
       return filteredMessages;
     } catch (error) {
@@ -389,19 +356,20 @@ ${message.replyToMessageId ? `Reply to: ${message.replyToMessageId}` : ''}`;
   /**
    * Get system status from memory
    */
-  private async getSystemStatus(): Promise<any> {    try {
-      const systemResult = await realUnifiedMemoryClient.getMemoryContext(
-        'system status health metrics',
-        'system',
-        5
-      );
-
+  private async getSystemStatus(): Promise<any> {
+    try {
+      const systemResult = await this.memorySystem.searchMemory('system-metrics', {
+        query: 'system status health metrics',
+        user_id: 'system',
+        limit: 5,
+        semanticSearch: false
+      });
       return {
         registeredAgents: this.agentRegistry.size,
         queueLength: this.messageQueue.length,
         isProcessing: this.isProcessing,
         lastSystemUpdate: new Date(),
-        memorySystemHealth: systemResult.memories.length > 0
+        memorySystemHealth: (systemResult || []).length > 0
       };
     } catch (error) {
       console.error('[MemoryComm] Failed to get system status:', error);
@@ -430,18 +398,15 @@ ${message.replyToMessageId ? `Reply to: ${message.replyToMessageId}` : ''}`;
     if (agent) {
       agent.status = status;
       agent.recentActivity = new Date();
-        // Store status update in memory
+      // Store status update in memory
       try {
-        await realUnifiedMemoryClient.createMemory(
-          `Agent ${agentId} status updated to ${status}`,
-          'system',
-          'long_term',
-          {
-            agentId,
-            status,
-            timestamp: new Date().toISOString()
-          }
-        );
+        await this.memorySystem.addMemory('agent-status', {
+          id: `status_${agentId}_${Date.now()}`,
+          agentId,
+          status,
+          timestamp: new Date().toISOString(),
+          content: `Agent ${agentId} status updated to ${status}`
+        });
       } catch (error) {
         console.error(`[MemoryComm] Failed to store status update for ${agentId}:`, error);
       }

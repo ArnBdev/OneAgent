@@ -8,8 +8,8 @@
 
 import { Request, Response } from 'express';
 import { CoreAgent } from '../main';
-import { UnifiedMemoryClient } from '../types/oneagent-backbone-types';
-import { AgentFactory, AgentType } from '../agents/base/AgentFactory';
+import { IMemoryClient, AgentType } from '../types/oneagent-backbone-types';
+import { AgentFactory } from '../agents/base/AgentFactory';
 import { ISpecializedAgent } from '../agents/base/ISpecializedAgent';
 import { AgentContext } from '../agents/base/BaseAgent';
 import { AuditLogEntry } from '../audit/auditLogger';
@@ -19,7 +19,7 @@ export interface ConversationParticipant {
   id: string;
   type: 'user' | 'agent';
   name: string;
-  agentType?: string;
+  agentType?: AgentType;
 }
 
 export interface ConversationMessage {
@@ -62,9 +62,9 @@ export interface ConversationResponse {
  */
 export class EnhancedChatAPI {
   private coreAgent: CoreAgent;
-  private unifiedMemoryClient: UnifiedMemoryClient;
+  private unifiedMemoryClient: IMemoryClient;
 
-  constructor(coreAgent: CoreAgent, unifiedMemoryClient: UnifiedMemoryClient) {
+  constructor(coreAgent: CoreAgent, unifiedMemoryClient: IMemoryClient) {
     this.coreAgent = coreAgent;
     this.unifiedMemoryClient = unifiedMemoryClient;
   }
@@ -165,20 +165,28 @@ export class EnhancedChatAPI {
     userId: string,
     conversationId?: string
   ): Promise<ConversationResponse> {
-    
+    const allowedAgentTypes: AgentType[] = [
+      'general', 'coding', 'research', 'analysis', 'creative', 'specialist', 'coordinator', 'validator', 'development', 'office', 'fitness', 'core', 'triage'
+    ];
+    const safeFromType: AgentType = allowedAgentTypes.includes(fromAgentType as AgentType)
+      ? (fromAgentType as AgentType)
+      : 'general';
+    const safeToType: AgentType = allowedAgentTypes.includes(toAgentType as AgentType)
+      ? (toAgentType as AgentType)
+      : 'general';
     const fromParticipant: ConversationParticipant = {
       id: fromAgentType,
       type: 'agent',
       name: `${fromAgentType.charAt(0).toUpperCase() + fromAgentType.slice(1)}Agent`,
-      agentType: fromAgentType
+      agentType: safeFromType
     };
-
     const toParticipant: ConversationParticipant = {
       id: toAgentType,
       type: 'agent',
       name: `${toAgentType.charAt(0).toUpperCase() + toAgentType.slice(1)}Agent`,
-      agentType: toAgentType
-    };    return this.processUniversalMessage({
+      agentType: safeToType
+    };
+    return this.processUniversalMessage({
       fromParticipant,
       toParticipant,
       content,
@@ -293,12 +301,21 @@ export class EnhancedChatAPI {
   /**
    * Select the appropriate agent to handle the message
    */
-  private async selectTargetAgent(request: ConversationRequest): Promise<ISpecializedAgent | CoreAgent> {    // If directed to specific agent, try to create that agent
+  private async selectTargetAgent(request: ConversationRequest): Promise<ISpecializedAgent | CoreAgent> {
+    // If directed to specific agent, try to create that agent
     if (request.toParticipant?.agentType) {
       try {
+        // Only allow valid AgentType values
+        const allowedAgentTypes: AgentType[] = [
+          'general', 'coding', 'research', 'analysis', 'creative', 'specialist', 'coordinator', 'validator', 'development', 'office', 'fitness', 'core', 'triage'
+        ];
+        const requestedType = request.toParticipant.agentType;
+        const agentType: AgentType = allowedAgentTypes.includes(requestedType as AgentType)
+          ? (requestedType as AgentType)
+          : 'general';
         return AgentFactory.createAgent({
-          type: request.toParticipant.agentType as AgentType,
-          id: `${request.toParticipant.agentType}_${Date.now()}`,
+          type: agentType,
+          id: `${requestedType}_${Date.now()}`,
           name: request.toParticipant.name,
           memoryEnabled: true,
           aiEnabled: true,
@@ -326,16 +343,19 @@ export class EnhancedChatAPI {
     const conversationText = `${message.fromParticipant.name}: ${message.content}\n` +
                            `${agentResponse.metadata?.agentType || 'Agent'}: ${agentResponse.content}`;
 
-    await this.unifiedMemoryClient.createMemory(
+    await this.unifiedMemoryClient.store(
       conversationText,
-      userId,
-      'session',
       {
-        conversationId: message.conversationId,
-        participantTypes: [message.fromParticipant.type, 'agent'],
-        fromAgent: message.fromParticipant.agentType,
+        userId: userId,
         timestamp: message.timestamp,
-        source: 'universal_conversation'
+        category: 'universal_conversation',
+        tags: [message.fromParticipant.type, 'agent'],
+        importance: 'medium',
+        constitutionallyValidated: true,
+        sensitivityLevel: 'internal',
+        relevanceScore: 1.0,
+        confidenceScore: 1.0,
+        sourceReliability: 1.0
       }
     );
   }
@@ -343,9 +363,13 @@ export class EnhancedChatAPI {
   /**
    * Extract agent type from agent instance
    */
-  private extractAgentType(agent: ISpecializedAgent | CoreAgent): string {
+  private extractAgentType(agent: ISpecializedAgent | CoreAgent): AgentType {
     const className = agent.constructor.name.toLowerCase();
-    return className.replace('agent', '') || 'core';
+    const allowedAgentTypes: AgentType[] = [
+      'general', 'coding', 'research', 'analysis', 'creative', 'specialist', 'coordinator', 'validator', 'development', 'office', 'fitness', 'core', 'triage'
+    ];
+    const typeGuess = className.replace('agent', '');
+    return (allowedAgentTypes.includes(typeGuess as AgentType) ? (typeGuess as AgentType) : 'general');
   }
 
   // Utility methods

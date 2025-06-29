@@ -6,7 +6,7 @@
  */
 
 import { UnifiedMCPTool, ToolExecutionResult, InputSchema } from './UnifiedMCPTool';
-import { OneAgentMem0Bridge } from '../memory/OneAgentMem0Bridge';
+import { OneAgentMemory, OneAgentMemoryConfig } from '../memory/OneAgentMemory';
 import * as fs from 'fs/promises';
 import * as path from 'path';
 
@@ -23,7 +23,7 @@ export interface CodeAnalysisParams {
  * Code Analysis Tool for professional development workflows
  */
 export class CodeAnalysisTool extends UnifiedMCPTool {
-  private unifiedMemoryClient: OneAgentMem0Bridge;
+  private memorySystem: OneAgentMemory;
 
   constructor() {
     const schema: InputSchema = {
@@ -64,13 +64,18 @@ export class CodeAnalysisTool extends UnifiedMCPTool {
       schema,
       'enhanced'
     );
-    this.unifiedMemoryClient = new OneAgentMem0Bridge({});
+    // Initialize canonical memory system
+    const memoryConfig: OneAgentMemoryConfig = {
+      apiKey: process.env.MEM0_API_KEY || 'demo-key',
+      apiUrl: process.env.MEM0_API_URL
+    };
+    this.memorySystem = new OneAgentMemory(memoryConfig);
   }
 
   /**
    * Core execution method implementing code analysis
    */
-  protected async executeCore(args: CodeAnalysisParams): Promise<ToolExecutionResult> {
+  public async executeCore(args: CodeAnalysisParams): Promise<ToolExecutionResult> {
     const startTime = Date.now();
 
     try {
@@ -300,22 +305,8 @@ export class CodeAnalysisTool extends UnifiedMCPTool {
         timestamp: analysis.timestamp
       };
 
-      // Use canonical bridge for memory storage
-      await this.unifiedMemoryClient.storeConversation({
-        id: analysis.id,
-        agentId: 'system',
-        userId: 'system',
-        content: JSON.stringify(memoryData),
-        timestamp: analysis.timestamp,
-        context: {},
-        outcome: { success: true },
-        metadata: {
-          analysis_id: analysis.id,
-          language,
-          quality_score: analysis.quality.overallScore.toString(),
-          source_file: sourceFile || 'direct'
-        }
-      });
+      // Use canonical memory system for storage
+      await this.memorySystem.addMemory('code_analysis', memoryData);
 
       console.log(`[CodeAnalysis] Stored analysis ${analysis.id} in memory`);
     } catch (error) {

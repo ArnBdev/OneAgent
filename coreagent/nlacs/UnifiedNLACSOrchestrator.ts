@@ -26,6 +26,7 @@ import {
 import { ISpecializedAgent } from '../agents/base/ISpecializedAgent';
 import { AgentContext } from '../agents/base/BaseAgent';
 import { AgentRegistration } from '../agents/communication/AgentCommunicationProtocol';
+import { OneAgentMemory } from '../memory/OneAgentMemory';
 
 // Load environment configuration
 dotenv.config();
@@ -133,6 +134,7 @@ export class UnifiedNLACSOrchestrator extends EventEmitter {
   private timeService: OneAgentUnifiedTimeService;
   private metadataService: OneAgentUnifiedMetadataService;
   private startTime: Date = new Date();
+  private memoryClient = new OneAgentMemory({});
   
   // Configuration from .env
   private readonly NLACS_ENABLED = process.env.NLACS_ENABLED === 'true';
@@ -746,13 +748,10 @@ export class UnifiedNLACSOrchestrator extends EventEmitter {
   }
 
   /**
-   * Store in unified memory system (future integration)
-   */  private async storeInUnifiedMemory(conversation: NLACSConversation): Promise<void> {
+   * Store in canonical OneAgent memory system
+   */
+  private async storeInUnifiedMemory(conversation: NLACSConversation): Promise<void> {
     try {
-      // Store full conversation in OneAgent memory system
-      const { MemoryCreateTool } = await import('../tools/MemoryCreateTool');
-      const memoryTool = new MemoryCreateTool();
-      
       const conversationContent = {
         conversationId: conversation.conversationId,
         topic: conversation.topic,
@@ -763,25 +762,50 @@ export class UnifiedNLACSOrchestrator extends EventEmitter {
         projectContext: conversation.projectContext,
         timestamp: new Date().toISOString()
       };
-        await memoryTool.execute({
-        content: `NLACS_CONVERSATION: ${conversation.topic}\n\nParticipants: ${conversation.participants.map(p => p.agentType).join(', ')}\n\nConversation ID: ${conversation.conversationId}\n\nMessages: ${conversation.messages.length}\n\nStatus: ${conversation.status}`,
-        userId: conversation.userId,
-        memoryType: 'session',
+      await this.memoryClient.addMemory('nlacs-conversations', {
+        content: JSON.stringify(conversationContent),
+        user_id: conversation.userId,
+        agent_id: 'nlacs_orchestrator',
         metadata: {
           type: 'nlacs_conversation',
           conversationId: conversation.conversationId,
           topic: conversation.topic,
           participants: conversation.participants.map(p => p.agentType),
           status: conversation.status,
-          messageCount: conversation.messages.length,
-          fullData: conversationContent // Store full data in metadata
+          messageCount: conversation.messages.length
         }
-      },
-      `memory_${conversation.conversationId}_${Date.now()}`); // ID parameter
-      
-      console.log(`💾 Stored conversation in unified memory: ${conversation.conversationId}`);
+      });
+      console.log(`💾 Stored conversation in canonical memory: ${conversation.conversationId}`);
     } catch (error) {
-      console.warn('⚠️ Failed to store in unified memory:', error);
+      console.warn('⚠️ Failed to store in canonical memory:', error);
+    }
+  }
+
+  /**
+   * Store individual message in canonical memory for retrieval
+   */
+  private async storeMessageInMemory(message: NLACSMessage, conversation: NLACSConversation): Promise<void> {
+    try {
+      const memoryContent = {
+        message,
+        conversation: {
+          topic: conversation.topic,
+          participants: conversation.participants.map(p => p.agentType)
+        }
+      };
+      await this.memoryClient.addMemory('nlacs-messages', {
+        content: JSON.stringify(memoryContent),
+        user_id: message.userId,
+        agent_id: 'nlacs_orchestrator',
+        metadata: {
+          messageId: message.messageId,
+          conversationId: message.conversationId,
+          agentType: message.agentType,
+          messageType: message.messageType
+        }
+      });
+    } catch (error) {
+      console.error('Error storing message in canonical memory:', error);
     }
   }
 
@@ -1308,33 +1332,26 @@ export class UnifiedNLACSOrchestrator extends EventEmitter {
     conversationId: string
   ): Promise<NLACSMessage | null> {
     try {
-      // Use canonical memory bridge for ChatAPI
-      const { OneAgentMem0Bridge } = await import('../memory/OneAgentMem0Bridge');
-      const memoryBridge = new OneAgentMem0Bridge({
-        provider: process.env.MEM0_PROVIDER,
-        model: process.env.MEM0_MODEL,
-        embeddingModel: process.env.MEM0_EMBEDDING_MODEL,
-        collection: process.env.MEM0_COLLECTION,
-        vectorPath: process.env.MEM0_VECTOR_PATH,
-        graphUrl: process.env.MEM0_GRAPH_URL,
-        apiKey: process.env.GEMINI_API_KEY
-      });
-
       // Import ChatAPI for universal conversation handling
       const { ChatAPI } = await import('../api/chatAPI');
+      
       // Get CoreAgent instance - use any available method
       const { CoreAgent } = await import('../main');
       const coreAgent = new CoreAgent();
+      
       // Create ChatAPI instance with universal conversation capabilities
-      const chatAPI = new ChatAPI(coreAgent, memoryBridge);
+      const chatAPI = new ChatAPI(coreAgent);
+
       // Build conversation content with context and history
       const conversationContent = this.buildAgentConversationContent(
         taskContext,
         conversationHistory,
         agentType
       );
+
       // Get user ID from conversation history
       const userId = conversationHistory[0]?.userId || 'Arne';
+
       // Map NLACS agent types to standardized agent types
       const agentTypeMapping: Record<string, string> = {
         'DevAgent': 'dev',
@@ -1348,7 +1365,9 @@ export class UnifiedNLACSOrchestrator extends EventEmitter {
         'TriageAgent': 'triage',
         'triage': 'triage'
       };
+
       const targetAgentType = agentTypeMapping[agentType] || 'core';
+
       // Use ChatAPI's universal message processing - same pathway as user conversations!
       const chatResponse = await chatAPI.processMessage(conversationContent, userId, {
         agentType: targetAgentType,
@@ -1356,9 +1375,11 @@ export class UnifiedNLACSOrchestrator extends EventEmitter {
         fromAgent: 'nlacs_orchestrator',
         toAgent: targetAgentType
       });
+
       // Transform ChatAPI response to NLACS message format
       if (chatResponse && chatResponse.response) {
         const messageType = this.determineMessageType(chatResponse.response, agentType);
+        
         const nlcsMessage: NLACSMessage = {
           messageId: `msg_${Date.now()}_${agentType}_real`,
           conversationId: conversationId,
@@ -1371,11 +1392,15 @@ export class UnifiedNLACSOrchestrator extends EventEmitter {
           referencesTo: conversationHistory.slice(-2).map(msg => msg.messageId),
           unifiedTimestamp: this.timeService.now()
         };
+
         return nlcsMessage;
       }
+
       return null;
+
     } catch (error) {
       console.error(`Failed to invoke real agent ${agentType} via ChatAPI:`, error);
+      
       // Graceful fallback to original AgentFactory method
       return this.invokeRealAgentViaFactory(agentType, taskContext, conversationHistory, conversationId);
     }
@@ -1712,48 +1737,12 @@ export class UnifiedNLACSOrchestrator extends EventEmitter {
   }
 
   /**
-   * Store individual message in memory for retrieval
-   */
-  private async storeMessageInMemory(message: NLACSMessage, conversation: NLACSConversation): Promise<void> {
-    try {
-      // Create memory entry for this specific message
-      const memoryContent = `NLACS Message - ${message.agentType}: ${message.content}`;
-        // Store in unified memory using MemoryCreateTool
-      const { MemoryCreateTool } = await import('../tools/MemoryCreateTool');
-      const memoryTool = new MemoryCreateTool();
-      
-      await memoryTool.execute({
-        content: memoryContent,
-        memoryType: 'session',
-        userId: message.userId,
-        metadata: {
-          messageId: message.messageId,
-          conversationId: message.conversationId,
-          agentType: message.agentType,
-          messageType: message.messageType,
-          fullData: {
-            message,
-            conversation: {
-              topic: conversation.topic,
-              participants: conversation.participants.map(p => p.agentType)
-            }
-          }
-        }
-      }, undefined);
-
-    } catch (error) {
-      console.error('Error storing message in memory:', error);
-    }
-  }
-
-  /**
    * Generate conversation summary
    */
   private generateConversationSummary(conversation: NLACSConversation): string {
     const messageCount = conversation.messages.length;
     const participants = conversation.participants.map(p => p.agentType).join(', ');
     const keyTopics = this.extractKeyTopics(conversation.messages);
-    
     return `Conversation Summary: ${conversation.topic}
 Participants: ${participants}
 Messages: ${messageCount}
@@ -1773,13 +1762,11 @@ Status: ${conversation.status}`;
       .replace(/[^\w\s]/g, '')
       .split(' ')
       .filter(word => word.length > 3 && !commonWords.has(word));
-    
     // Count word frequency
     const wordCount = new Map<string, number>();
     allWords.forEach(word => {
       wordCount.set(word, (wordCount.get(word) || 0) + 1);
     });
-    
     // Return top 5 most frequent words as topics
     return Array.from(wordCount.entries())
       .sort((a, b) => b[1] - a[1])
@@ -1793,21 +1780,16 @@ Status: ${conversation.status}`;
   private calculateConversationQuality(conversation: NLACSConversation): number {
     const messages = conversation.messages;
     if (messages.length < 2) return 0;
-
     let qualityScore = 0;
-    
     // Message diversity (different agents participating)
     const uniqueAgents = new Set(messages.map(msg => msg.agentType)).size;
     qualityScore += Math.min(uniqueAgents * 20, 60); // Up to 60 points for diversity
-    
     // Message length (substantial content)
     const avgLength = messages.reduce((sum, msg) => sum + msg.content.length, 0) / messages.length;
     qualityScore += Math.min(avgLength / 10, 20); // Up to 20 points for content depth
-    
     // Message types variety (questions, insights, synthesis)
     const messageTypes = new Set(messages.map(msg => msg.messageType)).size;
     qualityScore += messageTypes * 5; // Up to 25 points for interaction variety
-
     return Math.min(Math.round(qualityScore), 100);
   }
 

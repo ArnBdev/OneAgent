@@ -35,7 +35,7 @@ export class SystemHealthTool extends UnifiedMCPTool {
     );
   }
 
-  protected async executeCore(args: any): Promise<ToolExecutionResult> {
+  public async executeCore(args: any): Promise<ToolExecutionResult> {
     try {
       const { includeDetails = true, components = ['memory', 'agents', 'mcp', 'constitutional', 'performance'] } = args;
       

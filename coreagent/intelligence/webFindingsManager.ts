@@ -13,7 +13,7 @@ import {
 import { BraveSearchResponse } from '../types/braveSearch';
 import { WebFetchResponse } from '../types/webFetch';
 import { MemoryIntelligence } from './memoryIntelligence';
-import { UnifiedMemoryClient } from '../types/oneagent-backbone-types';
+import { IMemoryClient } from '../types/oneagent-backbone-types';
 import { EmbeddingCache } from '../performance/embeddingCache';
 import * as path from 'path';
 import { promises as fs } from 'fs';
@@ -23,7 +23,7 @@ export class WebFindingsManager {
   private config: WebFindingsConfig;
   private memoryIntelligence: MemoryIntelligence | undefined;
   private embeddingCache: EmbeddingCache | undefined;
-  private memoryClient: UnifiedMemoryClient | undefined;
+  private memoryClient: IMemoryClient | undefined;
   
   // In-memory caches
   private searchCache = new Map<string, WebSearchFinding>();
@@ -47,7 +47,7 @@ export class WebFindingsManager {
     config?: Partial<WebFindingsConfig>,
     memoryIntelligence?: MemoryIntelligence,
     embeddingCache?: EmbeddingCache,
-    memoryClient?: UnifiedMemoryClient
+    memoryClient?: IMemoryClient
   ) {
     this.config = {
       storage: {

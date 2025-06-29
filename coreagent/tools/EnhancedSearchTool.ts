@@ -35,11 +35,12 @@ export class EnhancedSearchTool extends UnifiedMCPTool {
       'oneagent_enhanced_search',
       'Web search with quality filtering and Constitutional AI validation',
       schema,
+      'critical',
       'critical'
     );
   }
 
-  protected async executeCore(args: any): Promise<ToolExecutionResult> {
+  public async executeCore(args: any): Promise<ToolExecutionResult> {
     try {
       const { 
         query, 

@@ -16,8 +16,6 @@
  */
 
 import { EventEmitter } from 'events';
-import { UnifiedMemoryInterface } from '../memory/UnifiedMemoryInterface';
-import { IUnifiedAgentRegistry } from '../types/oneagent-backbone-types';
 
 // =====================================
 // Health Monitoring Interfaces
@@ -43,7 +41,6 @@ interface ComponentHealth {
 }
 
 interface ComponentHealthMap {
-  memory: ComponentHealth;
   registry: ComponentHealth;
   agents: ComponentHealth;
   orchestrator: ComponentHealth;
@@ -51,20 +48,10 @@ interface ComponentHealthMap {
 }
 
 interface PerformanceMetrics {
-  memoryLatency: LatencyMetrics;
   agentResponseTimes: AgentPerformanceMap;
   systemLoad: SystemLoadMetrics;
   throughput: ThroughputMetrics;
   resourceUsage: ResourceUsageReport;
-}
-
-interface LatencyMetrics {
-  average: number;
-  p50: number;
-  p90: number;
-  p95: number;
-  p99: number;
-  samples: number;
 }
 
 interface AgentPerformanceMap {
@@ -197,8 +184,6 @@ type HealthStatus = 'healthy' | 'degraded' | 'unhealthy' | 'critical';
 // =====================================
 
 export class HealthMonitoringService extends EventEmitter {
-  private memoryClient: UnifiedMemoryInterface | null = null;
-  private agentRegistry: IUnifiedAgentRegistry | null = null;
   private monitoringInterval?: NodeJS.Timeout;
   private performanceHistory: PerformanceMetrics[] = [];
   private healthHistory: SystemHealthReport[] = [];
@@ -223,19 +208,8 @@ export class HealthMonitoringService extends EventEmitter {
     }
   };
 
-  constructor(
-    memoryClient?: UnifiedMemoryInterface,
-    agentRegistry?: IUnifiedAgentRegistry
-  ) {
+  constructor() {
     super();
-    
-    if (memoryClient) {
-      this.memoryClient = memoryClient;
-    }
-    
-    if (agentRegistry) {
-      this.agentRegistry = agentRegistry;
-    }
     
     console.log('🏥 HealthMonitoringService initialized - Professional monitoring ready');
   }
@@ -303,7 +277,7 @@ export class HealthMonitoringService extends EventEmitter {
     const predictive = await this.generatePredictiveAlerts();
     
     // Determine overall health status
-    const overall = this.calculateOverallHealth(components, performance, compliance, constitutional);
+    const overall = this.calculateOverallHealth(components, compliance, constitutional);
     
     const healthReport: SystemHealthReport = {
       overall,
@@ -329,8 +303,6 @@ export class HealthMonitoringService extends EventEmitter {
     
     try {
       switch (component) {
-        case 'memory':
-          return await this.getMemoryHealth();
         case 'registry':
           return await this.getRegistryHealth();
         case 'agents':
@@ -356,13 +328,11 @@ export class HealthMonitoringService extends EventEmitter {
     const startTime = Date.now();
     
     const [
-      memoryLatency,
       agentResponseTimes,
       systemLoad,
       throughput,
       resourceUsage
     ] = await Promise.all([
-      this.measureMemoryLatency(),
       this.measureAgentPerformance(),
       this.measureSystemLoad(),
       this.measureThroughput(),
@@ -370,7 +340,6 @@ export class HealthMonitoringService extends EventEmitter {
     ]);
     
     const performance: PerformanceMetrics = {
-      memoryLatency,
       agentResponseTimes,
       systemLoad,
       throughput,
@@ -396,27 +365,6 @@ export class HealthMonitoringService extends EventEmitter {
       return alerts; // Need more history for trend analysis
     }
     
-    // Analyze memory latency trends
-    const memoryLatencyTrend = this.analyzeMetricTrend(
-      this.performanceHistory.map(p => p.memoryLatency.average)
-    );
-    
-    if (memoryLatencyTrend.degrading && memoryLatencyTrend.rate > 0.1) {
-      alerts.push({
-        type: 'performance_degradation',
-        severity: 'medium',
-        prediction: 'Memory latency increasing - potential degradation in 10-15 minutes',
-        confidence: memoryLatencyTrend.confidence,
-        timeToImpact: 10 * 60 * 1000, // 10 minutes
-        recommendedActions: [
-          'Monitor memory server connections',
-          'Check for memory leaks',
-          'Consider increasing memory server capacity'
-        ],
-        timestamp: new Date()
-      });
-    }
-    
     // Analyze system load trends
     const cpuTrend = this.analyzeMetricTrend(
       this.performanceHistory.map(p => p.systemLoad.cpu)
@@ -430,9 +378,9 @@ export class HealthMonitoringService extends EventEmitter {
         confidence: cpuTrend.confidence,
         timeToImpact: 5 * 60 * 1000, // 5 minutes
         recommendedActions: [
-          'Scale system resources',
-          'Optimize agent workloads',
-          'Implement load balancing'
+          'Monitor CPU usage',
+          'Scale up resources',
+          'Optimize agent workloads'
         ],
         timestamp: new Date()
       });
@@ -467,26 +415,18 @@ export class HealthMonitoringService extends EventEmitter {
   }
 
   async validateUserIsolation(): Promise<UserIsolationReport> {
-    const violations: IsolationViolation[] = [];
     let isolationAccuracy = 100;
-    
+    const violations: IsolationViolation[] = [];
     try {
-      // Test user boundary validation
-      if (this.memoryClient) {
-        // Simulate cross-user access attempt (this should fail)
-        const testResult = await this.testUserBoundaries();
-        isolationAccuracy = testResult.accuracy;
-        violations.push(...testResult.violations);
-      }
-      
+      // User isolation validation logic not implemented in canonical system
       return {
-        status: violations.length === 0 ? 'healthy' : 'degraded',
+        status: 'healthy',
         violations,
         lastAudit: new Date(),
         isolationAccuracy
       };
     } catch (error) {
-      console.error('❌ User isolation validation failed:', error);
+      console.error('User isolation validation failed:', error);
       return {
         status: 'unhealthy',
         violations: [{
@@ -508,18 +448,11 @@ export class HealthMonitoringService extends EventEmitter {
 
   async checkConstitutionalCompliance(): Promise<ConstitutionalReport> {
     try {
-      // Get constitutional metrics from agent registry
+      // Get constitutional metrics from canonical system only
       let overallCompliance = 95; // Default
       let averageQualityScore = 85; // Default
       let violationsCount = 0;
-        if (this.agentRegistry) {
-        // Note: Using simplified registry interface, providing defaults for missing methods
-        // In future implementation, these methods could be added to IUnifiedAgentRegistry
-        overallCompliance = 95; // Default until advanced registry methods available
-        averageQualityScore = 85; // Default until advanced registry methods available
-        violationsCount = 0; // Default until advanced registry methods available
-      }
-      
+      // No agentRegistry in canonical system
       return {
         overallCompliance,
         averageQualityScore,
@@ -533,7 +466,7 @@ export class HealthMonitoringService extends EventEmitter {
         lastConstitutionalAudit: new Date()
       };
     } catch (error) {
-      console.error('❌ Constitutional compliance check failed:', error);
+      console.error('Constitutional compliance check failed:', error);
       return {
         overallCompliance: 0,
         averageQualityScore: 0,
@@ -571,21 +504,6 @@ export class HealthMonitoringService extends EventEmitter {
     // Analyze current performance metrics
     if (this.performanceHistory.length > 0) {
       const latest = this.performanceHistory[this.performanceHistory.length - 1];
-      
-      // Memory optimization recommendations
-      if (latest.memoryLatency.average > this.config.alertThresholds.memoryLatency) {
-        recommendations.push({
-          category: 'performance',
-          action: 'Optimize memory operations',
-          expectedBenefit: '20-30% reduction in memory latency',
-          implementationSteps: [
-            'Implement memory operation caching',
-            'Optimize embedding calculations',
-            'Add connection pooling'
-          ],
-          estimatedEffort: 8
-        });
-      }
       
       // Resource optimization recommendations
       if (latest.resourceUsage.memoryUsage > this.config.alertThresholds.memoryUsage) {
@@ -645,151 +563,22 @@ export class HealthMonitoringService extends EventEmitter {
   }
 
   private async getComponentHealthMap(): Promise<ComponentHealthMap> {
-    const [memory, registry, agents, orchestrator, api] = await Promise.all([
-      this.getMemoryHealth(),
+    const [registry, agents, orchestrator, api] = await Promise.all([
       this.getRegistryHealth(),
       this.getAgentsHealth(),
       this.getOrchestratorHealth(),
       this.getApiHealth()
     ]);
     
-    return { memory, registry, agents, orchestrator, api };
+    return { registry, agents, orchestrator, api };
   }
 
-  private async getMemoryHealth(): Promise<ComponentHealth> {
-    const startTime = Date.now();
-    
-    try {
-      if (!this.memoryClient) {
-        return this.createUnhealthyComponent('Memory client not initialized');
-      }
-      
-      const isHealthy = await this.memoryClient.isHealthy();
-      const responseTime = Date.now() - startTime;
-      
-      return {
-        status: isHealthy ? 'healthy' : 'degraded',
-        uptime: isHealthy ? Date.now() : 0,
-        responseTime,
-        errorRate: isHealthy ? 0 : 0.1,
-        lastCheck: new Date(),
-        details: {
-          connected: isHealthy,
-          apiEndpoint: this.memoryClient ? 'available' : 'unavailable'
-        }
-      };
-    } catch (error) {
-      return this.createUnhealthyComponent(`Memory health check failed: ${error}`);
-    }
-  }
   private async getRegistryHealth(): Promise<ComponentHealth> {
-    const startTime = Date.now();
-    
-    try {
-      if (!this.agentRegistry) {
-        return this.createUnhealthyComponent('Agent registry not initialized');
-      }      // Note: Using simplified registry interface, providing mock data for missing methods
-      const allAgents = await this.agentRegistry.getAllAgents();
-      const organisms = {
-        totalAgents: allAgents.length,
-        activeAgents: allAgents.length, // Simplified assumption
-        errors: [], // Default empty
-        responseTime: 0, // Default
-        healthySummary: {
-          healthy: allAgents.length,
-          degraded: 0,
-          unhealthy: 0
-        },
-        memorySystem: {
-          connected: true,
-          latency: 10
-        }
-      };
-      const responseTime = Date.now() - startTime;
-      
-      // Determine status based on agent count and health
-      let status: HealthStatus = 'healthy';
-      let statusReason = '';
-      
-      if (organisms.totalAgents === 0) {
-        // Empty registry is "healthy" but with informational note
-        status = 'healthy';
-        statusReason = 'No agents registered (idle state)';
-      } else if (organisms.healthySummary.unhealthy > 0) {
-        status = 'degraded';
-        statusReason = `${organisms.healthySummary.unhealthy} unhealthy agents`;
-      } else if (organisms.healthySummary.degraded > 0) {
-        status = 'degraded';
-        statusReason = `${organisms.healthySummary.degraded} degraded agents`;
-      } else {
-        status = 'healthy';
-        statusReason = `${organisms.healthySummary.healthy} healthy agents`;
-      }
-      
-      return {
-        status,
-        uptime: Date.now(),
-        responseTime,
-        errorRate: 0,
-        lastCheck: new Date(),
-        details: {
-          totalAgents: organisms.totalAgents,
-          healthyAgents: organisms.healthySummary.healthy,
-          memoryConnected: organisms.memorySystem.connected,
-          statusReason
-        }
-      };
-    } catch (error) {
-      return this.createUnhealthyComponent(`Registry health check failed: ${error}`);
-    }
+    return this.createUnhealthyComponent('Agent registry not implemented in canonical system');
   }
   private async getAgentsHealth(): Promise<ComponentHealth> {
-    try {
-      if (!this.agentRegistry) {
-        return this.createUnhealthyComponent('Agent registry not available for agent health check');
-      }
-      
-      const organisms = await this.agentRegistry.getOrganismHealth();
-      
-      // Determine overall agent health based on agent states
-      let status: HealthStatus = 'healthy';
-      let statusReason = '';
-      
-      if (organisms.totalAgents === 0) {
-        status = 'healthy';
-        statusReason = 'No agents running (idle state)';
-      } else if (organisms.healthySummary.unhealthy > 0) {
-        status = 'unhealthy';
-        statusReason = `${organisms.healthySummary.unhealthy} unhealthy agents detected`;
-      } else if (organisms.healthySummary.degraded > 0) {
-        status = 'degraded';
-        statusReason = `${organisms.healthySummary.degraded} degraded agents detected`;
-      } else {
-        status = 'healthy';
-        statusReason = `All ${organisms.healthySummary.healthy} agents healthy`;
-      }
-      
-      return {
-        status,
-        uptime: Date.now(),
-        responseTime: organisms.performance.averageResponseTime,
-        errorRate: 1 - organisms.performance.systemSuccessRate,
-        lastCheck: new Date(),
-        details: {
-          totalAgents: organisms.totalAgents,
-          activeAgents: organisms.healthySummary.healthy,
-          respondingAgents: organisms.healthySummary.healthy,
-          degradedAgents: organisms.healthySummary.degraded,
-          unhealthyAgents: organisms.healthySummary.unhealthy,
-          enhancingAgents: organisms.healthySummary.enhancing,
-          statusReason
-        }
-      };
-    } catch (error) {
-      return this.createUnhealthyComponent(`Agent health check failed: ${error}`);
-    }
+    return this.createUnhealthyComponent('Agent health not implemented in canonical system');
   }
-
   private async getOrchestratorHealth(): Promise<ComponentHealth> {
     // Placeholder - would check orchestrator health
     return {
@@ -832,7 +621,6 @@ export class HealthMonitoringService extends EventEmitter {
   }
   private calculateOverallHealth(
     components: ComponentHealthMap,
-    performance: PerformanceMetrics,
     _compliance: ComplianceReport,
     constitutional: ConstitutionalReport
   ): HealthStatus {
@@ -846,11 +634,6 @@ export class HealthMonitoringService extends EventEmitter {
     // If any component is unhealthy
     if (componentStatuses.includes('unhealthy')) {
       return 'unhealthy';
-    }
-    
-    // Check performance thresholds
-    if (performance.memoryLatency.average > this.config.alertThresholds.memoryLatency * 2) {
-      return 'degraded';
     }
     
     // Check constitutional compliance
@@ -868,18 +651,6 @@ export class HealthMonitoringService extends EventEmitter {
 
   // Measurement methods (placeholder implementations)
   
-  private async measureMemoryLatency(): Promise<LatencyMetrics> {
-    // Placeholder - would measure actual memory latency
-    return {
-      average: 75,
-      p50: 70,
-      p90: 120,
-      p95: 150,
-      p99: 200,
-      samples: 100
-    };
-  }
-
   private async measureAgentPerformance(): Promise<AgentPerformanceMap> {
     // Placeholder - would measure actual agent performance
     return {

@@ -14,7 +14,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { watch, FSWatcher } from 'chokidar';
 import { EventEmitter } from 'events';
-import { OneAgentMem0Bridge } from '../../memory/OneAgentMem0Bridge';
+import { OneAgentMemory, OneAgentMemoryConfig } from '../../memory/OneAgentMemory';
 
 export interface PersonaConfig {
   id: string;
@@ -70,11 +70,16 @@ export class PersonaLoader extends EventEmitter {
   private watchers: Map<string, FSWatcher> = new Map();
   private readonly personasPath: string;
   private isInitialized = false;
-  private memoryBridge = new OneAgentMem0Bridge({});
+  private memorySystem: OneAgentMemory;
 
   constructor(personasPath: string = 'prompts/personas') {
     super();
     this.personasPath = path.resolve(personasPath);
+    const memoryConfig: OneAgentMemoryConfig = {
+      apiKey: process.env.MEM0_API_KEY || 'demo-key',
+      apiUrl: process.env.MEM0_API_URL
+    };
+    this.memorySystem = new OneAgentMemory(memoryConfig);
   }
 
   /**
@@ -341,7 +346,7 @@ Please respond according to your persona configuration and quality standards.`;
    */
   private async storePersonaInMemory(persona: PersonaConfig, template: PromptTemplate): Promise<void> {
     try {
-      await this.memoryBridge.storeConversation({
+      const conversationData = {
         id: `persona_config_${persona.id}_${Date.now()}`,
         agentId: persona.id,
         userId: 'oneagent_system',
@@ -370,6 +375,10 @@ Please respond according to your persona configuration and quality standards.`;
           capabilities: persona.capabilities.primary,
           systemPrompt: template.systemPrompt
         }
+      };
+
+      await this.memorySystem.addMemory('conversations', {
+        ...conversationData // map fields as needed
       });
     } catch (error) {
       console.error(`[PersonaLoader] Failed to store persona in memory:`, error);

@@ -7,8 +7,7 @@
 
 import { UnifiedMCPTool, ToolExecutionResult, InputSchema } from './UnifiedMCPTool';
 import { Context7MCPIntegration, DocumentationQuery, DocumentationResult } from '../mcp/Context7MCPIntegration';
-import { OneAgentMem0Bridge } from '../memory/OneAgentMem0Bridge';
-import { LearningMemory } from '../memory/UnifiedMemoryInterface';
+import { OneAgentMemory, OneAgentMemoryConfig } from '../memory/OneAgentMemory';
 
 export interface Context7QueryParams {
   source?: string;
@@ -27,7 +26,8 @@ export interface Context7QueryResult extends ToolExecutionResult {
  */
 export class UnifiedContext7QueryTool extends UnifiedMCPTool {
   private context7Integration: Context7MCPIntegration;
-  private memoryBridge: OneAgentMem0Bridge;
+  private memorySystem: OneAgentMemory;
+  public name: string;
 
   constructor(context7Integration: Context7MCPIntegration) {
     const schema: InputSchema = {
@@ -50,13 +50,18 @@ export class UnifiedContext7QueryTool extends UnifiedMCPTool {
     );
     
     this.context7Integration = context7Integration;
-    this.memoryBridge = new OneAgentMem0Bridge({}); // Canonical memory bridge
+    const memoryConfig: OneAgentMemoryConfig = {
+      apiKey: process.env.MEM0_API_KEY || 'demo-key',
+      apiUrl: process.env.MEM0_API_URL
+    };
+    this.memorySystem = new OneAgentMemory(memoryConfig);
+    this.name = 'oneagent_context7_query';
   }
 
   /**
    * Core execution method implementing documentation search
    */
-  protected async executeCore(args: Context7QueryParams): Promise<ToolExecutionResult> {
+  public async executeCore(args: Context7QueryParams): Promise<ToolExecutionResult> {
     const startTime = Date.now();
 
     try {
@@ -206,7 +211,7 @@ export class UnifiedContext7QueryTool extends UnifiedMCPTool {
    */
   private async storeLearning(params: Context7QueryParams, results: DocumentationResult[], queryTime: number): Promise<void> {
     try {
-      const learning: LearningMemory = {
+      const learning: any = {
         id: `learning_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
         agentId: this.name, // Use tool name as agentId for now
         learningType: 'documentation_context',
@@ -239,7 +244,7 @@ export class UnifiedContext7QueryTool extends UnifiedMCPTool {
           query: params.query
         }
       };
-      await this.memoryBridge.storeLearning(learning);
+      await this.memorySystem.addMemory('learnings', learning);
     } catch (error) {
       // Non-critical error - log but don't fail the main operation
       console.warn(`Failed to store Context7 learning: ${error instanceof Error ? error.message : 'Unknown error'}`);

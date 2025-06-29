@@ -14,6 +14,17 @@ import { DevAgent } from '../specialized/DevAgent';
 import { OfficeAgent } from '../specialized/OfficeAgent';
 import { FitnessAgent } from '../specialized/FitnessAgent';
 import { TriageAgent } from '../specialized/TriageAgent';
+import path from 'path';
+import { loadYamlFile } from '../base/yamlLoader';
+import { getPersonaConfig } from '../base/personaRegistry';
+
+function buildPromptConfig(agentType: string): any {
+  const personaConfig = getPersonaConfig(agentType);
+  const persona = personaConfig?.persona ? loadYamlFile(personaConfig.persona) : undefined;
+  const quality = personaConfig?.quality ? loadYamlFile(personaConfig.quality) : undefined;
+  // Optionally add reasoning and future config types here
+  return { persona, quality };
+}
 
 export class AgentFactory {
   private static instances: Map<string, BaseAgent> = new Map();
@@ -27,7 +38,16 @@ export class AgentFactory {
       return this.instances.get(agentId)!;
     }
 
-    const agent = new CoreAgent();
+    const config: AgentConfig = {
+      id: agentId,
+      name: 'Core Agent',
+      description: 'Agent specialized in core orchestration',
+      capabilities: ['system_coordination', 'agent_integration', 'service_management', 'health_monitoring'],
+      memoryEnabled: true,
+      aiEnabled: true
+    };
+    const promptConfig = buildPromptConfig('core');
+    const agent = new CoreAgent(config, promptConfig);
     await agent.initialize();
     
     this.instances.set(agentId, agent);
@@ -55,9 +75,9 @@ export class AgentFactory {
       memoryEnabled: true,
       aiEnabled: true
     };
-    
-    const agent = new DevAgent(config);
-    await agent.initialize(); // This now includes auto-registration
+    const promptConfig = buildPromptConfig('development');
+    const agent = new DevAgent(config, promptConfig);
+    await agent.initialize();
     
     this.instances.set(agentId, agent);
     console.log('✅ DevAgent initialized with memory, AI capabilities, and auto-registration');
@@ -83,9 +103,9 @@ export class AgentFactory {
       memoryEnabled: true,
       aiEnabled: true
     };
-    
-    const agent = new OfficeAgent(config);
-    await agent.initialize(); // This now includes auto-registration
+    const promptConfig = buildPromptConfig('office');
+    const agent = new OfficeAgent(config, promptConfig);
+    await agent.initialize();
     
     this.instances.set(agentId, agent);
     console.log('✅ OfficeAgent initialized with memory, AI capabilities, and auto-registration');
@@ -112,7 +132,8 @@ export class AgentFactory {
       memoryEnabled: true,
       aiEnabled: true
     };
-    const agent = new FitnessAgent(config);
+    const promptConfig = buildPromptConfig('fitness');
+    const agent = new FitnessAgent(config, promptConfig);
     await agent.initialize();
     
     this.instances.set(agentId, agent);
@@ -137,7 +158,8 @@ export class AgentFactory {
       memoryEnabled: true,
       aiEnabled: true
     };
-    const agent = new TriageAgent(config);
+    const promptConfig = buildPromptConfig('triage');
+    const agent = new TriageAgent(config, promptConfig);
     await agent.initialize();
     
     this.instances.set(agentId, agent);

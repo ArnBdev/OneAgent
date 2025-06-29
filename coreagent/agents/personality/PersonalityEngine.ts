@@ -14,7 +14,7 @@
 
 import { AgentPersona, EnhancedPromptConfig } from '../base/EnhancedPromptEngine';
 import { ConstitutionalAI, ValidationResult } from '../base/ConstitutionalAI';
-import { OneAgentMem0Bridge } from '../../memory/OneAgentMem0Bridge';
+import { OneAgentMemory, OneAgentMemoryConfig } from '../../memory/OneAgentMemory';
 import { PersonaLoader, PersonaConfig } from '../persona/PersonaLoader';
 
 export interface PersonalityTraits {
@@ -237,7 +237,7 @@ export class PersonalityEngine {
   private personalityProfiles: Map<string, PersonalityProfile> = new Map();
   private constitutionalAI: ConstitutionalAI;
   private personaLoader: PersonaLoader;
-  private memoryBridge = new OneAgentMem0Bridge({});
+  private memorySystem: OneAgentMemory;
   constructor() {
     // Initialize Constitutional AI with default principles and threshold
     this.constitutionalAI = new ConstitutionalAI({
@@ -273,6 +273,11 @@ export class PersonalityEngine {
       ],
       qualityThreshold: 70
     });
+    const memoryConfig: OneAgentMemoryConfig = {
+      apiKey: process.env.MEM0_API_KEY || 'demo-key',
+      apiUrl: process.env.MEM0_API_URL
+    };
+    this.memorySystem = new OneAgentMemory(memoryConfig);
     this.personaLoader = PersonaLoader.getInstance();
     this.initializeDefaultProfiles();
   }
@@ -657,30 +662,7 @@ export class PersonalityEngine {
         response_length: response.length,
         personality_markers_count: this.extractPersonalityMarkers(response, this.personalityProfiles.get(agentId)!).length
       };
-
-      await this.memoryBridge.storeConversation({
-        id: `personality_evolution_${agentId}_${Date.now()}`,
-        agentId,
-        userId: 'oneagent_system',
-        timestamp: new Date(),
-        content: JSON.stringify(evolutionData),
-        context: {
-          user: { id: 'system', name: 'System' },
-          sessionId: `personality_evolution_${Date.now()}`,
-          conversationHistory: []
-        },
-        outcome: {
-          success: true,
-          agentResponse: 'Personality evolution data stored',
-          confidence: 1.0,
-          nextActions: []
-        },
-        metadata: { 
-          type: 'personality_evolution', 
-          agentId,
-          authenticity_score: authenticityScore
-        }
-      });
+      await this.memorySystem.addMemory('personality_evolution', evolutionData);
     } catch (error) {
       console.error('Failed to store personality evolution data:', error);
     }
@@ -717,33 +699,17 @@ export class PersonalityEngine {
     updates: Partial<PersonalityProfile>
   ): Promise<void> {
     try {
-      await this.memoryBridge.storeConversation({
-        id: `personality_update_${agentId}_${Date.now()}`,
+      const updateData = {
         agentId,
-        userId: 'oneagent_system',
-        timestamp: new Date(),
-        content: `Personality profile updated for ${agentId}: ${JSON.stringify(updates)}`,
-        context: {
-          user: { id: 'system', name: 'System' },
-          sessionId: `personality_update_${Date.now()}`,
-          conversationHistory: []
-        },
-        outcome: {
-          success: true,
-          agentResponse: 'Personality profile updated',
-          confidence: 1.0,
-          nextActions: []
-        },
-        metadata: { 
-          type: 'personality_profile_update', 
-          agentId,
-          updates
-        }
-      });
+        timestamp: new Date().toISOString(),
+        updates
+      };
+      await this.memorySystem.addMemory('personality_profile_update', updateData);
     } catch (error) {
       console.error('Failed to store personality profile update:', error);
     }
   }
+
   /**
    * Get authenticity metrics for agent
    */
@@ -753,34 +719,26 @@ export class PersonalityEngine {
     improvementTrend: number;
   }> {
     try {
-      const evolutionData = await this.memoryBridge.searchMemories({
-        query: `personality_evolution ${agentId}`,
-        agentIds: [agentId],
-        maxResults: 100
+      const evolutionData = await this.memorySystem.searchMemory('personality_evolution', {
+        query: agentId,
+        limit: 100
       });
-
-      if (evolutionData.length === 0) {
+      if (!evolutionData || evolutionData.length === 0) {
         return { averageScore: 0, totalInteractions: 0, improvementTrend: 0 };
       }
-
       const scores = evolutionData.map((memory: any) => {
         try {
-          const data = JSON.parse(memory.content);
-          return data.authenticity_score || 0;
+          return memory.authenticity_score || 0;
         } catch {
           return 0;
         }
       });
-
       const averageScore = scores.reduce((sum: number, score: number) => sum + score, 0) / scores.length;
       const recentScores = scores.slice(-10);
       const earlyScores = scores.slice(0, 10);
-      
-      const recentAvg = recentScores.reduce((sum: number, score: number) => sum + score, 0) / recentScores.length;
-      const earlyAvg = earlyScores.reduce((sum: number, score: number) => sum + score, 0) / earlyScores.length;
-      
+      const recentAvg = recentScores.reduce((sum: number, score: number) => sum + score, 0) / (recentScores.length || 1);
+      const earlyAvg = earlyScores.reduce((sum: number, score: number) => sum + score, 0) / (earlyScores.length || 1);
       const improvementTrend = recentAvg - earlyAvg;
-
       return {
         averageScore,
         totalInteractions: evolutionData.length,

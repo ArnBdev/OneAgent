@@ -1,7 +1,6 @@
 import { Request, Response } from 'express';
 import { CoreAgent } from '../main';
 import { 
-  UnifiedMemoryClient, 
   ConversationMetadata, 
   ContextCategory, 
   PrivacyLevel,
@@ -9,6 +8,7 @@ import {
 } from '../types/oneagent-backbone-types';
 import { AgentFactory } from '../agents/base/AgentFactory';
 import { OneAgentUnifiedTimeService, OneAgentUnifiedMetadataService } from '../utils/UnifiedBackboneService';
+import { OneAgentMemory } from '../memory/OneAgentMemory';
 
 interface ChatRequest {
   message: string;
@@ -40,12 +40,12 @@ interface ChatResponse {
  */
 export class ChatAPI {
   private coreAgent: CoreAgent;
-  private unifiedMemoryClient: UnifiedMemoryClient;
+  private memoryClient: OneAgentMemory;
   private timeService: OneAgentUnifiedTimeService;
   private metadataService: OneAgentUnifiedMetadataService;
-  constructor(coreAgent: CoreAgent, unifiedMemoryClient: UnifiedMemoryClient) {
+  constructor(coreAgent: CoreAgent) {
     this.coreAgent = coreAgent;
-    this.unifiedMemoryClient = unifiedMemoryClient;
+    this.memoryClient = new OneAgentMemory({});
     this.timeService = OneAgentUnifiedTimeService.getInstance();
     this.metadataService = OneAgentUnifiedMetadataService.getInstance();
   }
@@ -183,63 +183,59 @@ export class ChatAPI {
    */
   async handleChatMessage(req: Request, res: Response): Promise<void> {
     try {
-      const { message, userId, agentType = 'general', memoryContext }: ChatRequest = req.body;      // Validate input
+      const { message, userId, agentType = 'general', memoryContext }: ChatRequest = req.body;
       if (!message || !userId) {
         res.status(400).json({
           error: 'Missing required fields: message and userId'
         });
         return;
       }
-
-      // Store user message in memory using unified client
-      await this.unifiedMemoryClient.createMemory(
-        `User message: ${message}`,
+      // Store user message in memory using canonical memory client
+      await this.memoryClient.addMemory('chat-messages', {
+        id: `user_message_${userId}_${Date.now()}`,
         userId,
-        'session',
-        {
-          source: 'chat',
-          role: 'user',
-          timestamp: Date.now(),
-          agentType
-        }
-      );
-
+        content: message,
+        role: 'user',
+        timestamp: Date.now(),
+        agentType
+      });
       // Process the message through CoreAgent
-      const agentResponse = await this.coreAgent.processMessage(message, userId);      // Store agent response in memory
-      await this.unifiedMemoryClient.createMemory(
-        `Agent response: ${agentResponse.content}`,
+      const agentResponse = await this.coreAgent.processMessage(message, userId);
+      // Store agent response in memory
+      await this.memoryClient.addMemory('chat-messages', {
+        id: `agent_response_${userId}_${Date.now()}`,
         userId,
-        'session',
-        {
-          source: 'chat',
-          role: 'assistant',
-          timestamp: Date.now(),
-          agentType,
-          confidence: agentResponse.metadata?.confidence || 0.8
-        }      );      // Get relevant memory context for response
+        content: agentResponse.content,
+        role: 'assistant',
+        timestamp: Date.now(),
+        agentType,
+        confidence: agentResponse.metadata?.confidence || 0.8
+      });
+      // Get relevant memory context for response
       const memoryResponse = memoryContext ? 
-        await this.unifiedMemoryClient.getMemoryContext(message, userId, 3) : null;
+        await this.memoryClient.searchMemory('chat-messages', {
+          query: message,
+          user_id: userId,
+          limit: 3,
+          semanticSearch: true
+        }) : null;
       const relevantMemories = (memoryResponse as any)?.results || (memoryResponse as any)?.memories || (memoryResponse as any)?.entries || [];
-        
       const response: ChatResponse = {
         response: agentResponse.content,
-        agentType: agentResponse.metadata?.agentType || agentType,        memoryContext: relevantMemories.length > 0 ? {
+        agentType: agentResponse.metadata?.agentType || agentType,
+        memoryContext: relevantMemories.length > 0 ? {
           relevantMemories: relevantMemories.length,
           searchTerms: [message]
         } : undefined
       };
-
       res.json(response);
-
     } catch (error) {
       console.error('Chat API error:', error);
-      
       const errorResponse: ChatResponse = {
         response: 'I apologize, but I encountered an error processing your message. Please try again.',
         agentType: 'error',
         error: error instanceof Error ? error.message : 'Unknown error'
       };
-
       res.status(500).json(errorResponse);
     }
   }
@@ -251,28 +247,27 @@ export class ChatAPI {
     try {
       const { userId } = req.params;
       const { limit = 50, offset = 0 } = req.query;
-
       if (!userId) {
         res.status(400).json({ error: 'Missing userId parameter' });
         return;
-      }      // Search for chat messages in memory
-      const memoryResult = await this.unifiedMemoryClient.getMemoryContext(
-        'chat message',
-        userId,
-        parseInt(limit as string)
-      );
-      const memories = (memoryResult as any).entries || (memoryResult as any).memories || (memoryResult as any).results || [];
-
+      }
+      // Search for chat messages in memory
+      const memoryResult = await this.memoryClient.searchMemory('chat-messages', {
+        query: 'chat message',
+        user_id: userId,
+        limit: parseInt(limit as string)
+      });
+      const memories = (memoryResult as any).results || (memoryResult as any).memories || (memoryResult as any).entries || [];
       // Filter and format chat messages
       const chatHistory = memories.length > 0 ? 
         memories
-          .filter((memory: any) => memory.metadata?.source === 'chat')
+          .filter((memory: any) => memory.role === 'user' || memory.role === 'assistant')
           .map((memory: any) => ({
             id: memory.id,
             content: memory.content,
-            role: memory.metadata?.role,
-            timestamp: memory.metadata?.timestamp,
-            agentType: memory.metadata?.agentType
+            role: memory.role,
+            timestamp: memory.timestamp,
+            agentType: memory.agentType
           }))
           .sort((a: any, b: any) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime())
         : [];
@@ -457,82 +452,70 @@ export class ChatAPI {
 
     try {
       // Store user message with full metadata
-      await this.unifiedMemoryClient.createMemory(
-        `[${options.conversationId}] User: ${userMessage}`,
+      await this.memoryClient.addMemory('chat-messages', {
+        id: `user_message_${userId}_${Date.now()}`,
         userId,
-        'session',
-        {
-          source: 'chat_api',
-          role: 'user',
-          timestamp: timestamp.unix,
-          agentType: options.agentType,
-          conversationId: options.conversationId,
-          fromAgent: options.fromAgent,
-          toAgent: options.toAgent,
-          contextCategory,
-          privacyLevel,
-          unifiedMetadata: userMessageMetadata,
-          conversationMetadata,
-          backboneContext: {
-            timeContext: context,
-            timestamp: timestamp
-          }
+        content: userMessage,
+        role: 'user',
+        timestamp: timestamp.unix,
+        agentType: options.agentType,
+        conversationId: options.conversationId,
+        fromAgent: options.fromAgent,
+        toAgent: options.toAgent,
+        contextCategory,
+        privacyLevel,
+        unifiedMetadata: userMessageMetadata,
+        conversationMetadata,
+        backboneContext: {
+          timeContext: context,
+          timestamp: timestamp
         }
-      );
+      });
 
       // Store agent response with full metadata
-      await this.unifiedMemoryClient.createMemory(
-        `[${options.conversationId}] ${options.agentType}: ${agentResponse.content}`,
+      await this.memoryClient.addMemory('chat-messages', {
+        id: `agent_response_${userId}_${Date.now()}`,
         userId,
-        'session',
-        {
-          source: 'chat_api',
-          role: 'assistant',
-          timestamp: timestamp.unix,
-          agentType: options.agentType,
-          conversationId: options.conversationId,
-          fromAgent: options.toAgent || options.agentType,
-          toAgent: options.fromAgent || 'user',
-          contextCategory,
-          privacyLevel,
-          unifiedMetadata: agentResponseMetadata,
-          conversationMetadata,
-          backboneContext: {
-            timeContext: context,
-            timestamp: timestamp
-          },
-          confidence: agentResponse.metadata?.confidence || 0.85,
-          quality: conversationMetadata.responseAnalysis
-        }
-      );
+        content: agentResponse.content,
+        role: 'assistant',
+        timestamp: timestamp.unix,
+        agentType: options.agentType,
+        conversationId: options.conversationId,
+        fromAgent: options.toAgent || options.agentType,
+        toAgent: options.fromAgent || 'user',
+        contextCategory,
+        privacyLevel,
+        unifiedMetadata: agentResponseMetadata,
+        conversationMetadata,
+        backboneContext: {
+          timeContext: context,
+          timestamp: timestamp
+        },
+        confidence: agentResponse.metadata?.confidence || 0.85,
+        quality: conversationMetadata.responseAnalysis
+      });
 
     } catch (error) {
       console.error('Failed to store conversation with backbone metadata:', error);
       
       // Fallback to basic storage
-      await this.unifiedMemoryClient.createMemory(
-        `User: ${userMessage}`,
+      await this.memoryClient.addMemory('chat-messages', {
+        id: `fallback_user_message_${userId}_${Date.now()}`,
         userId,
-        'session',
-        {
-          source: 'chat_fallback',
-          role: 'user',
-          timestamp: timestamp.unix,
-          conversationId: options.conversationId
-        }
-      );
+        content: userMessage,
+        role: 'user',
+        timestamp: timestamp.unix,
+        conversationId: options.conversationId
+      });
 
-      await this.unifiedMemoryClient.createMemory(
-        `Agent: ${agentResponse.content}`,
+      await this.memoryClient.addMemory('chat-messages', {
+        id: `fallback_agent_response_${userId}_${Date.now()}`,
         userId,
-        'session',
-        {
-          source: 'chat_fallback',
-          role: 'assistant',
-          timestamp: timestamp.unix,
-          conversationId: options.conversationId
-        }
-      );
+        content: agentResponse.content,
+        role: 'assistant',
+        timestamp: timestamp.unix,
+        conversationId: options.conversationId
+      });
     }
   }
 
@@ -541,11 +524,15 @@ export class ChatAPI {
    */
   private async getMemoryContext(query: string, userId: string, limit: number = 5): Promise<any> {
     try {
-      const memoryResult = await this.unifiedMemoryClient.getMemoryContext(query, userId, limit);
+      const memoryResult = await this.memoryClient.searchMemory('chat-messages', {
+        query,
+        user_id: userId,
+        limit
+      });
       return {
-        relevantMemories: memoryResult.memories?.length || 0,
+        relevantMemories: memoryResult.results?.length || 0,
         searchTerms: [query],
-        memories: memoryResult.memories || []
+        memories: memoryResult.results || []
       };
     } catch (error) {
       console.error('Failed to get memory context:', error);

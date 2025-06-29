@@ -11,15 +11,14 @@
  * Achieves 20-95% improvements in accuracy, task adherence, and quality.
  */
 
-import { OneAgentMem0Bridge } from '../../memory/OneAgentMem0Bridge';
-import { ConversationMemory, MemorySearchQuery } from '../../memory/UnifiedMemoryInterface';
+import { OneAgentMemory } from '../../memory/OneAgentMemory';
 import { oneAgentConfig } from '../../config/index';
 import { OneAgentUnifiedBackbone } from '../../utils/UnifiedBackboneService';
 import { SmartGeminiClient } from '../../tools/SmartGeminiClient';
 import { GeminiClient } from '../../tools/geminiClient';
 import { User } from '../../types/user';
 import { MemoryIntelligence } from '../../intelligence/memoryIntelligence';
-import { MemorySearchResult, IntelligenceInsight } from '../../types/oneagent-backbone-types';
+import { ConversationData, IntelligenceInsight, MemorySearchResult, SessionContext } from '../../types/oneagent-backbone-types';
 import { 
   EnhancedPromptEngine, 
   EnhancedPromptConfig, 
@@ -79,7 +78,7 @@ export interface AgentAction {
  */
 export abstract class BaseAgent {
   public config: AgentConfig;
-  protected memoryClient?: OneAgentMem0Bridge;
+  protected memoryClient?: OneAgentMemory;
   protected memoryIntelligence?: MemoryIntelligence;
   protected aiClient?: SmartGeminiClient;
   protected isInitialized: boolean = false;
@@ -99,20 +98,13 @@ export abstract class BaseAgent {
    * Initialize the agent with necessary clients and advanced prompt engineering
    */
   async initialize(): Promise<void> {
-    try {      // Initialize memory client if enabled
+    try {
+      // Initialize memory client if enabled
       if (this.config.memoryEnabled) {
-        this.memoryClient = new OneAgentMem0Bridge({
-          provider: process.env.MEM0_PROVIDER,
-          model: process.env.MEM0_MODEL,
-          embeddingModel: process.env.MEM0_EMBEDDING_MODEL,
-          collection: process.env.MEM0_COLLECTION,
-          vectorPath: process.env.MEM0_VECTOR_PATH,
-          graphUrl: process.env.MEM0_GRAPH_URL,
-          apiKey: process.env.GEMINI_API_KEY
-        });
-          // Initialize Memory Intelligence layer
+        this.memoryClient = new OneAgentMemory({});
+        // Initialize Memory Intelligence layer
         try {
-          this.memoryIntelligence = new MemoryIntelligence(this.memoryClient as any, {
+          this.memoryIntelligence = new MemoryIntelligence(this.memoryClient, {
             enableSemanticSearch: true,
             maxResults: 50,
             similarityThreshold: 0.7,
@@ -242,85 +234,66 @@ export abstract class BaseAgent {
   protected async addMemory(userId: string, content: string, metadata?: Record<string, any>): Promise<void> {
     if (!this.memoryClient) {
       throw new Error('Memory client not initialized');
-    }    // Create unified metadata for proper concern separation
-    const unifiedMetadata = this.unifiedBackbone.getServices().metadataService.create(
-      'agent_conversation',
-      `agent:${this.config.id}`,
-      {
-        system: {
-          source: `agent:${this.config.id}`,
-          component: 'BaseAgent',
-          userId: userId, // User isolation
-          sessionId: metadata?.sessionId || 'default',
-          agent: {
-            id: this.config.id,
-            type: this.config.name
-          }
-        },
-        content: {
-          category: metadata?.category || 'conversation', // WORKPLACE, PRIVATE, PROJECTS, etc.
-          sensitivity: metadata?.sensitivity || 'internal' as const,
-          contextDependency: metadata?.contextDependency || 'user' as const, // User-specific by default
-          tags: [`agent:${this.config.id}`, ...(metadata?.tags || [])],
-          relevanceScore: metadata?.relevanceScore || 0.8
-        },
-        quality: {
-          score: metadata?.qualityScore || 85,
-          constitutionalCompliant: true,
-          validationLevel: 'enhanced' as const,
-          confidence: metadata?.confidence || 0.85
-        }
-      }
-    );
-
-    // Create a conversation memory with unified metadata
-    const conversation: ConversationMemory = {
-      id: unifiedMetadata.id,
-      agentId: this.config.id,
+    }
+    // Create canonical ConversationData for storage
+    const now = new Date();
+    const sessionContext = {
+      sessionId: metadata?.sessionId || 'default',
       userId: userId,
-      timestamp: new Date(unifiedMetadata.temporal.created.utc),
-      content: content,
-      context: {
-        userId: userId,
-        agentId: this.config.id,
-        sessionId: unifiedMetadata.system.sessionId || '',
-        conversationId: unifiedMetadata.id,
-        messageType: 'user',
-        platform: 'oneagent'
-      },
-      outcome: {
-        success: true,
-        satisfaction: 'high',
-        learningsExtracted: 1,
-        qualityScore: 0.8
-      },
-      metadata: {
-        unifiedMetadata,
-        ...metadata
-      }
+      startTime: now,
+      lastActivity: now,
+      currentTopic: metadata?.category || 'conversation',
+      conversationMode: 'exploration',
+      sessionType: 'quick_query',
+      expectedDuration: 5,
+      goalDefinition: 'Store user memory',
+      constitutionalMode: 'strict',
+      validationLevel: 'enhanced',
+      responseQuality: [0.8],
+      userSatisfaction: [1.0],
+      goalProgress: 1.0,
+      relevantMemories: [],
+      newLearnings: [content],
+      constitutionalCompliance: 1.0,
+      helpfulnessScore: 1.0,
+      accuracyMaintained: true
+    } as SessionContext;
+    const conversation: ConversationData = {
+      conversationId: metadata?.conversationId || `conv_${Date.now()}`,
+      participants: [this.config.id, userId],
+      startTime: now,
+      topics: [metadata?.category || 'conversation'],
+      keyInsights: [content],
+      decisions: [],
+      actionItems: [],
+      overallQuality: metadata?.qualityScore || 0.8,
+      qualityScore: metadata?.qualityScore || 0.8,
+      constitutionalCompliance: 1.0,
+      constitutionalCompliant: true,
+      userSatisfaction: 1.0,
+      goalAchievement: 1.0,
+      newKnowledge: [content],
+      improvedUnderstanding: [],
+      skillDemonstrations: [],
+      sessionContext,
+      principleApplications: [],
+      ethicalConsiderations: [],
+      safetyMeasures: [],
+      responseTimings: [],
+      qualityTrends: [],
+      engagementLevels: [],
+      timestamp: now,
+      userId: userId,
+      messageCount: 1,
+      conversationLength: 1,
+      contextTags: metadata?.tags || [],
+      communicationStyle: 'formal',
+      technicalLevel: 'intermediate',
+      domain: metadata?.domain || 'general',
+      taskCompleted: true,
+      responseTime: 1000
     };
-
-    // Store conversation using canonical memory bridge
-    await this.memoryClient.storeConversation({
-      id: `conv_${Date.now()}`,
-      agentId: this.config.id,
-      userId: 'oneagent_system',
-      timestamp: new Date(),
-      content: JSON.stringify(conversation),
-      context: {},
-      outcome: {
-        success: true,
-        satisfaction: 'high',
-        learningsExtracted: 1,
-        qualityScore: 0.8
-      },
-      metadata: {
-        source: 'agent_conversation',
-        agentId: this.config.id,
-        unifiedMetadata,
-        ...metadata
-      }
-    });
+    await this.memoryClient.addMemory('conversations', conversation);
   }/**
    * Search for relevant memories using intelligent search when available
    */
@@ -328,7 +301,6 @@ export abstract class BaseAgent {
     if (!this.memoryClient) {
       return [];
     }
-
     // Use Memory Intelligence for enhanced search if available
     if (this.memoryIntelligence) {
       try {
@@ -338,14 +310,9 @@ export abstract class BaseAgent {
         console.warn(`Memory Intelligence search failed, falling back to standard search:`, error);
       }
     }
-
-    // Fallback to standard memory search using canonical bridge
-    const result = await this.memoryClient.searchMemories({
-      query,
-      agentIds: [_userId],
-      maxResults: limit
-    });
-    return result || [];
+    // Fallback to standard memory search
+    const result = await this.memoryClient.searchMemory('conversations', { query, user_id: _userId, limit });
+    return result.results || [];
   }/**
    * Generate AI response using advanced prompt engineering system
    */

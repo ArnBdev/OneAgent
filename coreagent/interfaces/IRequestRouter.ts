@@ -3,6 +3,4 @@
  * Redirects to backbone types for architectural consistency
  */
 
-export type { 
-    IRequestRouter
-} from '../types/oneagent-backbone-types';
+// Removed import of IRequestRouter as it does not exist in canonical types.

@@ -11,9 +11,10 @@ import { OfficeAgent } from '../specialized/OfficeAgent';
 import { FitnessAgent } from '../specialized/FitnessAgent';
 import { DevAgent } from '../specialized/DevAgent';
 import { CoreAgent } from '../specialized/CoreAgent';
-import { TemplateAgent } from '../templates/TemplateAgent';
 import { unifiedBackbone } from '../../utils/UnifiedBackboneService.js';
 import type { UnifiedAgentContext } from '../../types/oneagent-backbone-types.js';
+// Fix: Use canonical AgentType from coreagent/types/oneagent-backbone-types
+import type { AgentType as CanonicalAgentType } from '../../types/oneagent-backbone-types';
 
 // NEW: Import tier system for intelligent model selection
 import { 
@@ -22,12 +23,11 @@ import {
   ModelSelection 
 } from '../../../config/gemini-model-tier-selector';
 import { getModelForAgentType } from '../../../config/gemini-model-registry';
-import { costMonitoringService } from '../../../config/gemini-cost-monitoring-v2';
-
-export type AgentType = 'core' | 'enhanced-development' | 'development' | 'office' | 'fitness' | 'general' | 'coach' | 'advisor' | 'template';
+import { loadYamlDirectory, loadYamlFile } from './yamlLoader';
+import path from 'path';
 
 export interface AgentFactoryConfig {
-  type: AgentType;
+  type: CanonicalAgentType;
   id: string;
   name: string;
   description?: string;
@@ -43,32 +43,92 @@ export interface AgentFactoryConfig {
   prioritizePerformance?: boolean;
   expectedVolume?: 'low' | 'medium' | 'high' | 'ultra-high';
   customModel?: string; // Override automatic selection
+
+  /**
+   * Enable or disable NLACS (Natural Language Agent Coordination System) for this agent.
+   * Defaults to true. Set to false to opt out for temporary or legacy agents.
+   */
+  nlacsEnabled?: boolean;
+
+  /**
+   * Optional: Override persona/quality/reasoning YAMLs for this agent
+   */
+  personaYaml?: string; // Path to persona YAML file
+  qualityYaml?: string; // Path to quality YAML file
+  reasoningYaml?: string; // Path to reasoning YAML file (future)
+}
+
+// --- Centralized YAML loading ---
+const QUALITY_YAML_DIR = path.resolve(__dirname, '../../../prompts/quality');
+const PERSONA_YAML_DIR = path.resolve(__dirname, '../../../prompts/persona');
+// (Future) const REASONING_YAML_DIR = path.resolve(__dirname, '../../../prompts/reasoning');
+
+// Load all YAMLs at module load (can be refactored to lazy-load or hot-reload in future)
+const qualityYamls = loadYamlDirectory(QUALITY_YAML_DIR);
+const personaYamls = loadYamlDirectory(PERSONA_YAML_DIR);
+// (Future) const reasoningYamls = loadYamlDirectory(REASONING_YAML_DIR);
+
+// Map agent types to their dedicated persona YAMLs
+const AGENT_TYPE_PERSONA_MAP: Record<string, string> = {
+  'core': path.resolve(__dirname, '../../../prompts/personas/core-agent.yaml'),
+  'development': path.resolve(__dirname, '../../../prompts/personas/dev-agent.yaml'),
+  'office': path.resolve(__dirname, '../../../prompts/personas/office-agent.yaml'),
+  'fitness': path.resolve(__dirname, '../../../prompts/personas/fitness-agent.yaml'),
+  'triage': path.resolve(__dirname, '../../../prompts/personas/triage-agent.yaml'),
+  'validation': path.resolve(__dirname, '../../../prompts/personas/validation-agent.yaml'),
+};
+
+function buildPromptConfig(factoryConfig: AgentFactoryConfig): any {
+  // Load persona YAML (override or mapped default)
+  let persona: any = undefined;
+  if (factoryConfig.personaYaml) {
+    persona = loadYamlFile(factoryConfig.personaYaml);
+  } else if (factoryConfig.type && AGENT_TYPE_PERSONA_MAP[factoryConfig.type]) {
+    persona = loadYamlFile(AGENT_TYPE_PERSONA_MAP[factoryConfig.type]);
+  } else if (Object.keys(personaYamls).length > 0) {
+    // Use first persona YAML as default (or improve selection logic)
+    persona = personaYamls[Object.keys(personaYamls)[0]];
+  }
+  // Load quality YAML (override or default)
+  let quality: any = undefined;
+  if (factoryConfig.qualityYaml) {
+    quality = loadYamlFile(factoryConfig.qualityYaml);
+  } else if (qualityYamls['constitutional-ai']) {
+    quality = qualityYamls['constitutional-ai'];
+  }
+  // (Future) Load reasoning YAMLs similarly
+  // Compose prompt config
+  return {
+    persona,
+    quality,
+    // reasoning: ...
+  };
+}
+
+// Define supported agent types for mappings
+const SUPPORTED_AGENT_TYPES = ['core', 'development', 'office', 'fitness', 'general'] as const;
+type SupportedAgentType = typeof SUPPORTED_AGENT_TYPES[number];
+function isSupportedAgentType(type: string): type is SupportedAgentType {
+  return SUPPORTED_AGENT_TYPES.includes(type as SupportedAgentType);
 }
 
 export class AgentFactory {
+  // Remove unsupported agent types from DEFAULT_CAPABILITIES and AGENT_TYPE_TIER_MAPPING
+  // Only include: 'core', 'development', 'office', 'fitness', 'general'
   private static readonly DEFAULT_CAPABILITIES = {
     'core': ['system_coordination', 'agent_integration', 'service_management', 'health_monitoring', 'resource_allocation', 'security_management', 'rise_plus_methodology', 'constitutional_ai', 'quality_validation', 'advanced_prompting', 'bmad_analysis', 'chain_of_verification'],
-    'enhanced-development': ['advanced_prompting', 'constitutional_ai', 'bmad_elicitation', 'chain_of_verification', 'quality_validation', 'self_correction', 'adaptive_prompting', 'code_analysis', 'test_generation', 'documentation_sync', 'refactoring'],
     'development': ['code_analysis', 'test_generation', 'documentation_sync', 'refactoring', 'performance_optimization', 'security_scanning', 'git_workflow', 'dependency_management'],
-    office: ['document_processing', 'calendar_management', 'email_assistance', 'task_organization'],
-    fitness: ['workout_planning', 'nutrition_tracking', 'progress_monitoring', 'goal_setting'],
-    general: ['conversation', 'information_retrieval', 'task_assistance'],
-    coach: ['goal_setting', 'progress_tracking', 'motivation', 'feedback'],
-    advisor: ['analysis', 'recommendations', 'strategic_planning', 'consultation'],
-    template: ['unified_memory', 'multi_agent_coordination', 'constitutional_ai', 'bmad_analysis', 'quality_scoring', 'time_awareness', 'comprehensive_error_handling', 'extensible_design', 'best_practices']
+    'office': ['document_processing', 'calendar_management', 'email_assistance', 'task_organization'],
+    'fitness': ['workout_planning', 'nutrition_tracking', 'progress_monitoring', 'goal_setting'],
+    'general': ['conversation', 'information_retrieval', 'task_assistance']
   };
 
-  // NEW: Agent type to tier mapping for intelligent model selection
   private static readonly AGENT_TYPE_TIER_MAPPING = {
-    'core': 'premium',              // System coordination requires maximum capability
-    'enhanced-development': 'premium',  // Advanced development needs premium models
-    'development': 'premium',       // DevAgent needs premium for coding tasks
-    'office': 'standard',          // Office tasks work well with standard models
-    'fitness': 'standard',         // Fitness coaching uses standard models
-    'general': 'standard',         // General purpose uses balanced models
-    'coach': 'standard',           // Coaching uses standard models
-    'advisor': 'premium',          // Advisory requires advanced reasoning
-    'template': 'standard'         // Templates use standard models
+    'core': 'premium',
+    'development': 'premium',
+    'office': 'standard',
+    'fitness': 'standard',
+    'general': 'standard'
   } as const;
 
   private static modelTierSelector = ModelTierSelector.getInstance();  /**
@@ -94,9 +154,7 @@ export class AgentFactory {
 
     // Build selection criteria based on agent configuration
     const criteria: ModelSelectionCriteria = {
-      agentType: factoryConfig.type === 'enhanced-development' ? 'DevAgent' : 
-                factoryConfig.type === 'development' ? 'DevAgent' :
-                factoryConfig.type === 'office' ? 'OfficeAgent' :
+      agentType: factoryConfig.type === 'office' ? 'OfficeAgent' :
                 factoryConfig.type === 'fitness' ? 'FitnessAgent' :
                 factoryConfig.type === 'core' ? 'CoreAgent' :
                 `${factoryConfig.type}Agent`,
@@ -128,24 +186,28 @@ export class AgentFactory {
    */  static async createAgent(factoryConfig: AgentFactoryConfig): Promise<ISpecializedAgent> {
     // NEW: Select optimal model using tier system
     const modelSelection = AgentFactory.selectOptimalModel(factoryConfig);
-      // Create unified agent context for consistent time/metadata across all agents
+    // Create unified agent context for consistent time/metadata across all agents
+    const backboneAgentType = factoryConfig.type;
     const unifiedContext = unifiedBackbone.createAgentContext(
       factoryConfig.id,
-      factoryConfig.type,
+      backboneAgentType as CanonicalAgentType,
       {
         sessionId: factoryConfig.sessionId || `session_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
         ...(factoryConfig.userId && { userId: factoryConfig.userId }),
-        capabilities: factoryConfig.customCapabilities || AgentFactory.DEFAULT_CAPABILITIES[factoryConfig.type],
+        capabilities: factoryConfig.customCapabilities || (isSupportedAgentType(factoryConfig.type) ? AgentFactory.DEFAULT_CAPABILITIES[factoryConfig.type] : []),
         memoryEnabled: factoryConfig.memoryEnabled ?? true,
         aiEnabled: factoryConfig.aiEnabled ?? true
       }
     );
     
+    // Compose prompt config (persona, quality, reasoning)
+    const promptConfig = buildPromptConfig(factoryConfig);
+
     const agentConfig: AgentConfig = {
       id: factoryConfig.id,
       name: factoryConfig.name,
       description: factoryConfig.description || `${factoryConfig.type} agent`,
-      capabilities: factoryConfig.customCapabilities || AgentFactory.DEFAULT_CAPABILITIES[factoryConfig.type],
+      capabilities: factoryConfig.customCapabilities || (isSupportedAgentType(factoryConfig.type) ? AgentFactory.DEFAULT_CAPABILITIES[factoryConfig.type] : []),
       memoryEnabled: factoryConfig.memoryEnabled ?? true,
       aiEnabled: factoryConfig.aiEnabled ?? true
     };
@@ -154,38 +216,41 @@ export class AgentFactory {
 
     switch (factoryConfig.type) {
       case 'core':
-        // CoreAgent - System coordination and integration hub
-        agent = new CoreAgent(agentConfig);
-        break;
-      case 'enhanced-development':
-        // Enhanced development agent with Advanced Prompt Engineering
-        agent = new DevAgent(agentConfig);
+        agent = new CoreAgent(agentConfig, promptConfig);
         break;
       case 'development':
-        agent = new DevAgent(agentConfig);
+        agent = (new DevAgent(agentConfig, promptConfig) as unknown) as BaseAgent;
         break;
       case 'office':
-        agent = new OfficeAgent(agentConfig);
+        agent = new OfficeAgent(agentConfig, promptConfig);
         break;
       case 'fitness':
-        agent = new FitnessAgent(agentConfig);
+        agent = new FitnessAgent(agentConfig, promptConfig);
         break;
-      case 'template':
-        agent = new TemplateAgent(agentConfig);
-        break;
+      case 'general':
+        // Optionally implement a GeneralAgent if needed, or throw for now
+        throw new Error('General agent type is not implemented.');
       default:
         throw new Error(`Unknown agent type: ${factoryConfig.type}`);
-    }    if (!agent) {
+    }
+    if (!agent) {
       throw new Error(`Failed to create agent of type: ${factoryConfig.type}`);
     }
 
     // Inject unified context into agent for consistent time/metadata usage
     if ('setUnifiedContext' in agent && typeof agent.setUnifiedContext === 'function') {
       agent.setUnifiedContext(unifiedContext);
-    }    await agent.initialize();
+    }
+    // --- NLACS/Collective Memory Integration ---
+    // Ensure all agents are NLACS-capable by default (opt-in/out via config)
+    // and have collective memory logging/querying enabled
+    if ('nlacsEnabled' in agent) {
+      // Default to true unless explicitly set false in config
+      agent.nlacsEnabled = factoryConfig.hasOwnProperty('nlacsEnabled') ? Boolean(factoryConfig.nlacsEnabled) : true;
+    }
+    await agent.initialize();
 
-    // NEW: Set up cost monitoring for the agent (simplified for BaseAgent compatibility)
-    console.log(`📊 Cost monitoring configured for ${factoryConfig.type} agent using ${modelSelection.primaryModel}`);// Log agent creation with unified metadata
+    // Log agent creation with unified metadata
     const creationMetadata = unifiedContext.metadataService.create(
       'agent_creation',
       'agent_factory',
@@ -224,15 +289,15 @@ export class AgentFactory {
   /**
    * Get default capabilities for an agent type
    */
-  static getDefaultCapabilities(type: AgentType): string[] {
-    return [...AgentFactory.DEFAULT_CAPABILITIES[type]];
+  static getDefaultCapabilities(type: CanonicalAgentType): string[] {
+    return isSupportedAgentType(type) ? [...AgentFactory.DEFAULT_CAPABILITIES[type]] : [];
   }
 
   /**
    * Get available agent types
    */
-  static getAvailableTypes(): AgentType[] {
-    return Object.keys(AgentFactory.DEFAULT_CAPABILITIES) as AgentType[];
+  static getAvailableTypes(): CanonicalAgentType[] {
+    return Object.keys(AgentFactory.DEFAULT_CAPABILITIES) as CanonicalAgentType[];
   }
 
   /**
@@ -243,7 +308,7 @@ export class AgentFactory {
       throw new Error('Agent factory config must include id, name, and type');
     }
 
-    if (!AgentFactory.DEFAULT_CAPABILITIES[config.type]) {
+    if (!isSupportedAgentType(config.type)) {
       throw new Error(`Unsupported agent type: ${config.type}`);
     }
   }  /**
@@ -304,22 +369,20 @@ export class AgentFactory {
   /**
    * Get recommended tier for agent type
    */
-  static getRecommendedTier(agentType: AgentType): 'economy' | 'standard' | 'premium' {
-    return AgentFactory.AGENT_TYPE_TIER_MAPPING[agentType] as 'economy' | 'standard' | 'premium';
+  static getRecommendedTier(agentType: CanonicalAgentType): 'economy' | 'standard' | 'premium' {
+    return isSupportedAgentType(agentType) ? AgentFactory.AGENT_TYPE_TIER_MAPPING[agentType] : 'standard';
   }
 
   /**
    * Get optimal model selection for agent type (without creating agent)
    */
-  static getOptimalModelForAgentType(agentType: AgentType, options?: {
+  static getOptimalModelForAgentType(agentType: CanonicalAgentType, options?: {
     prioritizeCost?: boolean;
     prioritizePerformance?: boolean;
     expectedVolume?: 'low' | 'medium' | 'high' | 'ultra-high';
   }): ModelSelection {
     const criteria: ModelSelectionCriteria = {
-      agentType: agentType === 'enhanced-development' ? 'DevAgent' : 
-                agentType === 'development' ? 'DevAgent' :
-                agentType === 'office' ? 'OfficeAgent' :
+      agentType: agentType === 'office' ? 'OfficeAgent' :
                 agentType === 'fitness' ? 'FitnessAgent' :
                 agentType === 'core' ? 'CoreAgent' :
                 `${agentType}Agent`,
@@ -336,7 +399,7 @@ export class AgentFactory {
    * Estimate cost for agent type based on usage
    */
   static estimateCostForAgent(
-    agentType: AgentType, 
+    agentType: CanonicalAgentType, 
     estimatedTokensPerMonth: number,
     options?: { prioritizeCost?: boolean }
   ): {
@@ -366,134 +429,5 @@ export class AgentFactory {
       costPerInteraction: Math.round(costPerInteraction * 10000) / 10000,
       recommendations
     };
-  }
-
-  // =============================================================================
-  // COST MONITORING & ANALYTICS METHODS
-  // =============================================================================
-
-  /**
-   * Set up cost monitoring for an agent instance
-   */
-  static setupCostMonitoring(
-    agent: ISpecializedAgent, 
-    modelId: string,
-    agentType: AgentType
-  ): void {
-    // Wrap agent methods to track token usage
-    const originalExecute = agent.executeAction?.bind(agent);
-    
-    if (originalExecute) {
-      agent.executeAction = async (action: string, params?: any) => {
-        const startTime = Date.now();
-        const result = await originalExecute(action, params);
-        
-        // Estimate token usage (simplified - in real implementation would get from API response)
-        const estimatedInputTokens = (action + JSON.stringify(params || {})).length / 4; // Rough estimation
-        const estimatedOutputTokens = JSON.stringify(result).length / 4; // Rough estimation
-        
-        // Track usage
-        costMonitoringService.trackTokenUsage({
-          agentId: (agent as any).id || 'unknown',
-          agentType,
-          modelId,
-          inputTokens: Math.round(estimatedInputTokens),
-          outputTokens: Math.round(estimatedOutputTokens),
-          timestamp: new Date(),
-          taskType: action
-        });
-        
-        return result;
-      };
-    }
-
-    console.log(`📊 Cost monitoring enabled for ${agentType} agent using ${modelId}`);
-  }
-
-  /**
-   * Get cost analytics for the factory
-   */  static getCostAnalytics(timeframe: 'day' | 'week' | 'month' = 'day') {
-    return costMonitoringService.getUsageAnalytics(timeframe);
-  }
-
-  /**
-   * Configure budget limits for all agents
-   */
-  static configureBudget(config: {
-    dailyLimit?: number;
-    monthlyLimit?: number;
-    warningThreshold?: number;
-    criticalThreshold?: number;
-    autoTierDowngrade?: boolean;
-  }): void {
-    costMonitoringService.configureBudget(config);
-    console.log(`💰 Budget configuration updated for all agents`);
-  }
-
-  /**
-   * Get current budget alerts
-   */
-  static getBudgetAlerts() {
-    return costMonitoringService.getBudgetAlerts();
-  }
-
-  /**
-   * Get cost forecast
-   */
-  static getCostForecast(days: number = 7) {
-    return costMonitoringService.forecastCosts(days);
-  }
-
-  /**
-   * Create cost-optimized agent factory configuration
-   */
-  static createCostOptimizedConfig(
-    baseConfig: Omit<AgentFactoryConfig, 'modelTier' | 'prioritizeCost'>,
-    maxMonthlyCost: number
-  ): AgentFactoryConfig {
-    // Estimate cost with different tiers
-    const economyEstimate = AgentFactory.estimateCostForAgent(baseConfig.type, 1_000_000, { prioritizeCost: true });
-    const standardEstimate = AgentFactory.estimateCostForAgent(baseConfig.type, 1_000_000);
-    const premiumEstimate = AgentFactory.estimateCostForAgent(baseConfig.type, 1_000_000, { prioritizeCost: false });
-
-    // Select optimal tier based on budget
-    let selectedTier: 'economy' | 'standard' | 'premium';
-    if (premiumEstimate.monthlyCostUSD <= maxMonthlyCost) {
-      selectedTier = 'premium';
-    } else if (standardEstimate.monthlyCostUSD <= maxMonthlyCost) {
-      selectedTier = 'standard';
-    } else {
-      selectedTier = 'economy';
-    }
-
-    return {
-      ...baseConfig,
-      modelTier: selectedTier,
-      prioritizeCost: selectedTier === 'economy',
-      prioritizePerformance: selectedTier === 'premium'
-    };
-  }
-
-  /**
-   * Monitor and log agent costs in real-time
-   */
-  static startRealTimeCostMonitoring(): void {
-    // Set up event listeners for real-time cost monitoring
-    costMonitoringService.on('tokenUsage', (event) => {
-      console.log(`💰 Token usage: ${event.usage.agentType} - $${event.cost.total.toFixed(4)}`);
-    });
-
-    costMonitoringService.on('budgetAlert', (alert) => {
-      console.warn(`🚨 Budget Alert: ${alert.message}`);
-      if (alert.type === 'critical') {
-        console.error(`🔴 CRITICAL: ${alert.recommendedAction}`);
-      }
-    });
-
-    costMonitoringService.on('autoTierDowngrade', (event) => {
-      console.warn(`⬇️ Auto tier downgrade triggered: ${event.reason}`);
-    });
-
-    console.log(`📊 Real-time cost monitoring started`);
   }
 }

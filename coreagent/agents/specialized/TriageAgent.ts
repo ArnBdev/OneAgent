@@ -13,10 +13,8 @@ import { ISpecializedAgent, AgentStatus, AgentHealthStatus } from '../base/ISpec
 import { EnhancedPromptConfig, AgentPersona, ConstitutionalPrinciple } from '../base/EnhancedPromptEngine';
 
 export class TriageAgent extends BaseAgent implements ISpecializedAgent {
-  
-  constructor(config: AgentConfig) {
-    const promptConfig = TriageAgent.createTriagePromptConfig();
-    super(config, promptConfig);
+  constructor(config: AgentConfig, promptConfig?: any) {
+    super(config, promptConfig || TriageAgent.createTriagePromptConfig());
   }
 
   /** ISpecializedAgent interface implementation */

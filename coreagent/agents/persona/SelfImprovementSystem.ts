@@ -11,7 +11,7 @@
 
 import { EventEmitter } from 'events';
 import { personaLoader, PersonaConfig } from './PersonaLoader';
-import { OneAgentMem0Bridge } from '../../memory/OneAgentMem0Bridge';
+import { OneAgentMemory, OneAgentMemoryConfig } from '../../memory/OneAgentMemory';
 // ALITA Integration
 import { ALITA } from '../evolution';
 
@@ -71,10 +71,15 @@ export class SelfImprovementSystem extends EventEmitter {
   private performanceHistory: Map<string, PerformanceMetrics[]> = new Map();
   private evaluationSchedule: Map<string, NodeJS.Timeout> = new Map();
   private isActive = false;
-  private memoryBridge = new OneAgentMem0Bridge({});
+  private memorySystem: OneAgentMemory;
 
   private constructor() {
     super();
+    const memoryConfig: OneAgentMemoryConfig = {
+      apiKey: process.env.MEM0_API_KEY || 'demo-key',
+      apiUrl: process.env.MEM0_API_URL
+    };
+    this.memorySystem = new OneAgentMemory(memoryConfig);
   }
 
   public static getInstance(): SelfImprovementSystem {
@@ -134,7 +139,7 @@ export class SelfImprovementSystem extends EventEmitter {
     
     this.performanceHistory.set(metrics.agentId, history);
       // Store in memory for persistence
-    await this.memoryBridge.storeLearning({
+    await this.memorySystem.addMemory('learnings', {
       id: `performance_metrics_${metrics.agentId}_${Date.now()}`,
       agentId: metrics.agentId,
       learningType: 'pattern',
@@ -189,7 +194,7 @@ export class SelfImprovementSystem extends EventEmitter {
       recommendedActions
     };
       // Store evaluation results
-    await this.memoryBridge.storeConversation({
+    await this.memorySystem.addMemory('conversations', {
       id: `self_evaluation_${agentId}_${Date.now()}`,
       agentId,
       userId: 'system',
@@ -326,7 +331,7 @@ export class SelfImprovementSystem extends EventEmitter {
         
         console.log(`[SelfImprovementSystem] Auto-applied improvement for ${agentId}: ${suggestion.description}`);
           // Record the improvement
-        await this.memoryBridge.storeLearning({
+        await this.memorySystem.addMemory('learnings', {
           id: `auto_improvement_${agentId}_${Date.now()}`,
           agentId,
           learningType: 'pattern',
@@ -532,14 +537,14 @@ export class SelfImprovementSystem extends EventEmitter {
    * Load historical performance data from memory
    */
   private async loadPerformanceHistory(): Promise<void> {
-    try {      const memories = await this.memoryBridge.searchMemories({
+    try {      const memories = await this.memorySystem.searchMemory('learnings', {
         query: 'performance_metrics',
         agentIds: ['system'],
         maxResults: 1000
       });
       
       // Remove redeclaration and use a unique variable name for the loaded memories
-      const loadedMemories = await this.memoryBridge.searchMemories({
+      const loadedMemories = await this.memorySystem.searchMemory('learnings', {
         query: 'performance_metrics',
         agentIds: ['system'],
         maxResults: 1000

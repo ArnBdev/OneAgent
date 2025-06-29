@@ -6,7 +6,7 @@
  */
 
 import { UnifiedMCPTool, ToolExecutionResult, InputSchema } from './UnifiedMCPTool';
-import { OneAgentMem0Bridge } from '../memory/OneAgentMem0Bridge';
+import { OneAgentMemory, OneAgentMemoryConfig } from '../memory/OneAgentMemory';
 
 export interface AIAssistantParams {
   prompt: string;
@@ -21,6 +21,8 @@ export interface AIAssistantParams {
  * Enhanced AI Assistant Tool for professional development workflows
  */
 export class EnhancedAIAssistantTool extends UnifiedMCPTool {
+  private memorySystem: OneAgentMemory;
+
   constructor() {
     const schema: InputSchema = {
       type: 'object',
@@ -58,12 +60,18 @@ export class EnhancedAIAssistantTool extends UnifiedMCPTool {
       schema,
       'enhanced'
     );
+    // Initialize canonical memory system
+    const memoryConfig: OneAgentMemoryConfig = {
+      apiKey: process.env.MEM0_API_KEY || 'demo-key',
+      apiUrl: process.env.MEM0_API_URL
+    };
+    this.memorySystem = new OneAgentMemory(memoryConfig);
   }
 
   /**
    * Core execution method implementing AI assistance
    */
-  protected async executeCore(args: AIAssistantParams): Promise<ToolExecutionResult> {
+  public async executeCore(args: AIAssistantParams): Promise<ToolExecutionResult> {
     const startTime = Date.now();
 
     try {
@@ -126,10 +134,9 @@ export class EnhancedAIAssistantTool extends UnifiedMCPTool {
   private async getRelevantMemoryContext(prompt: string): Promise<string> {
     try {
       // Search for relevant memories based on prompt keywords
-      const searchResult = await this.unifiedMemoryClient.searchMemories({
+      const searchResult = await this.memorySystem.searchMemory('ai_assistant_interaction', {
         query: prompt,
-        agentIds: ['system'],
-        maxResults: 3
+        limit: 3
       });
       if (searchResult && searchResult.length > 0) {
         const relevantContext = searchResult
@@ -320,20 +327,7 @@ This debugging approach follows Constitutional AI principles ensuring accuracy a
         confidence: response.confidence,
         timestamp: new Date().toISOString()
       };
-      await this.unifiedMemoryClient.storeConversation({
-        id: `ai_interaction_${Date.now()}`,
-        agentId: 'system',
-        userId: 'system',
-        content: JSON.stringify(interactionData),
-        timestamp: new Date(),
-        context: {},
-        outcome: { success: true },
-        metadata: {
-          task_type: taskType,
-          language: language || 'general',
-          quality_score: response.quality?.toString() || '0'
-        }
-      });
+      await this.memorySystem.addMemory('ai_assistant_interaction', interactionData);
       console.log(`[EnhancedAIAssistant] Stored ${taskType} interaction in memory`);
     } catch (error) {
       console.warn('[EnhancedAIAssistant] Failed to store interaction in memory:', error);

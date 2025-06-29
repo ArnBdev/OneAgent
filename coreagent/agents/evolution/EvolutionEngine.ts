@@ -15,7 +15,7 @@ import {
 } from './AgentProfile';
 import { ProfileManager } from './ProfileManager';
 // Canonical memory bridge for all memory operations
-import { OneAgentMem0Bridge } from '../../memory/OneAgentMem0Bridge';
+import { OneAgentMemory, OneAgentMemoryConfig } from '../../memory/OneAgentMemory';
 
 export interface EvolutionAnalysis {
   currentPerformance: {
@@ -54,21 +54,16 @@ export class EvolutionEngine extends EventEmitter {
   private profileManager: ProfileManager;
   private isEvolving: boolean = false;
   // Canonical memory bridge instance
-  private memoryBridge: OneAgentMem0Bridge;
+  private memorySystem: OneAgentMemory;
 
   private constructor() {
     super();
     this.profileManager = ProfileManager.getInstance();
-    // Pass config from environment for canonical memory bridge
-    this.memoryBridge = new OneAgentMem0Bridge({
-      provider: process.env.MEM0_PROVIDER,
-      model: process.env.MEM0_MODEL,
-      embeddingModel: process.env.MEM0_EMBEDDING_MODEL,
-      collection: process.env.MEM0_COLLECTION,
-      vectorPath: process.env.MEM0_VECTOR_PATH,
-      graphUrl: process.env.MEM0_GRAPH_URL,
-      apiKey: process.env.GEMINI_API_KEY
-    });
+    const memoryConfig: OneAgentMemoryConfig = {
+      apiKey: process.env.MEM0_API_KEY || 'demo-key',
+      apiUrl: process.env.MEM0_API_URL
+    };
+    this.memorySystem = new OneAgentMemory(memoryConfig);
   }
 
   public static getInstance(): EvolutionEngine {
@@ -368,7 +363,7 @@ export class EvolutionEngine extends EventEmitter {
   private async getRecentConversations(userId: string): Promise<any[]> {
     try {
       // Use canonical memory bridge to fetch recent conversations (limit 10)
-      return await this.memoryBridge.getConversationHistory(userId, undefined, 10);
+      return await this.memorySystem.searchMemory('conversations', { userId, limit: 10 });
     } catch (error) {
       console.error('Failed to get recent conversations:', error);
       return [];
@@ -379,7 +374,7 @@ export class EvolutionEngine extends EventEmitter {
   private async getPerformanceMetrics(): Promise<any> {
     try {
       // Use canonical memory bridge to fetch quality metrics
-      return await this.memoryBridge.getQualityMetrics();
+      return await this.memorySystem.searchMemory('metrics', {});
     } catch (error) {
       console.error('Failed to get performance metrics:', error);
       return {
@@ -405,7 +400,7 @@ export class EvolutionEngine extends EventEmitter {
   private async getMemoryInsights(): Promise<any> {
     try {
       // Use canonical memory bridge to fetch system analytics
-      return await this.memoryBridge.getSystemAnalytics();
+      return await this.memorySystem.searchMemory('analytics', {});
     } catch (error) {
       console.error('Failed to get memory insights:', error);
       return { patterns: [], successfulStrategies: [], problematicAreas: [] };
@@ -415,17 +410,7 @@ export class EvolutionEngine extends EventEmitter {
   private async storeEvolutionRecord(record: any): Promise<void> {
     try {
       // Store as a learning in the canonical memory system
-      await this.memoryBridge.storeLearning({
-        id: `evolution_${Date.now()}`,
-        agentId: 'EvolutionEngine',
-        learningType: 'pattern', // or another appropriate type
-        content: JSON.stringify(record),
-        confidence: 1.0,
-        applicationCount: 0,
-        lastApplied: new Date(),
-        sourceConversations: [],
-        metadata: record
-      });
+      await this.memorySystem.addMemory('learnings', { ...record });
       console.log('Evolution record stored:', record);
     } catch (error) {
       console.error('Failed to store evolution record:', error);

@@ -8,7 +8,7 @@
 
 import { listWorkflows, listUserWorkflows } from './tools/listWorkflows';
 import { createMCPAdapter, defaultMCPConfig } from './mcp/adapter';
-import { realUnifiedMemoryClient } from './memory/RealUnifiedMemoryClient';
+import { OneAgentMemory, OneAgentMemoryConfig } from './memory/OneAgentMemory';
 import { BraveSearchClient } from './tools/braveSearchClient';
 import { WebSearchTool } from './tools/webSearch';
 import { GeminiClient } from './tools/geminiClient';
@@ -29,7 +29,7 @@ dotenv.config();
 class CoreAgent {
   private currentUser: User | null = null;
   private mcpAdapter: any;
-  private unifiedMemoryClient: typeof realUnifiedMemoryClient;
+  private unifiedMemoryClient: OneAgentMemory;
   private braveSearchClient: BraveSearchClient;
   private webSearchTool: WebSearchTool;
   private geminiClient: GeminiClient;
@@ -41,9 +41,16 @@ class CoreAgent {
   constructor() {
     console.log("🚀 Hello CoreAgent!");
     this.unifiedBackbone = OneAgentUnifiedBackbone.getInstance();
-    console.log("OneAgent CoreAgent is starting...");    // Initialize clients
-    this.unifiedMemoryClient = realUnifiedMemoryClient;
-      // Initialize Brave Search client using centralized config
+    console.log("OneAgent CoreAgent is starting...");
+    // Initialize canonical OneAgentMemory client
+    const memoryConfig: OneAgentMemoryConfig = {
+      apiUrl: process.env.ONEAGENT_MEMORY_URL || 'http://localhost:8001'
+    };
+    if (process.env.ONEAGENT_MEMORY_API_KEY) {
+      memoryConfig.apiKey = process.env.ONEAGENT_MEMORY_API_KEY;
+    }
+    this.unifiedMemoryClient = new OneAgentMemory(memoryConfig);
+    // Initialize Brave Search client using centralized config
     const braveConfig = {
       apiKey: oneAgentConfig.braveApiKey,
       baseUrl: 'https://api.search.brave.com/res/v1/web/search'
@@ -182,7 +189,8 @@ class CoreAgent {
    */
   private async testMemoryIntegration(): Promise<void> {
     console.log("\n🧠 Testing Unified Memory integration:");
-      try {      // Test connection by trying to store a simple conversation
+    try {
+      // Test connection by trying to store a simple conversation
       const memoryTimestamp = this.unifiedBackbone.getServices().timeService.now();
       const testMetadata = this.unifiedBackbone.getServices().metadataService.create(
         'test-conversation',
@@ -216,22 +224,18 @@ class CoreAgent {
           type: 'system',
           event: 'startup'
         }
-      };      const memoryResult = await this.unifiedMemoryClient.createMemory(
-        JSON.stringify(testConversation),
+      };      // Replace legacy call with canonical addMemory
+      const memoryResult = await this.unifiedMemoryClient.addMemory(
         'oneagent_system',
-        'long_term',
-        { source: 'startup_test' }
+        testConversation
       );
-      console.log(`✅ Memory created: ${memoryResult.success ? 'Success' : 'Failed'}`);
-
-      // Test search
-      const searchResult = await this.unifiedMemoryClient.getMemoryContext(
-        'initialization test',
+      console.log(`✅ Memory created: ${memoryResult ? 'Success' : 'Failed'}`);
+      // Replace legacy search with canonical searchMemory
+      const searchResult = await this.unifiedMemoryClient.searchMemory(
         'oneagent_system',
-        5
+        { query: 'initialization test', user_id: this.currentUser?.id || 'demo-user', limit: 5 }
       );
-      
-      console.log(`🔍 Found ${searchResult.memories.length} memories`);
+      console.log(`🔍 Found ${searchResult?.memories?.length || 0} memories`);
     } catch (error) {
       console.warn(`⚠️  Unified Memory integration test failed: ${error}`);
     }

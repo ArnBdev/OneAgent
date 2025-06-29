@@ -1,1 +1,0 @@
-Legacy memory client RealUnifiedMemoryClient.ts is now fully deprecated and can be safely deleted. All references have been migrated to OneAgentMem0Bridge/EnhancedMem0Client. Remove this file and update documentation accordingly.

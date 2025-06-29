@@ -52,7 +52,7 @@ export interface DirectMessage {
   projectContext?: ProjectContext;
   deliveryStatus: 'pending' | 'delivered' | 'acknowledged' | 'failed';
   timestamp: Date;
-  expiresAt?: Date;
+  expiresAt: Date;
   metadataId: string;
 }
 
@@ -76,6 +76,21 @@ export interface TeamCoordinationSession {
   completedAt?: Date;
   metadataId: string;
 }
+
+// Canonical minimal ProjectContext fallback
+const defaultProjectContext: ProjectContext = {
+  projectId: 'unknown',
+  projectName: 'Unknown Project',
+  projectScope: 'PERSONAL',
+  contextCategory: 'GENERAL',
+  privacyLevel: 'internal',
+  stakeholders: [],
+  tags: [],
+  createdAt: new Date(),
+  lastUpdated: new Date(),
+  isActive: true,
+  metadata: {}
+};
 
 // =============================================================================
 // ENHANCED NLACS ORCHESTRATOR
@@ -203,6 +218,9 @@ export class EnhancedNLACSCore extends EventEmitter {
       throw new Error(`Agent ${toAgentId} not authorized for context ${contextCategory}`);
     }
 
+    // When assigning projectContext, use:
+    const safeProjectContext = (input: ProjectContext | undefined): ProjectContext => input ?? defaultProjectContext;
+
     const messageId = `dm-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
     
     // Create message metadata
@@ -243,10 +261,10 @@ export class EnhancedNLACSCore extends EventEmitter {
       messageType,
       priority,
       contextCategory,
-      projectContext,
+      projectContext: safeProjectContext(projectContext),
       deliveryStatus: 'pending',
       timestamp: new Date(),
-      expiresAt: priority === 'urgent' ? new Date(Date.now() + 5 * 60 * 1000) : undefined, // 5 min for urgent
+      expiresAt: new Date(Date.now() + (priority === 'urgent' ? 5 * 60 * 1000 : 24 * 60 * 60 * 1000)), // 5 min for urgent, 24h default
       metadataId: messageMetadata.id
     };
 
@@ -358,7 +376,7 @@ export class EnhancedNLACSCore extends EventEmitter {
       participants: [leadAgent, ...participantAgents],
       objective,
       contextCategory,
-      projectContext,
+      projectContext: projectContext ? projectContext : defaultProjectContext,
       status: 'planning',
       messages: [],
       decisions: [],

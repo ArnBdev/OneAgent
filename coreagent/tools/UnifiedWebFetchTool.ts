@@ -5,12 +5,11 @@
 
 import { UnifiedMCPTool, ToolExecutionResult, InputSchema } from './UnifiedMCPTool';
 import { WebFetchTool } from './webFetch';
-import { OneAgentMem0Bridge } from '../memory/OneAgentMem0Bridge';
-import { LearningMemory } from '../memory/UnifiedMemoryInterface';
+import { OneAgentMemory, OneAgentMemoryConfig } from '../memory/OneAgentMemory';
 
 export class UnifiedWebFetchTool extends UnifiedMCPTool {
   private webFetchTool: WebFetchTool;
-  private memoryBridge: OneAgentMem0Bridge;
+  private memorySystem: OneAgentMemory;
 
   constructor() {
     const schema: InputSchema = {
@@ -70,10 +69,14 @@ export class UnifiedWebFetchTool extends UnifiedMCPTool {
         'text/markdown'
       ]
     });
-    this.memoryBridge = new OneAgentMem0Bridge({}); // Canonical memory bridge
+    const memoryConfig: OneAgentMemoryConfig = {
+      apiKey: process.env.MEM0_API_KEY || 'demo-key',
+      apiUrl: process.env.MEM0_API_URL
+    };
+    this.memorySystem = new OneAgentMemory(memoryConfig);
   }
 
-  protected async executeCore(args: any): Promise<ToolExecutionResult> {
+  public async executeCore(args: any): Promise<ToolExecutionResult> {
     try {
       const { 
         url, 
@@ -273,7 +276,7 @@ export class UnifiedWebFetchTool extends UnifiedMCPTool {
    */
   private async storeFetchLearning(url: string, fetchResult: any): Promise<void> {
     try {
-      const learning: LearningMemory = {
+      const learning: any = {
         id: `learning_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
         agentId: 'oneagent_web_fetch',
         learningType: 'documentation_context',
@@ -297,7 +300,7 @@ export class UnifiedWebFetchTool extends UnifiedMCPTool {
           domain: (() => { try { return new URL(url).hostname; } catch { return undefined; } })(),
         }
       };
-      await this.memoryBridge.storeLearning(learning);
+      await this.memorySystem.addMemory('learnings', learning);
     } catch (error) {
       console.warn('[UnifiedWebFetchTool] Failed to store fetch learning:', error);
     }

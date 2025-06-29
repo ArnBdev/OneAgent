@@ -43,7 +43,7 @@ export class ConversationSearchTool extends UnifiedMCPTool {
     );
   }
 
-  protected async executeCore(args: any): Promise<ToolExecutionResult> {
+  public async executeCore(args: any): Promise<ToolExecutionResult> {
     try {
       const { 
         query, 

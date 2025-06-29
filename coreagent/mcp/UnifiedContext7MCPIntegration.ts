@@ -12,15 +12,7 @@
  */
 
 import { LocalMCPAdapter, MCPServerConfig } from './adapter';
-import { UnifiedMemoryClient } from '../types/oneagent-backbone-types';
-import { 
-  ConversationMemory, 
-  LearningMemory, 
-  PatternMemory,
-  LearningType,
-  PatternType,
-  PatternCondition
-} from '../memory/UnifiedMemoryInterface';
+import { OneAgentMemory, OneAgentMemoryConfig } from '../memory/OneAgentMemory';
 
 export interface DocumentationSource {
   name: string;
@@ -72,7 +64,7 @@ export interface DocumentationPattern {
  */
 export class UnifiedContext7MCPIntegration {
   private mcpAdapter: LocalMCPAdapter;
-  private unifiedMemoryClient: UnifiedMemoryClient;
+  private memorySystem: OneAgentMemory;
   private documentationCache: Map<string, DocumentationResult[]> = new Map();
   private sourceConfigs: Map<string, DocumentationSource> = new Map();
   private cacheMetrics: CacheMetrics;
@@ -84,11 +76,9 @@ export class UnifiedContext7MCPIntegration {
       type: 'local',
       port: 3002
     };
-    
     this.mcpAdapter = new LocalMCPAdapter(mcpConfig);
-    this.unifiedMemoryClient = new UnifiedMemoryClient();
+    this.memorySystem = new OneAgentMemory({ apiUrl: process.env.ONEAGENT_MEMORY_URL || 'http://localhost:8001' });
     this.agentId = agentId;
-    
     this.cacheMetrics = {
       totalQueries: 0,
       cacheHits: 0,
@@ -97,7 +87,6 @@ export class UnifiedContext7MCPIntegration {
       averageResponseTime: 0,
       lastCacheCleanup: new Date()
     };
-
     this.initializeDocumentationSources();
   }
 
@@ -149,7 +138,6 @@ export class UnifiedContext7MCPIntegration {
         this.cacheMetrics.cacheHits++;
         // Enhance cached results with memory insights
         const enhancedResults = await this.enhanceResultsWithMemory(cachedResults, memoryResults);
-        this.updateMetrics(Date.now() - startTime);
         return enhancedResults.map(result => ({ ...result, cached: true }));
       }
 
@@ -165,7 +153,6 @@ export class UnifiedContext7MCPIntegration {
       await this.extractAndStoreDocumentationPatterns(query, externalResults);
       
       this.documentationCache.set(cacheKey, externalResults);
-      this.updateMetrics(Date.now() - startTime);
       
       return externalResults;
     } catch (error) {
@@ -178,10 +165,9 @@ export class UnifiedContext7MCPIntegration {
    * Search unified memory for relevant documentation patterns and results
    */  private async searchDocumentationMemory(query: DocumentationQuery): Promise<any[]> {
     try {
-      const searchQuery = `documentation query: ${query.query} source: ${query.source}`;      const searchResult = await this.unifiedMemoryClient.getMemoryContext(
-        searchQuery,
-        this.agentId,
-        5
+      const searchQuery = `documentation query: ${query.query} source: ${query.source}`;      const searchResult = await this.memorySystem.searchMemory(
+        'documentation',
+        { query: searchQuery, user_id: this.agentId, limit: 5 }
       );
       
       // Handle both possible result formats
@@ -275,7 +261,7 @@ export class UnifiedContext7MCPIntegration {
     results: DocumentationResult[]
   ): Promise<void> {
     try {
-      const conversationMemory: ConversationMemory = {
+      const conversationMemory = {
         id: `doc-query-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
         agentId: this.agentId,
         userId: query.userId || 'system',
@@ -305,10 +291,9 @@ export class UnifiedContext7MCPIntegration {
         }
       };
 
-      await this.unifiedMemoryClient.createMemory(
-        JSON.stringify(conversationMemory),
-        this.agentId,
-        'session'
+      await this.memorySystem.addMemory(
+        'conversations',
+        conversationMemory
       );
     } catch (error) {
       console.warn(`⚠️ Failed to store documentation interaction: ${error}`);
@@ -327,10 +312,9 @@ export class UnifiedContext7MCPIntegration {
       const queryPattern = this.extractQueryPattern(query.query);
       const successfulSources = results.filter(r => r.relevanceScore > 0.7).map(r => r.source);
       
-      if (successfulSources.length > 0) {        const patternMemory: PatternMemory = {
+      if (successfulSources.length > 0) {        const patternMemory = {
           id: `doc-pattern-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
           agentId: this.agentId,
-          patternType: 'documentation_query' as PatternType,
           description: `Documentation pattern: ${queryPattern} -> successful sources: ${successfulSources.join(', ')}`,
           frequency: 1,
           strength: results.length > 0 ? 0.8 : 0.3,
@@ -362,10 +346,9 @@ export class UnifiedContext7MCPIntegration {
           }
         };
 
-        await this.unifiedMemoryClient.createMemory(
-          JSON.stringify(patternMemory),
-          this.agentId,
-          'long_term'
+        await this.memorySystem.addMemory(
+          'patterns',
+          patternMemory
         );
       }
       
@@ -386,10 +369,9 @@ export class UnifiedContext7MCPIntegration {
     results: DocumentationResult[]
   ): Promise<void> {
     try {
-      const learningMemory: LearningMemory = {
+      const learningMemory = {
         id: `doc-learning-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
         agentId: this.agentId,
-        learningType: 'documentation_context' as LearningType,
         content: `High-quality documentation found for "${query.query}" in source "${query.source}". Best result: "${results[0].title}" with relevance ${results[0].relevanceScore.toFixed(2)}. This pattern indicates ${query.source} is effective for ${this.categorizeQueryType(query.query)} queries.`,
         confidence: results[0].relevanceScore,
         applicationCount: 1,
@@ -404,10 +386,9 @@ export class UnifiedContext7MCPIntegration {
         }
       };
 
-      await this.unifiedMemoryClient.createMemory(
-        JSON.stringify(learningMemory),
-        this.agentId,
-        'long_term'
+      await this.memorySystem.addMemory(
+        'learnings',
+        learningMemory
       );
     } catch (error) {
       console.warn(`⚠️ Failed to extract documentation learning: ${error}`);
@@ -467,8 +448,6 @@ export class UnifiedContext7MCPIntegration {
     return 'general';
   }
 
-  // ...existing code for querySpecificSource, enhanceResultsWithMemory, etc.
-  
   /**
    * Query a specific documentation source via MCP
    */
@@ -513,7 +492,7 @@ export class UnifiedContext7MCPIntegration {
    */
   private async storeSourceConfiguration(sources: DocumentationSource[]): Promise<void> {
     try {
-      const configMemory: ConversationMemory = {
+      const configMemory = {
         id: `context7-config-${Date.now()}`,
         agentId: this.agentId,
         userId: 'system',
@@ -543,10 +522,9 @@ export class UnifiedContext7MCPIntegration {
         }
       };
 
-      await this.unifiedMemoryClient.createMemory(
-        JSON.stringify(configMemory),
-        this.agentId,
-        'workflow'
+      await this.memorySystem.addMemory(
+        'workflows',
+        configMemory
       );
     } catch (error) {
       console.warn(`⚠️ Failed to store source configuration: ${error}`);
@@ -579,21 +557,18 @@ export class UnifiedContext7MCPIntegration {
    */
   private async getFallbackDocumentation(query: DocumentationQuery): Promise<DocumentationResult[]> {
     console.log('🧠 Using unified memory as PRIMARY documentation source');
-      try {
+    try {
       // Phase 1: Search for exact documentation matches in memory
       const exactSearchQuery = `documentation: ${query.query} ${query.source || ''}`;
-      const exactMemoryResults = await this.unifiedMemoryClient.getMemoryContext(
-        exactSearchQuery,
-        'context7-integration',
-        8
+      const exactMemoryResults = await this.memorySystem.searchMemory(
+        'documentation',
+        { query: exactSearchQuery, user_id: 'context7-integration', limit: 8 }
       );
-      
       // Phase 2: Search for related patterns and learnings
       const patternSearchQuery = `${query.query} patterns examples code documentation`;
-      const patternMemoryResults = await this.unifiedMemoryClient.getMemoryContext(
-        patternSearchQuery,
-        'context7-integration',
-        5
+      const patternMemoryResults = await this.memorySystem.searchMemory(
+        'documentation',
+        { query: patternSearchQuery, user_id: 'context7-integration', limit: 5 }
       );
         // Combine and deduplicate results
       const exactResults = (exactMemoryResults as any).results || (exactMemoryResults as any).entries || [];
@@ -648,7 +623,7 @@ export class UnifiedContext7MCPIntegration {
   }
   private async storeMemoryPattern(query: DocumentationQuery, results: DocumentationResult[]): Promise<void> {
     try {
-      const patternMemory: PatternMemory = {
+      const patternMemory = {
         id: `doc-pattern-${Date.now()}`,
         agentId: this.agentId,
         patternType: 'documentation_pattern',
@@ -656,43 +631,27 @@ export class UnifiedContext7MCPIntegration {
         frequency: 1,
         strength: Math.min(results[0]?.relevanceScore || 0.5, 0.95),
         conditions: [
-          {
-            type: 'query_type',
-            value: 'documentation',
-            operator: 'equals'
-          },
-          {
-            type: 'source',
-            value: query.source || 'any',
-            operator: 'equals'
-          }
+          { type: 'query_type', value: 'documentation', operator: 'equals' },
+          { type: 'source', value: query.source || 'any', operator: 'equals' }
         ],
         outcomes: [
-          {
-            type: 'retrieval_success',
-            confidence: Math.min(results[0]?.relevanceScore || 0.5, 0.95),
-            impact: 'positive',
-            measuredEffect: results.length
-          }
-        ],        metadata: {
+          { type: 'retrieval_success', confidence: Math.min(results[0]?.relevanceScore || 0.5, 0.95), impact: 'positive', measuredEffect: results.length }
+        ],
+        metadata: {
           queryType: 'documentation',
           source: query.source,
           resultCount: results.length,
           maxRelevance: Math.max(...results.map(r => r.relevanceScore))
         }
-      };      await this.unifiedMemoryClient.createMemory(
-        JSON.stringify(patternMemory),
-        this.agentId,
-        'long_term'
-      );
+      };
+      await this.memorySystem.addMemory('patterns', patternMemory);
     } catch (error) {
       console.warn(`⚠️ Failed to store memory pattern: ${error}`);
     }
   }
-
   private async createDocumentationLearningPattern(query: DocumentationQuery): Promise<void> {
     try {
-      const learningMemory: LearningMemory = {
+      const learningMemory = {
         id: `doc-learning-${Date.now()}`,
         agentId: this.agentId,
         learningType: 'documentation_context',
@@ -700,79 +659,81 @@ export class UnifiedContext7MCPIntegration {
         confidence: 0.7,
         applicationCount: 0,
         lastApplied: new Date(),
-        sourceConversations: [],        metadata: {
+        sourceConversations: [],
+        metadata: {
           queryType: 'documentation-gap',
           source: query.source,
           query: query.query,
           timestamp: new Date().toISOString()
         }
       };
-
-      await this.unifiedMemoryClient.createMemory(
-        JSON.stringify(learningMemory),
-        this.agentId,
-        'long_term'
-      );
+      await this.memorySystem.addMemory('learnings', learningMemory);
       console.log('📝 Stored documentation gap as learning pattern for future improvement');
     } catch (error) {
       console.warn(`⚠️ Failed to store learning pattern: ${error}`);
     }
   }
-
-  private getBasicMockDocumentation(query: DocumentationQuery): DocumentationResult[] {
-    // Basic mock documentation as final fallback
-    const mockResults: DocumentationResult[] = [];
-    
-    if (query.query.toLowerCase().includes('react') || query.source === 'react') {
-      mockResults.push({
-        source: 'react',
-        title: 'React Hooks Documentation',
-        content: `React Hooks allow you to use state and other React features without writing a class. The useState Hook lets you add React state to function components. Example: const [count, setCount] = useState(0);`,
-        relevanceScore: 0.9,
-        cached: false,
-        memoryEnhanced: false
-      });
+  private async storeSuccessfulMemoryRetrieval(
+    query: DocumentationQuery, 
+    results: DocumentationResult[]
+  ): Promise<void> {
+    try {
+      const patternMemory = {
+        id: `memory-success-${Date.now()}`,
+        agentId: this.agentId,
+        patternType: 'documentation_pattern',
+        description: `Successful memory-based documentation retrieval: query="${query.query}" source="${query.source || 'any'}" results=${results.length} avgRelevance=${(results.reduce((sum, r) => sum + r.relevanceScore, 0) / results.length).toFixed(2)}`,
+        frequency: 1,
+        strength: Math.min(results[0]?.relevanceScore || 0.8, 0.98),
+        conditions: [
+          { type: 'query_pattern', value: query.query.toLowerCase(), operator: 'contains' },
+          { type: 'source_context', value: query.source || 'any', operator: 'equals' },
+          { type: 'memory_availability', value: 'true', operator: 'equals' }
+        ],
+        outcomes: [
+          { type: 'memory_retrieval_success', confidence: Math.min(results[0]?.relevanceScore || 0.8, 0.98), impact: 'positive', measuredEffect: results.length }
+        ],
+        metadata: {
+          queryType: 'memory-documentation',
+          source: query.source,
+          resultCount: results.length,
+          maxRelevance: Math.max(...results.map(r => r.relevanceScore)),
+          memorySystemUsed: true,
+          organicLearning: true
+        }
+      };
+      await this.memorySystem.addMemory('patterns', patternMemory);
+      console.log('✅ Stored successful memory retrieval pattern for optimization');
+    } catch (error) {
+      console.warn(`⚠️ Failed to store memory success pattern: ${error}`);
     }
-
-    if (query.query.toLowerCase().includes('typescript') || query.source === 'typescript') {
-      mockResults.push({
-        source: 'typescript',
-        title: 'TypeScript with React',
-        content: `TypeScript provides static type checking for React components. Use interfaces to define props: interface Props { name: string; } Use typed hooks: const [state, setState] = useState<string>('');`,
-        relevanceScore: 0.85,
-        cached: false,
-        memoryEnhanced: false
-      });
-    }
-
-    if (query.query.toLowerCase().includes('hooks') || query.query.toLowerCase().includes('useeffect')) {
-      mockResults.push({
-        source: 'react',
-        title: 'useEffect Hook Documentation',
-        content: `The useEffect Hook lets you perform side effects in function components. Use cleanup functions to prevent memory leaks: useEffect(() => { const subscription = subscribeToSomething(); return () => subscription.unsubscribe(); }, []);`,
-        relevanceScore: 0.92,
-        cached: false,
-        memoryEnhanced: false
-      });
-    }
-
-    if (mockResults.length === 0) {
-      mockResults.push({
-        source: query.source || 'fallback',
-        title: 'Documentation Query',
-        content: `Search for: ${query.query}. No external documentation available at this time, but this query has been recorded for future learning.`,
-        relevanceScore: 0.3,
-        cached: false,
-        memoryEnhanced: false
-      });
-    }
-
-    return mockResults.slice(0, query.maxResults || 3);
   }
-
-  private updateMetrics(responseTime: number): void {
-    const totalTime = this.cacheMetrics.averageResponseTime * (this.cacheMetrics.totalQueries - 1) + responseTime;
-    this.cacheMetrics.averageResponseTime = totalTime / this.cacheMetrics.totalQueries;
+  private async createComprehensiveLearningPattern(query: DocumentationQuery): Promise<void> {
+    try {
+      const learningMemory = {
+        id: `memory-growth-${Date.now()}`,
+        agentId: this.agentId,
+        learningType: 'documentation_context',
+        content: `MEMORY GROWTH OPPORTUNITY: Query "${query.query}" for source "${query.source || 'unspecified'}" found no matches in unified memory. This represents a high-priority learning opportunity. Future agent interactions related to this topic should be prioritized for memory storage and cross-agent sharing.`,
+        confidence: 0.85,
+        applicationCount: 0,
+        lastApplied: new Date(),
+        sourceConversations: [],
+        metadata: {
+          queryType: 'memory-gap-analysis',
+          source: query.source,
+          query: query.query,
+          priority: 'high',
+          timestamp: new Date().toISOString(),
+          systemLearning: true,
+          organicGrowthTarget: true
+        }
+      };
+      await this.memorySystem.addMemory('learnings', learningMemory);
+      console.log('📝 Stored comprehensive learning pattern for memory system growth');
+    } catch (error) {
+      console.warn(`⚠️ Failed to store comprehensive learning pattern: ${error}`);
+    }
   }
 
   /**
@@ -831,100 +792,6 @@ export class UnifiedContext7MCPIntegration {
   }
 
   /**
-   * Store successful memory retrieval as a learning pattern for optimization
-   */
-  private async storeSuccessfulMemoryRetrieval(
-    query: DocumentationQuery, 
-    results: DocumentationResult[]
-  ): Promise<void> {
-    try {
-      const patternMemory: PatternMemory = {
-        id: `memory-success-${Date.now()}`,
-        agentId: this.agentId,
-        patternType: 'documentation_pattern',
-        description: `Successful memory-based documentation retrieval: query="${query.query}" source="${query.source || 'any'}" results=${results.length} avgRelevance=${(results.reduce((sum, r) => sum + r.relevanceScore, 0) / results.length).toFixed(2)}`,
-        frequency: 1,
-        strength: Math.min(results[0]?.relevanceScore || 0.8, 0.98),
-        conditions: [
-          {
-            type: 'query_pattern',
-            value: query.query.toLowerCase(),
-            operator: 'contains'
-          },
-          {
-            type: 'source_context',
-            value: query.source || 'any',
-            operator: 'equals'
-          },
-          {
-            type: 'memory_availability',
-            value: 'true',
-            operator: 'equals'
-          }
-        ],
-        outcomes: [
-          {
-            type: 'memory_retrieval_success',
-            confidence: Math.min(results[0]?.relevanceScore || 0.8, 0.98),
-            impact: 'positive',
-            measuredEffect: results.length
-          }
-        ],
-        metadata: {
-          queryType: 'memory-documentation',
-          source: query.source,
-          resultCount: results.length,
-          maxRelevance: Math.max(...results.map(r => r.relevanceScore)),
-          memorySystemUsed: true,
-          organicLearning: true
-        }      };
-
-      await this.unifiedMemoryClient.createMemory(
-        JSON.stringify(patternMemory),
-        this.agentId,
-        'long_term'
-      );
-      console.log('✅ Stored successful memory retrieval pattern for optimization');
-    } catch (error) {
-      console.warn(`⚠️ Failed to store memory success pattern: ${error}`);
-    }
-  }
-
-  /**
-   * Create comprehensive learning pattern for memory system growth
-   */
-  private async createComprehensiveLearningPattern(query: DocumentationQuery): Promise<void> {
-    try {
-      const learningMemory: LearningMemory = {
-        id: `memory-growth-${Date.now()}`,
-        agentId: this.agentId,
-        learningType: 'documentation_context',
-        content: `MEMORY GROWTH OPPORTUNITY: Query "${query.query}" for source "${query.source || 'unspecified'}" found no matches in unified memory. This represents a high-priority learning opportunity. Future agent interactions related to this topic should be prioritized for memory storage and cross-agent sharing.`,
-        confidence: 0.85,
-        applicationCount: 0,
-        lastApplied: new Date(),
-        sourceConversations: [],
-        metadata: {
-          queryType: 'memory-gap-analysis',
-          source: query.source,
-          query: query.query,
-          priority: 'high',
-          timestamp: new Date().toISOString(),
-          systemLearning: true,
-          organicGrowthTarget: true
-        }
-      };      await this.unifiedMemoryClient.createMemory(
-        JSON.stringify(learningMemory),
-        this.agentId,
-        'long_term'
-      );
-      console.log('📝 Stored comprehensive learning pattern for memory system growth');
-    } catch (error) {
-      console.warn(`⚠️ Failed to store comprehensive learning pattern: ${error}`);
-    }
-  }
-
-  /**
    * Minimal fallback focused on memory system growth rather than mock data
    */
   private async getMinimalMemoryGrowthFallback(query: DocumentationQuery): Promise<DocumentationResult[]> {
@@ -963,7 +830,7 @@ The unified memory system is designed to grow organically through real agent int
     results: DocumentationResult[]
   ): Promise<void> {
     try {
-      const conversationMemory: ConversationMemory = {
+      const conversationMemory = {
         id: `fallback-learning-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
         agentId: this.agentId,
         userId: query.userId || 'system',
@@ -1000,10 +867,9 @@ This pattern will help the unified memory system identify common documentation g
           organicLearning: true,
           priority: 'memory-enhancement'
         }
-      };      await this.unifiedMemoryClient.createMemory(
-        JSON.stringify(conversationMemory),
-        this.agentId,
-        'long_term'
+      };      await this.memorySystem.addMemory(
+        'learnings',
+        conversationMemory
       );
       console.log('📊 Stored fallback interaction for memory system improvement');
     } catch (error) {

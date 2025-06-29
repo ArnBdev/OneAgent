@@ -193,8 +193,9 @@ export class PerformanceAnalyzer {
     const patterns: PerformancePattern[] = [];
     
     // Group by hour of day
-    const hourGroups = new Map<number, ConversationData[]>();
+    const hourGroups: Map<number, ConversationData[]> = new Map();
     for (const conversation of data) {
+      if (!conversation.timestamp) continue;
       const hour = conversation.timestamp.getHours();
       if (!hourGroups.has(hour)) {
         hourGroups.set(hour, []);
@@ -205,8 +206,7 @@ export class PerformanceAnalyzer {
     // Analyze performance by hour
     for (const [hour, conversations] of hourGroups) {
       if (conversations.length < 3) continue;
-
-      const avgSatisfaction = conversations.reduce((sum, c) => sum + c.userSatisfaction, 0) / conversations.length;
+      const avgSatisfaction = conversations.reduce((sum: number, c: any) => sum + c.userSatisfaction, 0) / conversations.length;
       
       patterns.push({
         patternType: `time_hour_${hour}`,

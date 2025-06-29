@@ -24,7 +24,7 @@
 
 import { BaseAgent, AgentConfig, AgentContext, AgentResponse, AgentAction } from '../base/BaseAgent';
 import { ISpecializedAgent, AgentStatus, AgentHealthStatus } from '../base/ISpecializedAgent';
-import { OneAgentMem0Bridge } from '../../memory/OneAgentMem0Bridge';
+import { OneAgentMemory, OneAgentMemoryConfig } from '../../memory/OneAgentMemory';
 
 export class TemplateAgent extends BaseAgent implements ISpecializedAgent {
   public readonly id: string;
@@ -43,10 +43,17 @@ export class TemplateAgent extends BaseAgent implements ISpecializedAgent {
     safety: 'Avoid harmful template recommendations, consider security implications'
   };
 
+  private memorySystem: OneAgentMemory;
+
   constructor(config: AgentConfig) {
     super(config);
     this.id = config.id || `template-agent-${Date.now()}`;
     this.config = config;
+    const memoryConfig: OneAgentMemoryConfig = {
+      apiKey: process.env.MEM0_API_KEY || 'demo-key',
+      apiUrl: process.env.MEM0_API_URL
+    };
+    this.memorySystem = new OneAgentMemory(memoryConfig);
   }
   /**
    * Initialize the template agent with unified memory and constitutional AI
@@ -54,21 +61,16 @@ export class TemplateAgent extends BaseAgent implements ISpecializedAgent {
   async initialize(): Promise<void> {
     try {
       await super.initialize();
-      
-      // Check unified memory client with proper error handling
-      if (!this.memoryClient) {
-        console.warn(`⚠️ TemplateAgent ${this.id}: Memory client not available, using fallback mode`);
-      }
-      
       // Store initialization in memory as a conversation record
       try {
-        await this.addMemory('system', 
-          `Template agent ${this.id} successfully initialized with unified memory system. Constitutional AI validation active.`
-        );
+        await this.memorySystem.addMemory('system', {
+          agentId: this.id,
+          content: `Template agent ${this.id} successfully initialized with unified memory system. Constitutional AI validation active.`,
+          timestamp: new Date().toISOString()
+        });
       } catch (memoryError) {
         console.warn(`⚠️ Could not store initialization memory: ${memoryError}`);
       }
-      
       this.lastActivity = new Date();
       console.log(`✅ TemplateAgent ${this.id} initialized successfully with Constitutional AI validation`);
     } catch (error) {
@@ -99,17 +101,17 @@ export class TemplateAgent extends BaseAgent implements ISpecializedAgent {
       let relevantMemories: any[] = [];
       try {
         // Store current message in unified memory system
-        await this.addMemory(context.user.id, message, {
+        await this.memorySystem.addMemory(context.user.id, {
           agentType: 'template',
           sessionId: context.sessionId,
           timestamp: new Date().toISOString(),
           timeZone: this.timeZone,
           messageType: 'user_input',
-          processingId: `proc_${Date.now()}`
+          processingId: `proc_${Date.now()}`,
+          content: message
         });
-
         // Search for relevant context using semantic search
-        relevantMemories = await this.searchMemories(context.user.id, message, 5);
+        relevantMemories = await this.memorySystem.searchMemory(context.user.id, { query: message, limit: 5 });
         console.log(`🧠 Retrieved ${relevantMemories.length} relevant memories for context enhancement`);
       } catch (memoryError) {
         console.warn(`⚠️ Memory operation failed, continuing with fallback: ${memoryError}`);

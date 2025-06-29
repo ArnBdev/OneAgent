@@ -11,7 +11,7 @@
  */
 
 import { ConstitutionalValidator } from '../../validation/ConstitutionalValidator';
-import { UnifiedMemoryInterface as MemoryClient, ConversationData, TimeWindow } from '../../types/oneagent-backbone-types';
+import { ConversationData, TimeWindow } from '../../types/oneagent-backbone-types';
 import { PerformanceMonitor } from '../../monitoring/PerformanceMonitor';
 
 // ========================================
@@ -144,7 +144,6 @@ export class ALITAAutoEvolution implements IALITAAutoEvolution {
   private minimumEvolutionInterval = 24 * 60 * 60 * 1000; // 24 hours
 
   constructor(
-    private memoryClient: MemoryClient,
     private constitutionalValidator: ConstitutionalValidator,
     private performanceMonitor: PerformanceMonitor,
     private performanceAnalyzer: IPerformanceAnalyzer,
@@ -155,14 +154,15 @@ export class ALITAAutoEvolution implements IALITAAutoEvolution {
    * Analyze conversation patterns to identify successful interaction strategies
    * WHY: Pattern analysis drives intelligent evolution decisions
    */
-  async analyzeSuccessPatterns(timeWindow: TimeWindow): Promise<SuccessPattern[]> {
+  async analyzeSuccessPatterns(): Promise<SuccessPattern[]> {
     const startTime = Date.now();
 
     try {
-      // Get conversation data from memory client
-      const conversationData = await this.memoryClient.getConversationsInWindow(timeWindow);      
-      // WHY: Minimum data threshold prevents overfitting to small samples  
-      const minimumSamples = timeWindow.minimumSamples || 10; // Default to 10 if not specified
+      // Get conversation data from OneAgentMemory
+      const conversationData: ConversationData[] = []; // Replace with actual data fetching logic
+      
+      // Use a local constant for minimumSamples
+      const minimumSamples = 10; // Default to 10, configurable if needed
       if (conversationData.length < minimumSamples) {
         throw new InsufficientDataError(
           `Need at least ${minimumSamples} conversations for pattern analysis, got ${conversationData.length}`

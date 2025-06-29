@@ -14,11 +14,12 @@
 
 import { EventEmitter } from 'events';
 import { oneAgentConfig } from './config/index';
+import axios from 'axios';
 
 // Import core systems
 import { ConstitutionalAI } from './agents/base/ConstitutionalAI';
 import { BMADElicitationEngine } from './agents/base/BMADElicitationEngine';
-import { OneAgentMem0Bridge } from './memory/OneAgentMem0Bridge';
+import { OneAgentMemory, OneAgentMemoryConfig } from './memory/OneAgentMemory';
 import { UnifiedNLACSOrchestrator } from './nlacs/UnifiedNLACSOrchestrator';
 import { agentBootstrap } from './agents/communication/AgentBootstrapService';
 
@@ -95,12 +96,27 @@ export class OneAgentEngine extends EventEmitter {
   private webSearch?: WebSearchTool;
   private aiAssistant?: AIAssistantTool;
   private embeddings?: GeminiEmbeddingsTool;
-  private memoryBridge: OneAgentMem0Bridge;
+  private memorySystem: OneAgentMemory;
 
   constructor(config?: Partial<OneAgentConfig>) {
     super();
     this.config = this.mergeConfig(config);
-    this.memoryBridge = new OneAgentMem0Bridge({});
+    // Initialize canonical memory system
+    let memoryConfig: OneAgentMemoryConfig;
+    if (process.env.MEM0_API_URL) {
+      // Local mem0 server: set dummy apiKey to satisfy client
+      memoryConfig = {
+        apiUrl: process.env.MEM0_API_URL,
+        endpoint: process.env.MEM0_API_URL,
+        apiKey: process.env.MEM0_API_KEY || 'local-dev'
+      };
+    } else {
+      // Cloud mem0: require real apiKey
+      memoryConfig = {
+        apiKey: process.env.MEM0_API_KEY || 'demo-key'
+      };
+    }
+    this.memorySystem = new OneAgentMemory(memoryConfig);
     this.initializeCoreSystems();
   }
 
@@ -403,10 +419,10 @@ export class OneAgentEngine extends EventEmitter {
   private async initializeMemorySystem(): Promise<void> {
     if (!this.config.memory.enabled) return;
     try {
-      await this.memoryBridge.connect?.();
-      console.log('✅ Canonical memory system (Mem0Bridge) connected');
+      // No connect needed for canonical memory, but can add health check if needed
+      console.log('✅ Canonical memory system (OneAgentMemory) ready');
     } catch (error) {
-      console.warn('⚠️ Canonical memory system connection failed:', error);
+      console.warn('⚠️ Canonical memory system initialization failed:', error);
     }
   }
 
@@ -451,7 +467,7 @@ export class OneAgentEngine extends EventEmitter {
     // First try registered tools (includes oneagent_memory_create)
     const tool = toolRegistry.getTool(method);
     if (tool) {
-      return tool.execute(params, request.id);
+      return tool.execute(params); // Only pass one argument as required
     }
     
     // Then handle OneAgent-specific tools that aren't in registry
@@ -581,12 +597,26 @@ export class OneAgentEngine extends EventEmitter {
 
   private async handleSystemResource(uri: string, _params: any): Promise<any> {
     if (uri === 'oneagent://system/health') {
+      // Query memory server health with diagnostics
+      let memoryHealth: Record<string, any> = { status: 'unknown' };
+      try {
+        const resp = await axios.get(process.env.MEM0_API_URL + '/health');
+        memoryHealth = resp.data;
+        memoryHealth.checkedAt = new Date().toISOString();
+      } catch (err: any) {
+        memoryHealth = {
+          status: 'unreachable',
+          error: err?.message || String(err),
+          checkedAt: new Date().toISOString()
+        };
+      }
       return {
         status: 'healthy',
         initialized: this.initialized,
         mode: this.mode,
         uptime: process.uptime(),
         memory: process.memoryUsage(),
+        memoryServer: memoryHealth,
         timestamp: new Date().toISOString()
       };
     }
@@ -627,7 +657,7 @@ export class OneAgentEngine extends EventEmitter {
     try {
       // Close memory connections
       if (this.config.memory.enabled) {
-        await this.memoryBridge.disconnect?.();
+        await this.memorySystem.close?.();
       }
       // Shutdown multi-agent system
       if (this.multiAgentOrchestrator) {

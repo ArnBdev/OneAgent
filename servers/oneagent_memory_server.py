@@ -209,9 +209,9 @@ class OneAgentMemorySystem:
     def __init__(self):
         # Initialize Gemini with latest models
         genai.configure(api_key=config.gemini_api_key)
-        # Use the latest recommended Gemini model for both embedding and LLM
-        self.embedding_model = "gemini-2.0-flash-001"
-        self.llm_model = "gemini-2.0-flash-001"
+        # Use a supported Gemini embedding model for embeddings (see https://ai.google.dev/gemini-api/docs/embeddings)
+        self.embedding_model = "gemini-embedding-exp-03-07"  # Supported for embed_content
+        self.llm_model = "gemini-2.5-flash"  # LLM for text/fact extraction (recommended)
         # Initialize LLM processor for intelligent memory management
         self.llm_processor = LLMMemoryProcessor(config.gemini_api_key, self.llm_model)
         # Initialize ChromaDB with production settings
@@ -244,27 +244,37 @@ class OneAgentMemorySystem:
                 "search": "retrieval_query", 
                 "update": "retrieval_document"
             }
-            
             task_type = task_type_map.get(action, "retrieval_document")
-            
             result = genai.embed_content(
                 model=self.embedding_model,
                 content=text,
                 task_type=task_type
             )
-            return result['embedding']
+            embedding = result['embedding']
+            # Gemini may return 3072-dim embedding; select first 768 dims for ChromaDB
+            if len(embedding) > config.embedding_dimensions:
+                embedding = embedding[:config.embedding_dimensions]
+            elif len(embedding) < config.embedding_dimensions:
+                raise ValueError(f"Embedding dimension mismatch: got {len(embedding)}, expected {config.embedding_dimensions}")
+            return embedding
         except Exception as e:
             logger.error(f"Embedding generation failed: {e}")
             # Return zero vector as fallback
             return [0.0] * config.embedding_dimensions
     
     async def create_memory(self, request: MemoryCreateRequest) -> MemoryResponse:
-        """Create new memory with intelligent processing and conflict resolution"""
+        """Create new memory with intelligent processing and conflict resolution (mem0 best practice: always store original input)"""
         try:
+            # Always store the original content as a memory (mem0 canonical pattern)
+            original_memory_id = await self._create_single_memory(
+                request.content,
+                request.user_id,
+                request.metadata,
+                "Original user input (mem0 best practice)"
+            )
             # Extract facts from content using LLM
             facts = await self.llm_processor.extract_facts(request.content)
             logger.info(f"Extracted {len(facts)} facts from content")
-            
             # Search for potentially conflicting existing memories
             existing_memories = []
             for fact in facts:
@@ -274,7 +284,6 @@ class OneAgentMemorySystem:
                     n_results=5,
                     where={"userId": request.user_id}
                 )
-                
                 if similar_results.get('ids') and similar_results['ids'][0]:
                     for i, memory_id in enumerate(similar_results['ids'][0]):
                         if similar_results['distances'][0][i] < 0.3:  # High similarity threshold
@@ -283,18 +292,23 @@ class OneAgentMemorySystem:
                                 "content": similar_results['documents'][0][i],
                                 "similarity": 1.0 - similar_results['distances'][0][i]
                             })
-            
             # Resolve conflicts using LLM
             memory_actions = await self.llm_processor.resolve_memory_conflicts(facts, existing_memories)
-            
             created_memories = []
-            
-            # Execute memory actions
+            # Always include the original memory in the response
+            created_memories.append({
+                "id": original_memory_id,
+                "content": request.content,
+                "action": "ADD_ORIGINAL"
+            })
+            # Execute memory actions for facts (skip if fact is identical to original)
             for action in memory_actions:
+                if action["action"] == "ADD" and action["text"] == request.content:
+                    continue  # Already stored as original
                 if action["action"] == "ADD":
                     memory_id = await self._create_single_memory(
-                        action["text"], 
-                        request.user_id, 
+                        action["text"],
+                        request.user_id,
                         request.metadata,
                         action.get("reasoning", "")
                     )
@@ -303,7 +317,6 @@ class OneAgentMemorySystem:
                         "content": action["text"],
                         "action": "ADD"
                     })
-                
                 elif action["action"] == "UPDATE":
                     await self._update_single_memory(
                         action["target_id"],
@@ -316,7 +329,6 @@ class OneAgentMemorySystem:
                         "content": action["text"],
                         "action": "UPDATE"
                     })
-                
                 elif action["action"] == "DELETE":
                     await self.delete_memory(action["target_id"], request.user_id)
                     created_memories.append({
@@ -324,28 +336,10 @@ class OneAgentMemorySystem:
                         "content": "DELETED",
                         "action": "DELETE"
                     })
-            
-            # If no actions were taken, create memory with original content
-            if not created_memories:
-                memory_id = await self._create_single_memory(
-                    request.content, 
-                    request.user_id, 
-                    request.metadata,
-                    "Direct storage - no conflicts detected"
-                )
-                created_memories.append({
-                    "id": memory_id,
-                    "content": request.content,
-                    "action": "ADD"
-                })
-            
-            # Return the first created memory as primary response
-            primary_memory = created_memories[0]
             now = datetime.now(timezone.utc).isoformat()
-            
             return MemoryResponse(
-                id=primary_memory["id"],
-                content=primary_memory["content"],
+                id=original_memory_id,
+                content=request.content,
                 metadata={
                     "userId": request.user_id,
                     "createdAt": now,
@@ -357,7 +351,6 @@ class OneAgentMemorySystem:
                 createdAt=now,
                 updatedAt=now
             )
-            
         except Exception as e:
             logger.error(f"Memory creation failed: {e}")
             raise HTTPException(status_code=500, detail=f"Memory creation failed: {str(e)}")
@@ -369,7 +362,7 @@ class OneAgentMemorySystem:
         
         # Prepare metadata
         if metadata:
-            metadata_dict = metadata.dict()
+            metadata_dict = metadata.model_dump()
             processed_metadata = {}
             for k, v in metadata_dict.items():
                 if v is not None:
@@ -437,8 +430,9 @@ class OneAgentMemorySystem:
         logger.info(f"Memory updated: {memory_id[:8]} for user {user_id} - {reasoning}")
     
     async def search_memories(self, request: MemorySearchRequest) -> List[MemoryResponse]:
-        """Search memories with semantic similarity"""
+        """Search memories with semantic similarity, fallback to exact match if no results"""
         try:
+            results = None
             if request.query:
                 # Semantic search with search-specific embedding
                 query_embedding = await self.generate_embedding(request.query, "search")
@@ -453,19 +447,14 @@ class OneAgentMemorySystem:
                     where={"userId": request.user_id},
                     limit=request.limit
                 )
-            
             memories = []
             if results.get('ids') and results['ids'][0]:
                 for i, memory_id in enumerate(results['ids'][0]):
                     content = results['documents'][0][i]
                     metadata = results['metadatas'][0][i]
-                    
-                    # Calculate relevance score if available
                     relevance = None
                     if results.get('distances') and results['distances'][0]:
-                        # Convert distance to similarity score (1 - distance)
                         relevance = 1.0 - results['distances'][0][i]
-                    
                     memory = MemoryResponse(
                         id=memory_id,
                         content=content,
@@ -476,10 +465,25 @@ class OneAgentMemorySystem:
                         relevanceScore=relevance
                     )
                     memories.append(memory)
-            
+            # Fallback: exact match if no semantic results and query provided
+            if request.query and (not memories or len(memories) == 0):
+                all_user_memories = self.collection.get(where={"userId": request.user_id})
+                for i, content in enumerate(all_user_memories['documents']):
+                    if content == request.query:
+                        metadata = all_user_memories['metadatas'][i]
+                        memory_id = all_user_memories['ids'][i]
+                        memory = MemoryResponse(
+                            id=memory_id,
+                            content=content,
+                            metadata=metadata,
+                            userId=metadata.get("userId", request.user_id),
+                            createdAt=metadata.get("createdAt", ""),
+                            updatedAt=metadata.get("updatedAt", ""),
+                            relevanceScore=1.0
+                        )
+                        memories.append(memory)
             logger.info(f"Search completed: {len(memories)} results for user {request.user_id}")
             return memories
-            
         except Exception as e:
             logger.error(f"Memory search failed: {e}")
             raise HTTPException(status_code=500, detail=f"Memory search failed: {str(e)}")
@@ -623,85 +627,8 @@ class OneAgentMemorySystem:
 # LLM MEMORY PROCESSOR
 # ============================================================================
 
-class LLMMemoryProcessor:
-    """LLM-based memory processing for intelligent conflict resolution"""
-    
-    def __init__(self, gemini_api_key: str):
-        self.llm_model = "gemini-1.5-flash"
-        genai.configure(api_key=gemini_api_key)
-    
-    async def extract_facts(self, content: str) -> List[str]:
-        """Extract discrete facts from content using LLM"""
-        try:
-            prompt = f"""
-            Extract specific, actionable facts from the following content. 
-            Return only discrete, memorable facts that would be useful for future reference.
-            Format as a JSON array of strings.
-            
-            Content: {content}
-            
-            Output format: {{"facts": ["fact1", "fact2", ...]}}
-            """
-            
-            model = genai.GenerativeModel(self.llm_model)
-            response = await asyncio.to_thread(
-                model.generate_content,
-                prompt,
-                generation_config=genai.types.GenerationConfig(
-                    response_mime_type="application/json"
-                )
-            )
-            
-            facts_data = json.loads(response.text)
-            return facts_data.get("facts", [content])  # Fallback to original content
-            
-        except Exception as e:
-            logger.warning(f"Fact extraction failed: {e}, using original content")
-            return [content]
-    
-    async def resolve_memory_conflicts(self, new_facts: List[str], existing_memories: List[Dict]) -> List[Dict]:
-        """Resolve conflicts between new facts and existing memories"""
-        try:
-            existing_summaries = [{"id": mem["id"], "content": mem["content"]} for mem in existing_memories]
-            
-            prompt = f"""
-            Analyze new facts against existing memories and decide actions.
-            
-            New facts: {json.dumps(new_facts)}
-            Existing memories: {json.dumps(existing_summaries)}
-            
-            For each new fact, decide:
-            - ADD: If it's completely new information
-            - UPDATE: If it modifies existing memory (specify which ID)
-            - DELETE: If it contradicts and should replace existing memory
-            - NONE: If it's redundant
-            
-            Return JSON format:
-            {{
-                "memory_actions": [
-                    {{"action": "ADD", "text": "fact text", "reasoning": "why"}},
-                    {{"action": "UPDATE", "text": "updated text", "target_id": "memory_id", "reasoning": "why"}},
-                    {{"action": "DELETE", "target_id": "memory_id", "reasoning": "why"}}
-                ]
-            }}
-            """
-            
-            model = genai.GenerativeModel(self.llm_model)
-            response = await asyncio.to_thread(
-                model.generate_content,
-                prompt,
-                generation_config=genai.types.GenerationConfig(
-                    response_mime_type="application/json"
-                )
-            )
-            
-            actions_data = json.loads(response.text)
-            return actions_data.get("memory_actions", [])
-            
-        except Exception as e:
-            logger.warning(f"Conflict resolution failed: {e}, defaulting to ADD")
-            return [{"action": "ADD", "text": fact, "reasoning": "LLM processing failed"} for fact in new_facts]
-
+# [REMOVED LEGACY LLMMemoryProcessor CLASS]
+# Only the advanced, mem0-inspired LLMMemoryProcessor remains below.
 
 # ============================================================================
 # ADVANCED LLM MEMORY PROCESSOR (MEM0-INSPIRED FEATURES)
@@ -863,12 +790,21 @@ Only return matches with confidence > 0.8
 # ============================================================================
 
 # Initialize FastAPI app
+from contextlib import asynccontextmanager
+
+@asynccontextmanager
+async def lifespan(app):
+    await startup_tasks()
+    yield
+
+# Initialize FastAPI app with lifespan handler
 app = FastAPI(
     title="OneAgent Memory Server",
     description="Production-grade memory system with Gemini embeddings and ChromaDB",
     version="4.0.0",
     docs_url="/docs",
-    redoc_url="/redoc"
+    redoc_url="/redoc",
+    lifespan=lifespan
 )
 
 # Add CORS middleware
@@ -1000,14 +936,6 @@ async def startup_tasks():
     logger.info(f"Configuration validated successfully")
     logger.info(f"Memory system operational: {memory_system.collection.count()} memories")
     logger.info(f"Server ready at http://{config.host}:{config.port}")
-
-@app.on_event("startup")
-async def startup_event():
-    await startup_tasks()
-
-@app.on_event("shutdown")
-async def shutdown_event():
-    logger.info("OneAgent Memory Server shutting down...")
 
 # ============================================================================
 # MAIN EXECUTION

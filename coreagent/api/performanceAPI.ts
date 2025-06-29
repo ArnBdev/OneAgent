@@ -8,7 +8,7 @@
 import { globalProfiler } from '../performance/profiler';
 import { MemoryIntelligence } from '../intelligence/memoryIntelligence';
 import { GeminiClient } from '../tools/geminiClient';
-import { UnifiedMemoryClient } from '../types/oneagent-backbone-types';
+import { OneAgentMemory } from '../memory/OneAgentMemory';
 import { GeminiEmbeddingsTool } from '../tools/geminiEmbeddings';
 
 export interface PerformanceAPIResponse<T = any> {
@@ -51,17 +51,17 @@ export interface SystemStatus {
 export class PerformanceAPI {
   private memoryIntelligence: MemoryIntelligence;
   private geminiClient: GeminiClient;
-  private unifiedMemoryClient: UnifiedMemoryClient;
+  private memoryClient: OneAgentMemory;
   private embeddingsTool: GeminiEmbeddingsTool;
   constructor(
     memoryIntelligence: MemoryIntelligence,
     geminiClient: GeminiClient,
-    unifiedMemoryClient: UnifiedMemoryClient,
+    memoryClient: OneAgentMemory,
     embeddingsTool: GeminiEmbeddingsTool
   ) {
     this.memoryIntelligence = memoryIntelligence;
     this.geminiClient = geminiClient;
-    this.unifiedMemoryClient = unifiedMemoryClient;
+    this.memoryClient = memoryClient;
     this.embeddingsTool = embeddingsTool;
   }
 
@@ -70,15 +70,14 @@ export class PerformanceAPI {
    */
   async getSystemStatus(): Promise<PerformanceAPIResponse<SystemStatus>> {
     try {
-      const report = globalProfiler.generateReport();        // Get memory analytics
-      const memoryResult = await this.unifiedMemoryClient.getMemoryContext(
-        "",
-        "system",
-        100
-      );
-      const memoryData = memoryResult.memories;
-      
-      const analytics = await this.memoryIntelligence.generateMemoryAnalytics("system");
+      const report = globalProfiler.generateReport();
+      const memoryResult = await this.memoryClient.searchMemory('system', {
+        query: '',
+        user_id: 'system',
+        limit: 100
+      });
+      const memoryData = memoryResult.results || [];
+      const analytics = await this.memoryIntelligence.generateMemoryAnalytics('system');
         // Test service connections
       const services: SystemStatus['services'] = {
         gemini: 'unknown',
@@ -86,7 +85,11 @@ export class PerformanceAPI {
         embedding: 'unknown'
       };      try {
         // Test connection by attempting a simple search
-        await this.unifiedMemoryClient.getMemoryContext("test", "system", 1);
+        await this.memoryClient.searchMemory('system', {
+          query: 'test',
+          user_id: 'system',
+          limit: 1
+        });
         services.mem0 = 'connected';
       } catch {
         services.mem0 = 'error';
@@ -164,13 +167,13 @@ export class PerformanceAPI {
    * Get memory intelligence analytics
    */  async getMemoryAnalytics(filter?: any): Promise<PerformanceAPIResponse> {
     try {
-      const memories = await this.unifiedMemoryClient.getMemoryContext(
-        filter?.query || "",
-        filter?.userId || "system",
-        filter?.limit || 100
-      );
-      const memoryData = Array.isArray(memories) ? memories : [];
-        const analytics = await this.memoryIntelligence.generateMemoryAnalytics(filter?.userId || "system");
+      const memoryResult = await this.memoryClient.searchMemory('system', {
+        query: filter?.query || '',
+        user_id: filter?.userId || 'system',
+        limit: filter?.limit || 100
+      });
+      const memoryData = memoryResult.results || [];
+      const analytics = await this.memoryIntelligence.generateMemoryAnalytics(filter?.userId || 'system');
       
       return {
         success: true,
@@ -203,13 +206,13 @@ export class PerformanceAPI {
           searchType: 'semantic'
         };      } else {
         // Use basic search
-        const memories = await this.unifiedMemoryClient.getMemoryContext(
-          filter?.query || "",
-          filter?.userId || "system",
-          filter?.limit || 50
-        );
+        const memoryResult = await this.memoryClient.searchMemory('system', {
+          query: filter?.query || '',
+          user_id: filter?.userId || 'system',
+          limit: filter?.limit || 50
+        });
         results = {
-          memories: Array.isArray(memories) ? memories : [],
+          memories: memoryResult.results || [],
           searchType: 'basic'
         };
       }

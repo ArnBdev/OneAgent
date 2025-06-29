@@ -5,8 +5,6 @@
  */
 
 import { UnifiedMCPTool } from './UnifiedMCPTool';
-import { MemoryCreateTool } from './MemoryCreateTool';
-import { MemorySearchTool } from './MemorySearchTool';
 import { EnhancedSearchTool } from './EnhancedSearchTool';
 import { SystemHealthTool } from './SystemHealthTool';
 import { UnifiedWebSearchTool } from './UnifiedWebSearchTool';
@@ -66,19 +64,6 @@ export class ToolRegistry {
    * Register default unified tools with metadata
    */
   private registerDefaultTools(): void {
-    // Memory management tools (Constitutional AI compliant - append-only)
-    this.registerTool(new MemoryCreateTool(), {
-      category: ToolCategory.MEMORY_CONTEXT,
-      constitutionalLevel: 'critical',
-      priority: 9
-    });
-    
-    this.registerTool(new MemorySearchTool(), {
-      category: ToolCategory.MEMORY_CONTEXT,
-      constitutionalLevel: 'enhanced',
-      priority: 8
-    });
-
     // Web Research Tools  
     this.registerTool(new EnhancedSearchTool(), {
       category: ToolCategory.WEB_RESEARCH,
@@ -132,7 +117,7 @@ export class ToolRegistry {
       priority: 8
     });
 
-    this.registerTool(new UnifiedContext7StoreTool(context7Integration), {
+    this.registerTool(new UnifiedContext7StoreTool(), {
       category: ToolCategory.MEMORY_CONTEXT,
       constitutionalLevel: 'enhanced',
       priority: 7
@@ -230,18 +215,16 @@ export class ToolRegistry {
   /**
    * Execute a tool by name with usage tracking
    */
-  public async executeTool(name: string, args: any, id: any): Promise<any> {
+  public async executeTool(name: string, args: any): Promise<any> {
     const registration = this.tools.get(name);
-    if (!registration) {
-      throw new Error(`Tool not found: ${name}`);
-    }
+    if (!registration) throw new Error(`Tool not found: ${name}`);
 
     // Update usage tracking
     registration.usageCount++;
     registration.lastUsed = new Date();
 
     console.log(`[ToolRegistry] Executing ${name} (category: ${registration.metadata.category}, usage: ${registration.usageCount})`);
-    return await registration.tool.execute(args, id);
+    return await registration.tool.execute(args); // Only pass one argument as required
   }
 
   /**

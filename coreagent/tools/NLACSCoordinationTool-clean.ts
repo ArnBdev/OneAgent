@@ -45,7 +45,7 @@ export class NLACSCoordinationTool extends UnifiedMCPTool {
     );
   }
 
-  protected async executeCore(args: any): Promise<ToolExecutionResult> {
+  public async executeCore(args: any): Promise<ToolExecutionResult> {
     try {
       const {
         task,
@@ -99,11 +99,7 @@ export class NLACSCoordinationTool extends UnifiedMCPTool {
   /**
    * Basic conversation retrieval for backward compatibility
    */
-  public async retrieveConversationHistory(
-    sessionId?: string,
-    agentType?: string,
-    timeRangeHours?: number
-  ): Promise<any> {
+  public async retrieveConversationHistory(): Promise<any> {
     return {
       success: true,
       conversations: [],
@@ -117,10 +113,7 @@ export class NLACSCoordinationTool extends UnifiedMCPTool {
    * Basic conversation search for backward compatibility
    */
   public async searchConversations(
-    query: string,
-    agentType?: string,
-    timeRangeHours?: number,
-    maxResults = 20
+    query: string
   ): Promise<any> {
     return {
       success: true,

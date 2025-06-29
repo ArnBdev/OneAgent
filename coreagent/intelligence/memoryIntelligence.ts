@@ -4,17 +4,16 @@
  * Provides intelligent memory operations with Constitutional AI compliance:
  * - Clean, modern TypeScript (no legacy compatibility)
  * - Context7 integration for cross-agent learning
- * - Only canonical Mem0+Memgraph bridge/client used
+ * - Only canonical OneAgentMemory client used
  * - Implements only actually used methods
  * 
  * @version 2.1.0 - Canonical, Lean, Production-Ready
  * @created June 23, 2025
  */
 
-import { OneAgentMem0Bridge } from '../memory/OneAgentMem0Bridge';
+import { OneAgentMemory, OneAgentMemoryConfig } from '../memory/OneAgentMemory';
 import { ConversationData, ConversationMetadata, MemorySearchResult, MemoryRecord, IntelligenceInsight } from '../types/oneagent-backbone-types';
 import { OneAgentUnifiedBackbone } from '../utils/UnifiedBackboneService';
-import { ConversationMemory } from '../memory/UnifiedMemoryInterface';
 
 export interface MemoryIntelligenceOptions {
   enableSemanticSearch?: boolean;
@@ -24,15 +23,15 @@ export interface MemoryIntelligenceOptions {
 }
 
 export class MemoryIntelligence {
-  private unifiedMemoryClient: OneAgentMem0Bridge;
+  private memorySystem: OneAgentMemory;
   private options: MemoryIntelligenceOptions;
   private unifiedBackbone: OneAgentUnifiedBackbone;
 
   constructor(
-    unifiedMemoryClient?: OneAgentMem0Bridge,
+    memorySystem?: OneAgentMemory,
     options: MemoryIntelligenceOptions = {}
   ) {
-    this.unifiedMemoryClient = unifiedMemoryClient || new OneAgentMem0Bridge({});
+    this.memorySystem = memorySystem || new OneAgentMemory({});
     this.unifiedBackbone = OneAgentUnifiedBackbone.getInstance();
     this.options = {
       enableSemanticSearch: true,
@@ -53,10 +52,10 @@ export class MemoryIntelligence {
   ): Promise<MemorySearchResult> {
     const startTime = Date.now();
     try {
-      const memoryResults = await this.unifiedMemoryClient.searchMemories({
+      const memoryResults = await this.memorySystem.searchMemory('conversations', {
         query,
-        agentIds: [userId],
-        maxResults: options.maxResults || this.options.maxResults || 20,
+        user_id: userId,
+        limit: options.maxResults || this.options.maxResults || 20,
         semanticSearch: true
       });
       const memoryEntries = memoryResults || [];
@@ -198,7 +197,8 @@ export class MemoryIntelligence {
       domain: metadata.messageAnalysis?.contextTags?.[0] || 'general'
     };
     const memoryObj = this.mapConversationDataToMemory(conversationData, userId);
-    const result = await this.unifiedMemoryClient.storeConversation(memoryObj);
+    // Replace storeConversation with addMemory to 'conversations' collection
+    const result = await this.memorySystem.addMemory('conversations', memoryObj);
     // The canonical bridge returns a string (memoryId), so just return it directly
     return result;
   }
@@ -222,9 +222,10 @@ export class MemoryIntelligence {
    */
   async getMemory(memoryId: string): Promise<ConversationData | null> {
     try {
-      const memoryResults = await this.unifiedMemoryClient.searchMemories({
+      const memoryResults = await this.memorySystem.searchMemory('conversations', {
         query: memoryId,
-        maxResults: 1
+        user_id: 'system',
+        limit: 1
       });
       return Array.isArray(memoryResults) && memoryResults.length > 0 ? 
         this.convertToConversationData(memoryResults[0]) : null;
@@ -460,8 +461,9 @@ export class MemoryIntelligence {
 
   /**
    * Map ConversationData to ConversationMemory for canonical storage
+   * Canonical, production-grade format for mem0 API (Gemini backend)
    */
-  private mapConversationDataToMemory(data: ConversationData, userId: string): ConversationMemory {
+  private mapConversationDataToMemory(data: ConversationData, userId: string): any {
     return {
       id: data.conversationId || `conv_${Date.now()}`,
       agentId: data.participants?.[0] || 'unknown',
@@ -471,16 +473,57 @@ export class MemoryIntelligence {
       context: {
         sessionId: data.sessionContext?.sessionId || '',
         environment: data.domain || '',
-        userPreferences: {},
+        topics: data.topics || [],
+        contextTags: data.contextTags || [],
+        communicationStyle: data.communicationStyle || 'formal',
+        technicalLevel: data.technicalLevel || 'intermediate',
+        domain: data.domain || 'general',
       },
       outcome: {
         success: data.taskCompleted ?? true,
-        satisfaction: data.userSatisfaction > 0.8 ? 'high' : 'medium',
+        satisfaction: (typeof data.userSatisfaction === 'number' && data.userSatisfaction > 0.8) ? 'high' : 'medium',
         qualityScore: data.qualityScore ?? 1.0,
-        learningsExtracted: data.newKnowledge?.length || 0
+        learningsExtracted: Array.isArray(data.newKnowledge) ? data.newKnowledge.length : 0,
+        goalAchievement: data.goalAchievement ?? 0.8,
+        userSatisfaction: data.userSatisfaction ?? 0.8,
+        constitutionalCompliant: data.constitutionalCompliant !== false,
       },
       metadata: {
-        ...data,
+        conversationId: data.conversationId,
+        participants: data.participants,
+        startTime: data.startTime,
+        endTime: data.endTime,
+        topics: data.topics,
+        topicTags: data.topicTags,
+        keyInsights: data.keyInsights,
+        decisions: data.decisions,
+        actionItems: data.actionItems,
+        overallQuality: data.overallQuality,
+        qualityScore: data.qualityScore,
+        constitutionalCompliance: data.constitutionalCompliance,
+        constitutionalCompliant: data.constitutionalCompliant,
+        userSatisfaction: data.userSatisfaction,
+        goalAchievement: data.goalAchievement,
+        newKnowledge: data.newKnowledge,
+        improvedUnderstanding: data.improvedUnderstanding,
+        skillDemonstrations: data.skillDemonstrations,
+        sessionContext: data.sessionContext,
+        principleApplications: data.principleApplications,
+        ethicalConsiderations: data.ethicalConsiderations,
+        safetyMeasures: data.safetyMeasures,
+        responseTimings: data.responseTimings,
+        qualityTrends: data.qualityTrends,
+        engagementLevels: data.engagementLevels,
+        timestamp: data.timestamp,
+        userId: data.userId,
+        messageCount: data.messageCount,
+        conversationLength: data.conversationLength,
+        contextTags: data.contextTags,
+        communicationStyle: data.communicationStyle,
+        technicalLevel: data.technicalLevel,
+        domain: data.domain,
+        taskCompleted: data.taskCompleted,
+        responseTime: data.responseTime
       }
     };
   }
