@@ -1,3 +1,6 @@
+require('dotenv').config({ path: require('path').join(__dirname, '../../.env') });
+console.log('DEBUG (require): MEM0_API_KEY from process.env:', process.env.MEM0_API_KEY);
+
 /**
  * OneAgent Unified MCP HTTP Server
  * 
@@ -13,11 +16,9 @@
  */
 
 // Load environment variables first
-import * as dotenv from 'dotenv';
 import * as path from 'path';
 
-// Load from root directory where all config is centralized
-dotenv.config({ path: path.join(__dirname, '../../.env') });
+console.log('DEBUG: MEM0_API_KEY from process.env:', process.env.MEM0_API_KEY);
 
 import { randomUUID } from 'crypto';
 import { OneAgentEngine, OneAgentRequest, OneAgentResponse } from '../OneAgentEngine';

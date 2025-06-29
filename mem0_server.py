@@ -1,8 +1,12 @@
 # mem0_server.py - Local FastAPI wrapper for mem0-Gemini with Google AI Studio integration
+from dotenv import load_dotenv
+load_dotenv()
+import os
+os.environ['MEM0_PROVIDER'] = 'gemini'
+os.environ['MEM0_EMBEDDING_PROVIDER'] = 'gemini'
 from fastapi import FastAPI, Request, Depends, HTTPException, Path
 from fastapi.responses import JSONResponse, PlainTextResponse
 from mem0 import Memory
-import os
 import logging
 from datetime import datetime
 from fastapi.middleware.cors import CORSMiddleware

@@ -86,7 +86,7 @@ export class GeminiEmbeddingsTool {
         query,
         topK: options?.topK || 10,
         similarityThreshold: options?.similarityThreshold || 0.1,
-        embeddingModel: options?.model || 'text-embedding-004',
+        embeddingModel: options?.model || 'gemini-embedding-exp-03-07',
         semanticSearch: true
       });
       // Map results to SemanticSearchResult format
