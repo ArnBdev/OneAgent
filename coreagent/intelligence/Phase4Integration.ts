@@ -299,8 +299,15 @@ export class Phase4MemoryDrivenIntelligence {
       name: `Optimization ${opp.id}`,
       description: `Optimization strategy for ${opp.actions.length} actions`,
       targetDomains: ['general'],
-      performanceMetrics: { confidence: 0.7, impact: 0.5 },
-      currentState: 'identified' as const,
+      performanceMetrics: {
+        responseTime: 100,
+        accuracyScore: 0.7,
+        resourceUtilization: 0.5,
+        userSatisfaction: 0.8,
+        memoryEfficiency: 0.6,
+        overallScore: 0.65
+      },
+      currentState: 'analyzing' as const,
       createdAt: new Date(),
       lastUpdated: new Date()
     }));
@@ -317,7 +324,7 @@ export class Phase4MemoryDrivenIntelligence {
     
     // From breakthrough insights
     const highImpactInsights = intelligenceResults.breakthroughInsights.filter(
-      insight => insight.impact === 'high' || insight.impact === 'revolutionary'
+      insight => insight.impact > 0.7 // Use numeric comparison instead of string
     );
     
     for (const insight of highImpactInsights.slice(0, 3)) {
@@ -325,14 +332,14 @@ export class Phase4MemoryDrivenIntelligence {
     }
     
     // From synthesized intelligence
-    if (intelligenceResults.synthesizedIntelligence.actionableRecommendations) {
-      recommendations.push(...intelligenceResults.synthesizedIntelligence.actionableRecommendations.slice(0, 3));
+    if (intelligenceResults.synthesizedIntelligence.content) {
+      recommendations.push(`Synthesized insight: ${intelligenceResults.synthesizedIntelligence.content.substring(0, 80)}...`);
     }
     
     // From optimization profiles
-    const criticalOptimizations = optimizationResults.filter(opt => opt.priority === 'critical');
+    const criticalOptimizations = optimizationResults.filter(opt => opt.currentState === 'analyzing');
     for (const opt of criticalOptimizations.slice(0, 2)) {
-      recommendations.push(`Critical optimization: ${opt.type} for ${opt.domain}`);
+      recommendations.push(`Critical optimization: ${opt.name} for ${opt.targetDomains.join(', ')}`);
     }
     
     return recommendations;
@@ -365,7 +372,7 @@ export class Phase4MemoryDrivenIntelligence {
     
     // Optimization component
     if (optimizationResults.length > 0) {
-      const avgConfidence = optimizationResults.reduce((sum, o) => sum + o.confidence, 0) / optimizationResults.length;
+      const avgConfidence = optimizationResults.reduce((sum, o) => sum + o.performanceMetrics.overallScore, 0) / optimizationResults.length;
       score += avgConfidence;
       components++;
     }
