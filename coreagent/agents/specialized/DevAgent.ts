@@ -10,8 +10,9 @@
  * - Provides actual development assistance
  */
 
-import { BaseAgent, AgentConfig, AgentContext, AgentResponse, Message, AgentAction } from '../base/BaseAgent';
+import { BaseAgent, AgentConfig, AgentContext, AgentResponse, Message } from '../base/BaseAgent';
 import { ISpecializedAgent } from '../base/ISpecializedAgent';
+import { EnhancedPromptConfig } from '../base/EnhancedPromptEngine';
 import { v4 as uuidv4 } from 'uuid';
 
 export interface DevAgentCapabilities {
@@ -36,7 +37,7 @@ export class DevAgent extends BaseAgent implements ISpecializedAgent {
   private capabilities: DevAgentCapabilities;
   private conversationHistory: Message[] = [];
   
-  constructor(config: AgentConfig, promptConfig?: any) {
+  constructor(config: AgentConfig, promptConfig?: EnhancedPromptConfig) {
     super(config, promptConfig);
 
     this.capabilities = {

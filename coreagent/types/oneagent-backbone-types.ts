@@ -145,7 +145,7 @@ export interface UnifiedMetadataService {
     sourceAgentId: string,
     userId: string,
     sessionId: string,
-    options?: any
+    options?: Record<string, unknown>
   ): UnifiedMetadata; // Updated to match actual implementation
 }
 
@@ -182,8 +182,8 @@ export interface UnifiedAgentContext {
   memoryEnabled?: boolean; // Added to match implementation
   aiEnabled?: boolean; // Added to match implementation usage
   agentName?: string; // Added to match implementation usage
-  timeService?: any; // Added to match implementation usage
-  metadataService?: any; // Added to match implementation usage
+  timeService?: UnifiedTimeService; // Added to match implementation usage
+  metadataService?: UnifiedMetadataService; // Added to match implementation usage
 }
 
 // ========================================
@@ -247,9 +247,9 @@ export interface ALITAUnifiedContext {
   impactLevel: 'low' | 'medium' | 'high' | 'critical';
   timestamp: UnifiedTimestamp;
   evolutionTimestamp?: UnifiedTimestamp; // Added to match implementation
-  learningMetadata?: any; // Added to match implementation usage
-  evolutionContext?: any; // Added to match implementation usage
-  learningPatterns?: any; // Added to match implementation usage
+  learningMetadata?: Record<string, unknown>; // Added to match implementation usage
+  evolutionContext?: Record<string, unknown>; // Added to match implementation usage
+  learningPatterns?: Record<string, unknown>; // Added to match implementation usage
 }
 
 // ========================================
@@ -303,7 +303,7 @@ export interface ProjectContext {
   createdAt: Date;
   lastUpdated: Date;
   isActive: boolean;
-  metadata: Record<string, any>;
+  metadata: Record<string, unknown>;
 }
 
 // ========================================
@@ -467,7 +467,7 @@ export interface DocumentationResult {
   category?: string;
   version?: string;
   lastUpdated?: Date;
-  metadata: Record<string, any> | {
+  metadata: Record<string, unknown> | {
     wordCount?: number;
     readingTime?: number;
     complexity?: 'beginner' | 'intermediate' | 'advanced';
@@ -487,7 +487,7 @@ export interface DocumentationSearchResult {
   memoryEnhanced?: boolean;
   suggestions?: string[];
   relatedQueries?: string[];
-  metadata?: Record<string, any>;
+  metadata?: Record<string, unknown>;
 }
 
 // ========================================
@@ -707,3 +707,41 @@ export interface IntelligenceInsight {
   createdAt: Date;
   validUntil?: Date;
 }
+
+// ========================================
+// AGENT SYSTEM TYPES
+// ========================================
+
+export interface AgentResponse {
+  content: string;
+  metadata?: Record<string, unknown>;
+  actions?: string[];
+  memories?: MemoryRecord[];
+  error?: string;
+  timestamp?: Date;
+}
+
+export interface AgentHealthStatus {
+  status: 'healthy' | 'degraded' | 'critical' | 'offline';
+  uptime: number;
+  memoryUsage: number;
+  responseTime: number;
+  errorRate: number;
+  lastActivity: Date;
+  throughput?: number;
+  queueSize?: number;
+  resourceUtilization?: {
+    cpu: number;
+    memory: number;
+    network?: number;
+  };
+  diagnostics?: {
+    lastError?: string;
+    warningCount: number;
+    successRate: number;
+  };
+}
+
+// ========================================
+// END OF CANONICAL TYPES
+// ========================================

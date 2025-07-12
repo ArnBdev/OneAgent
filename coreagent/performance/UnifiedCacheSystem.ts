@@ -227,7 +227,7 @@ export class UnifiedCacheSystem<T> {
     let cleanedCount = 0;
 
     // Cleanup tier 1
-    for (const [key, entry] of this.tier1Cache.entries()) {
+    for (const [key, entry] of Array.from(this.tier1Cache.entries())) {
       if (!this.isEntryValid(entry, now)) {
         this.tier1Cache.delete(key);
         cleanedCount++;
@@ -235,7 +235,7 @@ export class UnifiedCacheSystem<T> {
     }
 
     // Cleanup tier 2
-    for (const [key, entry] of this.tier2Cache.entries()) {
+    for (const [key, entry] of Array.from(this.tier2Cache.entries())) {
       if (!this.isEntryValid(entry, now)) {
         this.tier2Cache.delete(key);
         cleanedCount++;
@@ -243,7 +243,7 @@ export class UnifiedCacheSystem<T> {
     }
 
     // Cleanup tier 3
-    for (const [key, entry] of this.tier3Cache.entries()) {
+    for (const [key, entry] of Array.from(this.tier3Cache.entries())) {
       if (!this.isEntryValid(entry, now)) {
         this.tier3Cache.delete(key);
         cleanedCount++;
@@ -296,7 +296,7 @@ export class UnifiedCacheSystem<T> {
     let oldestKey = '';
     let oldestTime = Date.now();
 
-    for (const [key, entry] of this.tier1Cache.entries()) {
+    for (const [key, entry] of Array.from(this.tier1Cache.entries())) {
       if (entry.timestamp < oldestTime) {
         oldestTime = entry.timestamp;
         oldestKey = key;
@@ -321,7 +321,7 @@ export class UnifiedCacheSystem<T> {
     let oldestKey = '';
     let oldestTime = Date.now();
 
-    for (const [key, entry] of this.tier2Cache.entries()) {
+    for (const [key, entry] of Array.from(this.tier2Cache.entries())) {
       if (entry.timestamp < oldestTime) {
         oldestTime = entry.timestamp;
         oldestKey = key;
@@ -346,7 +346,7 @@ export class UnifiedCacheSystem<T> {
     let oldestKey = '';
     let oldestTime = Date.now();
 
-    for (const [key, entry] of this.tier3Cache.entries()) {
+    for (const [key, entry] of Array.from(this.tier3Cache.entries())) {
       if (entry.timestamp < oldestTime) {
         oldestTime = entry.timestamp;
         oldestKey = key;
@@ -395,13 +395,13 @@ export class UnifiedCacheSystem<T> {
   private updateMemoryUsage(): void {
     let totalSize = 0;
     
-    for (const entry of this.tier1Cache.values()) {
+    for (const entry of Array.from(this.tier1Cache.values())) {
       totalSize += entry.size;
     }
-    for (const entry of this.tier2Cache.values()) {
+    for (const entry of Array.from(this.tier2Cache.values())) {
       totalSize += entry.size;
     }
-    for (const entry of this.tier3Cache.values()) {
+    for (const entry of Array.from(this.tier3Cache.values())) {
       totalSize += entry.size;
     }
     

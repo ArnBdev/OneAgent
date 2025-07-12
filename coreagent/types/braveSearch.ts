@@ -92,5 +92,5 @@ export interface BraveSearchConfig {
 export interface BraveSearchError {
   code: string;
   message: string;
-  details?: any;
+  details?: unknown;
 }

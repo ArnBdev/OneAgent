@@ -109,8 +109,8 @@ export class BraveSearchClient {
       
       return results;
 
-    } catch (error: any) {
-      console.error('❌ Brave Search API error:', error.message);
+    } catch (error: unknown) {
+      console.error('❌ Brave Search API error:', error instanceof Error ? error.message : 'Unknown error');
       
       if (axios.isAxiosError(error)) {
         const braveError: BraveSearchError = {
@@ -130,7 +130,7 @@ export class BraveSearchClient {
    */
   async searchWithRetry(query: BraveSearchQuery, maxRetries?: number): Promise<BraveSearchResult[]> {
     const retries = maxRetries || this.config.retryAttempts || 3;
-    let lastError: any;
+    let lastError: unknown;
 
     for (let attempt = 1; attempt <= retries; attempt++) {
       try {

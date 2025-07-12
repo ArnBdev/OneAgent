@@ -150,11 +150,12 @@ export class MemoryDrivenAgentCommunication {
     try {
       // Search memory for messages directed to this agent or broadcast messages
       const searchQuery = `agent communication message to:${agentId} OR broadcast`;
-      const searchResult = await this.memorySystem.searchMemory('agent-messages', {
+      const searchResult = await this.memorySystem.searchMemory({
         query: searchQuery,
         user_id: agentId,
         limit: options?.limit || 50,
-        semanticSearch: true
+        semanticSearch: true,
+        type: 'agent-messages'
       });
       // Convert memories back to AgentMessage format
       const messages: AgentMessage[] = (searchResult || []).map((memory: any) => this.parseMessageFromMemory(memory));
@@ -184,11 +185,12 @@ export class MemoryDrivenAgentCommunication {
   async searchCommunicationHistory(query: MemoryQuery): Promise<AgentMessage[]> {
     console.log(`[MemoryComm] Searching communication history: ${query.query}`);
     try {
-      const searchResult = await this.memorySystem.searchMemory('agent-messages', {
+      const searchResult = await this.memorySystem.searchMemory({
         query: query.query,
         user_id: query.agentId || 'system',
         limit: query.limit || 20,
-        semanticSearch: true
+        semanticSearch: true,
+        type: 'agent-messages'
       });
       const messages = (searchResult || []).map((memory: any) => this.parseMessageFromMemory(memory));
       // Apply additional filters
@@ -358,11 +360,12 @@ ${message.replyToMessageId ? `Reply to: ${message.replyToMessageId}` : ''}`;
    */
   private async getSystemStatus(): Promise<any> {
     try {
-      const systemResult = await this.memorySystem.searchMemory('system-metrics', {
+      const systemResult = await this.memorySystem.searchMemory({
         query: 'system status health metrics',
         user_id: 'system',
         limit: 5,
-        semanticSearch: false
+        semanticSearch: false,
+        type: 'system-metrics'
       });
       return {
         registeredAgents: this.agentRegistry.size,
@@ -400,12 +403,13 @@ ${message.replyToMessageId ? `Reply to: ${message.replyToMessageId}` : ''}`;
       agent.recentActivity = new Date();
       // Store status update in memory
       try {
-        await this.memorySystem.addMemory('agent-status', {
+        await this.memorySystem.addMemory({
           id: `status_${agentId}_${Date.now()}`,
           agentId,
           status,
           timestamp: new Date().toISOString(),
-          content: `Agent ${agentId} status updated to ${status}`
+          content: `Agent ${agentId} status updated to ${status}`,
+          type: 'agent-status'
         });
       } catch (error) {
         console.error(`[MemoryComm] Failed to store status update for ${agentId}:`, error);

@@ -10,7 +10,7 @@ export interface User {
   email?: string | undefined;
   createdAt: string;
   lastActiveAt: string;
-  preferences?: Record<string, any>;
+  preferences?: Record<string, unknown>;
   /** Custom instructions for agent behavior personalization */
   customInstructions?: string | undefined;
   /** Account status */
@@ -26,7 +26,7 @@ export interface UserSession {
   sessionId: string;
   startedAt: string;
   lastActivity: string;
-  context?: Record<string, any>;
+  context?: Record<string, unknown>;
 }
 
 export interface UserPreferences {
@@ -34,7 +34,7 @@ export interface UserPreferences {
   timezone?: string;
   theme?: 'light' | 'dark';
   notifications?: boolean;
-  [key: string]: any;
+  [key: string]: unknown;
 }
 
 /**
@@ -66,7 +66,7 @@ export interface UserCreateRequest {
   name: string;
   email?: string;
   customInstructions?: string;
-  preferences?: Record<string, any>;
+  preferences?: Record<string, unknown>;
 }
 
 /**
@@ -76,7 +76,7 @@ export interface UserUpdateRequest {
   name?: string;
   email?: string;
   customInstructions?: string;
-  preferences?: Record<string, any>;
+  preferences?: Record<string, unknown>;
   status?: User['status'];
 }
 

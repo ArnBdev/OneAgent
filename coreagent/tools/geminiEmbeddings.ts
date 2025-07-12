@@ -8,7 +8,7 @@
 
 import { GeminiClient } from './geminiClient';
 import { OneAgentMemory, OneAgentMemoryConfig } from '../memory/OneAgentMemory';
-import { EmbeddingOptions, EmbeddingResult, EmbeddingTaskType } from '../types/gemini';
+import { EmbeddingResult, EmbeddingTaskType } from '../types/gemini';
 import { globalProfiler } from '../performance/profiler';
 
 export interface SemanticSearchOptions {
@@ -32,7 +32,7 @@ export interface SemanticSearchResult {
     agentId: string;
     relevanceScore: number;
     timestamp: Date;
-    metadata?: Record<string, any>;
+    metadata?: Record<string, unknown>;
     summary?: string;
   };
   similarity: number;
@@ -82,7 +82,8 @@ export class GeminiEmbeddingsTool {
     try {
       globalProfiler.startOperation(operationId, 'semantic-search');
       // If mem0 supports embedding-based search, delegate to it:
-      const searchResults = await this.memorySystem.searchMemory('conversations', {
+      const searchResults = await this.memorySystem.searchMemory({
+        type: 'conversations',
         query,
         topK: options?.topK || 10,
         similarityThreshold: options?.similarityThreshold || 0.1,
@@ -90,20 +91,34 @@ export class GeminiEmbeddingsTool {
         semanticSearch: true
       });
       // Map results to SemanticSearchResult format
-      const results: SemanticSearchResult[] = (searchResults?.results || []).map((memory: any) => ({
-        memory: {
-          id: memory.id,
-          type: memory.type || 'conversation',
-          content: memory.content,
-          agentId: memory.agentId || 'default',
-          relevanceScore: memory.similarity || memory.relevanceScore || 0,
-          timestamp: memory.timestamp ? new Date(memory.timestamp) : new Date(),
-          metadata: memory.metadata || {},
-          summary: memory.summary || undefined
-        },
-        similarity: memory.similarity || memory.relevanceScore || 0,
-        embeddingResult: memory.embeddingResult || undefined
-      }));
+      const results: SemanticSearchResult[] = (searchResults?.results || []).map((memory: unknown) => {
+        const memoryItem = memory as {
+          id: string;
+          type?: string;
+          content: string;
+          agentId?: string;
+          similarity?: number;
+          relevanceScore?: number;
+          timestamp?: string | Date;
+          metadata?: Record<string, unknown>;
+          summary?: string;
+          embeddingResult?: EmbeddingResult;
+        };
+        return {
+          memory: {
+            id: memoryItem.id,
+            type: memoryItem.type || 'conversation',
+            content: memoryItem.content,
+            agentId: memoryItem.agentId || 'default',
+            relevanceScore: memoryItem.similarity || memoryItem.relevanceScore || 0,
+            timestamp: memoryItem.timestamp ? new Date(memoryItem.timestamp) : new Date(),
+            metadata: memoryItem.metadata || {},
+            summary: memoryItem.summary || undefined
+          },
+          similarity: memoryItem.similarity || memoryItem.relevanceScore || 0,
+          embeddingResult: memoryItem.embeddingResult || undefined
+        };
+      });
       const analytics: EmbeddingAnalytics = {
         totalMemories: searchResults?.total || results.length,
         searchResults: results.length,
@@ -137,13 +152,13 @@ export class GeminiEmbeddingsTool {
     agentId: string,
     userId: string,
     memoryType: 'conversation' | 'learning' | 'pattern' = 'conversation',
-    metadata?: Record<string, any>
+    metadata?: Record<string, unknown>
   ): Promise<{ memoryId: string; embedding?: EmbeddingResult }> {
     const operationId = `store-memory-${Date.now()}`;
     try {
       globalProfiler.startOperation(operationId, 'store-memory-embedding');
       // If mem0 supports embedding, just add memory
-      const memoryData: any = {
+      const memoryData: Record<string, unknown> = {
         id: `${memoryType}_${Date.now()}`,
         agentId,
         userId,
@@ -155,9 +170,11 @@ export class GeminiEmbeddingsTool {
           ...(metadata || {})
         }
       };
-      await this.memorySystem.addMemory(memoryType === 'conversation' ? 'conversations' : 'learnings', memoryData);
+      await this.memorySystem.addMemory({
+        ...memoryData
+      });
       globalProfiler.endOperation(operationId, true);
-      return { memoryId: memoryData.id };
+      return { memoryId: memoryData.id as string };
     } catch (error) {
       globalProfiler.endOperation(operationId, false, error?.toString());
       console.error('❌ Memory storage with embedding failed:', error);
@@ -188,7 +205,7 @@ export class GeminiEmbeddingsTool {
    */
   async findSimilarMemories(
     queryText: string,
-    _searchQuery?: any,
+    _searchQuery?: unknown,
     options?: MemoryEmbeddingOptions
   ): Promise<{
     results: SemanticSearchResult[];

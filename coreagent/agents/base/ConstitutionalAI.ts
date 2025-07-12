@@ -8,7 +8,7 @@
  * systematic principle-based validation and iterative refinement.
  */
 
-import { EnhancedPromptConfig, ConstitutionalPrinciple, QualityValidation } from './EnhancedPromptEngine';
+import { ConstitutionalPrinciple } from './EnhancedPromptEngine';
 import { OneAgentUnifiedBackbone } from '../../utils/UnifiedBackboneService';
 
 export interface ValidationResult {
@@ -61,11 +61,41 @@ export class ConstitutionalAI {
    * Validate response against all constitutional principles
    */
   async validateResponse(
-    response: string, 
+    response: string,
     userMessage: string,
-    context: any = {}
+    context: Record<string, unknown> = {}
   ): Promise<ValidationResult> {
-    
+    // Debug: Log the value and type of response
+    console.log('[DEBUG] validateResponse received:', response, '| type:', typeof response);
+    // Defensive: Accept both 'response' and 'content' for maximum robustness
+    // Unwrap nested 'arguments' property if present (MCP tool call compatibility)
+    let resolved = response as unknown;
+    while (resolved && typeof resolved === 'object' && 'arguments' in resolved && Object.keys(resolved).length === 1) {
+      resolved = resolved.arguments;
+    }
+    // Accept both 'response' and 'content' as possible keys
+    if ((typeof resolved !== 'string' || !resolved) && resolved && typeof resolved === 'object' && 'response' in resolved) {
+      const responseObj = resolved as { response: unknown };
+      if (typeof responseObj.response === 'string') {
+        resolved = responseObj.response;
+        console.log('[DEBUG] validateResponse fallback to .response:', resolved);
+      }
+    }
+    if ((typeof resolved !== 'string' || !resolved) && resolved && typeof resolved === 'object' && 'content' in resolved) {
+      const contentObj = resolved as { content: unknown };
+      if (typeof contentObj.content === 'string') {
+        resolved = contentObj.content;
+        console.log('[DEBUG] validateResponse fallback to .content:', resolved);
+      }
+    }
+    if (typeof resolved !== 'string' || !resolved) {
+      throw new Error('Invalid input: response/content must be a non-empty string');
+    }
+    if (typeof userMessage !== 'string') {
+      throw new Error('Invalid input: userMessage must be a string');
+    }
+    response = resolved;
+
     const violations: Violation[] = [];
     let totalScore = 100;
 
@@ -162,7 +192,7 @@ export class ConstitutionalAI {
   /**
    * Generate quality-improved response using constitutional guidelines
    */
-  async generateConstitutionalPrompt(userMessage: string, _context: any = {}): Promise<string> {
+  async generateConstitutionalPrompt(userMessage: string, _context: Record<string, unknown> = {}): Promise<string> {
     
     const principleGuidelines = this.principles
       .map(p => `• ${p.name}: ${p.description}`)
@@ -187,7 +217,7 @@ Response:`;
     response: string, 
     principle: ConstitutionalPrinciple, 
     userMessage: string,
-    _context: any
+    _context: Record<string, unknown>
   ): Promise<Violation | null> {
     
     switch (principle.id) {

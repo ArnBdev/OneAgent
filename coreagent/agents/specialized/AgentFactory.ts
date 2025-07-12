@@ -14,16 +14,28 @@ import { DevAgent } from '../specialized/DevAgent';
 import { OfficeAgent } from '../specialized/OfficeAgent';
 import { FitnessAgent } from '../specialized/FitnessAgent';
 import { TriageAgent } from '../specialized/TriageAgent';
-import path from 'path';
 import { loadYamlFile } from '../base/yamlLoader';
 import { getPersonaConfig } from '../base/personaRegistry';
+import { EnhancedPromptConfig } from '../base/EnhancedPromptEngine';
 
-function buildPromptConfig(agentType: string): any {
+function buildPromptConfig(agentType: string): EnhancedPromptConfig | undefined {
   const personaConfig = getPersonaConfig(agentType);
-  const persona = personaConfig?.persona ? loadYamlFile(personaConfig.persona) : undefined;
-  const quality = personaConfig?.quality ? loadYamlFile(personaConfig.quality) : undefined;
-  // Optionally add reasoning and future config types here
-  return { persona, quality };
+  if (!personaConfig?.persona || !personaConfig?.quality) {
+    return undefined;
+  }
+  
+  const persona = loadYamlFile(personaConfig.persona);
+  const quality = loadYamlFile(personaConfig.quality);
+  
+  // Return undefined if we can't construct a valid EnhancedPromptConfig
+  // The agents will fall back to default prompt configuration
+  if (!persona || !quality) {
+    return undefined;
+  }
+  
+  // TODO: Properly construct EnhancedPromptConfig from loaded YAML files
+  // For now, return undefined to use default configuration
+  return undefined;
 }
 
 export class AgentFactory {

@@ -7,7 +7,7 @@
  * - Support for all life domains (work, health, learning, social, etc.)
  * - Validation and discovery of available personas
  */
-import path from 'path';
+import * as path from 'path';
 
 export interface PersonaRegistryEntry {
   persona: string; // Path to persona YAML

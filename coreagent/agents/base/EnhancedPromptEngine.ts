@@ -11,7 +11,7 @@
  * Achieves 20-95% improvements in accuracy, task adherence, and quality.
  */
 
-import { AgentContext, AgentConfig } from './BaseAgent';
+import { AgentContext } from './BaseAgent';
 
 export interface ConstitutionalPrinciple {
   id: string;
@@ -73,7 +73,7 @@ export interface VerificationStep {
 export class EnhancedPromptEngine {
   
   // Constitutional AI Principles for OneAgent
-  private static readonly CONSTITUTIONAL_PRINCIPLES: ConstitutionalPrinciple[] = [
+  public static readonly CONSTITUTIONAL_PRINCIPLES: ConstitutionalPrinciple[] = [
     {
       id: 'accuracy',
       name: 'Accuracy Over Speculation',
@@ -168,7 +168,7 @@ export class EnhancedPromptEngine {
    */
   async buildEnhancedPrompt(
     message: string, 
-    memories: any[], 
+    memories: unknown[], 
     context: AgentContext,
     taskComplexity: 'simple' | 'medium' | 'complex' = 'medium'
   ): Promise<string> {
@@ -295,7 +295,7 @@ ${persona.principles.map(p => `• ${p}`).join('\n')}`;
     return personaSection;
   }
 
-  private async buildEnhancedContext(memories: any[], context: AgentContext): Promise<string> {
+  private async buildEnhancedContext(memories: unknown[], context: AgentContext): Promise<string> {
     let contextSection = `
 Context:
 - User: ${context.user.name || 'User'}
@@ -395,9 +395,13 @@ Response:`;
 
   // UTILITY METHODS
 
-  private formatMemoryForContext(memory: any): string {
+  private formatMemoryForContext(memory: unknown): string {
     if (typeof memory === 'string') return memory;
-    return `- ${memory.content || JSON.stringify(memory)}`;
+    if (memory && typeof memory === 'object' && 'content' in memory) {
+      const memoryObj = memory as { content?: string };
+      return `- ${memoryObj.content || JSON.stringify(memory)}`;
+    }
+    return `- ${JSON.stringify(memory)}`;
   }
 
   private isGoalOriented(message: string): boolean {

@@ -12,6 +12,56 @@
 import { BaseAgent, AgentConfig, AgentContext, AgentResponse, AgentAction } from '../base/BaseAgent';
 import { ISpecializedAgent, AgentHealthStatus } from '../base/ISpecializedAgent';
 
+interface ValidationResult {
+  isValid: boolean;
+  score: number;
+  issues: ValidationIssue[];
+  recommendations: string[];
+  metadata: {
+    timestamp: string;
+    validationType: string;
+    [key: string]: unknown;
+  };
+}
+
+interface ValidationIssue {
+  severity: 'low' | 'medium' | 'high' | 'critical';
+  type: string;
+  description: string;
+  line?: number;
+  suggestion?: string;
+}
+
+interface ConstitutionalResult {
+  compliant: boolean;
+  principles: ConstitutionalPrincipleResult[];
+  overallScore: number;
+  recommendations: string[];
+}
+
+interface ConstitutionalPrincipleResult {
+  principle: string;
+  passed: boolean;
+  score: number;
+  feedback: string;
+}
+
+interface BMADAnalysisResult {
+  analysis: BMADPoint[];
+  overallAssessment: string;
+  recommendations: string[];
+  riskFactors: string[];
+  successPredictors: string[];
+}
+
+interface BMADPoint {
+  id: number;
+  question: string;
+  answer: string;
+  insight: string;
+  confidence: number;
+}
+
 /**
  * ValidationAgent - Specialized in code quality validation and Constitutional AI compliance
  * 
@@ -76,18 +126,56 @@ export class ValidationAgent extends BaseAgent implements ISpecializedAgent {
     ];
   }
 
-  async executeAction(action: string | AgentAction, params: any, context?: AgentContext): Promise<any> {
+  async executeAction(action: string | AgentAction, params: Record<string, unknown>, _context?: AgentContext): Promise<AgentResponse> {
     const actionType = typeof action === 'string' ? action : action.type;
     
-    switch (actionType) {
-      case 'validate_code_quality':
-        return this.validateCodeQuality(params.code, params.language, params.strictMode, context);
-      case 'constitutional_ai_check':
-        return this.performConstitutionalCheck(params.content, params.context, context);
-      case 'bmad_analysis':
-        return this.performBMADAnalysis(params.decision, params.scope, context);
-      default:
-        throw new Error(`Unknown action: ${actionType}`);
+    try {
+      switch (actionType) {
+        case 'validate_code_quality': {
+          const result = await this.validateCodeQuality(
+            params.code as string, 
+            params.language as string, 
+            params.strictMode as boolean | undefined
+          );
+          return {
+            content: JSON.stringify(result),
+            metadata: { actionType, resultType: 'ValidationResult', ...result }
+          };
+        }
+        case 'constitutional_ai_check': {
+          const result = await this.performConstitutionalCheck(
+            params.content as string, 
+            params.context as string | undefined,
+            _context
+          );
+          return {
+            content: JSON.stringify(result),
+            metadata: { actionType, resultType: 'ConstitutionalResult', ...result }
+          };
+        }
+        case 'bmad_analysis': {
+          const result = await this.performBMADAnalysis(
+            params.decision as string, 
+            params.scope as string | undefined,
+            _context
+          );
+          return {
+            content: JSON.stringify(result),
+            metadata: { actionType, resultType: 'BMADAnalysisResult', ...result }
+          };
+        }
+        default:
+          return await super.executeAction(action, params, _context);
+      }
+    } catch (error) {
+      return {
+        content: `Error executing ${actionType}: ${error instanceof Error ? error.message : 'Unknown error'}`,
+        metadata: { 
+          actionType, 
+          error: true, 
+          errorMessage: error instanceof Error ? error.message : 'Unknown error' 
+        }
+      };
     }
   }
 
@@ -112,7 +200,7 @@ export class ValidationAgent extends BaseAgent implements ISpecializedAgent {
    * Validate code quality against OneAgent professional standards
    * CONSTITUTIONAL AI: Accurate assessment, transparent criteria, helpful suggestions
    */
-  private async validateCodeQuality(code: string, language: string, strictMode?: boolean, _context?: AgentContext): Promise<any> {
+  private async validateCodeQuality(code: string, language: string, strictMode?: boolean): Promise<ValidationResult> {
     // Quality scoring algorithm following OneAgent standards
     const metrics = {
       typesSafety: this.analyzeTypeSafety(code, language),
@@ -123,50 +211,76 @@ export class ValidationAgent extends BaseAgent implements ISpecializedAgent {
     };
 
     const overallScore = this.calculateQualityScore(metrics);
-    const grade = this.getQualityGrade(overallScore);
 
     return {
-      qualityScore: overallScore,
-      grade,
-      meetsStandard: overallScore >= 80, // OneAgent 80%+ requirement
-      metrics,
-      suggestions: this.generateImprovementSuggestions(metrics, strictMode),
-      constitutionalCompliance: {
-        accuracy: 'Precise metrics-based assessment',
-        transparency: 'Clear scoring criteria provided',
-        helpfulness: 'Actionable improvement suggestions included',
-        safety: 'Security vulnerabilities identified'
+      isValid: overallScore >= 80,
+      score: overallScore,
+      issues: this.convertMetricsToIssues(metrics),
+      recommendations: this.generateImprovementSuggestions(metrics, strictMode),
+      metadata: {
+        timestamp: new Date().toISOString(),
+        validationType: 'code_quality',
+        language,
+        strictMode: strictMode || false,
+        grade: this.getQualityGrade(overallScore)
       }
     };
+  }
+
+  private convertMetricsToIssues(metrics: Record<string, { score: number; issues?: string[] }>): ValidationIssue[] {
+    const issues: ValidationIssue[] = [];
+    
+    Object.entries(metrics).forEach(([category, data]) => {
+      if (data.score < 80 && data.issues) {
+        data.issues.forEach(issue => {
+          issues.push({
+            severity: data.score < 50 ? 'high' : data.score < 70 ? 'medium' : 'low',
+            type: category,
+            description: issue,
+            suggestion: `Improve ${category} practices`
+          });
+        });
+      }
+    });
+    
+    return issues;
   }
 
   /**
    * Constitutional AI compliance check
    * Validates against the 4 core principles
    */
-  private async performConstitutionalCheck(content: string, checkContext?: string, _context?: AgentContext): Promise<any> {
-    const principles = {
+  private async performConstitutionalCheck(content: string, _checkContext?: string, _context?: AgentContext): Promise<ConstitutionalResult> {
+    const principleChecks = {
       accuracy: this.checkAccuracy(content),
       transparency: this.checkTransparency(content),
       helpfulness: this.checkHelpfulness(content),
       safety: this.checkSafety(content)
     };
 
-    const overallCompliance = Object.values(principles).every(p => p.compliant);
+    const principles: ConstitutionalPrincipleResult[] = Object.entries(principleChecks).map(([name, check]) => ({
+      principle: name,
+      passed: check.compliant,
+      score: check.compliant ? 1.0 : 0.5,
+      feedback: check.issues.length > 0 ? check.issues.join('; ') : 'Compliant'
+    }));
+
+    const overallCompliance = Object.values(principleChecks).every(p => p.compliant);
+    const overallScore = principles.reduce((sum, p) => sum + p.score, 0) / principles.length;
 
     return {
       compliant: overallCompliance,
       principles,
-      recommendations: this.getConstitutionalRecommendations(principles),
-      context: checkContext || 'General content validation'
+      overallScore,
+      recommendations: this.getConstitutionalRecommendations(principleChecks)
     };
   }
 
   /**
    * BMAD Framework Analysis (9-point systematic analysis)
    * Following OneAgent decision-making methodology
-   */  private async performBMADAnalysis(decision: string, scope?: string, _context?: AgentContext): Promise<any> {
-    const analysis = {
+   */  private async performBMADAnalysis(_decision: string, _scope?: string, _context?: AgentContext): Promise<BMADAnalysisResult> {
+    const analysisData = {
       beliefAssessment: this.assessBeliefs(),
       motivationMapping: this.mapMotivations(),
       authorityIdentification: this.identifyAuthorities(),
@@ -178,12 +292,25 @@ export class ValidationAgent extends BaseAgent implements ISpecializedAgent {
       resourceRequirements: this.analyzeResources()
     };
 
+    // Convert to BMADPoint array with string answers
+    const analysis: BMADPoint[] = [
+      { id: 1, question: 'Belief Assessment', answer: JSON.stringify(analysisData.beliefAssessment), insight: 'Core belief analysis completed', confidence: 85 },
+      { id: 2, question: 'Motivation Mapping', answer: JSON.stringify(analysisData.motivationMapping), insight: 'Motivation structure mapped', confidence: 85 },
+      { id: 3, question: 'Authority Identification', answer: JSON.stringify(analysisData.authorityIdentification), insight: 'Authority sources identified', confidence: 85 },
+      { id: 4, question: 'Dependency Mapping', answer: JSON.stringify(analysisData.dependencyMapping), insight: 'Dependencies mapped', confidence: 85 },
+      { id: 5, question: 'Constraint Analysis', answer: JSON.stringify(analysisData.constraintAnalysis), insight: 'Constraints analyzed', confidence: 85 },
+      { id: 6, question: 'Risk Assessment', answer: JSON.stringify(analysisData.riskAssessment), insight: 'Risk factors identified', confidence: 85 },
+      { id: 7, question: 'Success Metrics', answer: JSON.stringify(analysisData.successMetrics), insight: 'Success criteria defined', confidence: 85 },
+      { id: 8, question: 'Timeline Considerations', answer: JSON.stringify(analysisData.timelineConsiderations), insight: 'Timeline factors analyzed', confidence: 85 },
+      { id: 9, question: 'Resource Requirements', answer: JSON.stringify(analysisData.resourceRequirements), insight: 'Resource needs identified', confidence: 85 }
+    ];
+
     return {
-      decision,
-      scope: scope || 'Comprehensive analysis',
       analysis,
-      recommendation: this.generateBMADRecommendation(),
-      confidenceLevel: this.calculateBMADConfidence()
+      overallAssessment: this.generateBMADRecommendation(),
+      recommendations: [this.generateBMADRecommendation()],
+      riskFactors: [JSON.stringify(analysisData.riskAssessment)],
+      successPredictors: [JSON.stringify(analysisData.successMetrics)]
     };
   }
 
@@ -250,8 +377,8 @@ export class ValidationAgent extends BaseAgent implements ISpecializedAgent {
     return { score: Math.max(0, score), issues };
   }
 
-  private calculateQualityScore(metrics: any): number {
-    const scores = Object.values(metrics).map((m: any) => m.score);
+  private calculateQualityScore(metrics: Record<string, { score: number }>): number {
+    const scores = Object.values(metrics).map(m => m.score);
     return Math.round(scores.reduce((a: number, b: number) => a + b, 0) / scores.length);
   }
 
@@ -263,10 +390,10 @@ export class ValidationAgent extends BaseAgent implements ISpecializedAgent {
     return 'D';
   }
 
-  private generateImprovementSuggestions(metrics: any, strictMode?: boolean): string[] {
+  private generateImprovementSuggestions(metrics: Record<string, { issues?: string[] }>, strictMode?: boolean): string[] {
     const suggestions: string[] = [];
     
-    Object.entries(metrics).forEach(([category, data]: [string, any]) => {
+    Object.entries(metrics).forEach(([category, data]) => {
       if (data.issues && data.issues.length > 0) {
         suggestions.push(`${category}: ${data.issues.join(', ')}`);
       }
@@ -313,10 +440,10 @@ export class ValidationAgent extends BaseAgent implements ISpecializedAgent {
     return { compliant: issues.length === 0, issues };
   }
 
-  private getConstitutionalRecommendations(principles: any): string[] {
+  private getConstitutionalRecommendations(principles: Record<string, { compliant: boolean; issues: string[] }>): string[] {
     const recommendations: string[] = [];
     
-    Object.entries(principles).forEach(([principle, data]: [string, any]) => {
+    Object.entries(principles).forEach(([principle, data]) => {
       if (!data.compliant) {
         recommendations.push(`${principle}: ${data.issues.join(', ')}`);
       }
@@ -325,15 +452,15 @@ export class ValidationAgent extends BaseAgent implements ISpecializedAgent {
     return recommendations;
   }
   // BMAD Framework implementation methods (simplified for example)
-  private assessBeliefs(): any { return { confidence: 0.8, assumptions: ['User needs solution'] }; }
-  private mapMotivations(): any { return { primary: 'solve problem', secondary: 'efficiency' }; }
-  private identifyAuthorities(): any { return { stakeholders: ['user', 'team'], approvers: ['lead'] }; }
-  private mapDependencies(): any { return { technical: ['system'], human: ['expertise'] }; }
-  private analyzeConstraints(): any { return { time: 'limited', resources: 'adequate' }; }
-  private assessRisks(): any { return { technical: 'low', business: 'medium' }; }
-  private defineSuccessMetrics(): any { return { primary: 'functionality', secondary: 'performance' }; }
-  private analyzeTimeline(): any { return { estimated: '2-4 hours', critical_path: 'implementation' }; }
-  private analyzeResources(): any { return { required: 'developer time', available: 'yes' }; }
+  private assessBeliefs(): { confidence: number; assumptions: string[] } { return { confidence: 0.8, assumptions: ['User needs solution'] }; }
+  private mapMotivations(): { primary: string; secondary: string } { return { primary: 'solve problem', secondary: 'efficiency' }; }
+  private identifyAuthorities(): { stakeholders: string[]; approvers: string[] } { return { stakeholders: ['user', 'team'], approvers: ['lead'] }; }
+  private mapDependencies(): { technical: string[]; human: string[] } { return { technical: ['system'], human: ['expertise'] }; }
+  private analyzeConstraints(): { time: string; resources: string } { return { time: 'limited', resources: 'adequate' }; }
+  private assessRisks(): { technical: string; business: string } { return { technical: 'low', business: 'medium' }; }
+  private defineSuccessMetrics(): { primary: string; secondary: string } { return { primary: 'functionality', secondary: 'performance' }; }
+  private analyzeTimeline(): { estimated: string; critical_path: string } { return { estimated: '2-4 hours', critical_path: 'implementation' }; }
+  private analyzeResources(): { required: string; available: string } { return { required: 'developer time', available: 'yes' }; }
 
   private generateBMADRecommendation(): string {
     return 'Proceed with implementation following OneAgent quality standards';
@@ -361,13 +488,14 @@ export class ValidationAgent extends BaseAgent implements ISpecializedAgent {
         if (this.config.memoryEnabled) {
           // TODO: Implement memory storage when available
         }
-          return {
-          content: validationResult,
+        return {
+          content: `Constitutional validation completed. Overall: ${validationResult.compliant ? 'COMPLIANT' : 'NON-COMPLIANT'}. Score: ${validationResult.overallScore}%. Recommendations: ${validationResult.recommendations.join(', ')}.`,
           metadata: {
             validationType: 'constitutional_check',
             agentId: this.id,
             timestamp: new Date(),
-            confidence: 0.9
+            confidence: 0.9,
+            constitutionalResult: validationResult
           }
         };
       } else {
@@ -395,15 +523,15 @@ What would you like me to validate or analyze?`;
           }
         };
       }
-    } catch (error: any) {
-      const errorMessage = `ValidationAgent error: ${error.message}`;
+    } catch (error: Error | unknown) {
+      const errorMessage = `ValidationAgent error: ${error instanceof Error ? error.message : 'Unknown error'}`;
       console.error(errorMessage);      return {
         content: errorMessage,
         metadata: {
           validationType: 'error',
           agentId: this.id,
           timestamp: new Date(),
-          error: error.message,
+          error: error instanceof Error ? error.message : 'Unknown error',
           confidence: 0.1
         }
       };

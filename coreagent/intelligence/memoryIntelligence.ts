@@ -14,6 +14,8 @@
 import { OneAgentMemory, OneAgentMemoryConfig } from '../memory/OneAgentMemory';
 import { ConversationData, ConversationMetadata, MemorySearchResult, MemoryRecord, IntelligenceInsight } from '../types/oneagent-backbone-types';
 import { OneAgentUnifiedBackbone } from '../utils/UnifiedBackboneService';
+import { ConstitutionalAI } from '../agents/base/ConstitutionalAI';
+import { EnhancedPromptEngine } from '../agents/base/EnhancedPromptEngine';
 
 export interface MemoryIntelligenceOptions {
   enableSemanticSearch?: boolean;
@@ -26,6 +28,7 @@ export class MemoryIntelligence {
   private memorySystem: OneAgentMemory;
   private options: MemoryIntelligenceOptions;
   private unifiedBackbone: OneAgentUnifiedBackbone;
+  private constitutionalAI: ConstitutionalAI;
 
   constructor(
     memorySystem?: OneAgentMemory,
@@ -40,6 +43,11 @@ export class MemoryIntelligence {
       enableConstitutionalValidation: true,
       ...options
     };
+    // Initialize ConstitutionalAI with canonical principles and threshold
+    this.constitutionalAI = new ConstitutionalAI({
+      principles: EnhancedPromptEngine.CONSTITUTIONAL_PRINCIPLES,
+      qualityThreshold: 80
+    });
   }
 
   /**
@@ -52,35 +60,51 @@ export class MemoryIntelligence {
   ): Promise<MemorySearchResult> {
     const startTime = Date.now();
     try {
-      const memoryResults = await this.memorySystem.searchMemory('conversations', {
+      const memoryResults = await this.memorySystem.searchMemory({
+        collection: 'conversations',
         query,
         user_id: userId,
         limit: options.maxResults || this.options.maxResults || 20,
         semanticSearch: true
       });
       const memoryEntries = memoryResults || [];
-      const conversations = Array.isArray(memoryEntries) ? 
-        memoryEntries.map(this.convertToConversationData.bind(this)) : [];
+      // Ensure all entries are converted to ConversationData
+      const conversations: ConversationData[] = Array.isArray(memoryEntries)
+        ? memoryEntries.map((entry) => this.isConversationData(entry) ? entry : this.convertToConversationData(entry))
+        : [];
+      // Optionally validate results for compliance
+      if (this.options.enableConstitutionalValidation) {
+        for (const conv of conversations) {
+          const validation = await this.constitutionalAI.validateResponse(
+            JSON.stringify(conv),
+            userId // userMessage context, can be improved
+          );
+          conv.constitutionalCompliant = validation.isValid;
+          conv.constitutionalCompliance = validation.isValid ? 1.0 : 0.0;
+        }
+      }
       const results: MemoryRecord[] = conversations.map(conv => ({
         id: conv.conversationId || 'unknown',
         content: JSON.stringify(conv),
         metadata: {
           userId,
-          timestamp: conv.timestamp || new Date(),
-          tags: conv.topicTags || [],
+          timestamp: conv.startTime || new Date(),
+          tags: conv.topics || [],
           category: 'conversation',
           importance: 'medium' as const,
-          constitutionallyValidated: conv.constitutionalCompliant || true,
+          constitutionallyValidated: typeof conv.constitutionalCompliance === 'boolean' ? conv.constitutionalCompliance : true,
           sensitivityLevel: 'internal' as const,
-          relevanceScore: conv.qualityScore || 1.0,
+          relevanceScore: typeof conv.overallQuality === 'number' ? conv.overallQuality : 1.0,
           confidenceScore: 0.8,
           sourceReliability: 0.9
         },
         relatedMemories: [],
         accessCount: 1,
         lastAccessed: new Date(this.unifiedBackbone.getServices().timeService.now().utc),
-        qualityScore: conv.qualityScore || 1.0,
-        constitutionalStatus: conv.constitutionalCompliant ? 'compliant' : 'requires_review',
+        qualityScore: typeof conv.overallQuality === 'number' ? conv.overallQuality : 1.0,
+        constitutionalStatus: typeof conv.constitutionalCompliance === 'boolean'
+          ? (conv.constitutionalCompliance ? 'compliant' : 'requires_review')
+          : 'requires_review',
         lastValidation: new Date()
       }));
       const totalQuality = results.reduce((sum, result) => sum + (result.qualityScore || 0), 0);
@@ -100,8 +124,8 @@ export class MemoryIntelligence {
         suggestedRefinements: [],
         relatedQueries: [],
         metadata: {
-          conversations,
-          insights: this.generateInsights(conversations)
+          conversations: conversations as ConversationData[],
+          insights: this.generateInsights(conversations as ConversationData[])
         }
       };
     } catch (error) {
@@ -196,9 +220,29 @@ export class MemoryIntelligence {
       constitutionalCompliant: metadata.constitutionalValidation?.passed || true,
       domain: metadata.messageAnalysis?.contextTags?.[0] || 'general'
     };
+    // [Constitutional AI] Validate before storing
+    if (this.options.enableConstitutionalValidation) {
+      const validation = await this.constitutionalAI.validateResponse(
+        JSON.stringify(conversationData),
+        userId // userMessage context, can be improved with actual message
+      );
+      if (!validation.isValid) {
+        // Optionally, you could throw, log, or flag the entry
+        console.warn('[ConstitutionalAI] Memory entry failed validation:', validation.violations);
+        // For now, flag in metadata
+        conversationData.constitutionalCompliant = false;
+        conversationData.constitutionalCompliance = 0.0;
+      } else {
+        conversationData.constitutionalCompliant = true;
+        conversationData.constitutionalCompliance = 1.0;
+      }
+    }
     const memoryObj = this.mapConversationDataToMemory(conversationData, userId);
     // Replace storeConversation with addMemory to 'conversations' collection
-    const result = await this.memorySystem.addMemory('conversations', memoryObj);
+    const result = await this.memorySystem.addMemory({
+      collection: 'conversations',
+      record: memoryObj
+    });
     // The canonical bridge returns a string (memoryId), so just return it directly
     return result;
   }
@@ -222,7 +266,8 @@ export class MemoryIntelligence {
    */
   async getMemory(memoryId: string): Promise<ConversationData | null> {
     try {
-      const memoryResults = await this.memorySystem.searchMemory('conversations', {
+      const memoryResults = await this.memorySystem.searchMemory({
+        collection: 'conversations',
         query: memoryId,
         user_id: 'system',
         limit: 1
@@ -535,6 +580,35 @@ export class MemoryIntelligence {
     if (conversations.length === 0) return 0;
     const totalQuality = conversations.reduce((sum, conv) => sum + (conv.qualityScore || 0), 0);
     return totalQuality / conversations.length;
+  }
+
+  /**
+   * Type guard to check if an object is ConversationData
+   */
+  private isConversationData(obj: any): obj is ConversationData {
+    return obj && typeof obj === 'object' && 'conversationId' in obj && 'participants' in obj && 'startTime' in obj;
+  }
+
+  /**
+   * Assess memory quality for user-facing intelligence
+   */
+  async assessMemoryQuality(memory: any, context: any): Promise<any> {
+    // Only validate user-facing memory, not canonical memory tool operations
+    const canonicalMemoryTools = [
+      'oneagent_memory_add',
+      'oneagent_memory_edit',
+      'oneagent_memory_delete',
+      'oneagent_memory_search'
+    ];
+    if (context && context.toolName && canonicalMemoryTools.includes(context.toolName)) {
+      return { isValid: true, score: 100 };
+    }
+    const validation = await this.constitutionalAI.validateResponse(
+      memory.content,
+      'Memory quality assessment',
+      context
+    );
+    return validation;
   }
 }
 

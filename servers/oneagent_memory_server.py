@@ -47,11 +47,15 @@ from uuid import uuid4
 import sys
 
 # FastAPI for production performance
-from fastapi import FastAPI, HTTPException, Query, Path, BackgroundTasks
+from fastapi import FastAPI, HTTPException, Query, Path, BackgroundTasks, Request, Header, status, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field, validator
 import uvicorn
+
+# --- MCP 2025-06-18: Require Authorization and MCP-Protocol-Version headers on all memory endpoints ---
+# SECURITY WARNING: For local/dev only. In production, always use HTTPS and never log or expose API keys.
+MCP_PROTOCOL_VERSION = "2025-06-18"
 
 # Environment and configuration
 from dotenv import load_dotenv
@@ -59,9 +63,22 @@ from dotenv import load_dotenv
 # Load .env from root directory (one level up from servers/)
 env_path = os.path.join(os.path.dirname(__file__), '..', '.env')
 load_dotenv(env_path)
+MEM0_API_KEY = os.getenv("MEM0_API_KEY")  # <-- moved here, after dotenv
 print(f"Loading environment from: {os.path.abspath(env_path)}")
 print(f"GEMINI_API_KEY loaded: {'Yes' if os.getenv('GEMINI_API_KEY') else 'No'}")
 print(f"ONEAGENT_MEMORY_PORT: {os.getenv('ONEAGENT_MEMORY_PORT', '8001')}")
+
+# --- MCP header validation dependency (must be defined before use) ---
+from fastapi import Header, HTTPException, status, Depends
+
+def require_mcp_headers(
+    Authorization: str = Header(None),
+    mcp_protocol_version: str = Header(None, alias="MCP-Protocol-Version")
+):
+    if not Authorization or not Authorization.startswith("Bearer ") or Authorization.split(" ", 1)[1] != MEM0_API_KEY:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail={"error": "Invalid or missing Authorization header", "mcp_protocol_version": MCP_PROTOCOL_VERSION, "mcp_error_code": "unauthorized"})
+    if mcp_protocol_version != MCP_PROTOCOL_VERSION:
+        raise HTTPException(status_code=status.HTTP_426_UPGRADE_REQUIRED, detail={"error": f"MCP protocol version mismatch. Required: {MCP_PROTOCOL_VERSION}", "mcp_protocol_version": MCP_PROTOCOL_VERSION, "mcp_error_code": "protocol_version_mismatch"})
 
 # Google Gemini API
 import google.generativeai as genai
@@ -833,7 +850,7 @@ async def health_check():
     )
 
 @app.post("/v1/memories", response_model=MemoryOperationResponse)
-async def create_memory(request: MemoryCreateRequest):
+async def create_memory(request: MemoryCreateRequest, deps=Depends(require_mcp_headers)):
     """Create new memory"""
     memory = await memory_system.create_memory(request)
     return MemoryOperationResponse(
@@ -846,7 +863,8 @@ async def create_memory(request: MemoryCreateRequest):
 async def search_memories(
     userId: str = Query(..., description="User ID"),
     query: Optional[str] = Query(None, description="Search query"),
-    limit: int = Query(10, ge=1, le=100, description="Result limit")
+    limit: int = Query(10, ge=1, le=100, description="Result limit"),
+    deps=Depends(require_mcp_headers)
 ):
     """Search or retrieve memories"""
     search_request = MemorySearchRequest(
@@ -861,10 +879,37 @@ async def search_memories(
         message=f"Retrieved {len(memories)} memories"
     )
 
+@app.put("/v1/memories/{memory_id}", response_model=MemoryOperationResponse)
+async def update_memory(
+    memory_id: str = Path(..., description="Memory ID"),
+    request: MemoryCreateRequest = None,
+    deps=Depends(require_mcp_headers)
+):
+    """Update an existing memory (content and/or metadata)"""
+    # Validate input
+    if request is None:
+        raise HTTPException(status_code=400, detail="Missing request body")
+    try:
+        await memory_system._update_single_memory(
+            memory_id,
+            request.content,
+            request.user_id,
+            "API update via PUT /v1/memories/{id}"
+        )
+        return MemoryOperationResponse(
+            success=True,
+            message="Memory updated successfully",
+            data={"id": memory_id}
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Memory update failed: {str(e)}")
+    
+
 @app.delete("/v1/memories/{memory_id}", response_model=MemoryOperationResponse)
 async def delete_memory(
     memory_id: str = Path(..., description="Memory ID"),
-    userId: str = Query(..., description="User ID for verification")
+    userId: str = Query(..., description="User ID for verification"),
+    deps=Depends(require_mcp_headers)
 ):
     """Delete memory"""
     success = await memory_system.delete_memory(memory_id, userId)
@@ -874,7 +919,7 @@ async def delete_memory(
     )
 
 @app.post("/v1/memories/deduplicate", response_model=MemoryOperationResponse)
-async def deduplicate_user_memories(userId: str = Query(..., description="User ID")):
+async def deduplicate_user_memories(userId: str = Query(..., description="User ID"), deps=Depends(require_mcp_headers)):
     """Remove duplicate memories for a user"""
     result = await memory_system.deduplicate_memories(userId)
     return MemoryOperationResponse(
@@ -884,7 +929,7 @@ async def deduplicate_user_memories(userId: str = Query(..., description="User I
     )
 
 @app.get("/v1/memories/stats", response_model=MemoryOperationResponse)
-async def get_memory_statistics(userId: str = Query(..., description="User ID")):
+async def get_memory_statistics(userId: str = Query(..., description="User ID"), deps=Depends(require_mcp_headers)):
     """Get detailed memory statistics for a user"""
     stats = await memory_system.get_memory_statistics(userId)
     return MemoryOperationResponse(
@@ -896,7 +941,8 @@ async def get_memory_statistics(userId: str = Query(..., description="User ID"))
 @app.post("/v1/memories/bulk", response_model=MemoryOperationResponse)
 async def create_bulk_memories(
     requests: List[MemoryCreateRequest],
-    background_tasks: BackgroundTasks
+    background_tasks: BackgroundTasks,
+    deps=Depends(require_mcp_headers)
 ):
     """Create multiple memories with intelligent processing"""
     results = []
@@ -914,7 +960,6 @@ async def create_bulk_memories(
                 "error": str(e),
                 "user_id": request.user_id
             })
-    
     return MemoryOperationResponse(
         success=True,
         data={
@@ -925,6 +970,43 @@ async def create_bulk_memories(
         },
         message=f"Bulk operation completed: {len(results)} memories processed"
     )
+
+@app.get("/mcp/version")
+async def mcp_version():
+    return {"mcp_protocol_version": MCP_PROTOCOL_VERSION}
+
+@app.get("/mcp/capabilities")
+async def mcp_capabilities():
+    return {"capabilities": ["memory", "embedding", "search", "graph"], "mcp_protocol_version": MCP_PROTOCOL_VERSION}
+
+# =========================================================================
+# HEALTH/LIVENESS/READINESS ENDPOINTS (ROBUST, EXPANDABLE)
+# =========================================================================
+
+def minimal_health_status() -> dict:
+    """Minimal liveness response for /ping, /livez, /readyz"""
+    return {
+        "status": "ok",
+        "service": "oneagent-memory",
+        "version": "4.0.0",
+        "mcp_protocol_version": MCP_PROTOCOL_VERSION
+    }
+
+@app.get("/ping", tags=["health"])
+async def ping():
+    """Minimal liveness endpoint for health checks and client pings"""
+    return minimal_health_status()
+
+@app.get("/livez", tags=["health"])
+async def livez():
+    """Liveness probe endpoint (expandable for future checks)"""
+    return minimal_health_status()
+
+@app.get("/readyz", tags=["health"])
+async def readyz():
+    """Readiness probe endpoint (expandable for future checks)"""
+    # In future, add DB/model checks here
+    return minimal_health_status()
 
 # ============================================================================
 # SERVER STARTUP

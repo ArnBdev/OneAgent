@@ -6,6 +6,18 @@
 import { UnifiedMCPTool, ToolExecutionResult, InputSchema } from './UnifiedMCPTool';
 import { oneAgentConfig } from '../config';
 
+interface SystemHealthArgs {
+  includeDetails?: boolean;
+  components?: string[];
+}
+
+interface ComponentMetrics {
+  [key: string]: {
+    status: string;
+    [key: string]: unknown;
+  };
+}
+
 export class SystemHealthTool extends UnifiedMCPTool {
   constructor() {
     const schema: InputSchema = {
@@ -35,7 +47,7 @@ export class SystemHealthTool extends UnifiedMCPTool {
     );
   }
 
-  public async executeCore(args: any): Promise<ToolExecutionResult> {
+  public async executeCore(args: SystemHealthArgs): Promise<ToolExecutionResult> {
     try {
       const { includeDetails = true, components = ['memory', 'agents', 'mcp', 'constitutional', 'performance'] } = args;
       
@@ -46,7 +58,7 @@ export class SystemHealthTool extends UnifiedMCPTool {
           timestamp: new Date().toISOString(),
           version: '4.0.0'
         },
-        components: {} as any
+        components: {} as ComponentMetrics
       };
 
       // Add component-specific metrics

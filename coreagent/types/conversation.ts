@@ -16,7 +16,7 @@ export interface IRequest {
     /** Request type/intent */
     type?: string;
     /** Additional metadata */
-    metadata?: Record<string, any>;
+    metadata?: Record<string, unknown>;
     /** Timestamp of the request */
     timestamp?: Date;
     /** Unique request identifier */
@@ -40,7 +40,7 @@ export interface IResponse {
     /** Response type */
     type?: string;
     /** Additional metadata */
-    metadata?: Record<string, any>;
+    metadata?: Record<string, unknown>;
     /** Error information if applicable */
     error?: string;
     /** Timestamp of the response */
@@ -164,7 +164,7 @@ export interface MemoryUpdate {
     type: 'add' | 'update' | 'delete';
     category: string;
     key: string;
-    value?: any;
+    value?: unknown;
     timestamp: Date;
     importance: number; // 0-1 scale
 }

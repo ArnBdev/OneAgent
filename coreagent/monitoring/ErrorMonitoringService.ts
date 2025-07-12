@@ -18,6 +18,10 @@ export interface ErrorContext {
   timestamp?: Date;
   severity?: 'low' | 'medium' | 'high' | 'critical';
   metadata?: Record<string, any>;
+  /**
+   * Name of the tool (if error is associated with a tool call)
+   */
+  toolName?: string;
 }
 
 export interface ErrorClassification {
@@ -173,13 +177,22 @@ export class ErrorMonitoringService {
     context: ErrorContext
   ): Promise<boolean> {
     try {
+      // Only validate user-facing errors, not canonical memory tool errors
+      const canonicalMemoryTools = [
+        'oneagent_memory_add',
+        'oneagent_memory_edit',
+        'oneagent_memory_delete',
+        'oneagent_memory_search'
+      ];
+      if (context && context.toolName && canonicalMemoryTools.includes(context.toolName)) {
+        return true; // Always compliant for canonical memory tools
+      }
       const errorResponse = `Error occurred: ${error.message}. Context: ${JSON.stringify(context)}`;
       const validation = await this.constitutionalAI.validateResponse(
         errorResponse,
         'System error assessment',
-        context
+        context as Record<string, unknown>
       );
-      
       // Check if error handling meets Constitutional AI principles
       return validation.isValid && validation.score >= 75;
     } catch {

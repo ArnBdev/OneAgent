@@ -76,11 +76,12 @@ export class SmartGeminiClient {
         console.log(`✅ Enterprise wrapper success (${Date.now() - startTime}ms)`);
         return response;
         
-      } catch (error: any) {
-        console.log(`⚠️ Enterprise wrapper failed: ${error.message}`);
+      } catch (error: unknown) {
+        const err = error as Error;
+        console.log(`⚠️ Enterprise wrapper failed: ${err.message}`);
         
         // Don't retry wrapper if it's clearly in mock mode
-        if (error.message?.includes('rate limit') || error.message?.includes('mock mode')) {
+        if (err.message?.includes('rate limit') || err.message?.includes('mock mode')) {
           console.log('🔄 Activating permanent fallback mode due to wrapper issues');
           this.fallbackActive = true;
         }
@@ -105,9 +106,10 @@ export class SmartGeminiClient {
         console.log(`✅ Direct Gemini success (${Date.now() - startTime}ms)`);
         return chatResponse;
         
-      } catch (error: any) {
-        console.error('❌ Direct Gemini also failed:', error.message);
-        throw new Error(`Both enterprise wrapper and direct Gemini failed: ${error.message}`);
+      } catch (error: unknown) {
+        const err = error as Error;
+        console.error('❌ Direct Gemini also failed:', err.message);
+        throw new Error(`Both enterprise wrapper and direct Gemini failed: ${err.message}`);
       }
     }
 
@@ -154,12 +156,12 @@ export class SmartGeminiClient {
   /**
    * Test both approaches to verify functionality
    */
-  async testBothApproaches(): Promise<{wrapper: any, direct: any}> {
+  async testBothApproaches(): Promise<{wrapper: ChatResponse | {error: string}, direct: ChatResponse | {error: string}}> {
     const testPrompt = "Say 'Hello from AI!' in exactly those words.";
     
-    const results = {
-      wrapper: null as any,
-      direct: null as any
+    const results: {wrapper: ChatResponse | {error: string}, direct: ChatResponse | {error: string}} = {
+      wrapper: {error: 'Not tested'},
+      direct: {error: 'Not tested'}
     };
 
     // Test wrapper
@@ -167,9 +169,10 @@ export class SmartGeminiClient {
       console.log('🧪 Testing enterprise wrapper...');
       results.wrapper = await this.wrapperClient.chat(testPrompt);
       console.log('✅ Wrapper test passed');
-    } catch (error: any) {
-      console.log('❌ Wrapper test failed:', error.message);
-      results.wrapper = { error: error.message };
+    } catch (error: unknown) {
+      const err = error as Error;
+      console.log('❌ Wrapper test failed:', err.message);
+      results.wrapper = { error: err.message };
     }
 
     // Test direct
@@ -182,9 +185,10 @@ export class SmartGeminiClient {
         timestamp: new Date().toISOString()
       };
       console.log('✅ Direct test passed');
-    } catch (error: any) {
-      console.log('❌ Direct test failed:', error.message);
-      results.direct = { error: error.message };
+    } catch (error: unknown) {
+      const err = error as Error;
+      console.log('❌ Direct test failed:', err.message);
+      results.direct = { error: err.message };
     }
 
     return results;

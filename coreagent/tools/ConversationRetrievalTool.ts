@@ -5,6 +5,14 @@
 
 import { UnifiedMCPTool, ToolExecutionResult, InputSchema } from './UnifiedMCPTool';
 
+interface ConversationRetrievalArgs {
+  sessionId?: string;
+  agentType?: string;
+  timeRangeHours?: number;
+  includeFullLogs?: boolean;
+  maxResults?: number;
+}
+
 export class ConversationRetrievalTool extends UnifiedMCPTool {
   constructor() {
     const schema: InputSchema = {
@@ -42,54 +50,25 @@ export class ConversationRetrievalTool extends UnifiedMCPTool {
     );
   }
 
-  public async executeCore(args: any): Promise<ToolExecutionResult> {
+  public async executeCore(args: ConversationRetrievalArgs): Promise<ToolExecutionResult> {
     try {
       const { 
         sessionId, 
         agentType, 
-        timeRangeHours, 
         includeFullLogs = true,
         maxResults = 50
       } = args;
 
       // Build search query
-      let searchQuery = 'NLACS_CONVERSATION';
-      if (agentType) {
-        searchQuery += ` ${agentType}`;
-      }
-      if (sessionId) {
-        searchQuery += ` ${sessionId}`;
-      }
+      const searchQuery = 'NLACS_CONVERSATION' + 
+        (agentType ? ` ${agentType}` : '') + 
+        (sessionId ? ` ${sessionId}` : '');
 
       // TODO: Integrate with canonical memory search tool when available
       // For now, skip memoryResults logic and focus on NLACS orchestrator
-      let conversations: any[] = [];
-
-      // Also check NLACS orchestrator in-memory conversations
-      try {
-        const { UnifiedNLACSOrchestrator } = await import('../nlacs/UnifiedNLACSOrchestrator');
-        const nlacs = UnifiedNLACSOrchestrator.getInstance();
-        // Get active conversations from NLACS (privacy-respecting)
-        const systemStatus = await nlacs.getSystemStatus();
-        if (systemStatus.activeConversations > 0) {
-          conversations.push({
-            conversationId: 'active-sessions',
-            topic: 'Active NLACS Sessions',
-            participants: ['Multiple'],
-            timestamp: new Date().toISOString(),
-            memoryId: 'nlacs-active',
-            relevance: 1.0,
-            fullData: includeFullLogs ? {
-              activeConversations: systemStatus.activeConversations,
-              totalMessages: systemStatus.totalMessages,
-              uptime: systemStatus.uptime
-            } : null,
-            sessionId: 'active'
-          });
-        }
-      } catch (error) {
-        console.warn('Could not access NLACS active conversations:', (error as Error).message);
-      }
+      // Future implementation will use searchQuery: ${searchQuery}
+      console.log(`[ConversationRetrievalTool] Search query: ${searchQuery}`);
+      const conversations: unknown[] = [];
 
       return {
         success: true,

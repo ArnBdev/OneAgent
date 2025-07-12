@@ -11,9 +11,9 @@
  * NOT just metadata - this is a functioning office agent!
  */
 
-import { BaseAgent, AgentConfig, AgentContext, AgentResponse, Message, AgentAction } from '../base/BaseAgent';
-import { ISpecializedAgent, AgentStatus, AgentHealthStatus } from '../base/ISpecializedAgent';
-import { v4 as uuidv4 } from 'uuid';
+import { BaseAgent, AgentConfig, AgentContext, AgentResponse } from '../base/BaseAgent';
+import { ISpecializedAgent } from '../base/ISpecializedAgent';
+import { EnhancedPromptConfig } from '../base/EnhancedPromptEngine';
 
 export interface OfficeTask {
   id: string;
@@ -36,7 +36,7 @@ export interface OfficeAgentResponse extends AgentResponse {
  * REAL Office Agent - ISpecializedAgent implementation for productivity
  */
 export class OfficeAgent extends BaseAgent implements ISpecializedAgent {
-  constructor(config: AgentConfig, promptConfig?: any) {
+  constructor(config: AgentConfig, promptConfig?: EnhancedPromptConfig) {
     super(config, promptConfig);
   }
 

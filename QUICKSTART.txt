@@ -1,0 +1,9 @@
+QUICKSTART: ONEAGENT + MEM0
+
+Unified startup (recommended):
+  PowerShell: ./scripts/start-unified.ps1
+  Batch:      ./scripts/start-oneagent-system.bat
+
+See scripts/README.md for details.
+
+Legacy scripts are not supported and have been removed.

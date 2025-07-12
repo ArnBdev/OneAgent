@@ -1,15 +1,7 @@
 {
   "servers": {
-    "oneAgent": {
-      "type": "http",
-      "url": "http://localhost:8083/mcp",
-      "headers": {
-        "Content-Type": "application/json"
-      },
-      "prompts": [
-        "oneagent-selfimproving.chatprompt.md",
-        "oneagent-memory-prompt.md"
-      ]
+    "oneagent": {
+      "url": "http://localhost:8083/mcp"
     }
   }
 }

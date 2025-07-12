@@ -3,6 +3,7 @@
 
 import axios, { AxiosInstance, AxiosResponse } from 'axios';
 import { JSDOM } from 'jsdom';
+import { OneAgentMemory } from '../memory/OneAgentMemory';
 import { 
   WebFetchOptions, 
   WebFetchResponse, 
@@ -19,8 +20,12 @@ export class WebFetchTool {
   private mockMode: boolean = false;
   private lastRequestTime: number = 0;
   private requestCount: number = 0;
+  
+  // Canonical OneAgent Memory Integration
+  private memorySystem?: OneAgentMemory;
+  private enableContentCaching: boolean = true;
 
-  constructor(config?: Partial<WebFetchConfig>) {
+  constructor(config?: Partial<WebFetchConfig>, memorySystem?: OneAgentMemory) {
     this.config = {
       defaultTimeout: 10000,
       defaultUserAgent: 'OneAgent-WebFetchTool/1.0 (https://github.com/oneagent)',
@@ -43,7 +48,13 @@ export class WebFetchTool {
         requestsPerMinute: 60
       },
       ...config
-    };    // Enable mock mode in test environment or when specified
+    };
+    
+    // Initialize memory system if provided
+    if (memorySystem) {
+      this.memorySystem = memorySystem;
+      console.log('🧠 WebFetchTool: Canonical memory integration enabled');
+    }    // Enable mock mode in test environment or when specified
     this.mockMode = process.env.NODE_ENV === 'test' || (config?.defaultUserAgent?.includes('mock') ?? false);
 
     if (!this.mockMode) {

@@ -7,13 +7,10 @@
  */
 
 import { Request, Response } from 'express';
-import { CoreAgent } from '../main';
 import { IMemoryClient, AgentType } from '../types/oneagent-backbone-types';
 import { AgentFactory } from '../agents/base/AgentFactory';
 import { ISpecializedAgent } from '../agents/base/ISpecializedAgent';
-import { AgentContext } from '../agents/base/BaseAgent';
-import { AuditLogEntry } from '../audit/auditLogger';
-import { User } from '../types/user';
+import { AgentContext, AgentResponse } from '../agents/base/BaseAgent';
 
 export interface ConversationParticipant {
   id: string;
@@ -61,11 +58,9 @@ export interface ConversationResponse {
  * 4. Agent handoffs (conversation transfer)
  */
 export class EnhancedChatAPI {
-  private coreAgent: CoreAgent;
   private unifiedMemoryClient: IMemoryClient;
 
-  constructor(coreAgent: CoreAgent, unifiedMemoryClient: IMemoryClient) {
-    this.coreAgent = coreAgent;
+  constructor(unifiedMemoryClient: IMemoryClient) {
     this.unifiedMemoryClient = unifiedMemoryClient;
   }
 
@@ -111,6 +106,17 @@ export class EnhancedChatAPI {
       // Store conversation in memory using existing memory system
       await this.storeUniversalConversation(message, agentResponse, request.userId);
 
+      // Create response metadata with proper typing
+      const responseMetadata: ConversationMessage['metadata'] = {
+        confidence: (agentResponse.metadata?.confidence as number) || 0.8,
+        qualityScore: (agentResponse.metadata?.qualityScore as number) || 0.8
+      };
+      
+      // Add reasoning if it exists
+      if (agentResponse.metadata?.reasoning) {
+        responseMetadata.reasoning = agentResponse.metadata.reasoning as string;
+      }
+
       // Create response message
       const responseMessage: ConversationMessage = {
         id: this.generateMessageId(),
@@ -124,11 +130,7 @@ export class EnhancedChatAPI {
         content: agentResponse.content,
         timestamp: new Date(),
         conversationId: conversationId,
-        metadata: {
-          confidence: agentResponse.metadata?.confidence || 0.8,
-          reasoning: agentResponse.metadata?.reasoning,
-          qualityScore: agentResponse.metadata?.qualityScore || 0.8
-        }
+        metadata: responseMetadata
       };
 
       return {
@@ -259,7 +261,7 @@ export class EnhancedChatAPI {
    */
   async handleChatMessage(req: Request, res: Response): Promise<void> {
     try {
-      const { message, userId, agentType = 'core' } = req.body;
+      const { message, userId } = req.body;
 
       if (!message || !userId) {
         res.status(400).json({
@@ -301,7 +303,7 @@ export class EnhancedChatAPI {
   /**
    * Select the appropriate agent to handle the message
    */
-  private async selectTargetAgent(request: ConversationRequest): Promise<ISpecializedAgent | CoreAgent> {
+  private async selectTargetAgent(request: ConversationRequest): Promise<ISpecializedAgent> {
     // If directed to specific agent, try to create that agent
     if (request.toParticipant?.agentType) {
       try {
@@ -321,14 +323,28 @@ export class EnhancedChatAPI {
           aiEnabled: true,
           userId: request.userId
         });
-      } catch (error) {
-        // Fallback to CoreAgent if specific agent can't be created
-        return this.coreAgent;
+      } catch {
+        // Fallback to general agent if specific agent can't be created
+        return AgentFactory.createAgent({
+          type: 'general',
+          id: `fallback_${Date.now()}`,
+          name: 'FallbackAgent',
+          memoryEnabled: true,
+          aiEnabled: true,
+          userId: request.userId
+        });
       }
     }
 
-    // Default to CoreAgent for routing and general processing
-    return this.coreAgent;
+    // Default to a general agent for routing and general processing
+    return AgentFactory.createAgent({
+      type: 'general',
+      id: `default_${Date.now()}`,
+      name: 'DefaultAgent',
+      memoryEnabled: true,
+      aiEnabled: true,
+      userId: request.userId
+    });
   }
 
   /**
@@ -336,7 +352,7 @@ export class EnhancedChatAPI {
    */
   private async storeUniversalConversation(
     message: ConversationMessage,
-    agentResponse: any,
+    agentResponse: AgentResponse,
     userId: string
   ): Promise<void> {
     
@@ -363,7 +379,7 @@ export class EnhancedChatAPI {
   /**
    * Extract agent type from agent instance
    */
-  private extractAgentType(agent: ISpecializedAgent | CoreAgent): AgentType {
+  private extractAgentType(agent: ISpecializedAgent): AgentType {
     const className = agent.constructor.name.toLowerCase();
     const allowedAgentTypes: AgentType[] = [
       'general', 'coding', 'research', 'analysis', 'creative', 'specialist', 'coordinator', 'validator', 'development', 'office', 'fitness', 'core', 'triage'

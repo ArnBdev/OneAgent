@@ -415,7 +415,7 @@ export class HealthMonitoringService extends EventEmitter {
   }
 
   async validateUserIsolation(): Promise<UserIsolationReport> {
-    let isolationAccuracy = 100;
+    const isolationAccuracy = 100;
     const violations: IsolationViolation[] = [];
     try {
       // User isolation validation logic not implemented in canonical system
@@ -449,9 +449,9 @@ export class HealthMonitoringService extends EventEmitter {
   async checkConstitutionalCompliance(): Promise<ConstitutionalReport> {
     try {
       // Get constitutional metrics from canonical system only
-      let overallCompliance = 95; // Default
-      let averageQualityScore = 85; // Default
-      let violationsCount = 0;
+      const overallCompliance = 95; // Default
+      const averageQualityScore = 85; // Default
+      const violationsCount = 0;
       // No agentRegistry in canonical system
       return {
         overallCompliance,

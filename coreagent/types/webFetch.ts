@@ -90,14 +90,15 @@ export interface WebFetchError {
   message: string;
   url: string;
   statusCode?: number;
-  details?: any;
+  details?: unknown;
+  isRetryable?: boolean;
 }
 
 // Content extraction result for specific content types
 export interface ContentExtractionResult {
   success: boolean;
   contentType: string;
-  extractedData: any;
+  extractedData: unknown;
   confidence: number; // 0-1 confidence score
   processingTime: number;
   error?: string;

@@ -5,6 +5,23 @@
 
 import { UnifiedMCPTool, ToolExecutionResult, InputSchema } from './UnifiedMCPTool';
 
+interface ConversationSearchArgs {
+  query: string;
+  agentTypes?: string[];
+  qualityThreshold?: number;
+  timeRangeHours?: number;
+  maxResults?: number;
+}
+
+interface SearchResult {
+  timestamp: string;
+  type: string;
+  content: string;
+  relevanceScore: number;
+  matched: boolean;
+  file?: string;
+}
+
 export class ConversationSearchTool extends UnifiedMCPTool {
   constructor() {
     const schema: InputSchema = {
@@ -43,7 +60,7 @@ export class ConversationSearchTool extends UnifiedMCPTool {
     );
   }
 
-  public async executeCore(args: any): Promise<ToolExecutionResult> {
+  public async executeCore(args: ConversationSearchArgs): Promise<ToolExecutionResult> {
     try {
       const { 
         query, 
@@ -55,7 +72,7 @@ export class ConversationSearchTool extends UnifiedMCPTool {
       const fs = await import('fs/promises');
       const path = await import('path');
       
-      const searchResults: any[] = [];
+      const searchResults: SearchResult[] = [];
       let message = 'Conversation search completed';
       
       try {
@@ -76,7 +93,7 @@ export class ConversationSearchTool extends UnifiedMCPTool {
               });
             }
           }
-        } catch (error) {
+        } catch {
           // Memory log not found, continue
         }
         
@@ -100,7 +117,7 @@ export class ConversationSearchTool extends UnifiedMCPTool {
               }
             }
           }
-        } catch (error) {
+        } catch {
           // Logs directory not found, continue
         }
         

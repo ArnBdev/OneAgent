@@ -10,7 +10,8 @@
  */
 
 import { BaseAgent, AgentConfig, AgentContext, AgentResponse } from '../base/BaseAgent';
-import { v4 as uuidv4 } from 'uuid';
+import { ISpecializedAgent } from '../base/ISpecializedAgent';
+import { EnhancedPromptConfig } from '../base/EnhancedPromptEngine';
 
 export interface Task {
   id: string;
@@ -18,7 +19,7 @@ export interface Task {
   priority: 'low' | 'medium' | 'high' | 'urgent';
   assignedAgent?: string;
   status: 'pending' | 'in_progress' | 'completed' | 'failed';
-  context: Record<string, any>;
+  context: Record<string, unknown>;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -32,8 +33,8 @@ export interface CoreAgentResponse extends AgentResponse {
 /**
  * Core Agent - BaseAgent implementation for orchestration
  */
-export class CoreAgent extends BaseAgent {
-  constructor(config?: AgentConfig, promptConfig?: any) {
+export class CoreAgent extends BaseAgent implements ISpecializedAgent {
+  constructor(config?: AgentConfig, promptConfig?: EnhancedPromptConfig) {
     const defaultConfig: AgentConfig = {
       id: 'CoreAgent',
       name: 'CoreAgent',
@@ -57,8 +58,58 @@ export class CoreAgent extends BaseAgent {
     return this.config.id;
   }
 
-  async processMessage(_context: AgentContext, _message: string): Promise<any> {
-    throw new Error('processMessage is not implemented in CoreAgent. Use executeAction for orchestration.');
+  async processMessage(context: AgentContext, message: string): Promise<CoreAgentResponse> {
+    this.validateContext(context);
+
+    // Core agent processes orchestration and system coordination requests
+    const response = await this.generateCoreResponse(message);
+    
+    // Store interaction in memory for system coordination tracking
+    await this.addMemory(
+      context.user.id,
+      `Core orchestration request: ${message}\nResponse: ${response}`,
+      {
+        type: 'core_orchestration',
+        category: 'system_coordination',
+        timestamp: new Date().toISOString(),
+        sessionId: context.sessionId
+      }
+    );
+
+    return {
+      content: response,
+      actions: [],
+      memories: [],
+      metadata: {
+        agentId: this.config.id,
+        timestamp: new Date().toISOString(),
+        systemHealth: await this.getSystemHealth(),
+        isRealAgent: true
+      }
+    };
+  }
+
+  /**
+   * Generate core orchestration response
+   */
+  private async generateCoreResponse(message: string): Promise<string> {
+    const corePrompt = `You are CoreAgent, the central orchestrator for the OneAgent system.
+Your role is to coordinate system activities, monitor agent health, and manage resources.
+
+User request: ${message}
+
+Provide coordination guidance, system status updates, or delegate to appropriate specialized agents.`;
+
+    return await this.generateResponse(corePrompt);
+  }
+
+  /**
+   * Get current system health metrics
+   */
+  private async getSystemHealth(): Promise<number> {
+    // TODO: Implement actual system health calculation
+    // For now, return a baseline health score
+    return 85;
   }
 }
 

@@ -14,9 +14,7 @@ import {
   EmbeddingRequest,
   EmbeddingBatchRequest,
   EmbeddingResponse,
-  EmbeddingBatchResponse,
-  BatchEmbeddingItem,
-  EmbeddingTaskType
+  EmbeddingBatchResponse
 } from '../types/gemini';
 import { globalProfiler } from '../performance/profiler';
 
@@ -126,8 +124,8 @@ export class GeminiClient {
 
       return result;
 
-    } catch (error: any) {
-      console.error('❌ Gemini API error:', error.message);
+    } catch (error: unknown) {
+      console.error('❌ Gemini API error:', error instanceof Error ? error.message : 'Unknown error');
       
       if (axios.isAxiosError(error)) {
         // Handle rate limiting by falling back to mock mode
@@ -324,8 +322,8 @@ export class GeminiClient {
       globalProfiler.endOperation(operationId, true);
       return result;
 
-    } catch (error: any) {
-      console.error('❌ Gemini Embedding API error:', error.message);
+    } catch (error: unknown) {
+      console.error('❌ Gemini Embedding API error:', error instanceof Error ? error.message : 'Unknown error');
       
       if (axios.isAxiosError(error)) {
         // Handle rate limiting by falling back to mock mode
@@ -347,7 +345,7 @@ export class GeminiClient {
         throw geminiError;
       }
       
-      globalProfiler.endOperation(operationId, false, error.message);
+      globalProfiler.endOperation(operationId, false, error instanceof Error ? error.message : 'Unknown error');
       throw error;
     }
   }
@@ -416,8 +414,8 @@ export class GeminiClient {
       globalProfiler.endOperation(operationId, true);
       return results;
 
-    } catch (error: any) {
-      console.error('❌ Gemini Batch Embedding API error:', error.message);
+    } catch (error: unknown) {
+      console.error('❌ Gemini Batch Embedding API error:', error instanceof Error ? error.message : 'Unknown error');
       
       if (axios.isAxiosError(error)) {
         // Handle rate limiting by falling back to mock mode
@@ -439,7 +437,7 @@ export class GeminiClient {
         throw geminiError;
       }
       
-      globalProfiler.endOperation(operationId, false, error.message);
+      globalProfiler.endOperation(operationId, false, error instanceof Error ? error.message : 'Unknown error');
       throw error;
     }
   }

@@ -165,10 +165,12 @@ export class UnifiedContext7MCPIntegration {
    * Search unified memory for relevant documentation patterns and results
    */  private async searchDocumentationMemory(query: DocumentationQuery): Promise<any[]> {
     try {
-      const searchQuery = `documentation query: ${query.query} source: ${query.source}`;      const searchResult = await this.memorySystem.searchMemory(
-        'documentation',
-        { query: searchQuery, user_id: this.agentId, limit: 5 }
-      );
+      const searchQuery = `documentation query: ${query.query} source: ${query.source}`;      const searchResult = await this.memorySystem.searchMemory({
+        collection: 'documentation',
+        query: searchQuery,
+        user_id: this.agentId,
+        limit: 5
+      });
       
       // Handle both possible result formats
       const memories = (searchResult as any).results || (searchResult as any).entries || [];
@@ -291,10 +293,10 @@ export class UnifiedContext7MCPIntegration {
         }
       };
 
-      await this.memorySystem.addMemory(
-        'conversations',
-        conversationMemory
-      );
+      await this.memorySystem.addMemory({
+        collection: 'conversations',
+        record: conversationMemory
+      });
     } catch (error) {
       console.warn(`⚠️ Failed to store documentation interaction: ${error}`);
     }
@@ -346,10 +348,11 @@ export class UnifiedContext7MCPIntegration {
           }
         };
 
-        await this.memorySystem.addMemory(
-          'patterns',
-          patternMemory
-        );
+        // Canonical memory usage: single object argument
+        await this.memorySystem.addMemory({
+          collection: 'learnings',
+          record: patternMemory
+        });
       }
       
       // Extract learning if high-quality results
@@ -386,10 +389,10 @@ export class UnifiedContext7MCPIntegration {
         }
       };
 
-      await this.memorySystem.addMemory(
-        'learnings',
-        learningMemory
-      );
+      await this.memorySystem.addMemory({
+        collection: 'learnings',
+        record: learningMemory
+      });
     } catch (error) {
       console.warn(`⚠️ Failed to extract documentation learning: ${error}`);
     }
@@ -522,10 +525,10 @@ export class UnifiedContext7MCPIntegration {
         }
       };
 
-      await this.memorySystem.addMemory(
-        'workflows',
-        configMemory
-      );
+      await this.memorySystem.addMemory({
+        collection: 'workflows',
+        record: configMemory
+      });
     } catch (error) {
       console.warn(`⚠️ Failed to store source configuration: ${error}`);
     }
@@ -560,16 +563,19 @@ export class UnifiedContext7MCPIntegration {
     try {
       // Phase 1: Search for exact documentation matches in memory
       const exactSearchQuery = `documentation: ${query.query} ${query.source || ''}`;
-      const exactMemoryResults = await this.memorySystem.searchMemory(
-        'documentation',
-        { query: exactSearchQuery, user_id: 'context7-integration', limit: 8 }
-      );
-      // Phase 2: Search for related patterns and learnings
       const patternSearchQuery = `${query.query} patterns examples code documentation`;
-      const patternMemoryResults = await this.memorySystem.searchMemory(
-        'documentation',
-        { query: patternSearchQuery, user_id: 'context7-integration', limit: 5 }
-      );
+      const exactMemoryResults = await this.memorySystem.searchMemory({
+        collection: 'documentation',
+        query: exactSearchQuery,
+        user_id: 'context7-integration',
+        limit: 8
+      });
+      const patternMemoryResults = await this.memorySystem.searchMemory({
+        collection: 'documentation',
+        query: patternSearchQuery,
+        user_id: 'context7-integration',
+        limit: 5
+      });
         // Combine and deduplicate results
       const exactResults = (exactMemoryResults as any).results || (exactMemoryResults as any).entries || [];
       const patternResults = (patternMemoryResults as any).results || (patternMemoryResults as any).entries || [];
@@ -644,7 +650,10 @@ export class UnifiedContext7MCPIntegration {
           maxRelevance: Math.max(...results.map(r => r.relevanceScore))
         }
       };
-      await this.memorySystem.addMemory('patterns', patternMemory);
+      await this.memorySystem.addMemory({
+        collection: 'patterns',
+        record: patternMemory
+      });
     } catch (error) {
       console.warn(`⚠️ Failed to store memory pattern: ${error}`);
     }
@@ -667,7 +676,10 @@ export class UnifiedContext7MCPIntegration {
           timestamp: new Date().toISOString()
         }
       };
-      await this.memorySystem.addMemory('learnings', learningMemory);
+      await this.memorySystem.addMemory({
+        collection: 'learnings',
+        record: learningMemory
+      });
       console.log('📝 Stored documentation gap as learning pattern for future improvement');
     } catch (error) {
       console.warn(`⚠️ Failed to store learning pattern: ${error}`);
@@ -702,7 +714,10 @@ export class UnifiedContext7MCPIntegration {
           organicLearning: true
         }
       };
-      await this.memorySystem.addMemory('patterns', patternMemory);
+      await this.memorySystem.addMemory({
+        collection: 'patterns',
+        record: patternMemory
+      });
       console.log('✅ Stored successful memory retrieval pattern for optimization');
     } catch (error) {
       console.warn(`⚠️ Failed to store memory success pattern: ${error}`);
@@ -729,7 +744,10 @@ export class UnifiedContext7MCPIntegration {
           organicGrowthTarget: true
         }
       };
-      await this.memorySystem.addMemory('learnings', learningMemory);
+      await this.memorySystem.addMemory({
+        collection: 'learnings',
+        record: learningMemory
+      });
       console.log('📝 Stored comprehensive learning pattern for memory system growth');
     } catch (error) {
       console.warn(`⚠️ Failed to store comprehensive learning pattern: ${error}`);
@@ -867,10 +885,10 @@ This pattern will help the unified memory system identify common documentation g
           organicLearning: true,
           priority: 'memory-enhancement'
         }
-      };      await this.memorySystem.addMemory(
-        'learnings',
-        conversationMemory
-      );
+      };      await this.memorySystem.addMemory({
+        collection: 'learnings',
+        record: conversationMemory
+      });
       console.log('📊 Stored fallback interaction for memory system improvement');
     } catch (error) {
       console.warn(`⚠️ Failed to store fallback learning interaction: ${error}`);

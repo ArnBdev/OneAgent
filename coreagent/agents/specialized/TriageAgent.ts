@@ -8,12 +8,68 @@
  * - Specialized triage and orchestration expertise
  */
 
-import { BaseAgent, AgentConfig, AgentContext, AgentResponse, Message, AgentAction } from '../base/BaseAgent';
-import { ISpecializedAgent, AgentStatus, AgentHealthStatus } from '../base/ISpecializedAgent';
+import { BaseAgent, AgentConfig, AgentContext, AgentResponse, AgentAction } from '../base/BaseAgent';
+import { ISpecializedAgent, AgentHealthStatus } from '../base/ISpecializedAgent';
 import { EnhancedPromptConfig, AgentPersona, ConstitutionalPrinciple } from '../base/EnhancedPromptEngine';
+import { MemoryRecord } from '../../types/oneagent-backbone-types';
+
+interface TaskAnalysis {
+  confidence: number;
+  reasoning: string;
+  suggestedAgent: string;
+}
+
+interface LoadMetrics {
+  cpuUsage?: number;
+  memoryUsage?: number;
+  activeAgents?: number;
+  queueSize?: number;
+  [key: string]: unknown;
+}
+
+interface RoutingResult {
+  routing: {
+    selectedAgent: string;
+    confidence: number;
+    reasoning: string;
+    priority: string;
+    estimatedDuration: string;
+  };
+  alternatives: string[];
+  metadata: {
+    timestamp: string;
+    taskType: string;
+    complexity: string;
+  };
+}
+
+interface HealthAssessment {
+  overall: string;
+  agents: Record<string, AgentHealthStatus>;
+  recommendations: string[];
+  alerts: string[];
+}
+
+interface LoadBalanceResult {
+  currentStatus: string;
+  recommendations: string[];
+  actions: string[];
+  projectedImprovement: string;
+}
+
+interface TriageAnalysis {
+  recommendedAgent: string;
+  confidence: number;
+  reasoning: string;
+  priority: string;
+  estimatedDuration: string;
+  category: string;
+  complexity: string;
+  alternativeAgents: string[];
+}
 
 export class TriageAgent extends BaseAgent implements ISpecializedAgent {
-  constructor(config: AgentConfig, promptConfig?: any) {
+  constructor(config: AgentConfig, promptConfig?: EnhancedPromptConfig) {
     super(config, promptConfig || TriageAgent.createTriagePromptConfig());
   }
 
@@ -60,18 +116,54 @@ export class TriageAgent extends BaseAgent implements ISpecializedAgent {
     ];
   }
 
-  async executeAction(action: string | AgentAction, params: any, context?: AgentContext): Promise<any> {
+  async executeAction(action: string | AgentAction, params: Record<string, unknown>, _context?: AgentContext): Promise<AgentResponse> {
     const actionType = typeof action === 'string' ? action : action.type;
     
     switch (actionType) {
-      case 'route_task':
-        return this.routeTask(params.task, params.priority, params.requiredSkills, context);
-      case 'assess_agent_health':
-        return this.assessAgentHealth(params.agentId, context);
-      case 'load_balance':
-        return this.balanceLoad(params.currentLoad, context);
+      case 'route_task': {
+        const routingResult = await this.routeTask(
+          params.task as string, 
+          params.priority as string | undefined, 
+          params.requiredSkills as string[] | undefined
+        );
+        return {
+          content: 'Task routing completed',
+          metadata: {
+            type: 'routing_result',
+            routing: routingResult.routing,
+            alternatives: routingResult.alternatives,
+            taskMetadata: routingResult.metadata
+          }
+        };
+      }
+      case 'assess_agent_health': {
+        const healthAssessment = await this.assessAgentHealth(params.agentId as string | undefined);
+        return {
+          content: 'Agent health assessment completed',
+          metadata: {
+            type: 'health_assessment',
+            overall: healthAssessment.overall,
+            agents: healthAssessment.agents,
+            recommendations: healthAssessment.recommendations,
+            alerts: healthAssessment.alerts
+          }
+        };
+      }
+      case 'load_balance': {
+        const loadBalanceResult = await this.balanceLoad(params.currentLoad as LoadMetrics);
+        return {
+          content: 'Load balancing completed',
+          metadata: {
+            type: 'load_balance_result',
+            currentStatus: loadBalanceResult.currentStatus,
+            recommendations: loadBalanceResult.recommendations,
+            actions: loadBalanceResult.actions,
+            projectedImprovement: loadBalanceResult.projectedImprovement
+          }
+        };
+      }
       default:
-        throw new Error(`Unknown action: ${actionType}`);
+        return await super.executeAction(action, params, _context);
     }
   }
 
@@ -91,57 +183,136 @@ export class TriageAgent extends BaseAgent implements ISpecializedAgent {
   }
 
   // TriageAgent-specific action implementations
-  private async routeTask(task: string, priority?: string, requiredSkills?: string[], _context?: AgentContext): Promise<any> {
+  private async routeTask(task: string, priority?: string, requiredSkills?: string[]): Promise<RoutingResult> {
     // Analyze task and determine best agent
     const analysis = this.analyzeTask(task, requiredSkills);
     const selectedAgent = this.selectBestAgent(analysis, priority);
     
     return {
       routing: {
-        task,
-        priority: priority || 'medium',
-        assignedAgent: selectedAgent,
+        selectedAgent,
         confidence: analysis.confidence,
-        reasoning: analysis.reasoning
+        reasoning: analysis.reasoning,
+        priority: priority || 'medium',
+        estimatedDuration: this.estimateDuration(task)
       },
-      message: `Task routed to ${selectedAgent} with ${analysis.confidence}% confidence`
+      alternatives: this.getAlternativeAgents(selectedAgent),
+      metadata: {
+        timestamp: new Date().toISOString(),
+        taskType: this.categorizeTask(task),
+        complexity: this.assessComplexity(task)
+      }
     };
   }
 
-  private async assessAgentHealth(agentId?: string, _context?: AgentContext): Promise<any> {
+  private estimateDuration(task: string): string {
+    // Simple duration estimation based on task complexity
+    const complexity = this.assessComplexity(task);
+    switch (complexity) {
+      case 'low': return '5-15 minutes';
+      case 'medium': return '15-60 minutes';
+      case 'high': return '1-4 hours';
+      default: return '30 minutes';
+    }
+  }
+
+  private getAlternativeAgents(selectedAgent: string): string[] {
+    // Return list of alternative agents
+    const allAgents = ['CoreAgent', 'DevAgent', 'FitnessAgent', 'OfficeAgent', 'ValidationAgent'];
+    return allAgents.filter(agent => agent !== selectedAgent).slice(0, 2);
+  }
+
+  private categorizeTask(task: string): string {
+    const taskLower = task.toLowerCase();
+    if (taskLower.includes('code') || taskLower.includes('develop')) return 'development';
+    if (taskLower.includes('fitness') || taskLower.includes('workout')) return 'fitness';
+    if (taskLower.includes('validate') || taskLower.includes('check')) return 'validation';
+    if (taskLower.includes('office') || taskLower.includes('document')) return 'office';
+    return 'general';
+  }
+
+  private assessComplexity(task: string): string {
+    const taskLength = task.length;
+    const complexityKeywords = ['complex', 'advanced', 'comprehensive', 'detailed'];
+    const hasComplexKeywords = complexityKeywords.some(keyword => 
+      task.toLowerCase().includes(keyword)
+    );
+    
+    if (hasComplexKeywords || taskLength > 200) return 'high';
+    if (taskLength > 100) return 'medium';
+    return 'low';
+  }
+
+  private async assessAgentHealth(agentId?: string): Promise<HealthAssessment> {
     if (agentId) {
       // Check specific agent
-      return {
-        agentId,
+      const agentHealth: AgentHealthStatus = {
         status: 'healthy',
         uptime: Date.now(),
-        load: 'low',
-        lastCheck: new Date()
+        memoryUsage: 45,
+        responseTime: 120,
+        errorRate: 0.01,
+        lastActivity: new Date()
+      };
+      
+      return {
+        overall: 'healthy',
+        agents: { [agentId]: agentHealth },
+        recommendations: ['Monitor response times'],
+        alerts: []
       };
     } else {
       // Check all agents
+      const mockAgents: Record<string, AgentHealthStatus> = {
+        'CoreAgent': { status: 'healthy', uptime: Date.now(), memoryUsage: 30, responseTime: 100, errorRate: 0.005, lastActivity: new Date() },
+        'DevAgent': { status: 'healthy', uptime: Date.now(), memoryUsage: 25, responseTime: 90, errorRate: 0.002, lastActivity: new Date() },
+        'FitnessAgent': { status: 'healthy', uptime: Date.now(), memoryUsage: 20, responseTime: 110, errorRate: 0.001, lastActivity: new Date() }
+      };
+      
       return {
-        systemHealth: 'good',
-        totalAgents: 5,
-        healthyAgents: 5,
-        overloadedAgents: 0,
-        offlineAgents: 0,
-        lastSystemCheck: new Date()
+        overall: 'healthy',
+        agents: mockAgents,
+        recommendations: ['System performing well', 'Consider scaling if load increases'],
+        alerts: []
       };
     }
   }
 
-  private async balanceLoad(currentLoad: any, _context?: AgentContext): Promise<any> {
+  private async balanceLoad(currentLoad: LoadMetrics): Promise<LoadBalanceResult> {
     const recommendations = this.generateLoadBalanceRecommendations(currentLoad);
     
     return {
-      currentLoad,
+      currentStatus: this.assessLoadStatus(currentLoad),
       recommendations,
-      projectedImpact: 'Improved response time by 15%',
-      implementationSteps: recommendations.map((r: string, i: number) => `${i + 1}. ${r}`)
+      actions: this.generateLoadBalanceActions(currentLoad),
+      projectedImprovement: 'Expected 15-20% improvement in response times'
     };
   }
-  private analyzeTask(task: string, _requiredSkills?: string[]): { confidence: number; reasoning: string; suggestedAgent: string } {
+
+  private assessLoadStatus(currentLoad: LoadMetrics): string {
+    const cpu = currentLoad.cpuUsage || 0;
+    const memory = currentLoad.memoryUsage || 0;
+    const queue = currentLoad.queueSize || 0;
+    
+    if (cpu > 80 || memory > 80 || queue > 50) return 'High Load';
+    if (cpu > 60 || memory > 60 || queue > 20) return 'Medium Load';
+    return 'Normal Load';
+  }
+
+  private generateLoadBalanceActions(currentLoad: LoadMetrics): string[] {
+    const actions: string[] = [];
+    const cpu = currentLoad.cpuUsage || 0;
+    const memory = currentLoad.memoryUsage || 0;
+    const queue = currentLoad.queueSize || 0;
+    
+    if (cpu > 70) actions.push('Scale CPU resources');
+    if (memory > 70) actions.push('Increase memory allocation');
+    if (queue > 30) actions.push('Add additional processing agents');
+    if (actions.length === 0) actions.push('Maintain current configuration');
+    
+    return actions;
+  }
+  private analyzeTask(task: string, _requiredSkills?: string[]): TaskAnalysis {
     // Simple task analysis logic
     const taskLower = task.toLowerCase();
     
@@ -172,12 +343,12 @@ export class TriageAgent extends BaseAgent implements ISpecializedAgent {
     };
   }
 
-  private selectBestAgent(analysis: any, _priority?: string): string {
+  private selectBestAgent(analysis: TaskAnalysis, _priority?: string): string {
     // For now, return the suggested agent from analysis
     return analysis.suggestedAgent;
   }
 
-  private generateLoadBalanceRecommendations(currentLoad: any): string[] {
+  private generateLoadBalanceRecommendations(currentLoad: LoadMetrics): string[] {
     const recommendations = ['Monitor agent response times', 'Scale up high-load agents'];
     
     if (currentLoad.highLoad) {
@@ -202,10 +373,10 @@ export class TriageAgent extends BaseAgent implements ISpecializedAgent {
       );
 
       // Analyze the task/query for routing decisions
-      const triageAnalysis = await this.analyzeTaskForTriage(message, relevantMemories, context);
+      const triageAnalysis = await this.analyzeTaskForTriage(message, relevantMemories);
 
       // Generate AI response with triage expertise
-      const response = await this.generateTriageResponse(message, triageAnalysis, relevantMemories, context);
+      const response = await this.generateTriageResponse(message, triageAnalysis, relevantMemories);
 
       // Store this routing decision in memory for future reference
       await this.addMemory(
@@ -237,8 +408,7 @@ export class TriageAgent extends BaseAgent implements ISpecializedAgent {
    */
   private async analyzeTaskForTriage(
     message: string,
-    memories: any[],
-    _context: AgentContext
+    memories: MemoryRecord[]
   ): Promise<TriageAnalysis> {
     const prompt = `
 Analyze this user request for optimal task routing:
@@ -288,8 +458,7 @@ Respond in JSON format:
   private async generateTriageResponse(
     message: string,
     triageAnalysis: TriageAnalysis,
-    memories: any[],
-    _context: AgentContext
+    memories: MemoryRecord[]
   ): Promise<string> {
     const routingContext = this.buildRoutingContext(memories);
     
@@ -323,14 +492,14 @@ Be concise but comprehensive in your routing analysis.
   /**
    * Build routing context from historical decisions
    */
-  private buildRoutingContext(memories: any[]): string {
+  private buildRoutingContext(memories: MemoryRecord[]): string {
     if (!memories || memories.length === 0) {
       return "No previous routing history available.";
     }
 
     const routingMemories = memories
       .filter(memory => 
-        memory.metadata?.type === 'triage_decision' ||
+        memory.metadata?.category === 'triage_decision' ||
         memory.content?.toLowerCase().includes('routing') ||
         memory.content?.toLowerCase().includes('agent')
       )
@@ -342,8 +511,13 @@ Be concise but comprehensive in your routing analysis.
 
     return routingMemories
       .map(memory => {
-        const metadata = memory.metadata || {};
-        return `Previous: ${metadata.category || 'unknown'} -> ${metadata.recommendedAgent || 'unknown'} (Priority: ${metadata.priority || 'unknown'})`;
+        // Parse routing information from content since it's stored as structured data
+        try {
+          const routingInfo = JSON.parse(memory.content);
+          return `Previous: ${memory.metadata.category || 'unknown'} -> ${routingInfo.recommendedAgent || 'unknown'} (Priority: ${routingInfo.priority || 'unknown'})`;
+        } catch {
+          return `Previous: ${memory.metadata.category || 'unknown'} -> ${memory.content.substring(0, 50)}...`;
+        }
       })
       .join('\n');
   }
@@ -383,7 +557,8 @@ Be concise but comprehensive in your routing analysis.
       recommendedAgent,
       alternativeAgents: ['CoreAgent'],
       confidence: 6,
-      reasoning: 'Fallback keyword-based analysis used due to AI parsing failure'
+      reasoning: 'Fallback keyword-based analysis used due to AI parsing failure',
+      estimatedDuration: '30 minutes'
     };
   }
 
@@ -467,12 +642,3 @@ Be concise but comprehensive in your routing analysis.
 /**
  * Interface for triage analysis results
  */
-interface TriageAnalysis {
-  category: string;
-  priority: string;
-  complexity: string;
-  recommendedAgent: string;
-  alternativeAgents: string[];
-  confidence: number;
-  reasoning: string;
-}

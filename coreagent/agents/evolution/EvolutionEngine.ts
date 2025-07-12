@@ -363,7 +363,7 @@ export class EvolutionEngine extends EventEmitter {
   private async getRecentConversations(userId: string): Promise<any[]> {
     try {
       // Use canonical memory bridge to fetch recent conversations (limit 10)
-      return await this.memorySystem.searchMemory('conversations', { userId, limit: 10 });
+      return await this.memorySystem.searchMemory({ collection: 'conversations', query: { userId, limit: 10 } });
     } catch (error) {
       console.error('Failed to get recent conversations:', error);
       return [];
@@ -374,7 +374,7 @@ export class EvolutionEngine extends EventEmitter {
   private async getPerformanceMetrics(): Promise<any> {
     try {
       // Use canonical memory bridge to fetch quality metrics
-      return await this.memorySystem.searchMemory('metrics', {});
+      return await this.memorySystem.searchMemory({ collection: 'metrics', query: {} });
     } catch (error) {
       console.error('Failed to get performance metrics:', error);
       return {
@@ -400,7 +400,7 @@ export class EvolutionEngine extends EventEmitter {
   private async getMemoryInsights(): Promise<any> {
     try {
       // Use canonical memory bridge to fetch system analytics
-      return await this.memorySystem.searchMemory('analytics', {});
+      return await this.memorySystem.searchMemory({ collection: 'analytics', query: {} });
     } catch (error) {
       console.error('Failed to get memory insights:', error);
       return { patterns: [], successfulStrategies: [], problematicAreas: [] };
@@ -410,7 +410,8 @@ export class EvolutionEngine extends EventEmitter {
   private async storeEvolutionRecord(record: any): Promise<void> {
     try {
       // Store as a learning in the canonical memory system
-      await this.memorySystem.addMemory('learnings', { ...record });
+      // Canonical memory usage: single object argument
+      await this.memorySystem.addMemory({ collection: 'learnings', record: { ...record } });
       console.log('Evolution record stored:', record);
     } catch (error) {
       console.error('Failed to store evolution record:', error);

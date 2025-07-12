@@ -24,7 +24,7 @@ export interface ISpecializedAgent {
   getAvailableActions(): AgentAction[];
   
   /** Execute a specific action */
-  executeAction(action: string | AgentAction, params: any, context?: AgentContext): Promise<any>;
+  executeAction(action: string | AgentAction, params: Record<string, unknown>, context?: AgentContext): Promise<unknown>;
     /** Get agent status and health (BaseAgent compatibility) */
   getStatus(): {
     agentId: string;
@@ -64,7 +64,7 @@ export interface AgentCapability {
   name: string;
   description: string;
   category: 'behavior' | 'memory' | 'action' | 'dialogue';
-  parameters?: Record<string, any>;
+  parameters?: Record<string, unknown>;
 }
 
 export interface AgentPersonality {
@@ -87,8 +87,8 @@ export type ResponseStyle = 'formal' | 'casual' | 'professional' | 'friendly' | 
 
 export interface AgentMemoryContext {
   sessionId: string;
-  conversationHistory: any[];
-  relevantMemories: any[];
+  conversationHistory: unknown[];
+  relevantMemories: unknown[];
   contextWindow: string[];
 }
 
@@ -99,7 +99,7 @@ export interface Task {
   priority: 'low' | 'medium' | 'high' | 'urgent';
   assignedAgent?: string;
   status: 'pending' | 'in_progress' | 'completed' | 'failed';
-  context: Record<string, any>;
+  context: Record<string, unknown>;
   createdAt: Date;
   updatedAt: Date;
 }

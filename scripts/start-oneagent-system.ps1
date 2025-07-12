@@ -1,55 +1,50 @@
-#!/usr/bin/env pwsh
-# OneAgent System - Canonical Startup Script
-# Starts Memory Server (background) and MCP/Node.js server (foreground)
+# ===============================
+# OneAgent System Startup Script (2025-07-07)
+#
+# Starts BOTH the memory server (mem0/FastAPI) and the MCP server (Node.js/TypeScript) in parallel.
+#
+# USAGE:
+#   PowerShell: ./scripts/start-oneagent-system.ps1
+#
+# For details, see: ../README.md, scripts/README.md, START_HERE.txt, QUICKSTART.txt
+#
+# WARNING: All legacy scripts have been deleted. Use ONLY this script or start-unified.ps1
+# ===============================
+
+# Modern OneAgent System Startup Script (PowerShell)
+# Launches both the memory server (FastAPI/Uvicorn) and the MCP server (Node/TSX) in parallel
+# Provides developer-friendly output, error handling, and shutdown instructions
 
 param(
-    [switch]$SkipDependencies = $false,
-    [switch]$MemoryOnly = $false,
-    [switch]$MCPOnly = $false
+    [switch]$NoBanner
 )
 
-Write-Host "[OneAgent] Canonical System Startup" -ForegroundColor Green
-
-$ErrorActionPreference = 'Stop'
-
-# Start Memory Server (Python/FastAPI) in background
-if (-not $MCPOnly) {
-    Write-Host "[OneAgent] Starting Memory Server (Mem0/FastAPI) in background..." -ForegroundColor Cyan
-    $memServerScript = Join-Path $PSScriptRoot 'start-memory-server.ps1'
-    if (Test-Path $memServerScript) {
-        Start-Process pwsh -ArgumentList "-NoLogo", "-NoProfile", "-Command", $memServerScript -WindowStyle Hidden
-        Start-Sleep -Seconds 3 # Give memory server time to start
-    } else {
-        Write-Host "[WARN] Memory server script not found: $memServerScript" -ForegroundColor Yellow
-    }
+function Start-ProcessWithBanner {
+    param(
+        [string]$Name,
+        [string]$Command,
+        [string]$WorkingDirectory = $PWD
+    )
+    Write-Host "[OneAgent] Starting $Name..." -ForegroundColor Cyan
+    Start-Process -FilePath "pwsh" -ArgumentList "-NoExit", "-Command", $Command -WorkingDirectory $WorkingDirectory
 }
 
-# Start MCP/Node.js Server in background
-if (-not $MemoryOnly) {
-    Write-Host "[OneAgent] Starting MCP/Node.js Server in background..." -ForegroundColor Cyan
-    $mainEntry = $null
-    $tsEntry = Resolve-Path ../coreagent/unified-main.ts -ErrorAction SilentlyContinue
-    $jsEntry = Resolve-Path ../coreagent/unified-main.js -ErrorAction SilentlyContinue
-    if ($tsEntry) { $mainEntry = $tsEntry }
-    elseif ($jsEntry) { $mainEntry = $jsEntry }
-    else {
-        $tsEntry = Resolve-Path ../coreagent/main.ts -ErrorAction SilentlyContinue
-        $jsEntry = Resolve-Path ../coreagent/main.js -ErrorAction SilentlyContinue
-        if ($tsEntry) { $mainEntry = $tsEntry }
-        elseif ($jsEntry) { $mainEntry = $jsEntry }
-    }
-    if ($mainEntry) {
-        # Use ts-node if available for .ts, else node for .js
-        if ($mainEntry -like '*.ts' -and (Get-Command ts-node -ErrorAction SilentlyContinue)) {
-            Start-Process ts-node -ArgumentList $mainEntry -WindowStyle Hidden
-        } elseif ($mainEntry -like '*.js' -and (Get-Command node -ErrorAction SilentlyContinue)) {
-            Start-Process node -ArgumentList $mainEntry -WindowStyle Hidden
-        } else {
-            Write-Host "[ERROR] Neither ts-node nor node found in PATH, or entry point extension not supported." -ForegroundColor Red
-        }
-    } else {
-        Write-Host "[ERROR] No main server entry point found (unified-main.ts/.js or main.ts/.js)." -ForegroundColor Red
-    }
+if (-not $NoBanner) {
+    Write-Host "===============================" -ForegroundColor Green
+    Write-Host " OneAgent System Startup " -ForegroundColor Green
+    Write-Host "===============================" -ForegroundColor Green
+    Write-Host "This script will launch BOTH the memory server and the MCP server in parallel." -ForegroundColor Yellow
+    Write-Host "To stop all servers, close their terminal windows or use Task Manager." -ForegroundColor Yellow
+    Write-Host "" 
 }
 
-Write-Host "[OneAgent] System startup complete." -ForegroundColor Green
+# Start Memory Server (Python/FastAPI/Uvicorn)
+$memoryServerCmd = "uvicorn servers.oneagent_memory_server:app --host 127.0.0.1 --port 8010 --reload"
+Start-ProcessWithBanner -Name "Memory Server (mem0)" -Command $memoryServerCmd -WorkingDirectory "$PSScriptRoot/.."
+
+# Start MCP Server (Node/TSX)
+$mcpServerCmd = "npx tsx coreagent/server/unified-mcp-server.ts"
+Start-ProcessWithBanner -Name "MCP Server (Node/TSX)" -Command $mcpServerCmd -WorkingDirectory "$PSScriptRoot/.."
+
+Write-Host "[OneAgent] Both servers launched. Check their windows for output." -ForegroundColor Green
+Write-Host "[OneAgent] To stop, close the corresponding terminal windows." -ForegroundColor Yellow

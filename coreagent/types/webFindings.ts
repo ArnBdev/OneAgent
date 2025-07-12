@@ -4,7 +4,7 @@
 export interface WebSearchFinding {
   id: string;
   query: string;
-  results: any[]; // WebSearchResponse results
+  results: unknown[]; // WebSearchResponse results
   metadata: {
     timestamp: string;
     userId?: string;

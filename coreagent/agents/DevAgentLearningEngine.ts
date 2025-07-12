@@ -17,7 +17,7 @@
 import { MemoryDrivenAgentCommunication } from './communication/MemoryDrivenAgentCommunication';
 import { UnifiedContext7MCPIntegration, DocumentationResult } from '../mcp/UnifiedContext7MCPIntegration';
 import { CodeAnalysisResult } from './AdvancedCodeAnalysisEngine';
-import { timeAwareness, getEnhancedTimeContext } from '../utils/EnhancedTimeAwareness.js';
+import { getEnhancedTimeContext } from '../utils/EnhancedTimeAwareness.js';
 import { OneAgentUnifiedBackbone } from '../utils/UnifiedBackboneService.js';
 import { OneAgentMemory } from '../memory/OneAgentMemory';
 
@@ -345,11 +345,12 @@ export class DevAgentLearningEngine {
   private async loadExistingPatterns(): Promise<void> {
     try {
       // Query for all DevAgent learning patterns globally, not user-specific
-      const memoryResult = await this.memoryBridge.searchMemory('learned-patterns', {
+      const memoryResult = await this.memoryBridge.searchMemory({
         query: 'learned pattern solution best practice devagent',
         user_id: 'global',
         limit: 100,
-        semanticSearch: true
+        semanticSearch: true,
+        type: 'learned-patterns'
       });
       const loadedPatterns: string[] = [];
       if (Array.isArray(memoryResult)) {
@@ -471,9 +472,9 @@ export class DevAgentLearningEngine {
       
       const pattern: LearnedPattern = {
         id: patternId,
-        name: `${doc.title} - ${language} Pattern`,
-        description: `Best practice from ${doc.source} documentation`,
-        category: 'best-practice',
+        name: `${doc.title} - ${language} Code Pattern`,
+        description: `Code example from ${doc.source} documentation`,
+        category: 'solution',
         language,
         
         problem: problemContext,
@@ -503,6 +504,61 @@ export class DevAgentLearningEngine {
       patterns.push(pattern);
     }
     
+    // Process best practice patterns - architectural completion
+    for (const bestPractice of bestPractices) {
+      if (bestPractice.trim().length < 20) continue; // Skip short/incomplete practices
+      
+      const practiceMetadata = this.unifiedBackbone.getServices().metadataService.create(
+        'context7-best-practice',
+        'DevAgentLearningEngine',
+        { 
+          content: { 
+            category: 'context7-learning',
+            tags: [language, 'context7', 'documentation', 'best-practice'],
+            sensitivity: 'internal',
+            relevanceScore: 0.9, // Best practices are highly relevant
+            contextDependency: 'session'
+          }
+        }
+      );
+      const practiceId = practiceMetadata.id;
+      
+      const practicePattern: LearnedPattern = {
+        id: practiceId,
+        name: `${doc.title} - ${language} Best Practice`,
+        description: `Best practice guideline from ${doc.source}`,
+        category: 'best-practice',
+        language,
+        
+        problem: problemContext,
+        solution: bestPractice.trim(),
+        reasoning: `Best practice recommendation from ${doc.source}`,
+        codeExample: '', // Best practices are textual, not code
+        
+        confidence: 0.95, // Very high confidence for documented best practices
+        successRate: 0.9, // Best practices prevent issues
+        timesUsed: 0,
+        timesSuccessful: 0,
+        
+        contexts: [problemContext],
+        dependencies: [], // Best practices typically don't have code dependencies
+        complexity: 'beginner', // Best practices are foundational guidelines
+        
+        qualityScore: 95, // Best practices have high quality value
+        constitutionallyValid: true,
+        lastValidated: new Date(getEnhancedTimeContext().realTime.utc),
+        lastUsed: new Date(0),
+        
+        learnedFrom: 'context7',
+        ...(doc.url && { sourceDetails: { documentationUrl: doc.url } }),
+        
+        relatedPatterns: [],
+        supersedes: []
+      };
+      
+      patterns.push(practicePattern);
+    }
+    
     return patterns;
   }
   /**
@@ -510,7 +566,7 @@ export class DevAgentLearningEngine {
    */
   private async storeNewPattern(pattern: LearnedPattern): Promise<LearnedPattern> {
     try {
-      await this.memoryBridge.addMemory('learned-patterns', {
+      await this.memoryBridge.addMemory({
         id: `learned_pattern_${pattern.id}_${Date.now()}`,
         agentId: this.agentId,
         learningType: 'pattern',
@@ -524,7 +580,8 @@ export class DevAgentLearningEngine {
           language: pattern.language,
           framework: pattern.framework,
           category: pattern.category
-        }
+        },
+        type: 'learned-patterns'
       });
       return pattern;
     } catch (error) {
@@ -669,11 +726,12 @@ export class DevAgentLearningEngine {
   ): Promise<LearnedPattern[]> {
     try {
       const searchQuery = `${language} ${category || ''} ${problem}`.trim();
-      const memoryResult = await this.memoryBridge.searchMemory('learned-patterns', {
+      const memoryResult = await this.memoryBridge.searchMemory({
         query: searchQuery,
         user_id: this.agentId,
         limit: maxResults,
-        semanticSearch: true
+        semanticSearch: true,
+        type: 'learned-patterns'
       });
       const patterns: LearnedPattern[] = [];
       for (const memory of (memoryResult || []).slice(0, maxResults)) {
@@ -744,7 +802,7 @@ export class DevAgentLearningEngine {
     await this.updatePatternInMemory(pattern);
     return pattern;
   }  private async updatePatternInMemory(pattern: LearnedPattern): Promise<void> {
-    await this.memoryBridge.addMemory('learned-patterns', {
+    await this.memoryBridge.addMemory({
       id: `learned_pattern_${pattern.id}_${Date.now()}`,
       agentId: this.agentId,
       learningType: 'pattern',
@@ -758,7 +816,8 @@ export class DevAgentLearningEngine {
         language: pattern.language,
         framework: pattern.framework,
         category: pattern.category
-      }
+      },
+      type: 'learned-patterns'
     });
   }
 

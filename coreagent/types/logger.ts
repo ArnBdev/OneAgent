@@ -68,7 +68,7 @@ export interface LogMetadata {
     error?: ErrorDetails;
     performance?: PerformanceMetrics;
     security?: SecurityContext;
-    custom?: Record<string, any>;
+    custom?: Record<string, unknown>;
     stackTrace?: string;
     userAgent?: string;
     ipAddress?: string;
@@ -146,7 +146,7 @@ export interface LogOutputConfig {
     enabled: boolean;
     level?: LogLevel;
     categories?: LogCategory[];
-    options?: Record<string, any>;
+    options?: Record<string, unknown>;
 }
 
 /**
@@ -302,6 +302,6 @@ export interface LogAlertCondition {
  */
 export interface LogAlertAction {
     type: 'email' | 'webhook' | 'slack' | 'sms' | 'console';
-    config: Record<string, any>;
+    config: Record<string, unknown>;
     enabled: boolean;
 }

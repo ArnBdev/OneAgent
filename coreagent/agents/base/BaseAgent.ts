@@ -36,6 +36,9 @@ export interface AgentConfig {
   capabilities: string[];
   memoryEnabled: boolean;
   aiEnabled: boolean;
+  // A2A system configuration
+  a2aEnabled?: boolean;
+  a2aCapabilities?: string[];
 }
 
 export interface AgentContext {
@@ -90,6 +93,11 @@ export abstract class BaseAgent {
   protected bmadElicitation?: BMADElicitationEngine;
   protected promptConfig?: EnhancedPromptConfig;
   protected personalityEngine?: PersonalityEngine;
+  
+  // A2A Multi-Agent Communication
+  protected a2aEnabled: boolean = false;
+  protected a2aCapabilities: string[] = [];
+  protected currentSessions: Set<string> = new Set();
   constructor(config: AgentConfig, promptConfig?: EnhancedPromptConfig) {
     this.config = config;
     this.promptConfig = promptConfig || this.getDefaultPromptConfig();
@@ -117,7 +125,7 @@ export abstract class BaseAgent {
       }// Initialize AI client if enabled with intelligent model selection
       if (this.config.aiEnabled) {
         // Import intelligent model selection
-        const { ModelTierSelector } = await import('../../../config/gemini-model-tier-selector');
+        const { ModelTierSelector } = await import('../../config/gemini-model-tier-selector');
         const tierSelector = ModelTierSelector.getInstance();
         
         // Select optimal model based on agent type and capabilities
@@ -155,42 +163,12 @@ export abstract class BaseAgent {
    */
   private async autoRegisterAgent(): Promise<void> {
     try {
-      // Import AgentCommunicationProtocol dynamically to avoid circular deps
-      const { AgentCommunicationProtocol } = await import('../communication/AgentCommunicationProtocol');
-      const protocol = AgentCommunicationProtocol.getInstance();
-
-      if (!protocol) {
-        console.warn(`⚠️ Communication protocol not available for ${this.config.id} auto-registration`);
-        return;
+      // Register with the integrated A2A system instead of separate communication protocol
+      if (this.a2aEnabled) {
+        await this.registerWithA2ASystem();
       }
-
-      // Create agent registration data with Constitutional AI validation
-      const registration = {
-        agentId: this.config.id,
-        agentType: this.config.name.toLowerCase().replace(/agent/i, '').replace(/\s+/g, ''),
-        capabilities: this.config.capabilities.map(cap => ({
-          name: cap,
-          description: `${cap} capability provided by ${this.config.name}`,
-          version: '1.0.0',
-          parameters: {},
-          qualityThreshold: 85,
-          constitutionalCompliant: true
-        })),
-        endpoint: `${oneAgentConfig.mcpUrl}/agent/${this.config.id}`,
-        status: 'online' as const,
-        loadLevel: 0,
-        qualityScore: 90,
-        lastSeen: new Date()
-      };
-
-      // Register with communication protocol
-      const success = await protocol.registerAgent(registration);
       
-      if (success) {
-        console.log(`✅ AUTO-REGISTERED: ${this.config.id} with communication protocol`);
-      } else {
-        console.warn(`⚠️ AUTO-REGISTRATION FAILED: ${this.config.id} with communication protocol`);
-      }
+      console.log(`✅ Agent created (metadata service unavailable): ${this.config.name}/${this.config.id}`);
     } catch (error) {
       console.error(`❌ Auto-registration error for ${this.config.id}:`, error);
       // Don't throw - registration failure shouldn't prevent agent initialization
@@ -293,7 +271,17 @@ export abstract class BaseAgent {
       taskCompleted: true,
       responseTime: 1000
     };
-    await this.memoryClient.addMemory('conversations', conversation);
+    // Store conversation in canonical memory system
+    await this.memoryClient.addMemory({
+      content: JSON.stringify(conversation),
+      metadata: {
+        ...metadata,
+        category: 'conversations',
+        type: 'conversation_data',
+        userId: userId,
+        sessionId: metadata?.sessionId || 'default'
+      }
+    });
   }/**
    * Search for relevant memories using intelligent search when available
    */
@@ -310,9 +298,13 @@ export abstract class BaseAgent {
         console.warn(`Memory Intelligence search failed, falling back to standard search:`, error);
       }
     }
-    // Fallback to standard memory search
-    const result = await this.memoryClient.searchMemory('conversations', { query, user_id: _userId, limit });
-    return result.results || [];
+    // Fallback to standard memory search using canonical memory system
+    const result = await this.memoryClient.searchMemory({
+      query,
+      user_id: _userId,
+      limit
+    });
+    return result.memories || [];
   }/**
    * Generate AI response using advanced prompt engineering system
    */
@@ -1070,5 +1062,277 @@ Focus on your domain expertise and provide insights that contribute to the discu
       // Additional sensitivity filtering would go here
       return true;
     });
+  }
+
+  // =============================================================================
+  // A2A MULTI-AGENT COMMUNICATION SYSTEM INTEGRATION
+  // =============================================================================
+
+  /**
+   * Register agent with the integrated A2A system
+   */
+  protected async registerWithA2ASystem(): Promise<void> {
+    try {
+      // Import OneAgentEngine to access A2A functionality
+      const { OneAgentEngine } = await import('../../OneAgentEngine');
+      const engine = OneAgentEngine.getInstance();
+
+      // Register agent with A2A system
+      const registration = {
+        id: this.config.id,
+        name: this.config.name,
+        capabilities: this.a2aCapabilities
+      };
+
+      // Call A2A registration through OneAgentEngine
+      const request = {
+        id: `register_${this.config.id}_${Date.now()}`,
+        type: 'tool_call' as const,
+        method: 'oneagent_a2a_register_agent',
+        params: registration,
+        timestamp: new Date().toISOString()
+      };
+
+      const response = await engine.processRequest(request);
+      
+      if (response.success) {
+        console.log(`🤖 A2A Registration successful for ${this.config.id}`);
+      } else {
+        console.warn(`⚠️ A2A Registration failed for ${this.config.id}:`, response.error?.message);
+      }
+    } catch (error) {
+      console.error(`❌ A2A Registration error for ${this.config.id}:`, error);
+    }
+  }
+
+  /**
+   * Join an A2A session
+   */
+  protected async joinA2ASession(sessionId: string): Promise<boolean> {
+    if (!this.a2aEnabled) {
+      console.warn(`A2A not enabled for ${this.config.id}`);
+      return false;
+    }
+
+    try {
+      const { OneAgentEngine } = await import('../../OneAgentEngine');
+      const engine = OneAgentEngine.getInstance();
+
+      const request = {
+        id: `join_${sessionId}_${this.config.id}_${Date.now()}`,
+        type: 'tool_call' as const,
+        method: 'oneagent_a2a_join_session',
+        params: {
+          sessionId,
+          agentId: this.config.id
+        },
+        timestamp: new Date().toISOString()
+      };
+
+      const response = await engine.processRequest(request);
+      
+      if (response.success) {
+        this.currentSessions.add(sessionId);
+        console.log(`🤝 ${this.config.id} joined A2A session: ${sessionId}`);
+        return true;
+      } else {
+        console.warn(`⚠️ Failed to join A2A session ${sessionId}:`, response.error?.message);
+        return false;
+      }
+    } catch (error) {
+      console.error(`❌ Error joining A2A session ${sessionId}:`, error);
+      return false;
+    }
+  }
+
+  /**
+   * Send message in A2A session
+   */
+  protected async sendA2AMessage(
+    sessionId: string,
+    toAgent: string,
+    message: string,
+    messageType: 'update' | 'question' | 'decision' | 'action' | 'insight' = 'update'
+  ): Promise<boolean> {
+    if (!this.a2aEnabled || !this.currentSessions.has(sessionId)) {
+      console.warn(`Cannot send A2A message: not in session ${sessionId}`);
+      return false;
+    }
+
+    try {
+      const { OneAgentEngine } = await import('../../OneAgentEngine');
+      const engine = OneAgentEngine.getInstance();
+
+      const request = {
+        id: `send_${sessionId}_${Date.now()}`,
+        type: 'tool_call' as const,
+        method: 'oneagent_a2a_send_message',
+        params: {
+          sessionId,
+          fromAgent: this.config.id,
+          toAgent,
+          message,
+          messageType
+        },
+        timestamp: new Date().toISOString()
+      };
+
+      const response = await engine.processRequest(request);
+      
+      if (response.success) {
+        console.log(`📤 ${this.config.id} sent A2A message to ${toAgent} in session ${sessionId}`);
+        return true;
+      } else {
+        console.warn(`⚠️ Failed to send A2A message:`, response.error?.message);
+        return false;
+      }
+    } catch (error) {
+      console.error(`❌ Error sending A2A message:`, error);
+      return false;
+    }
+  }
+
+  /**
+   * Broadcast message in A2A session
+   */
+  protected async broadcastA2AMessage(
+    sessionId: string,
+    message: string,
+    messageType: 'update' | 'question' | 'decision' | 'action' | 'insight' = 'update'
+  ): Promise<boolean> {
+    if (!this.a2aEnabled || !this.currentSessions.has(sessionId)) {
+      console.warn(`Cannot broadcast A2A message: not in session ${sessionId}`);
+      return false;
+    }
+
+    try {
+      const { OneAgentEngine } = await import('../../OneAgentEngine');
+      const engine = OneAgentEngine.getInstance();
+
+      const request = {
+        id: `broadcast_${sessionId}_${Date.now()}`,
+        type: 'tool_call' as const,
+        method: 'oneagent_a2a_broadcast_message',
+        params: {
+          sessionId,
+          fromAgent: this.config.id,
+          message,
+          messageType
+        },
+        timestamp: new Date().toISOString()
+      };
+
+      const response = await engine.processRequest(request);
+      
+      if (response.success) {
+        console.log(`📢 ${this.config.id} broadcast A2A message in session ${sessionId}`);
+        return true;
+      } else {
+        console.warn(`⚠️ Failed to broadcast A2A message:`, response.error?.message);
+        return false;
+      }
+    } catch (error) {
+      console.error(`❌ Error broadcasting A2A message:`, error);
+      return false;
+    }
+  }
+
+  /**
+   * Get A2A session message history
+   */
+  protected async getA2AMessageHistory(sessionId: string, limit: number = 10): Promise<any[]> {
+    if (!this.a2aEnabled) {
+      return [];
+    }
+
+    try {
+      const { OneAgentEngine } = await import('../../OneAgentEngine');
+      const engine = OneAgentEngine.getInstance();
+
+      const request = {
+        id: `history_${sessionId}_${Date.now()}`,
+        type: 'tool_call' as const,
+        method: 'oneagent_a2a_get_message_history',
+        params: {
+          sessionId,
+          limit
+        },
+        timestamp: new Date().toISOString()
+      };
+
+      const response = await engine.processRequest(request);
+      
+      if (response.success) {
+        return response.data || [];
+      } else {
+        console.warn(`⚠️ Failed to get A2A message history:`, response.error?.message);
+        return [];
+      }
+    } catch (error) {
+      console.error(`❌ Error getting A2A message history:`, error);
+      return [];
+    }
+  }
+
+  /**
+   * Discover other A2A agents by capabilities
+   */
+  protected async discoverA2AAgents(capabilities?: string[]): Promise<any[]> {
+    if (!this.a2aEnabled) {
+      return [];
+    }
+
+    try {
+      const { OneAgentEngine } = await import('../../OneAgentEngine');
+      const engine = OneAgentEngine.getInstance();
+
+      const request = {
+        id: `discover_${this.config.id}_${Date.now()}`,
+        type: 'tool_call' as const,
+        method: 'oneagent_a2a_discover_agents',
+        params: {
+          capabilities,
+          excludeAgentId: this.config.id
+        },
+        timestamp: new Date().toISOString()
+      };
+
+      const response = await engine.processRequest(request);
+      
+      if (response.success) {
+        return response.data || [];
+      } else {
+        console.warn(`⚠️ Failed to discover A2A agents:`, response.error?.message);
+        return [];
+      }
+    } catch (error) {
+      console.error(`❌ Error discovering A2A agents:`, error);
+      return [];
+    }
+  }
+
+  /**
+   * Enable/disable A2A communication for this agent
+   */
+  protected setA2AEnabled(enabled: boolean): void {
+    this.a2aEnabled = enabled;
+    console.log(`🔄 A2A communication ${enabled ? 'enabled' : 'disabled'} for ${this.config.id}`);
+  }
+
+  /**
+   * Get A2A status and current sessions
+   */
+  protected getA2AStatus(): {
+    enabled: boolean;
+    capabilities: string[];
+    currentSessions: string[];
+    registeredAgents: number;
+  } {
+    return {
+      enabled: this.a2aEnabled,
+      capabilities: this.a2aCapabilities,
+      currentSessions: Array.from(this.currentSessions),
+      registeredAgents: 0 // Could be enhanced to track actual registered agents
+    };
   }
 }

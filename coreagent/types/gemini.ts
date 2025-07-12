@@ -65,7 +65,7 @@ export interface GeminiError {
   code: number;
   message: string;
   status: string;
-  details?: any;
+  details?: unknown;
 }
 
 export interface ChatOptions {

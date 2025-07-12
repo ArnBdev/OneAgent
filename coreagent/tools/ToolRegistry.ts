@@ -10,14 +10,17 @@ import { SystemHealthTool } from './SystemHealthTool';
 import { UnifiedWebSearchTool } from './UnifiedWebSearchTool';
 import { UnifiedWebFetchTool } from './UnifiedWebFetchTool';
 import { UnifiedContext7QueryTool } from './UnifiedContext7QueryTool';
-import { UnifiedContext7StoreTool } from './UnifiedContext7StoreTool';
+
 // REMOVED: EnhancedAIAssistantTool - maintaining clear separation of concerns
 import { CodeAnalysisTool } from './CodeAnalysisTool';
 import { Context7MCPIntegration } from '../mcp/Context7MCPIntegration';
 import { ConversationRetrievalTool } from './ConversationRetrievalTool';
 import { ConversationSearchTool } from './ConversationSearchTool';
-// NLACS Integration for modern agent coordination
-import { NLACSCoordinationTool } from './NLACSCoordinationTool';
+import { OneAgentMemorySearchTool } from './OneAgentMemorySearchTool';
+import { OneAgentMemoryAddTool } from './OneAgentMemoryAddTool';
+import { OneAgentMemoryEditTool } from './OneAgentMemoryEditTool';
+import { OneAgentMemoryDeleteTool } from './OneAgentMemoryDeleteTool';
+import { OneAgentMemory } from '../memory/OneAgentMemory';
 
 export enum ToolCategory {
   CORE_SYSTEM = 'core_system',
@@ -81,13 +84,6 @@ export class ToolRegistry {
       constitutionalLevel: 'enhanced',
       priority: 7
     });
-
-    // Modern Agent Communication & Coordination via NLACS
-    this.registerTool(new NLACSCoordinationTool(), {
-      category: ToolCategory.AGENT_COMMUNICATION,
-      constitutionalLevel: 'critical',
-      priority: 9
-    });
     
     this.registerTool(new ConversationRetrievalTool(), {
       category: ToolCategory.AGENT_COMMUNICATION,
@@ -117,15 +113,41 @@ export class ToolRegistry {
       priority: 8
     });
 
-    this.registerTool(new UnifiedContext7StoreTool(), {
-      category: ToolCategory.MEMORY_CONTEXT,
-      constitutionalLevel: 'enhanced',
-      priority: 7
-    });    // Development and Professional Tools
+    // TODO: Fix UnifiedContext7StoreTool - currently has broken imports/stubs causing undefined registration
+    // this.registerTool(new UnifiedContext7StoreTool(), {
+    //   category: ToolCategory.MEMORY_CONTEXT,
+    //   constitutionalLevel: 'enhanced',
+    //   priority: 7
+    // });
+    
+    // Development and Professional Tools
     this.registerTool(new CodeAnalysisTool(), {
       category: ToolCategory.DEVELOPMENT,
       constitutionalLevel: 'enhanced',
       priority: 8
+    });
+    
+    // Canonical OneAgent memory tools (the only standard, best-practice memory tools)
+    const canonicalMemoryClient = new OneAgentMemory({});
+    this.registerTool(new OneAgentMemorySearchTool(canonicalMemoryClient), {
+      category: ToolCategory.MEMORY_CONTEXT,
+      constitutionalLevel: 'critical',
+      priority: 10
+    });
+    this.registerTool(new OneAgentMemoryAddTool(canonicalMemoryClient), {
+      category: ToolCategory.MEMORY_CONTEXT,
+      constitutionalLevel: 'critical',
+      priority: 10
+    });
+    this.registerTool(new OneAgentMemoryEditTool(canonicalMemoryClient), {
+      category: ToolCategory.MEMORY_CONTEXT,
+      constitutionalLevel: 'critical',
+      priority: 10
+    });
+    this.registerTool(new OneAgentMemoryDeleteTool(canonicalMemoryClient), {
+      category: ToolCategory.MEMORY_CONTEXT,
+      constitutionalLevel: 'critical',
+      priority: 10
     });
     
     // NOTE: EnhancedAIAssistantTool REMOVED to maintain clear separation of concerns
@@ -204,7 +226,7 @@ export class ToolRegistry {
   /**
    * Get tool schema for MCP registration
    */
-  public getToolSchemas(): Array<{name: string, description: string, inputSchema: any}> {
+  public getToolSchemas(): Array<{name: string, description: string, inputSchema: unknown}> {
     return Array.from(this.tools.values()).map(registration => ({
       name: registration.tool.name,
       description: registration.tool.description,
@@ -215,7 +237,7 @@ export class ToolRegistry {
   /**
    * Execute a tool by name with usage tracking
    */
-  public async executeTool(name: string, args: any): Promise<any> {
+  public async executeTool(name: string, args: unknown): Promise<unknown> {
     const registration = this.tools.get(name);
     if (!registration) throw new Error(`Tool not found: ${name}`);
 
@@ -247,7 +269,7 @@ export class ToolRegistry {
     const usageStats: Array<{name: string, count: number}> = [];
     const categoryTools: Record<string, string[]> = {};
 
-    for (const [name, registration] of this.tools) {
+    for (const [name, registration] of Array.from(this.tools)) {
       const category = registration.metadata.category;
       const priority = registration.metadata.priority;
       
@@ -283,7 +305,7 @@ export class ToolRegistry {
    */
   private logCategoryStatus(): void {
     console.log(`[ToolRegistry] Category distribution:`);
-    for (const [category, tools] of this.categories) {
+    for (const [category, tools] of Array.from(this.categories)) {
       console.log(`  ${category}: ${tools.length} tools`);
     }
   }

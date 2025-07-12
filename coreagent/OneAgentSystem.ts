@@ -19,18 +19,12 @@ import {
 
 // Import existing agent infrastructure
 import { AgentFactory, AgentFactoryConfig } from './agents/base/AgentFactory';
-import { BaseAgent } from './agents/base/BaseAgent';
 import { ISpecializedAgent } from './agents/base/ISpecializedAgent';
 import { CoreAgent as ExistingCoreAgent } from './agents/specialized/CoreAgent';
-import { DevAgent } from './agents/specialized/DevAgent';
-import { OfficeAgent } from './agents/specialized/OfficeAgent';
-import { FitnessAgent } from './agents/specialized/FitnessAgent';
-import { TriageAgent } from './agents/specialized/TriageAgent';
-import { ValidationAgent } from './agents/specialized/ValidationAgent';
-import { UnifiedNLACSOrchestrator } from './nlacs/UnifiedNLACSOrchestrator';
-import { OneAgentUnifiedBackbone } from './utils/UnifiedBackboneService.js';
 
 // User interface for compatibility - matches existing user.ts
+// Currently unused but kept for future multi-user support
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 interface User {
   id: string;
   name: string;
@@ -56,7 +50,7 @@ export interface ConversationContext {
   contextCategory: ContextCategory;
   privacyLevel: PrivacyLevel;
   projectScope: ProjectScope;
-  metadata: Record<string, any>;
+  metadata: Record<string, unknown>;
 }
 
 export interface ConversationMessage {
@@ -65,7 +59,7 @@ export interface ConversationMessage {
   from: string; // 'user' or agent id
   content: string;
   contextCategory: ContextCategory;
-  metadata?: Record<string, any>;
+  metadata?: Record<string, unknown>;
 }
 
 export interface TeamMeetingRequest {
@@ -699,12 +693,10 @@ class CoreAgent implements SpecialistAgent {
  */
 class TeamMeetingEngine {
   private oneAgentSystem: OneAgentSystem;
-  private multiAgentOrchestrator: UnifiedNLACSOrchestrator;
   private activeMeetings: Map<string, TeamMeeting> = new Map();
   
   constructor(oneAgentSystem: OneAgentSystem) {
     this.oneAgentSystem = oneAgentSystem;
-    this.multiAgentOrchestrator = UnifiedNLACSOrchestrator.getInstance();
   }
   
   async conductMeeting(request: TeamMeetingRequest): Promise<TeamMeeting> {
@@ -870,7 +862,7 @@ class TeamMeetingEngine {
       // Use the agent's expertise to respond to the question
       const expertise = await agent.provideExpertise(question, meeting.context);
       return `${expertise.analysis} ${expertise.recommendations.slice(0, 2).join(' ')}`;
-    } catch (error) {
+    } catch {
       return `As ${agent.name}, I think this requires careful consideration of ${agent.skills.join(' and ')}.`;
     }
   }
@@ -881,7 +873,6 @@ class TeamMeetingEngine {
     // Collect all insights and recommendations
     const allInsights = meeting.perspectives.flatMap(p => p.keyInsights);
     const allRecommendations = meeting.perspectives.flatMap(p => p.recommendations);
-    const allConcerns = meeting.perspectives.flatMap(p => p.concerns);
     
     // Calculate confidence based on agent agreement
     const avgConfidence = meeting.perspectives.reduce((sum, p) => sum + p.confidence, 0) / meeting.perspectives.length;

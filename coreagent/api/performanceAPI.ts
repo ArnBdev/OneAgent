@@ -71,10 +71,10 @@ export class PerformanceAPI {
   async getSystemStatus(): Promise<PerformanceAPIResponse<SystemStatus>> {
     try {
       const report = globalProfiler.generateReport();
-      const memoryResult = await this.memoryClient.searchMemory('system', {
-        query: '',
-        user_id: 'system',
-        limit: 100
+      const memoryResult = await this.memoryClient.searchMemory({
+        query: 'system',
+        limit: 100,
+        type: 'system'
       });
       const memoryData = memoryResult.results || [];
       const analytics = await this.memoryIntelligence.generateMemoryAnalytics('system');
@@ -85,10 +85,10 @@ export class PerformanceAPI {
         embedding: 'unknown'
       };      try {
         // Test connection by attempting a simple search
-        await this.memoryClient.searchMemory('system', {
+        await this.memoryClient.searchMemory({
           query: 'test',
-          user_id: 'system',
-          limit: 1
+          limit: 1,
+          type: 'system'
         });
         services.mem0 = 'connected';
       } catch {
@@ -167,10 +167,10 @@ export class PerformanceAPI {
    * Get memory intelligence analytics
    */  async getMemoryAnalytics(filter?: any): Promise<PerformanceAPIResponse> {
     try {
-      const memoryResult = await this.memoryClient.searchMemory('system', {
+      const memoryResult = await this.memoryClient.searchMemory({
         query: filter?.query || '',
-        user_id: filter?.userId || 'system',
-        limit: filter?.limit || 100
+        limit: filter?.limit || 100,
+        type: 'system'
       });
       const memoryData = memoryResult.results || [];
       const analytics = await this.memoryIntelligence.generateMemoryAnalytics(filter?.userId || 'system');
@@ -206,10 +206,10 @@ export class PerformanceAPI {
           searchType: 'semantic'
         };      } else {
         // Use basic search
-        const memoryResult = await this.memoryClient.searchMemory('system', {
+        const memoryResult = await this.memoryClient.searchMemory({
           query: filter?.query || '',
-          user_id: filter?.userId || 'system',
-          limit: filter?.limit || 50
+          limit: filter?.limit || 50,
+          type: 'system'
         });
         results = {
           memories: memoryResult.results || [],

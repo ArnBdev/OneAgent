@@ -338,7 +338,7 @@ export class WebFindingsManager {
     const startTime = Date.now();
     
     try {
-      let removed = { expired: 0, lowImportance: 0, duplicates: 0 };
+      const removed = { expired: 0, lowImportance: 0, duplicates: 0 };
       let retained = 0;
       let spaceSaved = 0;
 
@@ -599,14 +599,14 @@ export class WebFindingsManager {
     const findings: (WebSearchFinding | WebFetchFinding)[] = [];
 
     // Search in search cache
-    for (const finding of this.searchCache.values()) {
+    for (const finding of Array.from(this.searchCache.values())) {
       if (this.matchesSearchOptions(finding, options)) {
         findings.push(finding);
       }
     }
 
     // Search in fetch cache
-    for (const finding of this.fetchCache.values()) {
+    for (const finding of Array.from(this.fetchCache.values())) {
       if (this.matchesSearchOptions(finding, options)) {
         findings.push(finding);
       }
@@ -735,7 +735,7 @@ export class WebFindingsManager {
     let newestTime = 0;
 
     // Calculate search cache size
-    for (const finding of this.searchCache.values()) {
+    for (const finding of Array.from(this.searchCache.values())) {
       const findingSize = JSON.stringify(finding).length;
       totalSize += findingSize;
       
@@ -745,7 +745,7 @@ export class WebFindingsManager {
     }
 
     // Calculate fetch cache size
-    for (const finding of this.fetchCache.values()) {
+    for (const finding of Array.from(this.fetchCache.values())) {
       const findingSize = JSON.stringify(finding).length;
       totalSize += findingSize;
       
@@ -844,7 +844,7 @@ export class WebFindingsManager {
     const now = Date.now();
 
     // Clean search cache
-    for (const [key, finding] of this.searchCache.entries()) {
+    for (const [key, finding] of Array.from(this.searchCache.entries())) {
       const age = now - new Date(finding.storage.lastAccessed).getTime();
       if (age > finding.storage.ttl) {
         this.searchCache.delete(key);
@@ -856,7 +856,7 @@ export class WebFindingsManager {
     }
 
     // Clean fetch cache
-    for (const [key, finding] of this.fetchCache.entries()) {
+    for (const [key, finding] of Array.from(this.fetchCache.entries())) {
       const age = now - new Date(finding.storage.lastAccessed).getTime();
       if (age > finding.storage.ttl) {
         this.fetchCache.delete(key);
@@ -873,7 +873,7 @@ export class WebFindingsManager {
   private async cleanupPersistentStorage(): Promise<{ expired: number; lowImportance: number; duplicates: number; spaceSaved: number }> {
     let expired = 0;
     let lowImportance = 0;
-    let duplicates = 0;
+    const duplicates = 0;
     let spaceSaved = 0;
     const now = Date.now();
 

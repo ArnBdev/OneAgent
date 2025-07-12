@@ -6,8 +6,25 @@
  */
 
 import { UnifiedMCPTool, ToolExecutionResult, InputSchema } from './UnifiedMCPTool';
-import { Context7MCPIntegration, DocumentationQuery, DocumentationResult } from '../mcp/Context7MCPIntegration';
+import { Context7MCPIntegration, WebDocumentationQuery, WebDocumentationResult, WebDevelopmentSource } from '../mcp/Context7MCPIntegration';
 import { OneAgentMemory, OneAgentMemoryConfig } from '../memory/OneAgentMemory';
+
+export interface Context7Learning {
+  id: string;
+  agentId: string;
+  learningType: string;
+  content: string;
+  confidence: number;
+  applicationCount: number;
+  lastApplied: Date;
+  sourceConversations: unknown[];
+  metadata: {
+    tool: string;
+    source: string;
+    resultsCount: number;
+    query: string;
+  };
+}
 
 export interface Context7QueryParams {
   source?: string;
@@ -18,7 +35,19 @@ export interface Context7QueryParams {
 }
 
 export interface Context7QueryResult extends ToolExecutionResult {
-  // The main results are in the 'data' property as required by ToolExecutionResult
+  data: {
+    results: WebDocumentationResult[];
+    source: string;
+    cached: boolean;
+    totalResults: number;
+    queryTime: number;
+    metadata: {
+      queryType: string;
+      sourcesQueried: number;
+      cacheHitRatio: number;
+      averageResponseTime: number;
+    };
+  };
 }
 
 /**
@@ -65,20 +94,20 @@ export class UnifiedContext7QueryTool extends UnifiedMCPTool {
     const startTime = Date.now();
 
     try {
-      // Prepare documentation query with proper type handling
-      const docQuery: DocumentationQuery = {
-        source: args.source || 'all',
-        query: args.query,
+      // Prepare web documentation query with proper type handling
+      const docQuery: WebDocumentationQuery = {
+        technology: args.source || 'all',
+        topic: args.query,
         maxResults: args.maxResults || 5
       };
 
-      // Add context only if provided
+      // Add context and version only if provided
       if (args.context) {
         docQuery.context = args.context;
       }
 
-      // Execute documentation search
-      const results = await this.context7Integration.queryDocumentation(docQuery);
+      // Execute web documentation search
+      const results = await this.context7Integration.queryWebDocumentation(docQuery);
       const queryTime = Date.now() - startTime;
 
       // Apply Constitutional AI validation to results
@@ -88,19 +117,21 @@ export class UnifiedContext7QueryTool extends UnifiedMCPTool {
       await this.storeLearning(args, validatedResults, queryTime);
 
       // Calculate quality score
-      const qualityScore = await this.calculateQualityScore(validatedResults);      // Create response data
+      const qualityScore = await this.calculateQualityScore(validatedResults);
+      
+      // Create response data
       const responseData: Context7QueryResult = {
         success: true,
         data: {
           results: validatedResults,
           source: args.source || 'multiple',
-          cached: validatedResults.some(r => r.cached),
+          cached: false, // WebDocumentationResult doesn't have cached property
           totalResults: validatedResults.length,
           queryTime,
           metadata: {
             queryType: 'documentation',
-            sourcesQueried: args.source ? 1 : this.context7Integration.getAvailableSources().length,
-            cacheHitRatio: this.context7Integration.getCacheHitRatio(),
+            sourcesQueried: args.source ? 1 : this.context7Integration.getAvailableWebSources().length,
+            cacheHitRatio: 0, // Will be implemented with getCacheMetrics
             averageResponseTime: queryTime
           }
         },
@@ -147,8 +178,8 @@ export class UnifiedContext7QueryTool extends UnifiedMCPTool {
   /**
    * Validate and filter results using Constitutional AI principles
    */
-  private async validateResults(results: DocumentationResult[], originalQuery: string): Promise<DocumentationResult[]> {
-    const validatedResults: DocumentationResult[] = [];
+  private async validateResults(results: WebDocumentationResult[], originalQuery: string): Promise<WebDocumentationResult[]> {
+    const validatedResults: WebDocumentationResult[] = [];
 
     for (const result of results) {
       try {
@@ -167,8 +198,9 @@ export class UnifiedContext7QueryTool extends UnifiedMCPTool {
           validatedResults.push(result);
         }
 
-      } catch (error) {
-        // Constitutional AI: Transparency - log validation errors        console.warn(`Context7 result validation failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      } catch (_error) {
+        // Constitutional AI: Transparency - log validation errors
+        console.warn(`Context7 result validation failed: ${_error instanceof Error ? _error.message : 'Unknown error'}`);
         continue;
       }
     }
@@ -181,7 +213,7 @@ export class UnifiedContext7QueryTool extends UnifiedMCPTool {
    */
   private async containsUnsafeContent(content: string): Promise<boolean> {
     const unsafePatterns = [
-      /\b(password|secret|token|api[_\-]?key)\s*[:=]\s*\S+/i,
+      /\b(password|secret|token|api[_-]?key)\s*[:=]\s*\S+/i,
       /\b(private|confidential|internal)\s+(key|token|secret)/i,
       /\bDO\s+NOT\s+(SHARE|DISTRIBUTE|COPY)/i
     ];
@@ -192,14 +224,14 @@ export class UnifiedContext7QueryTool extends UnifiedMCPTool {
   /**
    * Check if result is helpful for the original query
    */
-  private async isHelpfulForQuery(result: DocumentationResult, query: string): Promise<boolean> {
+  private async isHelpfulForQuery(result: WebDocumentationResult, query: string): Promise<boolean> {
     const queryWords = query.toLowerCase().split(/\s+/);
     const contentWords = result.content.toLowerCase().split(/\s+/);
     const titleWords = result.title.toLowerCase().split(/\s+/);
 
     // Calculate relevance based on word overlap
-    const titleMatches = queryWords.filter(word => titleWords.some(tw => tw.includes(word) || word.includes(tw)));
-    const contentMatches = queryWords.filter(word => contentWords.some(cw => cw.includes(word) || word.includes(cw)));
+    const titleMatches = queryWords.filter(word => titleWords.some((tw: string) => tw.includes(word) || word.includes(tw)));
+    const contentMatches = queryWords.filter(word => contentWords.some((cw: string) => cw.includes(word) || word.includes(cw)));
 
     // Require minimum relevance threshold
     const relevanceRatio = (titleMatches.length * 2 + contentMatches.length) / (queryWords.length * 3);
@@ -209,9 +241,9 @@ export class UnifiedContext7QueryTool extends UnifiedMCPTool {
   /**
    * Store learning and context in memory
    */
-  private async storeLearning(params: Context7QueryParams, results: DocumentationResult[], queryTime: number): Promise<void> {
+  private async storeLearning(params: Context7QueryParams, results: WebDocumentationResult[], queryTime: number): Promise<void> {
     try {
-      const learning: any = {
+      const learning: Context7Learning = {
         id: `learning_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
         agentId: this.name, // Use tool name as agentId for now
         learningType: 'documentation_context',
@@ -223,14 +255,14 @@ export class UnifiedContext7QueryTool extends UnifiedMCPTool {
           timestamp: new Date().toISOString(),
           quality: {
             averageRelevance: results.reduce((sum, r) => sum + r.relevanceScore, 0) / (results.length || 1),
-            sourcesCovered: results.map(r => r.source).filter((s, i, arr) => arr.indexOf(s) === i).length,
-            cached: results.filter(r => r.cached).length
+            sourcesCovered: results.map(r => r.technology).filter((s, i, arr) => arr.indexOf(s) === i).length,
+            cached: 0 // WebDocumentationResult doesn't have cached property
           },
           topResults: results.slice(0, 3).map(r => ({
             title: r.title,
-            source: r.source,
+            source: r.technology,
             relevanceScore: r.relevanceScore,
-            url: r.url
+            url: r.sourceUrl
           }))
         }),
         confidence: 0.9,
@@ -244,7 +276,10 @@ export class UnifiedContext7QueryTool extends UnifiedMCPTool {
           query: params.query
         }
       };
-      await this.memorySystem.addMemory('learnings', learning);
+      await this.memorySystem.addMemory({
+        ...learning,
+        type: 'learnings'
+      });
     } catch (error) {
       // Non-critical error - log but don't fail the main operation
       console.warn(`Failed to store Context7 learning: ${error instanceof Error ? error.message : 'Unknown error'}`);
@@ -254,7 +289,7 @@ export class UnifiedContext7QueryTool extends UnifiedMCPTool {
   /**
    * Calculate quality score for the results
    */
-  private async calculateQualityScore(results: DocumentationResult[]): Promise<number> {
+  private async calculateQualityScore(results: WebDocumentationResult[]): Promise<number> {
     if (results.length === 0) {
       return 0;
     }
@@ -264,11 +299,11 @@ export class UnifiedContext7QueryTool extends UnifiedMCPTool {
     const countScore = Math.min(results.length / 5, 1); // Normalize to max 5 results
     
     // Bonus for diverse sources
-    const uniqueSources = new Set(results.map(r => r.source)).size;
+    const uniqueSources = new Set(results.map(r => r.technology)).size;
     const diversityBonus = Math.min(uniqueSources / 3, 0.2); // Max 20% bonus for 3+ sources
 
     // Cache efficiency bonus
-    const cacheRatio = results.filter(r => r.cached).length / results.length;
+    const cacheRatio = 0; // WebDocumentationResult doesn't have cached property
     const cacheBonus = cacheRatio * 0.1; // Max 10% bonus for full cache hits
 
     // Calculate final score (0-100)
@@ -281,13 +316,13 @@ export class UnifiedContext7QueryTool extends UnifiedMCPTool {
    * Get available documentation sources
    */
   public getAvailableSources(): string[] {
-    return this.context7Integration.getAvailableSources().map(s => s.name);
+    return this.context7Integration.getAvailableWebSources().map((s: WebDevelopmentSource) => s.name);
   }
 
   /**
    * Get Context7 performance metrics
    */
   public getPerformanceMetrics() {
-    return this.context7Integration.getPerformanceStatus();
+    return this.context7Integration.getCacheMetrics();
   }
 }

@@ -11,20 +11,22 @@
  */
 
 import { BaseAgent } from '../base/BaseAgent';
-import { AgentFactory as BaseAgentFactory, AgentFactoryConfig } from '../base/AgentFactory';
-import { AgentFactory as SpecializedAgentFactory } from '../specialized/AgentFactory';
-import { AgentCommunicationProtocol } from './AgentCommunicationProtocol';
+import { MemoryDrivenAgentCommunication, AgentContext } from './MemoryDrivenAgentCommunication';
 import { oneAgentConfig } from '../../config/index';
+import { AgentFactory } from '../base/AgentFactory';
+import { ISpecializedAgent } from '../base/ISpecializedAgent';
+import type { AgentType } from '../../types/oneagent-backbone-types';
 
 export class AgentBootstrapService {
-  private agents: Map<string, BaseAgent> = new Map();
-  private isBootstrapped: boolean = false;  private communicationProtocol: AgentCommunicationProtocol | undefined = undefined;
+  private agents: Map<string, ISpecializedAgent> = new Map();
+  private isBootstrapped: boolean = false;
+  private communicationHub: MemoryDrivenAgentCommunication | undefined = undefined;
   
   /**
    * Set the communication protocol for agent registration
    */
-  async setCommunicationProtocol(protocol: AgentCommunicationProtocol): Promise<void> {
-    this.communicationProtocol = protocol;
+  async setCommunicationHub(hub: MemoryDrivenAgentCommunication): Promise<void> {
+    this.communicationHub = hub;
     console.log('🔗 AgentBootstrapService: Communication protocol connected');
     
     // If agents are already bootstrapped, register them immediately
@@ -46,11 +48,11 @@ export class AgentBootstrapService {
     console.log('🚀 AgentBootstrapService: Creating REAL agents with memory and AI...');
     console.log('🧠 These are actual BaseAgent instances with working processMessage() methods!');    
     try {      
-      // Create all 5 REAL agents with memory and AI capabilities
-      const realAgents = await SpecializedAgentFactory.createAllCoreAgents();
+      // Create all core agents using AgentFactory
+      const realAgents = await this.createAllCoreAgents();
         // Store them in our local map
       for (const agent of realAgents) {
-        const config = agent.getConfig();
+        const config = agent.config;
         this.agents.set(config.id, agent);
         console.log(`📝 Registered REAL agent: ${config.id} (${config.capabilities.length} capabilities)`);
         
@@ -87,8 +89,15 @@ export class AgentBootstrapService {
 
     console.log('🛑 AgentBootstrapService: Shutting down all REAL agents...');
 
-    // Use the factory's shutdown method
-    await SpecializedAgentFactory.shutdownAllAgents();
+    // Shutdown all agents gracefully
+    for (const [agentId, agent] of this.agents) {
+      try {
+        await agent.cleanup();
+        console.log(`✅ Shutdown agent: ${agentId}`);
+      } catch (error) {
+        console.error(`❌ Error shutting down agent ${agentId}:`, error);
+      }
+    }
     
     this.agents.clear();
     this.isBootstrapped = false;
@@ -99,7 +108,7 @@ export class AgentBootstrapService {
   /**
    * Get all initialized agents
    */
-  getAgents(): Map<string, BaseAgent> {
+  getAgents(): Map<string, ISpecializedAgent> {
     return new Map(this.agents);
   }
 
@@ -108,13 +117,13 @@ export class AgentBootstrapService {
    */
   hasAgent(agentId: string): boolean {
     const agent = this.agents.get(agentId);
-    return agent !== undefined && agent.isReady();
+    return agent !== undefined && agent.getStatus().initialized;
   }
 
   /**
    * Get agent by ID
    */
-  getAgent(agentId: string): BaseAgent | undefined {
+  getAgent(agentId: string): ISpecializedAgent | undefined {
     return this.agents.get(agentId);
   }
 
@@ -138,8 +147,8 @@ export class AgentBootstrapService {
   getAgentStatus(): Array<{ agentId: string; isReady: boolean; capabilities: string[] }> {
     return Array.from(this.agents.entries()).map(([agentId, agent]) => ({
       agentId,
-      isReady: agent.isReady(),
-      capabilities: agent.getConfig().capabilities
+      isReady: agent.getStatus().initialized,
+      capabilities: agent.config.capabilities
     }));
   }
 
@@ -157,7 +166,7 @@ export class AgentBootstrapService {
       throw new Error(`Agent ${agentId} not found`);
     }
 
-    if (!agent.isReady()) {
+    if (!agent.getStatus().initialized) {
       throw new Error(`Agent ${agentId} is not ready`);
     }
 
@@ -176,7 +185,7 @@ export class AgentBootstrapService {
     const summary: Record<string, string[]> = {};
     
     Array.from(this.agents.entries()).forEach(([agentId, agent]) => {
-      summary[agentId] = agent.getConfig().capabilities;
+      summary[agentId] = agent.config.capabilities;
     });
     
     return summary;
@@ -192,7 +201,7 @@ export class AgentBootstrapService {
   /**
    * Add a new REAL agent dynamically
    */
-  async addAgent(agentId: string, agent: BaseAgent): Promise<void> {
+  async addAgent(agentId: string, agent: ISpecializedAgent): Promise<void> {
     if (this.agents.has(agentId)) {
       console.log(`⚠️ Replacing existing agent: ${agentId}`);
       await this.agents.get(agentId)?.cleanup();
@@ -226,43 +235,30 @@ export class AgentBootstrapService {
    * Centrally register an agent with the communication protocol
    * This ensures all agents are discoverable through the multi-agent system
    */
-  private async registerAgentWithCommunicationProtocol(agent: BaseAgent): Promise<void> {
-    if (!this.communicationProtocol) {
-      console.warn(`⚠️ Communication protocol not available for ${agent.getConfig().id} registration`);
+  private async registerAgentWithCommunicationProtocol(agent: ISpecializedAgent): Promise<void> {
+    if (!this.communicationHub) {
+      console.warn(`⚠️ Communication hub not available for ${agent.config.id} registration`);
       return;
     }
 
     try {
-      const config = agent.getConfig();
+      const config = agent.config;
       
-      // Create agent registration data
-      const registration = {
+      // Create AgentContext for communication hub registration
+      const agentContext: AgentContext = {
         agentId: config.id,
-        agentType: config.name.toLowerCase().replace(/agent/i, '').replace(/\s+/g, ''),        capabilities: config.capabilities.map(cap => ({
-          name: cap,
-          description: `${cap} capability provided by ${config.name}`,
-          version: '1.0.0',
-          parameters: {},
-          qualityThreshold: 85,
-          constitutionalCompliant: true
-        })),
-        endpoint: `${oneAgentConfig.mcpUrl}/agent/${config.id}`,
-        status: 'online' as const,
-        loadLevel: 0,
-        qualityScore: 90,
-        lastSeen: new Date()
+        capabilities: config.capabilities,
+        status: 'available' as const,
+        expertise: config.capabilities,
+        recentActivity: new Date(),
+        memoryCollectionId: `agent_${config.id}_memory`
       };
 
-      // Register with communication protocol
-      const success = await this.communicationProtocol.registerAgent(registration);
-      
-      if (success) {
-        console.log(`✅ Agent ${config.id} registered with communication protocol`);
-      } else {
-        console.warn(`⚠️ Failed to register ${config.id} with communication protocol`);
-      }
+      // Register with communication hub
+      await this.communicationHub.registerAgent(agentContext);
+      console.log(`✅ Agent ${config.id} registered with communication protocol`);
     } catch (error) {
-      console.error(`❌ Error registering ${agent.getConfig().id} with communication protocol:`, error);
+      console.error(`❌ Error registering ${agent.config.id} with communication protocol:`, error);
     }
   }
 
@@ -271,10 +267,12 @@ export class AgentBootstrapService {
    * Called when the communication protocol is set after agents are already created
    */
   async registerAllExistingAgents(): Promise<void> {
-    if (!this.communicationProtocol) {
-      console.warn('⚠️ Communication protocol not available for bulk registration');
+    if (!this.communicationHub) {
+      console.warn('⚠️ Communication hub not available for bulk registration');
       return;
-    }    console.log('🔄 Registering all existing agents with communication protocol...');
+    }
+    
+    console.log('🔄 Registering all existing agents with communication hub...');
     
     const agents = Array.from(this.agents.values());
     for (const agent of agents) {
@@ -282,6 +280,33 @@ export class AgentBootstrapService {
     }
     
     console.log(`✅ Registered ${this.agents.size} agents with communication protocol`);
+  }
+
+  /**
+   * Create all core agents using the canonical AgentFactory
+   */
+  private async createAllCoreAgents(): Promise<ISpecializedAgent[]> {
+    const coreAgentTypes: AgentType[] = ['core', 'development', 'office', 'fitness', 'general'];
+    const agents: ISpecializedAgent[] = [];
+
+    for (const agentType of coreAgentTypes) {
+      try {
+        const agent = await AgentFactory.createAgent({
+          type: agentType,
+          id: `${agentType}-agent-${Date.now()}`,
+          name: `${agentType.charAt(0).toUpperCase() + agentType.slice(1)} Agent`,
+          memoryEnabled: true,
+          aiEnabled: true,
+          modelTier: 'standard'
+        });
+        agents.push(agent);
+        console.log(`✅ Created ${agentType} agent with canonical AgentFactory`);
+      } catch (error) {
+        console.error(`❌ Failed to create ${agentType} agent:`, error);
+      }
+    }
+
+    return agents;
   }
 }
 

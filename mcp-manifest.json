@@ -1,0 +1,360 @@
+{
+  "name": "OneAgent",
+  "version": "4.0.0",
+  "description": "Professional AI Development Platform with Constitutional AI, canonical memory integration, and multiagent coordination",
+  "author": "OneAgent Professional Development Platform",
+  "license": "MIT",
+  "homepage": "https://github.com/ArnBdev/OneAgent",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/ArnBdev/OneAgent.git"
+  },
+  "mcp": {
+    "version": "2025-06-18",
+    "capabilities": {
+      "tools": true,
+      "resources": true,
+      "prompts": true,
+      "logging": true,
+      "elicitations": true,
+      "sampling": true
+    },
+    "server": {
+      "command": "node",
+      "args": ["dist/coreagent/server/unified-mcp-server.js"],
+      "env": {
+        "NODE_ENV": "production"
+      }
+    },
+    "tools": [
+      {
+        "name": "oneagent_constitutional_validate",
+        "description": "Validate responses against Constitutional AI principles (Accuracy, Transparency, Helpfulness, Safety)",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "response": {
+              "type": "string",
+              "description": "The response to validate"
+            },
+            "userMessage": {
+              "type": "string",
+              "description": "The original user message for context"
+            },
+            "context": {
+              "type": "string",
+              "description": "Additional context for validation"
+            }
+          },
+          "required": ["response", "userMessage"]
+        }
+      },
+      {
+        "name": "oneagent_quality_score",
+        "description": "Generate quality scoring with professional grading (A-D scale)",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "content": {
+              "type": "string",
+              "description": "Content to evaluate"
+            },
+            "criteria": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "description": "Quality criteria to evaluate against"
+            }
+          },
+          "required": ["content"]
+        }
+      },
+      {
+        "name": "oneagent_bmad_analyze",
+        "description": "Systematic task analysis using 9-point BMAD framework",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "task": {
+              "type": "string",
+              "description": "Task or problem to analyze"
+            },
+            "context": {
+              "type": "string",
+              "description": "Additional context for analysis"
+            }
+          },
+          "required": ["task"]
+        }
+      },
+      {
+        "name": "oneagent_memory_search",
+        "description": "Search canonical OneAgent memory using natural language queries",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "query": {
+              "type": "string",
+              "description": "Natural language search query"
+            },
+            "userId": {
+              "type": "string",
+              "description": "User ID for memory isolation"
+            },
+            "limit": {
+              "type": "number",
+              "description": "Maximum number of results to return"
+            }
+          },
+          "required": ["query", "userId"]
+        }
+      },
+      {
+        "name": "oneagent_memory_add",
+        "description": "Add items to canonical OneAgent memory with metadata",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "content": {
+              "type": "string",
+              "description": "Content to store in memory"
+            },
+            "userId": {
+              "type": "string",
+              "description": "User ID for memory isolation"
+            },
+            "metadata": {
+              "type": "object",
+              "description": "Additional metadata for the memory item"
+            }
+          },
+          "required": ["content", "userId"]
+        }
+      },
+      {
+        "name": "oneagent_memory_edit",
+        "description": "Edit existing memory items by ID",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "string",
+              "description": "Memory item ID to edit"
+            },
+            "content": {
+              "type": "string",
+              "description": "New content for the memory item"
+            },
+            "metadata": {
+              "type": "object",
+              "description": "Updated metadata for the memory item"
+            }
+          },
+          "required": ["id"]
+        }
+      },
+      {
+        "name": "oneagent_memory_delete",
+        "description": "Delete memory items by ID",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "string",
+              "description": "Memory item ID to delete"
+            },
+            "userId": {
+              "type": "string",
+              "description": "User ID for verification"
+            }
+          },
+          "required": ["id", "userId"]
+        }
+      },
+      {
+        "name": "oneagent_system_health",
+        "description": "Comprehensive system health and performance metrics",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "includeDetails": {
+              "type": "boolean",
+              "description": "Include detailed system metrics"
+            }
+          }
+        }
+      },
+      {
+        "name": "oneagent_enhanced_search",
+        "description": "Web search with quality filtering and Constitutional AI validation",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "query": {
+              "type": "string",
+              "description": "Search query"
+            },
+            "maxResults": {
+              "type": "number",
+              "description": "Maximum number of results"
+            },
+            "qualityThreshold": {
+              "type": "number",
+              "description": "Quality threshold for results (0-100)"
+            }
+          },
+          "required": ["query"]
+        }
+      },
+      {
+        "name": "oneagent_web_search",
+        "description": "Web search with configurable parameters",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "query": {
+              "type": "string",
+              "description": "Search query"
+            },
+            "maxResults": {
+              "type": "number",
+              "description": "Maximum number of results"
+            }
+          },
+          "required": ["query"]
+        }
+      },
+      {
+        "name": "oneagent_web_fetch",
+        "description": "Fetch and extract content from web pages",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "url": {
+              "type": "string",
+              "description": "URL to fetch content from"
+            },
+            "extractType": {
+              "type": "string",
+              "enum": ["text", "html", "json"],
+              "description": "Type of content extraction"
+            }
+          },
+          "required": ["url"]
+        }
+      },
+      {
+        "name": "oneagent_context7_query",
+        "description": "Query documentation and context sources",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "query": {
+              "type": "string",
+              "description": "Documentation query"
+            },
+            "source": {
+              "type": "string",
+              "description": "Specific documentation source"
+            }
+          },
+          "required": ["query"]
+        }
+      },
+      {
+        "name": "oneagent_code_analyze",
+        "description": "Analyze code quality, patterns, security, and performance",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "code": {
+              "type": "string",
+              "description": "Code to analyze"
+            },
+            "language": {
+              "type": "string",
+              "description": "Programming language"
+            },
+            "analysisType": {
+              "type": "string",
+              "enum": ["quality", "security", "performance", "patterns"],
+              "description": "Type of analysis to perform"
+            }
+          },
+          "required": ["code"]
+        }
+      }
+    ],
+    "resources": [
+      {
+        "uri": "oneagent://memory",
+        "name": "OneAgent Memory System",
+        "description": "Access to canonical OneAgent memory system",
+        "mimeType": "application/json"
+      },
+      {
+        "uri": "oneagent://agents",
+        "name": "OneAgent Multiagent System",
+        "description": "Access to registered agents and their capabilities",
+        "mimeType": "application/json"
+      },
+      {
+        "uri": "oneagent://health",
+        "name": "System Health Metrics",
+        "description": "Real-time system health and performance data",
+        "mimeType": "application/json"
+      }
+    ],
+    "prompts": [
+      {
+        "name": "constitutional_analysis",
+        "description": "Analyze content using Constitutional AI principles",
+        "arguments": [
+          {
+            "name": "content",
+            "description": "Content to analyze",
+            "required": true
+          },
+          {
+            "name": "principle",
+            "description": "Constitutional principle to focus on",
+            "required": false
+          }
+        ]
+      },
+      {
+        "name": "bmad_framework",
+        "description": "Apply BMAD 9-point framework analysis",
+        "arguments": [
+          {
+            "name": "problem",
+            "description": "Problem or task to analyze",
+            "required": true
+          },
+          {
+            "name": "context",
+            "description": "Additional context",
+            "required": false
+          }
+        ]
+      },
+      {
+        "name": "agent_coordination",
+        "description": "Coordinate multiple agents for complex tasks",
+        "arguments": [
+          {
+            "name": "task",
+            "description": "Task requiring coordination",
+            "required": true
+          },
+          {
+            "name": "agents",
+            "description": "Agents to coordinate",
+            "required": false
+          }
+        ]
+      }
+    ]
+  }
+}

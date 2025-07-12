@@ -23,8 +23,9 @@
  */
 
 import { BaseAgent, AgentConfig, AgentContext, AgentResponse, AgentAction } from '../base/BaseAgent';
-import { ISpecializedAgent, AgentStatus, AgentHealthStatus } from '../base/ISpecializedAgent';
+import { ISpecializedAgent, AgentHealthStatus } from '../base/ISpecializedAgent';
 import { OneAgentMemory, OneAgentMemoryConfig } from '../../memory/OneAgentMemory';
+import { MemoryRecord } from '../../types/oneagent-backbone-types';
 
 export class TemplateAgent extends BaseAgent implements ISpecializedAgent {
   public readonly id: string;
@@ -63,10 +64,11 @@ export class TemplateAgent extends BaseAgent implements ISpecializedAgent {
       await super.initialize();
       // Store initialization in memory as a conversation record
       try {
-        await this.memorySystem.addMemory('system', {
+        await this.memorySystem.addMemory({
           agentId: this.id,
           content: `Template agent ${this.id} successfully initialized with unified memory system. Constitutional AI validation active.`,
-          timestamp: new Date().toISOString()
+          timestamp: new Date().toISOString(),
+          type: 'system'
         });
       } catch (memoryError) {
         console.warn(`⚠️ Could not store initialization memory: ${memoryError}`);
@@ -98,20 +100,27 @@ export class TemplateAgent extends BaseAgent implements ISpecializedAgent {
       this.processedMessages++;
 
       // 1. UNIFIED MEMORY INTEGRATION (with fallback)
-      let relevantMemories: any[] = [];
+      let relevantMemories: MemoryRecord[] = [];
       try {
         // Store current message in unified memory system
-        await this.memorySystem.addMemory(context.user.id, {
+        await this.memorySystem.addMemory({
           agentType: 'template',
           sessionId: context.sessionId,
           timestamp: new Date().toISOString(),
           timeZone: this.timeZone,
           messageType: 'user_input',
           processingId: `proc_${Date.now()}`,
-          content: message
+          content: message,
+          userId: context.user.id,
+          type: context.user.id
         });
         // Search for relevant context using semantic search
-        relevantMemories = await this.memorySystem.searchMemory(context.user.id, { query: message, limit: 5 });
+        relevantMemories = await this.memorySystem.searchMemory({
+          query: message,
+          limit: 5,
+          userId: context.user.id,
+          type: context.user.id
+        });
         console.log(`🧠 Retrieved ${relevantMemories.length} relevant memories for context enhancement`);
       } catch (memoryError) {
         console.warn(`⚠️ Memory operation failed, continuing with fallback: ${memoryError}`);
@@ -158,7 +167,7 @@ export class TemplateAgent extends BaseAgent implements ISpecializedAgent {
             actionsCount: actions.length,
             memoriesUsed: relevantMemories.length,
             timestamp: new Date().toISOString(),
-            sessionId: context.sessionId
+            type: context.user.id
           }
         );
       } catch (memoryError) {
@@ -192,7 +201,8 @@ export class TemplateAgent extends BaseAgent implements ISpecializedAgent {
             errorMessage,
             timestamp: new Date().toISOString(),
             processingTime: Date.now() - startTime,
-            sessionId: context.sessionId
+            sessionId: context.sessionId,
+            type: context.user.id
           }
         );
       } catch (memoryError) {
@@ -247,16 +257,23 @@ export class TemplateAgent extends BaseAgent implements ISpecializedAgent {
   /**
    * Execute template-specific actions
    */
-  async executeAction(action: AgentAction, context: AgentContext): Promise<any> {
-    switch (action.type) {
+  async executeAction(action: string | AgentAction, params: Record<string, unknown>, context?: AgentContext): Promise<AgentResponse> {
+    const actionType = typeof action === 'string' ? action : action.type;
+    const actionParams = typeof action === 'string' ? params : action.parameters;
+    
+    if (!context) {
+      throw new Error('Context is required for template actions');
+    }
+    
+    switch (actionType) {
       case 'template_action_1':
-        return await this.performAction1(action.parameters, context);
+        return await this.performAction1(actionParams, context);
       case 'template_action_2':
-        return await this.performAction2(action.parameters, context);
+        return await this.performAction2(actionParams, context);
       case 'template_action_3':
-        return await this.performAction3(action.parameters, context);
+        return await this.performAction3(actionParams, context);
       default:
-        throw new Error(`Unknown action type: ${action.type}`);
+        return await super.executeAction(action, params, context);
     }
   }
   /**
@@ -272,7 +289,7 @@ export class TemplateAgent extends BaseAgent implements ISpecializedAgent {
     lastActivity?: Date; 
     isHealthy: boolean;
     processedMessages: number;
-    errors: number;
+    errors:  number;
   } {
     return {
       agentId: this.id,
@@ -353,7 +370,7 @@ export class TemplateAgent extends BaseAgent implements ISpecializedAgent {
    * 
    * TODO: Customize this prompt for your agent's domain and personality
    */
-  private buildTemplatePrompt(message: string, memories: any[], context: AgentContext): string {
+  private buildTemplatePrompt(message: string, memories: MemoryRecord[], context: AgentContext): string {
     // Extract customInstructions from enriched context userProfile
     // Use backbone user context instead of removed enrichedContext
     const customInstructions = context.metadata?.customInstructions;
@@ -392,37 +409,37 @@ Be [PERSONALITY TRAITS: professional, friendly, expert, etc.] in your responses.
    * 
    * TODO: Replace these with your actual domain logic
    */
-  private async performAction1(params: any, _context: AgentContext): Promise<any> {
+  private async performAction1(params: Record<string, unknown>, _context: AgentContext): Promise<AgentResponse> {
     // TODO: Implement your first action
     return {
-      success: true,
-      actionId: `action1_${Date.now()}`,
-      result: `Action 1 completed with input: ${params.input}`,
-      data: {
-        // Add relevant response data
+      content: `Action 1 completed with input: ${params.input}`,
+      metadata: {
+        actionId: `action1_${Date.now()}`,
+        success: true,
+        timestamp: new Date().toISOString()
       }
     };
   }
 
-  private async performAction2(params: any, _context: AgentContext): Promise<any> {
+  private async performAction2(params: Record<string, unknown>, _context: AgentContext): Promise<AgentResponse> {
     // TODO: Implement your second action
     return {
-      success: true,
-      actionId: `action2_${Date.now()}`,
-      result: `Action 2 completed with data: ${JSON.stringify(params.data)}`,
-      data: {
-        // Add relevant response data
+      content: `Action 2 completed with data: ${JSON.stringify(params.data)}`,
+      metadata: {
+        actionId: `action2_${Date.now()}`,
+        success: true,
+        timestamp: new Date().toISOString()
       }
     };
   }
-  private async performAction3(_params: any, _context: AgentContext): Promise<any> {
+  private async performAction3(_params: Record<string, unknown>, _context: AgentContext): Promise<AgentResponse> {
     // TODO: Implement your third action
     return {
-      success: true,
-      actionId: `action3_${Date.now()}`,
-      result: `Action 3 completed`,
-      data: {
-        // Add relevant response data
+      content: 'Action 3 completed',
+      metadata: {
+        actionId: `action3_${Date.now()}`,
+        success: true,
+        timestamp: new Date().toISOString()
       }
     };
   }
@@ -435,7 +452,7 @@ Be [PERSONALITY TRAITS: professional, friendly, expert, etc.] in your responses.
    * EXAMPLE: Multi-Agent Coordination Pattern
    * Demonstrates how to coordinate with other agents using OneAgent's MCP tools
    */
-  private async coordinateWithOtherAgents(task: string, context: AgentContext): Promise<any> {
+  private async coordinateWithOtherAgents(task: string, context: AgentContext): Promise<AgentResponse> {
     try {
       console.log(`🤝 TemplateAgent coordinating with other agents for task: ${task}`);
       
@@ -459,10 +476,26 @@ Be [PERSONALITY TRAITS: professional, friendly, expert, etc.] in your responses.
         }
       );
       
-      return coordinationResult;
+      return {
+        content: `Multi-agent coordination completed for: ${task}. Result: ${coordinationResult.reason}`,
+        metadata: {
+          coordinationType: 'multi_agent_task',
+          task: task,
+          timestamp: new Date().toISOString(),
+          sessionId: context.sessionId,
+          coordinationResult
+        }
+      };
     } catch (error) {
       console.warn(`⚠️ Multi-agent coordination failed: ${error}`);
-      return { success: false, error: `Coordination failed: ${error}` };
+      return { 
+        content: `Coordination failed: ${error}`,
+        metadata: {
+          success: false,
+          error: `${error}`,
+          timestamp: new Date().toISOString()
+        }
+      };
     }
   }
 
@@ -470,7 +503,7 @@ Be [PERSONALITY TRAITS: professional, friendly, expert, etc.] in your responses.
    * EXAMPLE: Constitutional AI Validation Pattern (Placeholder)
    * Shows how Constitutional AI would be integrated for response validation
    */
-  private async applyConstitutionalValidationPattern(response: string, _userMessage: string): Promise<any> {
+  private async applyConstitutionalValidationPattern(response: string, _userMessage: string): Promise<{ validated: boolean; feedback: string; score: number }> {
     // TODO: Integrate with actual Constitutional AI when available
     // This demonstrates the intended pattern
     
@@ -490,7 +523,11 @@ Be [PERSONALITY TRAITS: professional, friendly, expert, etc.] in your responses.
     };
     
     console.log(`🛡️ Constitutional AI validation pattern applied (mock). Quality: ${mockValidation.qualityScore}%`);
-    return mockValidation;
+    return {
+      validated: mockValidation.qualityScore >= 85,
+      feedback: mockValidation.improvements.join(', '),
+      score: mockValidation.qualityScore
+    };
   }
 
   /**
@@ -551,20 +588,25 @@ Be [PERSONALITY TRAITS: professional, friendly, expert, etc.] in your responses.
    * EXAMPLE: Quality Metrics Collection Pattern
    * Shows how to collect and analyze quality metrics for continuous improvement
    */
-  private collectQualityMetrics(response: string, processingTime: number, memoriesUsed: number): any {
-    return {
+  private collectQualityMetrics(response: string, processingTime: number, memoriesUsed: number): { qualityScore: number; metrics: Record<string, number> } {
+    const metrics = {
       responseLength: response.length,
       processingTime: processingTime,
       memoriesUsed: memoriesUsed,
       efficiency: memoriesUsed > 0 ? response.length / memoriesUsed : response.length,
-      timeEfficiency: response.length / processingTime,
-      qualityIndicators: {
-        memoryEnhanced: memoriesUsed > 0,
-        appropriateLength: response.length > 50 && response.length < 2000,
-        timely: processingTime < 5000, // 5 seconds
-        constitutionalCompliant: true // Would be from actual validation
-      },
-      timestamp: this.getCurrentTimeStamp()
+      timeEfficiency: response.length / processingTime
+    };
+    
+    const qualityScore = Math.min(100, Math.max(0, 
+      (metrics.efficiency * 0.3) + 
+      (metrics.timeEfficiency * 0.3) + 
+      (memoriesUsed > 0 ? 20 : 0) + 
+      (response.length > 50 && response.length < 2000 ? 20 : 0)
+    ));
+    
+    return {
+      qualityScore,
+      metrics
     };
   }
 
@@ -572,9 +614,9 @@ Be [PERSONALITY TRAITS: professional, friendly, expert, etc.] in your responses.
    * EXAMPLE: Memory Search Enhancement Pattern
    * Demonstrates advanced memory search with fallbacks and quality assessment
    */
-  private async searchMemoriesWithFallback(userId: string, query: string, limit: number = 5): Promise<{ memories: any[], searchMetrics: any }> {
+  private async searchMemoriesWithFallback(userId: string, query: string, limit: number = 5): Promise<{ memories: MemoryRecord[], searchMetrics: { found: number; searchTime: number; method: string } }> {
     const searchStart = Date.now();
-    let memories: any[] = [];
+    let memories: MemoryRecord[] = [];
     let searchSuccess = false;
     
     try {
@@ -588,10 +630,8 @@ Be [PERSONALITY TRAITS: professional, friendly, expert, etc.] in your responses.
     
     const searchMetrics = {
       searchTime: Date.now() - searchStart,
-      resultsFound: memories.length,
-      searchSuccess: searchSuccess,
-      queryLength: query.length,
-      efficiency: searchSuccess ? memories.length / (Date.now() - searchStart) : 0
+      found: memories.length,
+      method: searchSuccess ? 'memory_search' : 'fallback'
     };
     
     return { memories, searchMetrics };

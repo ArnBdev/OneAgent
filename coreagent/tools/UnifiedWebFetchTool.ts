@@ -7,6 +7,49 @@ import { UnifiedMCPTool, ToolExecutionResult, InputSchema } from './UnifiedMCPTo
 import { WebFetchTool } from './webFetch';
 import { OneAgentMemory, OneAgentMemoryConfig } from '../memory/OneAgentMemory';
 
+export interface WebFetchParams {
+  url: string;
+  extractContent?: boolean;
+  includeMetadata?: boolean;
+  timeout?: number;
+  userAgent?: string;
+  validateUrl?: boolean;
+}
+
+export interface WebFetchResult {
+  success: boolean;
+  content?: {
+    text?: string;
+    metadata?: unknown;
+    safetyScore?: number;
+    contentWarnings?: string[];
+  };
+  timing?: {
+    totalTime?: number;
+  };
+  constitutionalValidation?: {
+    passed: boolean;
+    warnings: string[];
+    safetyScore: number;
+  };
+}
+
+export interface FetchLearning {
+  id: string;
+  agentId: string;
+  learningType: string;
+  content: string;
+  confidence: number;
+  applicationCount: number;
+  lastApplied: Date;
+  sourceConversations: unknown[];
+  metadata: {
+    tool: string;
+    operation: string;
+    domain?: string;
+  };
+}
+
 export class UnifiedWebFetchTool extends UnifiedMCPTool {
   private webFetchTool: WebFetchTool;
   private memorySystem: OneAgentMemory;
@@ -76,8 +119,9 @@ export class UnifiedWebFetchTool extends UnifiedMCPTool {
     this.memorySystem = new OneAgentMemory(memoryConfig);
   }
 
-  public async executeCore(args: any): Promise<ToolExecutionResult> {
+  public async executeCore(args: unknown): Promise<ToolExecutionResult> {
     try {
+      const params = args as WebFetchParams;
       const { 
         url, 
         extractContent = true, 
@@ -85,7 +129,7 @@ export class UnifiedWebFetchTool extends UnifiedMCPTool {
         timeout = 10000,
         userAgent,
         validateUrl = true
-      } = args;
+      } = params;
 
       // Constitutional AI URL validation
       const urlValidation = this.validateUrlSafety(url);
@@ -105,7 +149,7 @@ export class UnifiedWebFetchTool extends UnifiedMCPTool {
         extractContent,
         extractMetadata: includeMetadata,
         timeout,
-        userAgent,
+        ...(userAgent && { userAgent }),
         validateUrl
       });
 
@@ -143,7 +187,7 @@ export class UnifiedWebFetchTool extends UnifiedMCPTool {
         }
       };
 
-    } catch (error) {
+    } catch (error: unknown) {
       return {
         success: false,
         data: error instanceof Error ? error.message : 'Web fetch failed',
@@ -177,7 +221,7 @@ export class UnifiedWebFetchTool extends UnifiedMCPTool {
       }
       
       return { isValid: true };
-    } catch (error) {
+    } catch {
       return { isValid: false, reason: 'Invalid URL format' };
     }
   }
@@ -185,7 +229,7 @@ export class UnifiedWebFetchTool extends UnifiedMCPTool {
   /**
    * Apply Constitutional AI content filtering
    */
-  private async applyContentFiltering(fetchResult: any): Promise<any> {
+  private async applyContentFiltering(fetchResult: WebFetchResult): Promise<WebFetchResult> {
     if (!fetchResult.success || !fetchResult.content) {
       return fetchResult;
     }
@@ -197,7 +241,7 @@ export class UnifiedWebFetchTool extends UnifiedMCPTool {
       /\b(illegal.*download|piracy|torrent)\b/gi
     ];
 
-    let contentWarnings: string[] = [];
+    const contentWarnings: string[] = [];
     const content = fetchResult.content.text || '';
     
     harmfulPatterns.forEach((pattern, index) => {
@@ -211,7 +255,7 @@ export class UnifiedWebFetchTool extends UnifiedMCPTool {
       content: {
         ...fetchResult.content,
         safetyScore: this.calculateSafetyScore(content),
-        contentWarnings: contentWarnings.length > 0 ? contentWarnings : undefined
+        ...(contentWarnings.length > 0 && { contentWarnings })
       },
       constitutionalValidation: {
         passed: contentWarnings.length === 0,
@@ -244,7 +288,7 @@ export class UnifiedWebFetchTool extends UnifiedMCPTool {
   /**
    * Calculate overall content quality
    */
-  private calculateContentQuality(fetchResult: any): number {
+  private calculateContentQuality(fetchResult: WebFetchResult): number {
     if (!fetchResult.success) return 0;
     
     let score = 50; // Base score
@@ -274,9 +318,9 @@ export class UnifiedWebFetchTool extends UnifiedMCPTool {
   /**
    * Store fetch learning in memory
    */
-  private async storeFetchLearning(url: string, fetchResult: any): Promise<void> {
+  private async storeFetchLearning(url: string, fetchResult: WebFetchResult): Promise<void> {
     try {
-      const learning: any = {
+      const learning: FetchLearning = {
         id: `learning_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
         agentId: 'oneagent_web_fetch',
         learningType: 'documentation_context',
@@ -297,19 +341,22 @@ export class UnifiedWebFetchTool extends UnifiedMCPTool {
         metadata: {
           tool: 'web_fetch',
           operation: 'web_content_fetch',
-          domain: (() => { try { return new URL(url).hostname; } catch { return undefined; } })(),
+          ...((() => { try { return { domain: new URL(url).hostname }; } catch { return {}; } })())
         }
       };
-      await this.memorySystem.addMemory('learnings', learning);
-    } catch (error) {
-      console.warn('[UnifiedWebFetchTool] Failed to store fetch learning:', error);
+      await this.memorySystem.addMemory({
+        ...learning,
+        type: 'learnings'
+      });
+    } catch (_error) {
+      console.warn('[UnifiedWebFetchTool] Failed to store fetch learning:', _error);
     }
   }
 
   /**
    * Generate insights from fetch results
    */
-  private generateFetchInsights(url: string, fetchResult: any): string[] {
+  private generateFetchInsights(url: string, fetchResult: WebFetchResult): string[] {
     const insights: string[] = [];
     
     if (!fetchResult.success) {
@@ -331,7 +378,7 @@ export class UnifiedWebFetchTool extends UnifiedMCPTool {
     try {
       const domain = new URL(url).hostname;
       insights.push(`Domain: ${domain} - consider adding to trusted/blocked list based on quality`);
-    } catch (error) {
+    } catch {
       insights.push('URL parsing failed - validate URL format');
     }
     

@@ -20,7 +20,7 @@ interface OneAgentConfig {
 export function loadOneAgentConfig(): OneAgentConfig {
   // Try to load from .env file if available
   const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
-  let envConfig: Record<string, string> = {};
+  const envConfig: Record<string, string> = {};
   
   if (workspaceFolder) {
     const envPath = path.join(workspaceFolder.uri.fsPath, '.env');

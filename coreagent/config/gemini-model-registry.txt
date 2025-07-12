@@ -1,0 +1,79 @@
+# Gemini Model Registry for OneAgent (MCP 2025-06-18)
+# Source: https://ai.google.dev/gemini-api/docs/models, https://ai.google.dev/gemini-api/docs/pricing, https://ai.google.dev/gemini-api/docs/embeddings
+# This file documents available Gemini models, tiers, purposes, and pricing for reference.
+# Used by coreagent/config/gemini-model-registry.ts
+
+[gemini-2.5-pro]
+name = Gemini 2.5 Pro
+tier = premium
+purpose = State-of-the-art, complex reasoning, coding, multimodal (audio, image, video, text, PDF)
+input_price = $1.25 per 1M tokens (<=200k), $2.50 (>200k)
+output_price = $10.00 per 1M tokens (<=200k), $15.00 (>200k)
+notes = Best for advanced coding, reasoning, and multimodal understanding
+
+[gemini-2.5-flash]
+name = Gemini 2.5 Flash
+tier = standard
+purpose = Price-performance, low latency, high volume, multimodal (audio, image, video, text)
+input_price = $0.30 per 1M tokens (text/image/video), $1.00 (audio)
+output_price = $2.50 per 1M tokens
+notes = Best for low latency, high throughput tasks
+
+[gemini-2.5-flash-lite-preview-06-17]
+name = Gemini 2.5 Flash-Lite Preview
+tier = cost-efficient
+purpose = Most cost-efficient, real-time, low latency, high throughput
+input_price = $0.10 per 1M tokens (text/image/video), $0.50 (audio)
+output_price = $0.40 per 1M tokens
+notes = Preview model, subject to change
+
+[gemini-embedding-exp-03-07]
+name = Gemini Embedding Experimental
+tier = embedding
+purpose = Text embeddings for semantic similarity, classification, clustering, retrieval
+input_price = Free (as of 2025-07)
+output_price = Free (as of 2025-07)
+notes = Use for semantic search, RAG, clustering, etc.
+
+[text-embedding-004]
+name = Text Embedding 004
+tier = embedding
+purpose = State-of-the-art text embedding
+input_price = Free (as of 2025-07)
+output_price = Free (as of 2025-07)
+notes = Use for semantic search, RAG, clustering, etc.
+
+# Deprecated/legacy models below. Do NOT use in OneAgent production. Retained for historical reference only.
+# [gemini-2.0-flash]
+# name = Gemini 2.0 Flash
+# tier = standard
+# purpose = Balanced multimodal, 1M token context, fast streaming
+# input_price = $0.10 per 1M tokens (text/image/video), $0.70 (audio)
+# output_price = $0.40 per 1M tokens
+# notes = Next-gen features, realtime streaming
+
+# [gemini-1.5-pro]
+# name = Gemini 1.5 Pro
+# tier = premium
+# purpose = Highest intelligence, 2M token context, complex reasoning
+# input_price = $1.25 per 1M tokens (<=128k), $2.50 (>128k)
+# output_price = $5.00 per 1M tokens (<=128k), $10.00 (>128k)
+# notes = Complex reasoning, large context
+
+# [gemini-1.5-flash]
+# name = Gemini 1.5 Flash
+# tier = standard
+# purpose = Fast, versatile, 1M token context, repetitive tasks
+# input_price = $0.075 per 1M tokens (<=128k), $0.15 (>128k)
+# output_price = $0.30 per 1M tokens (<=128k), $0.60 (>128k)
+# notes = High throughput, repetitive tasks
+
+# [gemini-1.5-flash-8b]
+# name = Gemini 1.5 Flash-8B
+# tier = cost-efficient
+# purpose = Lower intelligence, high volume, 1M token context
+# input_price = $0.0375 per 1M tokens (<=128k), $0.075 (>128k)
+# output_price = $0.15 per 1M tokens (<=128k), $0.30 (>128k)
+# notes = High volume, lower intelligence
+
+# Add more models as needed following the above format. See https://ai.google.dev/gemini-api/docs/models for updates.

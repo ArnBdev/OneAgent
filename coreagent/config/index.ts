@@ -11,7 +11,8 @@ import { config } from 'dotenv';
 import * as path from 'path';
 
 // Load environment variables from .env file
-config({ path: path.join(__dirname, '..', '..', '..', '.env') });
+// Use relative path from project root
+config({ path: path.join(process.cwd(), '.env') });
 
 export interface ServerConfig {
   // Core Configuration
@@ -25,6 +26,17 @@ export interface ServerConfig {
   // MCP Server  
   mcpPort: number;
   mcpUrl: string;
+  
+  // A2A Protocol Configuration
+  a2aProtocolVersion: string;
+  a2aBaseUrl: string;
+  a2aWellKnownPath: string;
+  a2aTransport: string;
+  a2aSecurityEnabled: boolean;
+  a2aDiscoveryEnabled: boolean;
+  a2aPushNotifications: boolean;
+  a2aStreamingEnabled: boolean;
+  a2aStateHistory: boolean;
   
   // UI Server
   uiPort: number;
@@ -69,6 +81,17 @@ export const oneAgentConfig: ServerConfig = {
   // MCP Server Configuration  
   mcpPort: parseInt(process.env.ONEAGENT_MCP_PORT || '8083', 10),
   mcpUrl: process.env.ONEAGENT_MCP_URL || 'http://127.0.0.1:8083',
+  
+  // A2A Protocol Configuration
+  a2aProtocolVersion: process.env.ONEAGENT_A2A_PROTOCOL_VERSION || '0.2.5',
+  a2aBaseUrl: process.env.ONEAGENT_A2A_BASE_URL || 'http://127.0.0.1:8083/a2a',
+  a2aWellKnownPath: process.env.ONEAGENT_A2A_WELL_KNOWN_PATH || '/.well-known/agent.json',
+  a2aTransport: process.env.ONEAGENT_A2A_TRANSPORT || 'JSONRPC',
+  a2aSecurityEnabled: process.env.ONEAGENT_A2A_SECURITY_ENABLED === 'true',
+  a2aDiscoveryEnabled: process.env.ONEAGENT_A2A_DISCOVERY_ENABLED === 'true',
+  a2aPushNotifications: process.env.ONEAGENT_A2A_PUSH_NOTIFICATIONS === 'true',
+  a2aStreamingEnabled: process.env.ONEAGENT_A2A_STREAMING_ENABLED === 'true',
+  a2aStateHistory: process.env.ONEAGENT_A2A_STATE_HISTORY === 'true',
   
   // UI Server Configuration
   uiPort: parseInt(process.env.ONEAGENT_UI_PORT || '8080', 10),

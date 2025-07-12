@@ -5,6 +5,13 @@
 
 import { UnifiedMCPTool, ToolExecutionResult, InputSchema } from './UnifiedMCPTool';
 
+export interface EnhancedSearchParams {
+  query: string;
+  sources?: string[];
+  qualityThreshold?: number;
+  maxResults?: number;
+}
+
 export class EnhancedSearchTool extends UnifiedMCPTool {
   constructor() {
     const schema: InputSchema = {
@@ -40,11 +47,10 @@ export class EnhancedSearchTool extends UnifiedMCPTool {
     );
   }
 
-  public async executeCore(args: any): Promise<ToolExecutionResult> {
+  public async executeCore(args: EnhancedSearchParams): Promise<ToolExecutionResult> {
     try {
       const { 
         query, 
-        sources = [], 
         qualityThreshold = 80, 
         maxResults = 5 
       } = args;

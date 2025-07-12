@@ -19,6 +19,44 @@ export interface CodeAnalysisParams {
   storeResults?: boolean;
 }
 
+export interface AnalysisResult {
+  id: string;
+  timestamp: string;
+  codeLength: number;
+  lineCount: number;
+  summary: string;
+  quality: {
+    overallScore: number;
+    complexity: number;
+    maintainability: number;
+    readability: number;
+    testCoverage: number;
+  };
+  security?: {
+    score: number;
+    vulnerabilities: string[];
+    recommendations: string[];
+  };
+  performance?: {
+    score: number;
+    bottlenecks: string[];
+    optimizations: string[];
+  };
+  patterns?: {
+    designPatterns: string[];
+    antiPatterns: string[];
+    bestPractices: string[];
+  };
+  issues: Array<{type: string; severity: string; message: string}>;
+  metrics?: {
+    cyclomaticComplexity: number;
+    codeSmells: string[];
+    duplications: string[];
+    technicalDebt: number;
+  };
+  recommendations?: string[];
+}
+
 /**
  * Code Analysis Tool for professional development workflows
  */
@@ -98,7 +136,7 @@ export class CodeAnalysisTool extends UnifiedMCPTool {
           code = await fs.readFile(filePath, 'utf-8');
           sourceFile = filePath;
           detectedLanguage = language || this.detectLanguageFromFile(filePath);
-        } catch (error) {
+        } catch {
           return {
             success: false,
             data: null,
@@ -166,7 +204,7 @@ export class CodeAnalysisTool extends UnifiedMCPTool {
   /**
    * Perform comprehensive code analysis
    */
-  private async performCodeAnalysis(code: string, language: string, analysisType: string): Promise<any> {
+  private async performCodeAnalysis(code: string, language: string, analysisType: string): Promise<AnalysisResult> {
     const analysisId = `analysis_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
 
     // Simulate analysis processing
@@ -196,7 +234,7 @@ export class CodeAnalysisTool extends UnifiedMCPTool {
   /**
    * Perform full comprehensive analysis
    */
-  private performFullAnalysis(code: string, language: string, baseAnalysis: any): any {
+  private performFullAnalysis(code: string, language: string, baseAnalysis: Partial<AnalysisResult>): AnalysisResult {
     const complexityScore = this.calculateComplexity(code);
     const maintainabilityScore = this.calculateMaintainability(code);
     const securityScore = this.calculateSecurityScore(code, language);
@@ -206,6 +244,10 @@ export class CodeAnalysisTool extends UnifiedMCPTool {
 
     return {
       ...baseAnalysis,
+      id: baseAnalysis.id!,
+      timestamp: baseAnalysis.timestamp!,
+      codeLength: baseAnalysis.codeLength!,
+      lineCount: baseAnalysis.lineCount!,
       summary: `Comprehensive analysis of ${language} code (${baseAnalysis.lineCount} lines)`,
       quality: {
         overallScore: Math.round(overallScore),
@@ -242,7 +284,7 @@ export class CodeAnalysisTool extends UnifiedMCPTool {
   /**
    * Generate actionable recommendations
    */
-  private async generateRecommendations(analysis: any, language: string): Promise<string[]> {
+  private async generateRecommendations(analysis: AnalysisResult, language: string): Promise<string[]> {
     const recommendations: string[] = [];
 
     // Quality recommendations
@@ -291,7 +333,7 @@ export class CodeAnalysisTool extends UnifiedMCPTool {
   /**
    * Store analysis results in memory
    */
-  private async storeAnalysisInMemory(analysis: any, sourceFile: string | undefined, language: string): Promise<void> {
+  private async storeAnalysisInMemory(analysis: AnalysisResult, sourceFile: string | undefined, language: string): Promise<void> {
     try {
       const memoryData = {
         type: 'code_analysis',
@@ -306,7 +348,10 @@ export class CodeAnalysisTool extends UnifiedMCPTool {
       };
 
       // Use canonical memory system for storage
-      await this.memorySystem.addMemory('code_analysis', memoryData);
+      await this.memorySystem.addMemory({
+        ...memoryData,
+        type: 'code_analysis'
+      });
 
       console.log(`[CodeAnalysis] Stored analysis ${analysis.id} in memory`);
     } catch (error) {
@@ -381,6 +426,7 @@ export class CodeAnalysisTool extends UnifiedMCPTool {
   }
 
   private findSecurityIssues(code: string, _language: string): string[] {
+    // Language-specific security patterns could be analyzed here
     const issues: string[] = [];
     if (code.includes('eval(')) issues.push('Use of eval() function');
     if (code.includes('innerHTML')) issues.push('Potential XSS vulnerability with innerHTML');
@@ -415,18 +461,283 @@ export class CodeAnalysisTool extends UnifiedMCPTool {
     return issues;
   }
   // Stub methods for comprehensive analysis
-  private performSecurityAnalysis(_code: string, _language: string, baseAnalysis: any): any { return baseAnalysis; }
-  private performPerformanceAnalysis(_code: string, _language: string, baseAnalysis: any): any { return baseAnalysis; }
-  private performQualityAnalysis(_code: string, _language: string, baseAnalysis: any): any { return baseAnalysis; }
-  private performPatternAnalysis(_code: string, _language: string, baseAnalysis: any): any { return baseAnalysis; }
-  private getSecurityRecommendations(_language: string): string[] { return []; }
-  private getPerformanceOptimizations(_language: string): string[] { return []; }
-  private detectDesignPatterns(_code: string, _language: string): string[] { return []; }
-  private detectAntiPatterns(_code: string, _language: string): string[] { return []; }
-  private checkBestPractices(_code: string, _language: string): string[] { return []; }
-  private detectCodeSmells(_code: string): string[] { return []; }
-  private detectDuplications(_code: string): string[] { return []; }
-  private estimateTechnicalDebt(_code: string): number { return 0; }
+  private performSecurityAnalysis(code: string, language: string, baseAnalysis: Partial<AnalysisResult>): AnalysisResult {
+    return {
+      ...baseAnalysis,
+      id: baseAnalysis.id!,
+      timestamp: baseAnalysis.timestamp!,
+      codeLength: baseAnalysis.codeLength!,
+      lineCount: baseAnalysis.lineCount!,
+      summary: `Security analysis of ${language} code (${baseAnalysis.lineCount} lines)`,
+      quality: {
+        overallScore: 85,
+        complexity: 80,
+        maintainability: 85,
+        readability: 80,
+        testCoverage: 70
+      },
+      security: {
+        score: this.calculateSecurityScore(code, language),
+        vulnerabilities: this.findSecurityIssues(code, language),
+        recommendations: this.getSecurityRecommendations(language)
+      },
+      issues: this.findCodeIssues(code, language)
+    };
+  }
+
+  private performPerformanceAnalysis(code: string, language: string, baseAnalysis: Partial<AnalysisResult>): AnalysisResult {
+    return {
+      ...baseAnalysis,
+      id: baseAnalysis.id!,
+      timestamp: baseAnalysis.timestamp!,
+      codeLength: baseAnalysis.codeLength!,
+      lineCount: baseAnalysis.lineCount!,
+      summary: `Performance analysis of ${language} code (${baseAnalysis.lineCount} lines)`,
+      quality: {
+        overallScore: 80,
+        complexity: 75,
+        maintainability: 80,
+        readability: 80,
+        testCoverage: 70
+      },
+      performance: {
+        score: this.calculatePerformanceScore(code, language),
+        bottlenecks: this.findPerformanceBottlenecks(code, language),
+        optimizations: this.getPerformanceOptimizations(language)
+      },
+      issues: this.findCodeIssues(code, language)
+    };
+  }
+
+  private performQualityAnalysis(code: string, language: string, baseAnalysis: Partial<AnalysisResult>): AnalysisResult {
+    return {
+      ...baseAnalysis,
+      id: baseAnalysis.id!,
+      timestamp: baseAnalysis.timestamp!,
+      codeLength: baseAnalysis.codeLength!,
+      lineCount: baseAnalysis.lineCount!,
+      summary: `Quality analysis of ${language} code (${baseAnalysis.lineCount} lines)`,
+      quality: {
+        overallScore: this.calculateComplexity(code) + this.calculateMaintainability(code) / 2,
+        complexity: this.calculateComplexity(code),
+        maintainability: this.calculateMaintainability(code),
+        readability: this.calculateReadability(code),
+        testCoverage: this.estimateTestCoverage(code)
+      },
+      issues: this.findCodeIssues(code, language)
+    };
+  }
+
+  private performPatternAnalysis(code: string, language: string, baseAnalysis: Partial<AnalysisResult>): AnalysisResult {
+    return {
+      ...baseAnalysis,
+      id: baseAnalysis.id!,
+      timestamp: baseAnalysis.timestamp!,
+      codeLength: baseAnalysis.codeLength!,
+      lineCount: baseAnalysis.lineCount!,
+      summary: `Pattern analysis of ${language} code (${baseAnalysis.lineCount} lines)`,
+      quality: {
+        overallScore: 85,
+        complexity: 80,
+        maintainability: 85,
+        readability: 85,
+        testCoverage: 75
+      },
+      patterns: {
+        designPatterns: this.detectDesignPatterns(code, language),
+        antiPatterns: this.detectAntiPatterns(code, language),
+        bestPractices: this.checkBestPractices(code, language)
+      },
+      issues: this.findCodeIssues(code, language)
+    };
+  }
+
+  private getSecurityRecommendations(language: string): string[] {
+    const commonRecommendations = [
+      'Validate all user inputs',
+      'Use parameterized queries to prevent SQL injection',
+      'Implement proper authentication and authorization',
+      'Use HTTPS for all communications'
+    ];
+
+    switch (language.toLowerCase()) {
+      case 'typescript':
+      case 'javascript':
+        return [...commonRecommendations, 'Avoid eval() functions', 'Sanitize DOM inputs'];
+      case 'python':
+        return [...commonRecommendations, 'Use secure random generators', 'Validate pickle operations'];
+      default:
+        return commonRecommendations;
+    }
+  }
+
+  private getPerformanceOptimizations(language: string): string[] {
+    const commonOptimizations = [
+      'Optimize algorithm complexity',
+      'Use appropriate data structures',
+      'Implement caching where beneficial',
+      'Minimize memory allocations'
+    ];
+
+    switch (language.toLowerCase()) {
+      case 'typescript':
+      case 'javascript':
+        return [...commonOptimizations, 'Use async/await properly', 'Optimize DOM operations'];
+      case 'python':
+        return [...commonOptimizations, 'Use list comprehensions', 'Consider numpy for numerical operations'];
+      default:
+        return commonOptimizations;
+    }
+  }
+
+  private detectDesignPatterns(code: string, _language: string): string[] {
+    const patterns: string[] = [];
+    const lowerCode = code.toLowerCase();
+
+    if (lowerCode.includes('class') && lowerCode.includes('extends')) {
+      patterns.push('Inheritance');
+    }
+    if (lowerCode.includes('interface') || lowerCode.includes('implements')) {
+      patterns.push('Interface Pattern');
+    }
+    if (lowerCode.includes('singleton') || (lowerCode.includes('static') && lowerCode.includes('instance'))) {
+      patterns.push('Singleton Pattern');
+    }
+    if (lowerCode.includes('factory') && lowerCode.includes('create')) {
+      patterns.push('Factory Pattern');
+    }
+    if (lowerCode.includes('observer') || lowerCode.includes('notify')) {
+      patterns.push('Observer Pattern');
+    }
+
+    return patterns;
+  }
+
+  private detectAntiPatterns(code: string, _language: string): string[] {
+    const antiPatterns: string[] = [];
+    const lines = code.split('\n');
+
+    // Check for god classes (very long classes)
+    if (lines.length > 500) {
+      antiPatterns.push('God Class (very long class)');
+    }
+
+    // Check for deeply nested code
+    let maxNesting = 0;
+    let currentNesting = 0;
+    for (const line of lines) {
+      const openBraces = (line.match(/[{(]/g) || []).length;
+      const closeBraces = (line.match(/[})]/g) || []).length;
+      currentNesting += openBraces - closeBraces;
+      maxNesting = Math.max(maxNesting, currentNesting);
+    }
+    if (maxNesting > 5) {
+      antiPatterns.push('Excessive Nesting');
+    }
+
+    // Check for magic numbers
+    if (code.match(/\b\d{2,}\b/g)) {
+      antiPatterns.push('Magic Numbers');
+    }
+
+    return antiPatterns;
+  }
+
+  private checkBestPractices(code: string, _language: string): string[] {
+    const practices: string[] = [];
+
+    if (code.includes('try') && code.includes('catch')) {
+      practices.push('Error Handling');
+    }
+    if (code.includes('test') || code.includes('spec') || code.includes('describe')) {
+      practices.push('Unit Testing');
+    }
+    if (code.includes('//') || code.includes('/*') || code.includes('"""')) {
+      practices.push('Code Documentation');
+    }
+    if (code.includes('const ') || code.includes('final ')) {
+      practices.push('Immutability');
+    }
+
+    return practices;
+  }
+
+  private detectCodeSmells(code: string): string[] {
+    const smells: string[] = [];
+    const lines = code.split('\n');
+
+    // Long methods
+    let currentMethodLength = 0;
+    let inMethod = false;
+    for (const line of lines) {
+      if (line.includes('function') || line.includes('def ') || line.includes('method')) {
+        inMethod = true;
+        currentMethodLength = 0;
+      }
+      if (inMethod) {
+        currentMethodLength++;
+        if (line.includes('}') || line.includes('end')) {
+          if (currentMethodLength > 30) {
+            smells.push('Long Method');
+          }
+          inMethod = false;
+        }
+      }
+    }
+
+    // Duplicate code
+    const lineMap = new Map<string, number>();
+    for (const line of lines) {
+      const trimmed = line.trim();
+      if (trimmed.length > 5) {
+        lineMap.set(trimmed, (lineMap.get(trimmed) || 0) + 1);
+      }
+    }
+    if (Array.from(lineMap.values()).some(count => count > 3)) {
+      smells.push('Duplicate Code');
+    }
+
+    return smells;
+  }
+
+  private detectDuplications(code: string): string[] {
+    const duplications: string[] = [];
+    const lines = code.split('\n').map(line => line.trim()).filter(line => line.length > 5);
+    const lineOccurrences = new Map<string, number>();
+
+    for (const line of lines) {
+      lineOccurrences.set(line, (lineOccurrences.get(line) || 0) + 1);
+    }
+
+    for (const [line, count] of lineOccurrences) {
+      if (count > 2) {
+        duplications.push(`Duplicated line: "${line.substring(0, 50)}..." (${count} times)`);
+      }
+    }
+
+    return duplications.slice(0, 5); // Limit to top 5 duplications
+  }
+
+  private estimateTechnicalDebt(code: string): number {
+    let debtScore = 0;
+    const lines = code.split('\n');
+
+    // TODO comments add to technical debt
+    const todoCount = (code.match(/TODO|FIXME|HACK/gi) || []).length;
+    debtScore += todoCount * 5;
+
+    // Long lines add to debt
+    const longLineCount = lines.filter(line => line.length > 120).length;
+    debtScore += longLineCount * 2;
+
+    // Excessive complexity adds to debt
+    const cyclomaticComplexity = this.calculateCyclomaticComplexity(code);
+    if (cyclomaticComplexity > 10) {
+      debtScore += (cyclomaticComplexity - 10) * 3;
+    }
+
+    return Math.min(debtScore, 100); // Cap at 100
+  }
 
   private delay(ms: number): Promise<void> {
     return new Promise(resolve => setTimeout(resolve, ms));

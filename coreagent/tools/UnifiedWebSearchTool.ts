@@ -8,6 +8,13 @@ import { WebSearchTool, WebSearchOptions } from './webSearch';
 import { BraveSearchClient } from './braveSearchClient';
 import { oneAgentConfig } from '../config/index';
 
+export interface WebSearchArgs {
+  query: string;
+  maxResults?: number;
+  qualityThreshold?: number;
+  safesearch?: 'strict' | 'moderate' | 'off';
+}
+
 export class UnifiedWebSearchTool extends UnifiedMCPTool {
   private webSearchTool: WebSearchTool;
 
@@ -51,14 +58,14 @@ export class UnifiedWebSearchTool extends UnifiedMCPTool {
     this.webSearchTool = new WebSearchTool(braveClient);
   }
 
-  public async executeCore(args: any): Promise<ToolExecutionResult> {
+  public async executeCore(args: unknown): Promise<ToolExecutionResult> {
     try {
       const { 
         query, 
         maxResults = 5, 
         qualityThreshold = 80,
         safesearch = 'moderate'
-      } = args;
+      } = args as WebSearchArgs;
 
       const searchOptions: WebSearchOptions = {
         query,
@@ -69,17 +76,7 @@ export class UnifiedWebSearchTool extends UnifiedMCPTool {
 
       const searchResults = await this.webSearchTool.search(searchOptions);
 
-      // Apply quality filtering
-      const filteredResults = searchResults.results.filter(result => {
-        // Basic quality scoring based on title/description completeness
-        let score = 0;
-        if (result.title && result.title.length > 10) score += 30;
-        if (result.description && result.description.length > 50) score += 40;
-        if (result.url && result.url.includes('https://')) score += 20;
-        if (result.age && !result.age.includes('years ago')) score += 10;
-        
-        return score >= qualityThreshold;
-      });      return {
+      return {
         success: true,
         data: {
           success: true,
@@ -111,7 +108,7 @@ export class UnifiedWebSearchTool extends UnifiedMCPTool {
     }
   }
 
-  private calculateQualityScore(filtered: any[], original: any[]): number {
+  private calculateQualityScore(filtered: unknown[], original: unknown[]): number {
     if (original.length === 0) return 0;
     
     const filterRatio = filtered.length / original.length;

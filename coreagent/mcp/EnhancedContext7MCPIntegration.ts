@@ -5,7 +5,7 @@
  * predictive caching, semantic search, and sub-100ms query performance.
  */
 
-import { Context7MCPIntegration, DocumentationQuery, DocumentationResult, CacheMetrics } from './Context7MCPIntegration';
+import { Context7MCPIntegration, WebDocumentationQuery, WebDocumentationResult, CacheMetrics } from './Context7MCPIntegration';
 
 // Enhanced interfaces for advanced capabilities
 export interface EnhancedDocumentationQuery {
@@ -19,12 +19,22 @@ export interface EnhancedDocumentationQuery {
   semanticHints?: string[];
 }
 
-export interface EnhancedDocumentationResult extends DocumentationResult {
+export interface EnhancedDocumentationResult {
+  technology: string;
+  topic: string;
+  title: string;
+  content: string;
+  sourceUrl: string | undefined;
+  version: string | undefined;
+  relevanceScore: number;
+  bestPractices: string[] | undefined;
+  codeExamples: CodeExample[]; // Enhanced version with structured code examples
+  storageTimestamp: Date;
+  // Enhanced properties
   confidenceLevel: number;
   sourceQuality: number;
   lastUpdated: Date;
   relatedTopics: string[];
-  codeExamples: CodeExample[];
   predictedNextQueries: string[];
 }
 
@@ -112,10 +122,10 @@ interface SemanticVector {
 }
 
 interface RawDocumentationResult {
-  source: string;
+  technology: string; // Changed from 'source' to align with WebDocumentationResult
   title: string;
   content: string;
-  url: string;
+  sourceUrl: string; // Changed from 'url' to align with WebDocumentationResult
   lastUpdated?: Date;
   queryType: string;
 }
@@ -247,9 +257,9 @@ export class EnhancedContext7MCPIntegration extends Context7MCPIntegration {
       console.error('Enhanced Context7 query failed:', error);
       
       // Fallback to base implementation with enhanced conversion
-      const baseResults = await super.queryDocumentation({
-        source: options.source || '',
-        query: query,
+      const baseResults = await super.queryWebDocumentation({
+        technology: options.source || '',
+        topic: query,
         context: typeof context === 'string' ? context : 'Enhanced query fallback'
       });
       
@@ -260,7 +270,7 @@ export class EnhancedContext7MCPIntegration extends Context7MCPIntegration {
   /**
    * Convert base DocumentationResult to EnhancedDocumentationResult
    */
-  private convertToEnhancedResults(baseResults: DocumentationResult[]): EnhancedDocumentationResult[] {
+  private convertToEnhancedResults(baseResults: WebDocumentationResult[]): EnhancedDocumentationResult[] {
     return baseResults.map(result => ({
       ...result,
       confidenceLevel: 0.8,
@@ -363,7 +373,7 @@ export class EnhancedContext7MCPIntegration extends Context7MCPIntegration {
     let bestMatch: PredictiveCacheEntry | null = null;
     let bestScore = 0;
 
-    for (const [, entry] of this.predictiveCache.entries()) {
+    for (const [, entry] of Array.from(this.predictiveCache.entries())) {
       const similarity = this.calculateSemanticSimilarity(
         analyzedQuery.semanticVector,
         await this.generateSemanticVector(entry.query)
@@ -478,10 +488,10 @@ export class EnhancedContext7MCPIntegration extends Context7MCPIntegration {
     await new Promise(resolve => setTimeout(resolve, 10)); // Simulate network delay
     
     return {
-      source: querySource.source,
+      technology: querySource.source,
       title: `Documentation for ${querySource.query}`,
       content: `Sample documentation content for ${querySource.query} from ${querySource.source}`,
-      url: `https://docs.${querySource.source}.com/${querySource.query}`,
+      sourceUrl: `https://docs.${querySource.source}.com/${querySource.query}`,
       queryType: querySource.type,
       lastUpdated: new Date()
     };
@@ -500,7 +510,7 @@ export class EnhancedContext7MCPIntegration extends Context7MCPIntegration {
     for (const result of rawResults) {
       // Calculate multiple scoring dimensions
       const relevanceScore = this.calculateEnhancedRelevanceScore(result, analyzedQuery);
-      const sourceQuality = this.calculateSourceQuality(result.source);
+      const sourceQuality = this.calculateSourceQuality(result.technology);
       const contextScore = context ? this.calculateContextScore(result, context) : 0.5;
       const freshnessScore = this.calculateFreshnessScore(result.lastUpdated);
       
@@ -514,17 +524,21 @@ export class EnhancedContext7MCPIntegration extends Context7MCPIntegration {
 
       // Generate enhanced result
       const enhancedResult: EnhancedDocumentationResult = {
-        source: result.source,
+        technology: result.technology,
+        topic: result.queryType, // Use queryType as topic
         title: result.title,
         content: result.content,
-        url: result.url,
+        sourceUrl: result.sourceUrl,
+        version: undefined, // Version will be determined from content
         relevanceScore: compositeScore,
-        cached: false,
+        bestPractices: undefined, // Will be extracted from content
+        codeExamples: this.extractCodeExamples(result.content),
+        storageTimestamp: new Date(),
+        // Enhanced properties
         confidenceLevel: this.calculateConfidenceLevel(result, analyzedQuery),
         sourceQuality,
         lastUpdated: result.lastUpdated || new Date(),
         relatedTopics: this.extractRelatedTopics(result.content),
-        codeExamples: this.extractCodeExamples(result.content),
         predictedNextQueries: []
       };
 
@@ -558,7 +572,7 @@ export class EnhancedContext7MCPIntegration extends Context7MCPIntegration {
     }
 
     // Library-specific bonus
-    if (analyzedQuery.detectedLibraries.includes(result.source)) {
+    if (analyzedQuery.detectedLibraries.includes(result.technology)) {
       score += 0.2;
     }
 
@@ -588,9 +602,9 @@ export class EnhancedContext7MCPIntegration extends Context7MCPIntegration {
     let score = 0.5; // Base score
     
     // Match project type
-    if (context.projectType === 'frontend' && ['react', 'vue', 'angular'].includes(result.source)) {
+    if (context.projectType === 'frontend' && ['react', 'vue', 'angular'].includes(result.technology)) {
       score += 0.3;
-    } else if (context.projectType === 'backend' && ['express', 'fastify', 'nestjs'].includes(result.source)) {
+    } else if (context.projectType === 'backend' && ['express', 'fastify', 'nestjs'].includes(result.technology)) {
       score += 0.3;
     }
     
@@ -625,7 +639,7 @@ export class EnhancedContext7MCPIntegration extends Context7MCPIntegration {
     let confidence = 0.5; // Base confidence
     
     // Source reliability
-    if (['react', 'vue', 'angular', 'typescript'].includes(result.source)) {
+    if (['react', 'vue', 'angular', 'typescript'].includes(result.technology)) {
       confidence += 0.2;
     }
     
@@ -716,9 +730,9 @@ export class EnhancedContext7MCPIntegration extends Context7MCPIntegration {
     const predictions: string[] = [];
     
     // Based on source type
-    if (result.source === 'react') {
+    if (result.technology === 'react') {
       predictions.push('react hooks', 'react state management', 'react components');
-    } else if (result.source === 'typescript') {
+    } else if (result.technology === 'typescript') {
       predictions.push('typescript interfaces', 'typescript generics', 'typescript types');
     }
     
@@ -795,7 +809,7 @@ export class EnhancedContext7MCPIntegration extends Context7MCPIntegration {
     let totalAccuracy = 0;
     let count = 0;
     
-    for (const pattern of this.queryPatterns.values()) {
+    for (const pattern of Array.from(this.queryPatterns.values())) {
       if (pattern.count > 0) {
         totalAccuracy += (pattern.successCount / pattern.count);
         count++;

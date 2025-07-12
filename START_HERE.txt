@@ -1,0 +1,10 @@
+ONEAGENT & MEM0 QUICK START (2025-07-07)
+
+To start the full OneAgent system (including memory server):
+
+- PowerShell:   ./scripts/start-unified.ps1
+- Batch:        ./scripts/start-oneagent-system.bat
+
+For individual servers, see scripts/README.md.
+
+All legacy scripts have been deleted. Use only the above for startup.

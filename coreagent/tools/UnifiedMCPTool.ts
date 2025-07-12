@@ -2,13 +2,13 @@
 
 export interface InputSchema {
   type: string;
-  properties: Record<string, any>;
+  properties: Record<string, unknown>;
   required?: string[];
 }
 
 export interface ToolExecutionResult {
   success: boolean;
-  data: any;
+  data: unknown;
   qualityScore?: number;
 }
 
@@ -27,9 +27,9 @@ export abstract class UnifiedMCPTool {
     this.constitutionalLevel = constitutionalLevel;
   }
 
-  abstract executeCore(args: any): Promise<ToolExecutionResult>;
+  abstract executeCore(args: unknown): Promise<ToolExecutionResult>;
 
-  async execute(args: any): Promise<ToolExecutionResult> {
+  async execute(args: unknown): Promise<ToolExecutionResult> {
     // Optionally add session/context logic here
     return this.executeCore(args);
   }

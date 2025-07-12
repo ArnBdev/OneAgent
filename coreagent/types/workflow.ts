@@ -40,7 +40,7 @@ export interface WorkflowStep {
   name: string;
   description?: string;
   type: 'action' | 'condition' | 'wait' | 'input';
-  parameters: Record<string, any>;
+  parameters: Record<string, unknown>;
   dependencies?: string[]; // IDs av andre steg som må fullføres først
 }
 
@@ -51,8 +51,8 @@ export interface Workflow {
   metadata: WorkflowMetadata;
   status: WorkflowStatus;
   steps: WorkflowStep[];
-  variables?: Record<string, any>; // Workflow-spesifikke variabler
-  context?: Record<string, any>; // Kontekst data som kan deles mellom steg
+  variables?: Record<string, unknown>; // Workflow-spesifikke variabler
+  context?: Record<string, unknown>; // Kontekst data som kan deles mellom steg
 }
 
 /**

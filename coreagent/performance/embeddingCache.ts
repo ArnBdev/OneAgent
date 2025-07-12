@@ -108,7 +108,7 @@ export class EmbeddingCache {
     const now = Date.now();
     let expiredCount = 0;
 
-    for (const [key, entry] of this.cache.entries()) {
+    for (const [key, entry] of Array.from(this.cache.entries())) {
       if (this.isExpired(entry)) {
         this.cache.delete(key);
         expiredCount++;

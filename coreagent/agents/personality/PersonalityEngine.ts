@@ -287,7 +287,7 @@ export class PersonalityEngine {
    */
   private initializeDefaultProfiles(): void {
     // Load default profiles for each agent type
-    for (const [agentId, traits] of PersonalityEngine.CORE_PERSONALITY_TRAITS.entries()) {
+    for (const [agentId, traits] of Array.from(PersonalityEngine.CORE_PERSONALITY_TRAITS.entries())) {
       const perspectiveFramework = PersonalityEngine.PERSPECTIVE_FRAMEWORKS.get(agentId);
       if (perspectiveFramework) {
         const profile: PersonalityProfile = {
@@ -654,15 +654,17 @@ export class PersonalityEngine {
     validation: ValidationResult
   ): Promise<void> {
     try {
-      const evolutionData = {
+      await this.memorySystem.addMemory({
         agentId,
         timestamp: new Date().toISOString(),
-        authenticity_score: authenticityScore,
+        authenticityScore,
+        validation,
+        response,
         constitutional_compliance: validation.isValid,
         response_length: response.length,
-        personality_markers_count: this.extractPersonalityMarkers(response, this.personalityProfiles.get(agentId)!).length
-      };
-      await this.memorySystem.addMemory('personality_evolution', evolutionData);
+        personality_markers_count: this.extractPersonalityMarkers(response, this.personalityProfiles.get(agentId)!).length,
+        type: 'personality_evolution'
+      });
     } catch (error) {
       console.error('Failed to store personality evolution data:', error);
     }
@@ -699,12 +701,12 @@ export class PersonalityEngine {
     updates: Partial<PersonalityProfile>
   ): Promise<void> {
     try {
-      const updateData = {
+      await this.memorySystem.addMemory({
         agentId,
         timestamp: new Date().toISOString(),
-        updates
-      };
-      await this.memorySystem.addMemory('personality_profile_update', updateData);
+        updates,
+        type: 'personality_profile_update'
+      });
     } catch (error) {
       console.error('Failed to store personality profile update:', error);
     }
@@ -719,9 +721,10 @@ export class PersonalityEngine {
     improvementTrend: number;
   }> {
     try {
-      const evolutionData = await this.memorySystem.searchMemory('personality_evolution', {
+      const evolutionData = await this.memorySystem.searchMemory({
         query: agentId,
-        limit: 100
+        limit: 100,
+        type: 'personality_evolution'
       });
       if (!evolutionData || evolutionData.length === 0) {
         return { averageScore: 0, totalInteractions: 0, improvementTrend: 0 };

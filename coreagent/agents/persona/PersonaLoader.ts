@@ -377,8 +377,9 @@ Please respond according to your persona configuration and quality standards.`;
         }
       };
 
-      await this.memorySystem.addMemory('conversations', {
-        ...conversationData // map fields as needed
+      await this.memorySystem.addMemory({
+        ...conversationData,
+        type: 'conversations'
       });
     } catch (error) {
       console.error(`[PersonaLoader] Failed to store persona in memory:`, error);
@@ -460,7 +461,7 @@ Please respond according to your persona configuration and quality standards.`;
    * Cleanup resources
    */
   public async cleanup(): Promise<void> {
-    for (const watcher of this.watchers.values()) {
+    for (const watcher of Array.from(this.watchers.values())) {
       await watcher.close();
     }
     this.watchers.clear();

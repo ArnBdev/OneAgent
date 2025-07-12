@@ -12,7 +12,7 @@ export interface ConversationContext {
   constraints: string[];       // Limitations or requirements
   timeHorizon: string;        // "immediate", "short-term", "long-term"
   riskLevel: "low" | "medium" | "high";
-  metadata: Record<string, any>;
+  metadata: Record<string, unknown>;
 }
 
 export enum DialogueState {

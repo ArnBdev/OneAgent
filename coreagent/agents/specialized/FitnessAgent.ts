@@ -8,12 +8,13 @@
  * - Specialized fitness and wellness expertise
  */
 
-import { BaseAgent, AgentConfig, AgentContext, AgentResponse, Message, AgentAction } from '../base/BaseAgent';
-import { ISpecializedAgent, AgentStatus, AgentHealthStatus } from '../base/ISpecializedAgent';
+import { BaseAgent, AgentConfig, AgentContext, AgentResponse } from '../base/BaseAgent';
+import { ISpecializedAgent } from '../base/ISpecializedAgent';
 import { EnhancedPromptConfig, AgentPersona, ConstitutionalPrinciple } from '../base/EnhancedPromptEngine';
+import { MemoryRecord } from '../../types/oneagent-backbone-types';
 
 export class FitnessAgent extends BaseAgent implements ISpecializedAgent {
-  constructor(config: AgentConfig, promptConfig?: any) {
+  constructor(config: AgentConfig, promptConfig?: EnhancedPromptConfig) {
     super(config, promptConfig || FitnessAgent.createFitnessPromptConfig());
   }
 
@@ -32,10 +33,10 @@ export class FitnessAgent extends BaseAgent implements ISpecializedAgent {
         context.user.id, 
         message, 
         5
-      );
+      ) as MemoryRecord[];
 
       // Generate AI response with fitness expertise
-      const response = await this.generateFitnessResponse(message, relevantMemories, context);
+      const response = await this.generateFitnessResponse(message, relevantMemories);
 
       // Store this interaction in memory for future reference
       await this.addMemory(
@@ -66,10 +67,9 @@ export class FitnessAgent extends BaseAgent implements ISpecializedAgent {
    */
   private async generateFitnessResponse(
     message: string, 
-    memories: any[], 
-    context: AgentContext
+    memories: MemoryRecord[]
   ): Promise<string> {
-    const fitnessContext = this.buildFitnessContext(memories, context);
+    const fitnessContext = this.buildFitnessContext(memories);
     
     const prompt = `
 You are a professional fitness and wellness specialist AI with expertise in:
@@ -99,14 +99,14 @@ Always recommend consulting healthcare professionals for medical concerns.
   /**
    * Build fitness-specific context from memories
    */
-  private buildFitnessContext(memories: any[], _context: AgentContext): string {
+  private buildFitnessContext(memories: MemoryRecord[]): string {
     if (!memories || memories.length === 0) {
       return "No previous fitness history available.";
     }
 
     const fitnessMemories = memories
       .filter(memory => 
-        memory.metadata?.type === 'fitness_consultation' ||
+        memory.metadata?.category === 'fitness' ||
         memory.content?.toLowerCase().includes('workout') ||
         memory.content?.toLowerCase().includes('exercise') ||
         memory.content?.toLowerCase().includes('nutrition')
