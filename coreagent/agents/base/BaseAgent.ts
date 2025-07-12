@@ -108,6 +108,110 @@ export abstract class BaseAgent {
   protected nlacsEnabled: boolean = false;
 
   /**
+   * Constructor for BaseAgent
+   */
+  constructor(config: AgentConfig) {
+    this.config = config;
+    this.unifiedBackbone = new OneAgentUnifiedBackbone();
+  }
+
+  /**
+   * Initialize the agent
+   */
+  async initialize(): Promise<void> {
+    if (this.isInitialized) {
+      return;
+    }
+
+    try {
+      // Initialize memory client if enabled
+      if (this.config.memoryEnabled) {
+        this.memoryClient = new OneAgentMemory({ userId: 'default-user' });
+        this.memoryIntelligence = new MemoryIntelligence();
+      }
+
+      // Initialize AI client if enabled
+      if (this.config.aiEnabled) {
+        this.aiClient = new SmartGeminiClient();
+      }
+
+      // Initialize Constitutional AI
+      this.constitutionalAI = new ConstitutionalAI({
+        principles: [
+          { 
+            id: 'accuracy', 
+            name: 'accuracy', 
+            description: 'Provide accurate and factual information',
+            validationRule: 'content.length > 0',
+            severityLevel: 'high'
+          },
+          { 
+            id: 'transparency', 
+            name: 'transparency', 
+            description: 'Be transparent about limitations and reasoning',
+            validationRule: 'content.length > 0',
+            severityLevel: 'medium'
+          },
+          { 
+            id: 'helpfulness', 
+            name: 'helpfulness', 
+            description: 'Provide helpful and actionable responses',
+            validationRule: 'content.length > 0',
+            severityLevel: 'medium'
+          },
+          { 
+            id: 'safety', 
+            name: 'safety', 
+            description: 'Ensure safe and ethical behavior',
+            validationRule: 'content.length > 0',
+            severityLevel: 'critical'
+          }
+        ],
+        qualityThreshold: 0.8
+      });
+
+      // Initialize BMAD Elicitation Engine
+      this.bmadElicitation = new BMADElicitationEngine();
+
+      // Initialize Personality Engine
+      this.personalityEngine = new PersonalityEngine();
+
+      this.isInitialized = true;
+      console.log(`✅ BaseAgent ${this.config.id} initialized successfully`);
+    } catch (error) {
+      console.error(`❌ Failed to initialize BaseAgent ${this.config.id}:`, error);
+      throw error;
+    }
+  }
+
+  /**
+   * Check if agent is ready
+   */
+  isReady(): boolean {
+    return this.isInitialized;
+  }
+
+  /**
+   * Get agent configuration
+   */
+  getConfig(): AgentConfig {
+    return this.config;
+  }
+
+  /**
+   * Clean up agent resources
+   */
+  async cleanup(): Promise<void> {
+    this.isInitialized = false;
+    console.log(`🧹 BaseAgent ${this.config.id} cleaned up`);
+  }
+
+  // =============================================================================
+  // NLACS (Natural Language Agent Coordination System) Extensions - Phase 1
+  // Using Canonical Backbone Methods, Metadata System, and Temporal System
+  // =============================================================================
+
+  /**
    * Enable NLACS capabilities for this agent
    * Uses canonical backbone temporal and metadata systems
    */
@@ -460,6 +564,9 @@ export abstract class BaseAgent {
       const synthesisPrompt = `
         Based on the following insights from ${conversationThreads.length} conversation threads, 
         please provide a comprehensive synthesis addressing: "${synthesisQuestion}"
+        
+        Context: Agent ${synthesisContext.agentId} analyzing ${synthesisContext.insightCount} insights
+        Timestamp: ${synthesisContext.synthesisTimestamp}
         
         Insights (${allInsights.length} total):
         ${allInsights.map((insight, idx) => 

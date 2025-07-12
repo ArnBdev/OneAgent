@@ -7,6 +7,8 @@
 
 import { AgentConfig, AgentContext, AgentResponse, AgentAction } from './BaseAgent';
 
+export { AgentConfig, AgentContext, AgentResponse, AgentAction } from './BaseAgent';
+
 export interface ISpecializedAgent {
   /** Unique identifier for the agent */
   readonly id: string;
