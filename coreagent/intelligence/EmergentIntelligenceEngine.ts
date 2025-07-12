@@ -107,7 +107,7 @@ export class EmergentIntelligenceEngine {
       }
       
       // Generate synthesis
-      const synthesisType = this.determineSynthesisType(request, allInsights);
+      const synthesisType = this.determineSynthesisType(allInsights);
       const synthesizedIntelligence = await this.generateIntelligenceSynthesis(allInsights, request);
       const crossDomainConnections = this.extractCrossDomainConnections(allInsights);
       const actionableRecommendations = await this.generateActionableRecommendations(allInsights, request);
@@ -203,7 +203,7 @@ export class EmergentIntelligenceEngine {
       };
       
       // Store evolution results in memory
-      await this.storeEvolutionInMemory(result, request);
+      await this.storeEvolutionInMemory(result);
       
       console.log(`✅ Learning pattern evolution completed: ${evolutionType} with ${confidence.toFixed(2)} confidence`);
       return result;
@@ -399,7 +399,7 @@ export class EmergentIntelligenceEngine {
     };
   }
 
-  private determineSynthesisType(request: any, allInsights: Insight[]): string {
+  private determineSynthesisType(allInsights: Insight[]): string {
     if (allInsights.length > 15) return 'comprehensive';
     if (allInsights.length > 5) return 'moderate';
     return 'basic';
@@ -549,7 +549,7 @@ export class EmergentIntelligenceEngine {
     return Math.round(confidence * 100) / 100;
   }
 
-  private async storeEvolutionInMemory(result: any, request: any): Promise<void> {
+  private async storeEvolutionInMemory(result: any): Promise<void> {
     await this.memory.addMemory({
       content: `Learning Pattern Evolution: ${result.evolutionType} - ${result.learningTrajectory}`,
       metadata: {

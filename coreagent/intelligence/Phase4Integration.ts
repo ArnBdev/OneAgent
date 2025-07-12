@@ -189,13 +189,14 @@ export class Phase4MemoryDrivenIntelligence {
     return {
       learningEngineStatus: 'active',
       intelligenceEngineStatus: 'active',
-      optimizerStatus: `${optimizerStatus.activeOptimizations} active, ${optimizerStatus.completedOptimizations} completed`,
-      overallHealth: optimizerStatus.averageSuccessRate > 0.8 ? 'healthy' : 
-                     optimizerStatus.averageSuccessRate > 0.6 ? 'degraded' : 'critical',
+      optimizerStatus: `${optimizerStatus.activeOptimizations.length} active, ${optimizerStatus.effectivenessMetrics.length} monitored`,
+      overallHealth: optimizerStatus.overallHealth === 'excellent' || optimizerStatus.overallHealth === 'good' ? 'healthy' : 
+                     optimizerStatus.overallHealth === 'fair' ? 'degraded' : 'critical',
       metrics: {
-        averageSuccessRate: optimizerStatus.averageSuccessRate,
-        activeOptimizations: optimizerStatus.activeOptimizations,
-        completedOptimizations: optimizerStatus.completedOptimizations
+        averageSuccessRate: optimizerStatus.effectivenessMetrics.length > 0 ? 
+          optimizerStatus.effectivenessMetrics.reduce((sum, m) => sum + (m.actualImprovement || 0), 0) / optimizerStatus.effectivenessMetrics.length : 0.5,
+        activeOptimizations: optimizerStatus.activeOptimizations.length,
+        completedOptimizations: optimizerStatus.effectivenessMetrics.length
       }
     };
   }
@@ -292,7 +293,17 @@ export class Phase4MemoryDrivenIntelligence {
     
     console.log(`✅ Identified ${filteredOpportunities.length} optimization opportunities`);
     
-    return filteredOpportunities;
+    // Convert to OptimizationProfile format
+    return filteredOpportunities.map(opp => ({
+      id: opp.id,
+      name: `Optimization ${opp.id}`,
+      description: `Optimization strategy for ${opp.actions.length} actions`,
+      targetDomains: ['general'],
+      performanceMetrics: { confidence: 0.7, impact: 0.5 },
+      currentState: 'identified' as const,
+      createdAt: new Date(),
+      lastUpdated: new Date()
+    }));
   }
 
   private async generateComprehensiveRecommendations(

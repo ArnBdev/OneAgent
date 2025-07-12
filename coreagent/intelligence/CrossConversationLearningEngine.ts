@@ -193,7 +193,7 @@ export class CrossConversationLearningEngine {
         riskMitigation: ['Have backup plan ready'],
         estimatedImprovement: 0.1,
         applicablePatterns: [],
-        metadata: { error: error.message }
+        metadata: { error: error instanceof Error ? error.message : 'Unknown error' }
       };
     }
   }

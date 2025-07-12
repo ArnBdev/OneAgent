@@ -622,7 +622,7 @@ export class MemoryDrivenOptimizer {
     memoryData.forEach(item => {
       if (item.content) {
         const words = item.content.toLowerCase().split(/\s+/);
-        words.forEach(word => {
+        words.forEach((word: string) => {
           if (word.length > 3) {
             wordCounts.set(word, (wordCounts.get(word) || 0) + 1);
           }
