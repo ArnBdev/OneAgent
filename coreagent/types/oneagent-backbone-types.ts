@@ -743,5 +743,76 @@ export interface AgentHealthStatus {
 }
 
 // ========================================
+// NLACS (Natural Language Agent Coordination System) - v5.0.0 Extension
+// ========================================
+
+export interface NLACSDiscussion {
+  id: string;
+  topic: string;
+  participants: string[]; // Agent IDs
+  messages: NLACSMessage[];
+  emergentInsights: EmergentInsight[];
+  status: 'active' | 'concluded' | 'paused';
+  createdAt: Date;
+  lastActivity: Date;
+  metadata?: Record<string, unknown>;
+}
+
+export interface NLACSMessage {
+  id: string;
+  discussionId: string;
+  agentId: string;
+  content: string;
+  messageType: 'contribution' | 'question' | 'synthesis' | 'insight' | 'consensus';
+  timestamp: Date;
+  references?: string[]; // References to other messages or memories
+  metadata?: Record<string, unknown>;
+}
+
+export interface ConversationThread {
+  id: string;
+  participants: string[];
+  messages: NLACSMessage[];
+  context: ConversationContext;
+  insights: EmergentInsight[];
+  status: 'active' | 'archived' | 'synthesized';
+  createdAt: Date;
+  lastActivity: Date;
+}
+
+export interface ConversationContext {
+  domain: string;
+  complexity: 'simple' | 'moderate' | 'complex' | 'expert';
+  urgency: 'low' | 'medium' | 'high' | 'critical';
+  stakeholders: string[];
+  objectives: string[];
+  constraints: string[];
+  resources: string[];
+}
+
+export interface EmergentInsight {
+  id: string;
+  type: 'pattern' | 'synthesis' | 'breakthrough' | 'connection' | 'optimization';
+  content: string;
+  confidence: number; // 0-1
+  contributors: string[]; // Agent IDs that contributed
+  sources: string[]; // Message IDs or memory IDs
+  implications: string[];
+  actionItems: string[];
+  validatedBy?: string[];
+  createdAt: Date;
+  relevanceScore: number;
+  metadata?: Record<string, unknown>;
+}
+
+export interface NLACSCapability {
+  type: 'discussion' | 'synthesis' | 'consensus' | 'mediation' | 'analysis';
+  description: string;
+  prerequisites: string[];
+  outputs: string[];
+  qualityMetrics: string[];
+}
+
+// ========================================
 // END OF CANONICAL TYPES
 // ========================================
