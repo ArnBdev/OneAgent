@@ -12,7 +12,7 @@
 import { BaseAgent, AgentConfig, AgentContext, AgentResponse, AgentAction } from '../base/BaseAgent';
 import { ISpecializedAgent, AgentHealthStatus } from '../base/ISpecializedAgent';
 
-interface ValidationResult {
+export interface ValidationResult {
   isValid: boolean;
   score: number;
   issues: ValidationIssue[];
@@ -24,7 +24,7 @@ interface ValidationResult {
   };
 }
 
-interface ValidationIssue {
+export interface ValidationIssue {
   severity: 'low' | 'medium' | 'high' | 'critical';
   type: string;
   description: string;
@@ -32,21 +32,21 @@ interface ValidationIssue {
   suggestion?: string;
 }
 
-interface ConstitutionalResult {
+export interface ConstitutionalResult {
   compliant: boolean;
   principles: ConstitutionalPrincipleResult[];
   overallScore: number;
   recommendations: string[];
 }
 
-interface ConstitutionalPrincipleResult {
+export interface ConstitutionalPrincipleResult {
   principle: string;
   passed: boolean;
   score: number;
   feedback: string;
 }
 
-interface BMADAnalysisResult {
+export interface BMADAnalysisResult {
   analysis: BMADPoint[];
   overallAssessment: string;
   recommendations: string[];

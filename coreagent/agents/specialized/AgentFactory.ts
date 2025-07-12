@@ -16,9 +16,9 @@ import { FitnessAgent } from '../specialized/FitnessAgent';
 import { TriageAgent } from '../specialized/TriageAgent';
 import { loadYamlFile } from '../base/yamlLoader';
 import { getPersonaConfig } from '../base/personaRegistry';
-import { EnhancedPromptConfig } from '../base/EnhancedPromptEngine';
+import { PromptConfig } from '../base/PromptEngine';
 
-function buildPromptConfig(agentType: string): EnhancedPromptConfig | undefined {
+function buildPromptConfig(agentType: string): PromptConfig | undefined {
   const personaConfig = getPersonaConfig(agentType);
   if (!personaConfig?.persona || !personaConfig?.quality) {
     return undefined;

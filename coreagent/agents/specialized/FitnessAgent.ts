@@ -10,11 +10,11 @@
 
 import { BaseAgent, AgentConfig, AgentContext, AgentResponse } from '../base/BaseAgent';
 import { ISpecializedAgent } from '../base/ISpecializedAgent';
-import { EnhancedPromptConfig, AgentPersona, ConstitutionalPrinciple } from '../base/EnhancedPromptEngine';
+import { PromptConfig, AgentPersona, ConstitutionalPrinciple } from '../base/PromptEngine';
 import { MemoryRecord } from '../../types/oneagent-backbone-types';
 
 export class FitnessAgent extends BaseAgent implements ISpecializedAgent {
-  constructor(config: AgentConfig, promptConfig?: EnhancedPromptConfig) {
+  constructor(config: AgentConfig, promptConfig?: PromptConfig) {
     super(config, promptConfig || FitnessAgent.createFitnessPromptConfig());
   }
 
@@ -153,7 +153,7 @@ Always recommend consulting healthcare professionals for medical concerns.
   /**
    * Create enhanced prompt configuration for fitness expertise
    */
-  private static createFitnessPromptConfig(): EnhancedPromptConfig {
+  private static createFitnessPromptConfig(): PromptConfig {
     return {      agentPersona: FitnessAgent.createFitnessPersona(),
       constitutionalPrinciples: FitnessAgent.createFitnessConstitutionalPrinciples(),
       enabledFrameworks: ['RTF', 'TAG', 'CARE'], // Reasoning, Task, Goals + Care framework
@@ -224,16 +224,6 @@ Always recommend consulting healthcare professionals for medical concerns.
         severityLevel: 'high'
       }
     ];
-  }  /**
-   * Get fitness agent context with specialized fitness data
-   */
-  protected getCurrentContext(): AgentContext {
-    const baseContext = super.getCurrentContext();
-    
-    // Note: Fitness-specific context handled in memory metadata
-    // EnrichedContext properties are read-only from the interface
-
-    return baseContext;
   }
 
   get id(): string {

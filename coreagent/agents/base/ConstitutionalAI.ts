@@ -8,7 +8,7 @@
  * systematic principle-based validation and iterative refinement.
  */
 
-import { ConstitutionalPrinciple } from './EnhancedPromptEngine';
+import { ConstitutionalPrinciple } from './PromptEngine';
 import { OneAgentUnifiedBackbone } from '../../utils/UnifiedBackboneService';
 
 export interface ValidationResult {

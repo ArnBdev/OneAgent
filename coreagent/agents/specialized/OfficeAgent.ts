@@ -13,7 +13,7 @@
 
 import { BaseAgent, AgentConfig, AgentContext, AgentResponse } from '../base/BaseAgent';
 import { ISpecializedAgent } from '../base/ISpecializedAgent';
-import { EnhancedPromptConfig } from '../base/EnhancedPromptEngine';
+import { PromptConfig } from '../base/PromptEngine';
 
 export interface OfficeTask {
   id: string;
@@ -36,7 +36,7 @@ export interface OfficeAgentResponse extends AgentResponse {
  * REAL Office Agent - ISpecializedAgent implementation for productivity
  */
 export class OfficeAgent extends BaseAgent implements ISpecializedAgent {
-  constructor(config: AgentConfig, promptConfig?: EnhancedPromptConfig) {
+  constructor(config: AgentConfig, promptConfig?: PromptConfig) {
     super(config, promptConfig);
   }
 

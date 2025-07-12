@@ -11,7 +11,7 @@
 
 import { BaseAgent, AgentConfig, AgentContext, AgentResponse } from '../base/BaseAgent';
 import { ISpecializedAgent } from '../base/ISpecializedAgent';
-import { EnhancedPromptConfig } from '../base/EnhancedPromptEngine';
+import { PromptConfig } from '../base/PromptEngine';
 
 export interface Task {
   id: string;
@@ -34,7 +34,7 @@ export interface CoreAgentResponse extends AgentResponse {
  * Core Agent - BaseAgent implementation for orchestration
  */
 export class CoreAgent extends BaseAgent implements ISpecializedAgent {
-  constructor(config?: AgentConfig, promptConfig?: EnhancedPromptConfig) {
+  constructor(config?: AgentConfig, promptConfig?: PromptConfig) {
     const defaultConfig: AgentConfig = {
       id: 'CoreAgent',
       name: 'CoreAgent',

@@ -12,7 +12,7 @@
 
 import { BaseAgent, AgentConfig, AgentContext, AgentResponse, Message } from '../base/BaseAgent';
 import { ISpecializedAgent } from '../base/ISpecializedAgent';
-import { EnhancedPromptConfig } from '../base/EnhancedPromptEngine';
+import { PromptConfig } from '../base/PromptEngine';
 import { v4 as uuidv4 } from 'uuid';
 
 export interface DevAgentCapabilities {
@@ -37,7 +37,7 @@ export class DevAgent extends BaseAgent implements ISpecializedAgent {
   private capabilities: DevAgentCapabilities;
   private conversationHistory: Message[] = [];
   
-  constructor(config: AgentConfig, promptConfig?: EnhancedPromptConfig) {
+  constructor(config: AgentConfig, promptConfig?: PromptConfig) {
     super(config, promptConfig);
 
     this.capabilities = {
@@ -110,7 +110,14 @@ export class DevAgent extends BaseAgent implements ISpecializedAgent {
     const personalityEnhancedResponse = await this.generatePersonalityResponse(
       baseResponse,
       context,
-      message
+      // Create a basic persona for DevAgent
+      {
+        role: 'Developer Assistant',
+        style: 'Professional and analytical',
+        coreStrength: 'Software development expertise and problem-solving',
+        principles: ['accuracy', 'helpfulness', 'technical_precision'],
+        frameworks: ['systematic_analysis', 'problem_solving']
+      }
     );
     
     return personalityEnhancedResponse;

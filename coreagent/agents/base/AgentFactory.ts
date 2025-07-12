@@ -7,7 +7,7 @@
 
 import { BaseAgent, AgentConfig } from './BaseAgent';
 import { ISpecializedAgent } from './ISpecializedAgent';
-import { EnhancedPromptConfig } from './EnhancedPromptEngine';
+import { PromptConfig } from './PromptEngine';
 import { OfficeAgent } from '../specialized/OfficeAgent';
 import { FitnessAgent } from '../specialized/FitnessAgent';
 import { DevAgent } from '../specialized/DevAgent';
@@ -77,7 +77,7 @@ const AGENT_TYPE_PERSONA_MAP: Record<string, string> = {
   'validation': path.resolve(process.cwd(), 'prompts/personas/validation-agent.yaml'),
 };
 
-function buildPromptConfig(factoryConfig: AgentFactoryConfig): EnhancedPromptConfig | undefined {
+function buildPromptConfig(factoryConfig: AgentFactoryConfig): PromptConfig | undefined {
   // Load persona YAML (override or mapped default)
   let persona: Record<string, unknown> | undefined = undefined;
   if (factoryConfig.personaYaml) {
@@ -253,7 +253,7 @@ export class AgentFactory {
     // and have collective memory logging/querying enabled
     if ('nlacsEnabled' in agent) {
       // Default to true unless explicitly set false in config
-      agent.nlacsEnabled = Object.prototype.hasOwnProperty.call(factoryConfig, 'nlacsEnabled') ? Boolean(factoryConfig.nlacsEnabled) : true;
+      agent.setNLACSEnabled(Object.prototype.hasOwnProperty.call(factoryConfig, 'nlacsEnabled') ? Boolean(factoryConfig.nlacsEnabled) : true);
     }
     await agent.initialize();
 

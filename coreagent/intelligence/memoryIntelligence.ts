@@ -15,7 +15,7 @@ import { OneAgentMemory, OneAgentMemoryConfig } from '../memory/OneAgentMemory';
 import { ConversationData, ConversationMetadata, MemorySearchResult, MemoryRecord, IntelligenceInsight } from '../types/oneagent-backbone-types';
 import { OneAgentUnifiedBackbone } from '../utils/UnifiedBackboneService';
 import { ConstitutionalAI } from '../agents/base/ConstitutionalAI';
-import { EnhancedPromptEngine } from '../agents/base/EnhancedPromptEngine';
+import { PromptEngine } from '../agents/base/PromptEngine';
 
 export interface MemoryIntelligenceOptions {
   enableSemanticSearch?: boolean;
@@ -45,7 +45,7 @@ export class MemoryIntelligence {
     };
     // Initialize ConstitutionalAI with canonical principles and threshold
     this.constitutionalAI = new ConstitutionalAI({
-      principles: EnhancedPromptEngine.CONSTITUTIONAL_PRINCIPLES,
+      principles: PromptEngine.CONSTITUTIONAL_PRINCIPLES,
       qualityThreshold: 80
     });
   }

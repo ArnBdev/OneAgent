@@ -20,11 +20,11 @@ import { User } from '../../types/user';
 import { MemoryIntelligence } from '../../intelligence/memoryIntelligence';
 import { ConversationData, IntelligenceInsight, MemorySearchResult, SessionContext, NLACSMessage, EmergentInsight, ConversationThread, NLACSCapability, MemoryRecord, UnifiedMetadata } from '../../types/oneagent-backbone-types';
 import { 
-  EnhancedPromptEngine, 
-  EnhancedPromptConfig, 
+  PromptEngine, 
+  PromptConfig, 
   AgentPersona,
   ConstitutionalPrinciple
-} from './EnhancedPromptEngine';
+} from './PromptEngine';
 import { ConstitutionalAI, ValidationResult } from './ConstitutionalAI';
 import { BMADElicitationEngine, ElicitationResult } from './BMADElicitationEngine';
 import { PersonalityEngine, PersonalityContext, PersonalityExpression } from '../personality/PersonalityEngine';
@@ -88,10 +88,10 @@ export abstract class BaseAgent {
   protected unifiedBackbone: OneAgentUnifiedBackbone;
   
   // Advanced Prompt Engineering Components
-  protected promptEngine?: EnhancedPromptEngine;
+  protected promptEngine?: PromptEngine;
   protected constitutionalAI?: ConstitutionalAI;
   protected bmadElicitation?: BMADElicitationEngine;
-  protected promptConfig?: EnhancedPromptConfig;
+  protected promptConfig?: PromptConfig;
   protected personalityEngine?: PersonalityEngine;
   
   // A2A Multi-Agent Communication
@@ -110,9 +110,15 @@ export abstract class BaseAgent {
   /**
    * Constructor for BaseAgent
    */
-  constructor(config: AgentConfig) {
+  constructor(config: AgentConfig, promptConfig?: PromptConfig) {
     this.config = config;
     this.unifiedBackbone = new OneAgentUnifiedBackbone();
+    
+    // Initialize enhanced prompt engine if config provided
+    if (promptConfig) {
+      this.promptEngine = new PromptEngine(promptConfig);
+      this.promptConfig = promptConfig;
+    }
   }
 
   /**
@@ -803,5 +809,256 @@ export abstract class BaseAgent {
         }
       })
     };
+  }
+
+  /**
+   * Validate context for agent operations
+   */
+  protected validateContext(context: AgentContext): void {
+    if (!context.user) {
+      throw new Error('User context is required');
+    }
+    if (!context.sessionId) {
+      throw new Error('Session ID is required');
+    }
+  }
+
+  /**
+   * Add memory to the agent's memory system
+   */
+  protected async addMemory(userId: string, content: string, metadata?: Record<string, unknown>): Promise<void> {
+    if (!this.memoryClient) {
+      console.warn('Memory client not initialized');
+      return;
+    }
+    
+    await this.memoryClient.addMemory({
+      content,
+      metadata: {
+        userId,
+        agentId: this.config.id,
+        timestamp: new Date(),
+        ...metadata
+      }
+    });
+  }
+
+  /**
+   * Search memories
+   */
+  protected async searchMemories(userId: string, query: string, limit: number = 10): Promise<MemoryRecord[]> {
+    if (!this.memoryClient) {
+      console.warn('Memory client not initialized');
+      return [];
+    }
+    
+    const results = await this.memoryClient.searchMemory({
+      query,
+      userId,
+      limit
+    });
+    
+    return results.results || [];
+  }
+
+  /**
+   * Generate AI response using the SmartGeminiClient
+   */
+  protected async generateResponse(prompt: string, memories?: MemoryRecord[]): Promise<string> {
+    if (!this.aiClient) {
+      console.warn('AI client not initialized');
+      return 'AI response not available';
+    }
+
+    const context = memories ? memories.map(m => m.content).join('\n') : '';
+    const enhancedPrompt = context ? `Context:\n${context}\n\nQuery:\n${prompt}` : prompt;
+    
+    const response = await this.aiClient.generateContent(enhancedPrompt);
+    return typeof response === 'string' ? response : response?.response || 'No response generated';
+  }
+
+  /**
+   * Create a standardized agent response
+   */
+  protected createResponse(
+    content: string, 
+    actions: AgentAction[] = [], 
+    memories: MemoryRecord[] = []
+  ): AgentResponse {
+    return {
+      content,
+      actions,
+      memories,
+      metadata: {
+        agentId: this.config.id,
+        timestamp: new Date(),
+        confidence: 0.85
+      }
+    };
+  }
+
+  /**
+   * Execute an action (base implementation)
+   */
+  async executeAction(action: string | AgentAction, _params: Record<string, unknown>, _context?: AgentContext): Promise<AgentResponse> {
+    const actionName = typeof action === 'string' ? action : action.type;
+    console.log(`BaseAgent ${this.config.id} executing action: ${actionName}`);
+    
+    // Base implementation - specialized agents should override
+    return this.createResponse(
+      `Action ${actionName} not implemented in base class`,
+      [],
+      []
+    );
+  }
+
+  /**
+   * Generate personality-enhanced response
+   */
+  protected async generatePersonalityResponse(
+    baseResponse: string,
+    context: AgentContext,
+    personality?: AgentPersona
+  ): Promise<string> {
+    if (!this.personalityEngine || !personality) {
+      return baseResponse;
+    }
+
+    const personalityContext = {
+      conversation_history: context.conversationHistory?.map(m => m.content) || [],
+      domain_context: this.config.capabilities.join(', '),
+      user_relationship_level: 0.7,
+      topic_expertise_level: 0.8,
+      emotional_context: 'professional',
+      formality_level: 0.7
+    };
+
+    // Use personality engine to enhance response
+    try {
+      const enhancement = await this.personalityEngine.generatePersonalityResponse(
+        this.config.id,
+        baseResponse,
+        personalityContext
+      );
+      return enhancement.content || baseResponse;
+    } catch (error) {
+      console.warn('Personality enhancement failed:', error);
+      return baseResponse;
+    }
+  }
+
+  // =============================================================================
+  // ISpecializedAgent Interface Methods
+  // =============================================================================
+
+  /**
+   * Get available actions for this agent
+   * Base implementation - specialized agents should override
+   */
+  getAvailableActions(): AgentAction[] {
+    return [
+      {
+        type: 'memory_search',
+        description: 'Search agent memory for relevant information',
+        parameters: { query: 'string', limit: 'number' }
+      },
+      {
+        type: 'generate_response',
+        description: 'Generate AI response with prompt engineering',
+        parameters: { prompt: 'string', context: 'object' }
+      },
+      {
+        type: 'constitutional_validate',
+        description: 'Validate response against constitutional principles',
+        parameters: { response: 'string', context: 'object' }
+      }
+    ];
+  }
+
+  /**
+   * Get agent status and health (ISpecializedAgent compatibility)
+   */
+  getStatus(): {
+    agentId: string;
+    name: string;
+    description: string;
+    initialized: boolean;
+    capabilities: string[];
+    memoryEnabled: boolean;
+    aiEnabled: boolean;
+    lastActivity?: Date;
+    isHealthy: boolean;
+    processedMessages: number;
+    errors: number;
+  } {
+    return {
+      agentId: this.config.id,
+      name: this.config.name,
+      description: this.config.description,
+      initialized: this.isInitialized,
+      capabilities: this.config.capabilities,
+      memoryEnabled: this.config.memoryEnabled,
+      aiEnabled: this.config.aiEnabled,
+      lastActivity: new Date(),
+      isHealthy: this.isInitialized,
+      processedMessages: 0,
+      errors: 0
+    };
+  }
+
+  /**
+   * Get agent name
+   */
+  getName(): string {
+    return this.config.name;
+  }
+
+  /**
+   * Get detailed health status
+   */
+  async getHealthStatus(): Promise<{
+    status: 'healthy' | 'degraded' | 'critical' | 'offline';
+    uptime: number;
+    memoryUsage: number;
+    responseTime: number;
+    errorRate: number;
+    lastActivity?: Date;
+    errors?: string[];
+  }> {
+    return {
+      status: this.isInitialized ? 'healthy' : 'offline',
+      uptime: Date.now(),
+      memoryUsage: 0,
+      responseTime: 0,
+      errorRate: 0,
+      lastActivity: new Date(),
+      errors: []
+    };
+  }
+
+  /**
+   * Process a user message and generate a response (ISpecializedAgent compatibility)
+   * Base implementation - specialized agents should override
+   */
+  async processMessage(context: AgentContext, message: string): Promise<AgentResponse> {
+    this.validateContext(context);
+    
+    // Search for relevant memories
+    const memories = await this.searchMemories(context.user.id, message);
+    
+    // Generate response using prompt engineering
+    const response = await this.generateResponse(message, memories);
+    
+    // Store interaction in memory
+    await this.addMemory(context.user.id, `User: ${message}\nAgent: ${response}`);
+    
+    return this.createResponse(response, [], memories);
+  }
+
+  /**
+   * Enable NLACS capabilities for this agent (public method for AgentFactory)
+   */
+  public setNLACSEnabled(enabled: boolean): void {
+    this.nlacsEnabled = enabled;
   }
 }

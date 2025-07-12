@@ -1,5 +1,5 @@
 /**
- * EnhancedPromptEngine - Advanced Prompt Engineering System for OneAgent
+ * PromptEngine - Advanced Prompt Engineering System for OneAgent
  * 
  * This engine implements comprehensive prompt engineering research findings:
  * - Constitutional AI principles for self-correction
@@ -36,7 +36,7 @@ export interface ElicitationPoint {
   applicableContexts: string[];
 }
 
-export interface EnhancedPromptConfig {
+export interface PromptConfig {
   agentPersona: AgentPersona;
   constitutionalPrinciples: ConstitutionalPrinciple[];
   enabledFrameworks: string[];
@@ -67,10 +67,9 @@ export interface VerificationStep {
 }
 
 /**
- * Enhanced Prompt Engineering Engine
- * Implements advanced prompt engineering techniques for OneAgent
+ * PromptEngine - Advanced Prompt Engineering System for OneAgent
  */
-export class EnhancedPromptEngine {
+export class PromptEngine {
   
   // Constitutional AI Principles for OneAgent
   public static readonly CONSTITUTIONAL_PRINCIPLES: ConstitutionalPrinciple[] = [
@@ -157,9 +156,9 @@ export class EnhancedPromptEngine {
     }]
   ]);
 
-  private config: EnhancedPromptConfig;
+  private config: PromptConfig;
 
-  constructor(config: EnhancedPromptConfig) {
+  constructor(config: PromptConfig) {
     this.config = config;
   }
 
@@ -215,7 +214,7 @@ export class EnhancedPromptEngine {
     const suggestions: string[] = [];
     let score = 100;
 
-    for (const principle of EnhancedPromptEngine.CONSTITUTIONAL_PRINCIPLES) {
+    for (const principle of PromptEngine.CONSTITUTIONAL_PRINCIPLES) {
       const violation = this.checkPrincipleViolation(response, principle);
       if (violation) {
         violations.push(`${principle.name}: ${violation}`);
@@ -264,7 +263,7 @@ export class EnhancedPromptEngine {
 
   private buildConstitutionalFoundation(): string {
     const principles = this.config.constitutionalPrinciples
-      .map(p => `• ${p.name}: ${p.description}`)
+      .map((p: ConstitutionalPrinciple) => `• ${p.name}: ${p.description}`)
       .join('\n');
     
     return `
@@ -286,7 +285,7 @@ Communication Style: ${persona.style}
 Core Strength: ${persona.coreStrength}
 
 Behavioral Principles:
-${persona.principles.map(p => `• ${p}`).join('\n')}`;
+${persona.principles.map((p: string) => `• ${p}`).join('\n')}`;
 
     if (customInstructions) {
       personaSection += `\n\nUser Preferences: ${customInstructions}`;
@@ -326,7 +325,7 @@ Context:
       selectedFramework = 'RISE';
     }
 
-    const framework = EnhancedPromptEngine.PROMPT_FRAMEWORKS.get(selectedFramework);
+    const framework = PromptEngine.PROMPT_FRAMEWORKS.get(selectedFramework);
     if (!framework) return '';
 
     return `\nFramework Application (${framework.name}):
@@ -334,17 +333,17 @@ This response will follow the ${framework.name} structure for optimal clarity an
   }
 
   private buildBMADElicitation(message: string, _context: AgentContext): string {
-    const applicablePoints = EnhancedPromptEngine.BMAD_ELICITATION_POINTS
-      .filter(point => 
+    const applicablePoints = PromptEngine.BMAD_ELICITATION_POINTS
+      .filter((point: ElicitationPoint) => 
         point.applicableContexts.includes('all') || 
-        point.applicableContexts.some(ctx => message.toLowerCase().includes(ctx))
+        point.applicableContexts.some((ctx: string) => message.toLowerCase().includes(ctx))
       )
       .slice(0, 5); // Use top 5 most relevant
 
     if (applicablePoints.length === 0) return '';
 
     const elicitationQuestions = applicablePoints
-      .map(point => `${point.id}. ${point.question}`)
+      .map((point: ElicitationPoint) => `${point.id}. ${point.question}`)
       .join('\n');
 
     return `\nAdvanced Quality Elicitation (BMAD Framework):

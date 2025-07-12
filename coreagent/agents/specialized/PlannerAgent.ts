@@ -28,10 +28,15 @@
  */
 
 import { BaseAgent } from '../base/BaseAgent';
-import { AgentConfig, AgentContext, AgentResponse } from '../base/ISpecializedAgent';
+import { AgentConfig, AgentContext, AgentResponse } from '../base/BaseAgent';
 import { OneAgentUnifiedBackbone } from '../../utils/UnifiedBackboneService';
 import { NLACSMessage, EmergentInsight, ConversationThread, UnifiedTimestamp, UnifiedMetadata } from '../../types/oneagent-backbone-types';
 import { ConstitutionalAI } from '../base/ConstitutionalAI';
+import { PersonaLoader } from '../persona/PersonaLoader';
+import { PersonalityEngine } from '../personality/PersonalityEngine';
+import * as yaml from 'js-yaml';
+import * as fs from 'fs';
+import * as path from 'path';
 
 // =============================================================================
 // PLANNING TYPES AND INTERFACES
@@ -143,11 +148,12 @@ export class PlannerAgent extends BaseAgent {
   private agentCapabilities: Map<string, AgentCapabilityProfile> = new Map();
   private activePlanningSession: PlanningSession | null = null;
   private planningHistory: PlanningSession[] = [];
-  private constitutionalAI: ConstitutionalAI;
+  private personaLoader: PersonaLoader;
 
   constructor(config: AgentConfig) {
     super(config);
-    this.constitutionalAI = new ConstitutionalAI();
+    this.personaLoader = new PersonaLoader();
+    this.personalityEngine = new PersonalityEngine();
     this.initializePlanningStrategies();
     this.initializeAgentCapabilities();
   }
@@ -166,14 +172,14 @@ export class PlannerAgent extends BaseAgent {
       const sessionId = `planning_${services.timeService.now().unix}_${this.config.id}`;
       
       // Validate context with Constitutional AI
-      const contextValidation = await this.constitutionalAI.validateResponse(
+      const contextValidation = await this.constitutionalAI?.validateResponse(
         JSON.stringify(context),
         'Create planning session with provided context',
-        'planning_validation'
+        { context: 'planning_validation' }
       );
 
-      if (!contextValidation.isValid) {
-        throw new Error(`Planning context validation failed: ${contextValidation.issues.join(', ')}`);
+      if (!contextValidation?.isValid) {
+        throw new Error(`Planning context validation failed: ${contextValidation?.violations?.map(v => v.description).join(', ') || 'Unknown validation error'}`);
       }
 
       // Create planning session with canonical backbone metadata
@@ -259,7 +265,7 @@ export class PlannerAgent extends BaseAgent {
       const timestamp = services.timeService.now();
       
       // Search memory for similar decomposition patterns
-      const memoryResults = await this.memoryClient?.searchMemories({
+      const memoryResults = await this.memoryClient?.searchMemory({
         query: `task decomposition ${objective}`,
         limit: 5,
         filters: {
@@ -276,8 +282,8 @@ export class PlannerAgent extends BaseAgent {
         Context: ${JSON.stringify(context, null, 2)}
         Maximum tasks: ${maxTasks}
         
-        ${memoryResults?.results.length ? 
-          `Previous similar decompositions:\n${memoryResults.results.map(r => r.content).join('\n')}` : 
+        ${memoryResults?.memories?.length ? 
+          `Previous similar decompositions:\n${memoryResults.memories.map((r: { content: string }) => r.content).join('\n')}` : 
           'No previous patterns found - create comprehensive decomposition.'
         }
         
@@ -300,18 +306,18 @@ export class PlannerAgent extends BaseAgent {
       // Validate each task with Constitutional AI
       const validatedTasks: PlanningTask[] = [];
       for (const task of tasks) {
-        const taskValidation = await this.constitutionalAI.validateResponse(
+        const taskValidation = await this.constitutionalAI?.validateResponse(
           JSON.stringify(task),
           'Validate task decomposition',
-          'task_validation'
+          { context: 'task_validation' }
         );
 
-        if (taskValidation.isValid) {
+        if (taskValidation?.isValid) {
           task.metadata.constitutionalCompliance = true;
-          task.metadata.qualityScore = taskValidation.qualityScore;
+          task.metadata.qualityScore = taskValidation.score;
           validatedTasks.push(task);
         } else {
-          console.warn(`⚠️ Task failed validation: ${task.title} - ${taskValidation.issues.join(', ')}`);
+          console.warn(`⚠️ Task failed validation: ${task.title} - ${taskValidation?.violations?.map(v => v.description).join(', ') || 'Unknown validation error'}`);
         }
       }
 
@@ -514,7 +520,29 @@ export class PlannerAgent extends BaseAgent {
       
       // Enable NLACS if not already enabled
       if (!this.nlacsEnabled) {
-        await this.enableNLACS(['planning', 'strategic_thinking', 'coordination', 'synthesis']);
+        await this.enableNLACS([
+          {
+            type: 'discussion',
+            description: 'Strategic planning discussions',
+            prerequisites: ['context validation'],
+            outputs: ['planning insights', 'strategic recommendations'],
+            qualityMetrics: ['accuracy', 'completeness', 'feasibility']
+          },
+          {
+            type: 'synthesis',
+            description: 'Synthesis of planning information',
+            prerequisites: ['multiple inputs'],
+            outputs: ['unified plans', 'integrated strategies'],
+            qualityMetrics: ['coherence', 'optimization', 'alignment']
+          },
+          {
+            type: 'analysis',
+            description: 'Deep analysis of planning contexts',
+            prerequisites: ['data availability'],
+            outputs: ['analytical insights', 'trend analysis'],
+            qualityMetrics: ['depth', 'accuracy', 'relevance']
+          }
+        ]);
       }
 
       // Join the planning discussion
@@ -563,7 +591,7 @@ export class PlannerAgent extends BaseAgent {
    * Converts natural language insights into actionable plans
    */
   public async processNLACSPlanningInsights(
-    discussionId: string,
+    _discussionId: string,
     conversationHistory: NLACSMessage[]
   ): Promise<PlanningSession | null> {
     try {
@@ -572,9 +600,9 @@ export class PlannerAgent extends BaseAgent {
       
       // Extract planning-specific insights
       const planningInsights = insights.filter(insight => 
-        insight.type === 'planning' || 
         insight.type === 'synthesis' || 
-        insight.type === 'strategy'
+        insight.type === 'pattern' || 
+        insight.type === 'optimization'
       );
 
       if (!this.activePlanningSession) {
@@ -584,7 +612,7 @@ export class PlannerAgent extends BaseAgent {
 
       // Update session with insights
       this.activePlanningSession.nlacs.emergentInsights = planningInsights;
-      this.activePlanningSession.nlacs.conversationSummary = await this.synthesizeKnowledge(
+      const synthesizedKnowledge = await this.synthesizeKnowledge(
         [{
           id: 'planning_thread',
           participants: conversationHistory.map(m => m.agentId),
@@ -605,6 +633,8 @@ export class PlannerAgent extends BaseAgent {
         }],
         'What are the key planning insights and recommendations from this discussion?'
       );
+      
+      this.activePlanningSession.nlacs.conversationSummary = synthesizedKnowledge || 'No synthesized knowledge available';
 
       console.log(`🧠 Processed ${planningInsights.length} planning insights from NLACS discussion`);
       return this.activePlanningSession;
@@ -626,7 +656,29 @@ export class PlannerAgent extends BaseAgent {
     this.initializeAgentCapabilities();
     
     // Enable NLACS capabilities
-    await this.enableNLACS(['planning', 'strategic_thinking', 'coordination', 'synthesis', 'analysis']);
+    await this.enableNLACS([
+      {
+        type: 'discussion',
+        description: 'Strategic planning discussions',
+        prerequisites: ['context validation'],
+        outputs: ['planning insights', 'strategic recommendations'],
+        qualityMetrics: ['accuracy', 'completeness', 'feasibility']
+      },
+      {
+        type: 'synthesis',
+        description: 'Synthesis of planning information',
+        prerequisites: ['multiple inputs'],
+        outputs: ['unified plans', 'integrated strategies'],
+        qualityMetrics: ['coherence', 'optimization', 'alignment']
+      },
+      {
+        type: 'analysis',
+        description: 'Deep analysis of planning contexts',
+        prerequisites: ['data availability'],
+        outputs: ['analytical insights', 'trend analysis'],
+        qualityMetrics: ['depth', 'accuracy', 'relevance']
+      }
+    ]);
     
     console.log(`🎯 PlannerAgent ${this.config.id} initialized with strategic planning capabilities`);
   }
@@ -841,10 +893,9 @@ export class PlannerAgent extends BaseAgent {
 
   private async parseTaskDecomposition(
     decompositionText: string,
-    context: PlanningContext,
+    _context: PlanningContext,
     timestamp: UnifiedTimestamp
   ): Promise<PlanningTask[]> {
-    const services = this.unifiedBackbone.getServices();
     const tasks: PlanningTask[] = [];
     
     try {
@@ -878,7 +929,7 @@ export class PlannerAgent extends BaseAgent {
           tasks.push(task);
         }
       }
-    } catch (error) {
+    } catch {
       console.warn('⚠️ Failed to parse JSON decomposition, using text parsing fallback');
       
       // Fallback: create generic tasks from text
@@ -944,7 +995,7 @@ export class PlannerAgent extends BaseAgent {
     return scoredAgents.length > 0 ? scoredAgents[0].agent : null;
   }
 
-  private async analyzeSessionProgress(session: PlanningSession): Promise<any> {
+  private async analyzeSessionProgress(session: PlanningSession): Promise<Record<string, unknown>> {
     const completedTasks = session.tasks.filter(t => t.status === 'completed').length;
     const totalTasks = session.tasks.length;
     const progressPercentage = totalTasks > 0 ? (completedTasks / totalTasks) * 100 : 0;
@@ -985,7 +1036,7 @@ export class PlannerAgent extends BaseAgent {
     return { type: 'general_planning', confidence: 0.5 };
   }
 
-  private async handleCreatePlanRequest(message: string, context: AgentContext): Promise<string> {
+  private async handleCreatePlanRequest(_message: string, _context: AgentContext): Promise<string> {
     return `I'll help you create a comprehensive plan. To provide the best planning assistance, I need to understand your objective and context. Please provide:
 
 1. **Primary Objective**: What are you trying to achieve?
@@ -997,7 +1048,7 @@ export class PlannerAgent extends BaseAgent {
 Once I have this information, I can create a detailed plan with task decomposition, agent assignments, and timeline optimization.`;
   }
 
-  private async handleTaskDecompositionRequest(message: string, context: AgentContext): Promise<string> {
+  private async handleTaskDecompositionRequest(_message: string, _context: AgentContext): Promise<string> {
     return `I'll help you decompose your objective into actionable tasks. Based on your request, I'll create:
 
 1. **Specific Tasks**: Clear, actionable items
@@ -1009,7 +1060,7 @@ Once I have this information, I can create a detailed plan with task decompositi
 Please provide the high-level objective you'd like me to decompose, and I'll create a comprehensive task breakdown.`;
   }
 
-  private async handleTaskAssignmentRequest(message: string, context: AgentContext): Promise<string> {
+  private async handleTaskAssignmentRequest(_message: string, _context: AgentContext): Promise<string> {
     return `I'll help you assign tasks to the most suitable agents. My assignment process considers:
 
 1. **Agent Capabilities**: Matching skills to task requirements
@@ -1020,7 +1071,7 @@ Please provide the high-level objective you'd like me to decompose, and I'll cre
 Please provide the tasks you need assigned and the available agents, and I'll create optimal assignments.`;
   }
 
-  private async handleReplanRequest(message: string, context: AgentContext): Promise<string> {
+  private async handleReplanRequest(_message: string, _context: AgentContext): Promise<string> {
     return `I'll help you adapt your plan to changing circumstances. My replanning process includes:
 
 1. **Current State Analysis**: Progress assessment and bottleneck identification
@@ -1031,14 +1082,17 @@ Please provide the tasks you need assigned and the available agents, and I'll cr
 Please describe what has changed and I'll generate an updated plan that maintains your objectives while adapting to the new situation.`;
   }
 
-  private async handleStatusUpdateRequest(message: string, context: AgentContext): Promise<string> {
+  private async handleStatusUpdateRequest(_message: string, _context: AgentContext): Promise<string> {
     if (this.activePlanningSession) {
       const progress = await this.analyzeSessionProgress(this.activePlanningSession);
+      const progressPercentage = progress.progressPercentage as number;
+      const blockedTasks = progress.blockedTasks as number;
+      
       return `**Current Planning Session Status**
 
 📊 **Progress Overview**:
 - Total Tasks: ${progress.totalTasks}
-- Completed: ${progress.completedTasks} (${progress.progressPercentage.toFixed(1)}%)
+- Completed: ${progress.completedTasks} (${progressPercentage.toFixed(1)}%)
 - In Progress: ${progress.inProgressTasks}
 - Blocked: ${progress.blockedTasks}
 
@@ -1047,7 +1101,7 @@ Please describe what has changed and I'll generate an updated plan that maintain
 - Strategy: ${this.activePlanningSession.strategy.name}
 - Quality Score: ${this.activePlanningSession.qualityMetrics.planningScore}
 
-${progress.blockedTasks > 0 ? `⚠️ **Attention**: ${progress.blockedTasks} tasks are blocked and may need intervention.` : ''}
+${blockedTasks > 0 ? `⚠️ **Attention**: ${blockedTasks} tasks are blocked and may need intervention.` : ''}
 
 Need help with replanning or task adjustments?`;
     } else {
@@ -1055,7 +1109,7 @@ Need help with replanning or task adjustments?`;
     }
   }
 
-  private async handleGeneralPlanningQuery(message: string, context: AgentContext): Promise<string> {
+  private async handleGeneralPlanningQuery(_message: string, _context: AgentContext): Promise<string> {
     return `I'm your strategic planning assistant, ready to help with:
 
 🎯 **Strategic Planning**:

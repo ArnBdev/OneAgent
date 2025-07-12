@@ -10,7 +10,7 @@
 
 import { BaseAgent, AgentConfig, AgentContext, AgentResponse, AgentAction } from '../base/BaseAgent';
 import { ISpecializedAgent, AgentHealthStatus } from '../base/ISpecializedAgent';
-import { EnhancedPromptConfig, AgentPersona, ConstitutionalPrinciple } from '../base/EnhancedPromptEngine';
+import { PromptConfig, AgentPersona, ConstitutionalPrinciple } from '../base/PromptEngine';
 import { MemoryRecord } from '../../types/oneagent-backbone-types';
 
 interface TaskAnalysis {
@@ -69,7 +69,7 @@ interface TriageAnalysis {
 }
 
 export class TriageAgent extends BaseAgent implements ISpecializedAgent {
-  constructor(config: AgentConfig, promptConfig?: EnhancedPromptConfig) {
+  constructor(config: AgentConfig, promptConfig?: PromptConfig) {
     super(config, promptConfig || TriageAgent.createTriagePromptConfig());
   }
 
@@ -565,7 +565,7 @@ Be concise but comprehensive in your routing analysis.
   /**
    * Create enhanced prompt configuration for triage expertise
    */
-  private static createTriagePromptConfig(): EnhancedPromptConfig {
+  private static createTriagePromptConfig(): PromptConfig {
     return {      agentPersona: TriageAgent.createTriagePersona(),
       constitutionalPrinciples: TriageAgent.createTriageConstitutionalPrinciples(),
       enabledFrameworks: ['RTF', 'TAG', 'RGC'], // Reasoning, Task, Goals + Resources, Goals, Constraints

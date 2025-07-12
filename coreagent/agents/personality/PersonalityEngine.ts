@@ -12,7 +12,7 @@
  * - Quality scoring for personality authenticity
  */
 
-import { AgentPersona, EnhancedPromptConfig } from '../base/EnhancedPromptEngine';
+import { AgentPersona, PromptConfig } from '../base/PromptEngine';
 import { ConstitutionalAI, ValidationResult } from '../base/ConstitutionalAI';
 import { OneAgentMemory, OneAgentMemoryConfig } from '../../memory/OneAgentMemory';
 import { PersonaLoader, PersonaConfig } from '../persona/PersonaLoader';

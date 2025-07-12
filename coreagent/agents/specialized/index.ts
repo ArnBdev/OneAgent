@@ -14,6 +14,7 @@
 
 // Export specialized agents
 export { PlannerAgent } from './PlannerAgent';
+export { ValidationAgent } from './ValidationAgent';
 
 // Export agent types and interfaces
 export type {
@@ -23,6 +24,14 @@ export type {
   PlanningContext,
   PlanningSession
 } from './PlannerAgent';
+
+// Export validation types
+export type {
+  ValidationResult,
+  ValidationIssue,
+  ConstitutionalResult,
+  BMADAnalysisResult
+} from './ValidationAgent';
 
 // Export base agent functionality
 export { BaseAgent } from '../base/BaseAgent';
