@@ -64,7 +64,6 @@ export class AgentBootstrapService {
       console.log('   💻 DevAgent: Context7 + learning engine specialist WITH MEMORY');
       console.log('   📋 OfficeAgent: Productivity workflow specialist WITH MEMORY');
       console.log('   💪 FitnessAgent: Fitness and wellness tracking WITH MEMORY');
-      console.log('   🔀 TriageAgent: Task routing and health monitoring WITH MEMORY');
 
       this.isBootstrapped = true;
 
@@ -286,23 +285,66 @@ export class AgentBootstrapService {
    * Create all core agents using the canonical AgentFactory
    */
   private async createAllCoreAgents(): Promise<ISpecializedAgent[]> {
-    const coreAgentTypes: AgentType[] = ['core', 'development', 'office', 'fitness', 'general'];
+    // Define proper agent configurations with meaningful names
+    const agentConfigs = [
+      {
+        type: 'core' as const,
+        id: 'core-agent',
+        name: 'CoreAgent',
+        description: 'Core system agent for fundamental operations'
+      },
+      {
+        type: 'development' as const,
+        id: 'dev-agent',
+        name: 'DevAgent',
+        description: 'Development and coding assistance agent'
+      },
+      {
+        type: 'office' as const,
+        id: 'office-agent',
+        name: 'OfficeAgent', 
+        description: 'Office productivity and management agent'
+      },
+      {
+        type: 'fitness' as const,
+        id: 'fitness-agent',
+        name: 'FitnessAgent',
+        description: 'Health and fitness guidance agent'
+      },
+      {
+        type: 'triage' as const,
+        id: 'triage-agent',
+        name: 'TriageAgent',
+        description: 'Task routing and system health agent'
+      },
+      {
+        type: 'planner' as const,
+        id: 'planner-agent',
+        name: 'PlannerAgent',
+        description: 'Strategic planning and task orchestration agent'
+      },
+      {
+        type: 'validator' as const,
+        id: 'validator-agent',
+        name: 'ValidationAgent',
+        description: 'Quality validation and Constitutional AI compliance agent'
+      }
+    ];
+
     const agents: ISpecializedAgent[] = [];
 
-    for (const agentType of coreAgentTypes) {
+    for (const config of agentConfigs) {
       try {
         const agent = await AgentFactory.createAgent({
-          type: agentType,
-          id: `${agentType}-agent-${Date.now()}`,
-          name: `${agentType.charAt(0).toUpperCase() + agentType.slice(1)} Agent`,
+          ...config,
           memoryEnabled: true,
           aiEnabled: true,
           modelTier: 'standard'
         });
         agents.push(agent);
-        console.log(`✅ Created ${agentType} agent with canonical AgentFactory`);
+        console.log(`✅ Created ${config.name} with canonical AgentFactory`);
       } catch (error) {
-        console.error(`❌ Failed to create ${agentType} agent:`, error);
+        console.error(`❌ Failed to create ${config.name}:`, error);
       }
     }
 

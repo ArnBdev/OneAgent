@@ -22,6 +22,7 @@ console.log('DEBUG: MEM0_API_KEY from process.env:', process.env.MEM0_API_KEY);
 import { OneAgentEngine, OneAgentRequest, OneAgentResponse } from '../OneAgentEngine';
 import { oneAgentConfig } from '../config/index';
 import { SimpleAuditLogger } from '../audit/auditLogger';
+import { createUnifiedTimestamp } from '../utils/UnifiedBackboneService';
 import passport from 'passport';
 
 import express from 'express';
@@ -634,7 +635,7 @@ function convertToMCPResponse(id: string | number, oneAgentResponse: OneAgentRes
       error: {
         code: -32603,
         message: oneAgentResponse.error?.message || 'Request failed',
-        data: oneAgentResponse.error?.details || null
+        data: oneAgentResponse.error?.details ? oneAgentResponse.error.details as Record<string, unknown> : null
       }
     };
   }
@@ -1027,7 +1028,8 @@ async function handleSampling(mcpRequest: MCPRequest): Promise<MCPResponse> {
           temperature: temperature || 0.7,
           maxTokens: maxTokens || 1000,
           backboneMetadata: true,
-          temporalContext: new Date().toISOString()
+          temporalContext: new Date().toISOString(),
+          timestamp: createUnifiedTimestamp()
         }
       },
       timestamp: new Date().toISOString()

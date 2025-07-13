@@ -12,6 +12,9 @@ import { OfficeAgent } from '../specialized/OfficeAgent';
 import { FitnessAgent } from '../specialized/FitnessAgent';
 import { DevAgent } from '../specialized/DevAgent';
 import { CoreAgent } from '../specialized/CoreAgent';
+import { TriageAgent } from '../specialized/TriageAgent';
+import { PlannerAgent } from '../specialized/PlannerAgent';
+import { ValidationAgent } from '../specialized/ValidationAgent';
 import { unifiedBackbone } from '../../utils/UnifiedBackboneService.js';
 // Fix: Use canonical AgentType from coreagent/types/oneagent-backbone-types
 import type { AgentType as CanonicalAgentType } from '../../types/oneagent-backbone-types';
@@ -74,6 +77,8 @@ const AGENT_TYPE_PERSONA_MAP: Record<string, string> = {
   'office': path.resolve(process.cwd(), 'prompts/personas/office-agent.yaml'),
   'fitness': path.resolve(process.cwd(), 'prompts/personas/fitness-agent.yaml'),
   'triage': path.resolve(process.cwd(), 'prompts/personas/triage-agent.yaml'),
+  'planner': path.resolve(process.cwd(), 'prompts/personas/planner-agent.yaml'),
+  'validator': path.resolve(process.cwd(), 'prompts/personas/validation-agent.yaml'),
   'validation': path.resolve(process.cwd(), 'prompts/personas/validation-agent.yaml'),
 };
 
@@ -109,7 +114,7 @@ function buildPromptConfig(factoryConfig: AgentFactoryConfig): PromptConfig | un
 }
 
 // Define supported agent types for mappings
-const SUPPORTED_AGENT_TYPES = ['core', 'development', 'office', 'fitness', 'general'] as const;
+const SUPPORTED_AGENT_TYPES = ['core', 'development', 'office', 'fitness', 'triage', 'planner', 'validator', 'general'] as const;
 type SupportedAgentType = typeof SUPPORTED_AGENT_TYPES[number];
 function isSupportedAgentType(type: string): type is SupportedAgentType {
   return SUPPORTED_AGENT_TYPES.includes(type as SupportedAgentType);
@@ -117,12 +122,15 @@ function isSupportedAgentType(type: string): type is SupportedAgentType {
 
 export class AgentFactory {
   // Remove unsupported agent types from DEFAULT_CAPABILITIES and AGENT_TYPE_TIER_MAPPING
-  // Only include: 'core', 'development', 'office', 'fitness', 'general'
+  // Only include: 'core', 'development', 'office', 'fitness', 'general', 'triage', 'planner', 'validator'
   private static readonly DEFAULT_CAPABILITIES = {
     'core': ['system_coordination', 'agent_integration', 'service_management', 'health_monitoring', 'resource_allocation', 'security_management', 'rise_plus_methodology', 'constitutional_ai', 'quality_validation', 'advanced_prompting', 'bmad_analysis', 'chain_of_verification'],
     'development': ['code_analysis', 'test_generation', 'documentation_sync', 'refactoring', 'performance_optimization', 'security_scanning', 'git_workflow', 'dependency_management'],
     'office': ['document_processing', 'calendar_management', 'email_assistance', 'task_organization'],
     'fitness': ['workout_planning', 'nutrition_tracking', 'progress_monitoring', 'goal_setting'],
+    'triage': ['task_routing', 'system_health', 'load_balancing', 'agent_coordination', 'priority_assessment'],
+    'planner': ['strategic_planning', 'task_orchestration', 'resource_allocation', 'timeline_management', 'goal_decomposition'],
+    'validator': ['quality_validation', 'constitutional_ai', 'code_review', 'compliance_checking', 'security_analysis', 'bmad_analysis'],
     'general': ['conversation', 'information_retrieval', 'task_assistance']
   };
 
@@ -131,6 +139,9 @@ export class AgentFactory {
     'development': 'premium',
     'office': 'standard',
     'fitness': 'standard',
+    'triage': 'premium',
+    'planner': 'premium',
+    'validator': 'premium',
     'general': 'standard'
   } as const;
 
@@ -234,6 +245,15 @@ export class AgentFactory {
       case 'fitness':
         agent = new FitnessAgent(agentConfig, promptConfig);
         break;
+      case 'triage':
+        agent = new TriageAgent(agentConfig, promptConfig);
+        break;
+      case 'planner':
+        agent = new PlannerAgent(agentConfig);
+        break;
+      case 'validator':
+        agent = new ValidationAgent(agentConfig);
+        break;
       case 'general':
         // Optionally implement a GeneralAgent if needed, or throw for now
         throw new Error('General agent type is not implemented.');
@@ -265,32 +285,32 @@ export class AgentFactory {
         {
           system: {
             source: 'agent_factory',
-          component: 'AgentFactory',          sessionId: unifiedContext.session.sessionId,
-          ...(unifiedContext.session.userId && { userId: unifiedContext.session.userId }),
-          agent: factoryConfig.type
-        },
-        content: {
-          category: 'agent_lifecycle',
-          tags: ['agent', 'creation', factoryConfig.type, factoryConfig.id, modelSelection.tier],
-          sensitivity: 'internal',
-          relevanceScore: 0.8,
-          contextDependency: 'session'
-        },
-        quality: {
-          score: 90,
-          constitutionalCompliant: true,
-          validationLevel: 'enhanced',
-          confidence: 0.9
+            component: 'AgentFactory',
+            sessionId: unifiedContext.session.sessionId,
+            ...(unifiedContext.session.userId && { userId: unifiedContext.session.userId }),
+            agent: factoryConfig.type
+          },
+          content: {
+            category: 'agent_lifecycle',
+            tags: ['agent', 'creation', factoryConfig.type, factoryConfig.id, modelSelection.tier],
+            sensitivity: 'internal',
+            relevanceScore: 0.8,
+            contextDependency: 'session'
+          },
+          quality: {
+            score: 90,
+            constitutionalCompliant: true,
+            validationLevel: 'enhanced',
+            confidence: 0.9
+          }
         }
-      }
-    );
-    
-    console.log(`✅ Agent created with tier-optimized model: ${factoryConfig.type}/${factoryConfig.id}`);
-    console.log(`   📱 Model: ${modelSelection.primaryModel} (${modelSelection.tier} tier)`);
-    console.log(`   💰 Cost: $${modelSelection.estimatedCostPer1K}/1K tokens`);
-    console.log(`   🔄 Fallbacks: ${modelSelection.fallbackModels.slice(0, 2).join(', ')}`);
-    console.log(`   📊 Metadata: ${creationMetadata.id}`);
-    
+      );
+      
+      console.log(`✅ Agent created with tier-optimized model: ${factoryConfig.type}/${factoryConfig.id}`);
+      console.log(`   📱 Model: ${modelSelection.primaryModel} (${modelSelection.tier} tier)`);
+      console.log(`   💰 Cost: $${modelSelection.estimatedCostPer1K}/1K tokens`);
+      console.log(`   🔄 Fallbacks: ${modelSelection.fallbackModels.slice(0, 2).join(', ')}`);
+      console.log(`   📊 Metadata: ${creationMetadata.id}`);
     } else {
       console.log(`✅ Agent created (metadata service unavailable): ${factoryConfig.type}/${factoryConfig.id}`);
     }

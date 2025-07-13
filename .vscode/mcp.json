@@ -1,7 +1,3 @@
 {
-  "servers": {
-    "oneagent": {
-      "url": "http://localhost:8083/mcp"
-    }
-  }
+	"servers": {}
 }

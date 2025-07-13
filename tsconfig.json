@@ -1,6 +1,6 @@
 {  "compilerOptions": {
     "target": "ES2022",
-    "module": "CommonJS",
+    "module": "ES2022",
     "moduleResolution": "node",
     "outDir": "./dist/coreagent",
     "rootDir": "./coreagent",

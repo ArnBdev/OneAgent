@@ -225,12 +225,15 @@ export abstract class BaseAgent {
     this.nlacsCapabilities = capabilities;
     this.nlacsEnabled = true;
     
+    // Create string representations for logging and storage
+    const capabilityStrings = capabilities.map(c => `${c.type}:${c.description}`);
+    
     // Log with canonical backbone metadata
     const services = this.unifiedBackbone.getServices();
     const metadata = services.metadataService.create('nlacs_enable', 'agent_system', {
       content: {
         category: 'system',
-        tags: ['nlacs', 'enable', `agent:${this.config.id}`, ...capabilities.map(c => `capability:${c}`)],
+        tags: ['nlacs', 'enable', `agent:${this.config.id}`, ...capabilities.map(c => `capability:${c.type}`)],
         sensitivity: 'internal' as const,
         relevanceScore: 0.9,
         contextDependency: 'session' as const
@@ -245,17 +248,17 @@ export abstract class BaseAgent {
       }
     });
     
-    console.log(`🧠 NLACS enabled for ${this.config.id} with capabilities: ${capabilities.join(', ')}`);
+    console.log(`🧠 NLACS enabled for ${this.config.id} with capabilities: ${capabilityStrings.join(', ')}`);
     
     // Store in OneAgent memory with canonical metadata
     this.memoryClient?.addMemory({
-      content: `NLACS capabilities enabled: ${capabilities.join(', ')}`,
+      content: `NLACS capabilities enabled: ${capabilityStrings.join(', ')}`,
       metadata: {
         ...metadata,
         type: 'nlacs_initialization',
         agentId: this.config.id,
-        capabilities: capabilities,
-        timestamp: services.timeService.now()
+        capabilities: capabilityStrings, // Store as strings, not objects
+        timestamp: services.timeService.now().iso // Store as ISO string, not object
       }
     }).catch(error => {
       console.error('Failed to store NLACS initialization in memory:', error);

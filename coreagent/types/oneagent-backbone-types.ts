@@ -133,6 +133,9 @@ export interface UnifiedMetadata {
     lastAccessPattern: string;
     usageContext: string[];
   };
+  
+  // Allow additional properties for flexibility
+  [key: string]: unknown;
 }
 
 export interface UnifiedMetadataService {
@@ -166,7 +169,8 @@ export type AgentType =
   | 'office'
   | 'fitness'
   | 'core'
-  | 'triage';
+  | 'triage'
+  | 'planner';
 
 export interface UnifiedAgentContext {
   agentId: string;
@@ -811,6 +815,117 @@ export interface NLACSCapability {
   prerequisites: string[];
   outputs: string[];
   qualityMetrics: string[];
+}
+
+// ========================================
+// ONEAGENT ENGINE TYPES
+// ========================================
+
+export interface OneAgentRequestParams {
+  method?: string;
+  args?: Record<string, unknown>;
+  context?: RequestContext;
+  metadata?: UnifiedMetadata;
+  agentId?: string;
+  sessionId?: string;
+  
+  // Tool-specific parameters
+  userMessage?: string;
+  input?: string;
+  response?: string;
+  content?: string;
+  task?: string;
+  criteria?: string[];
+  code?: string;
+  id?: string;
+  name?: string;
+  capabilities?: string[];
+  
+  // Additional flexible parameters
+  [key: string]: unknown;
+}
+
+export interface OneAgentResponseData {
+  result?: unknown;
+  agent?: UnifiedAgentContext;
+  memory?: MemoryRecord;
+  intelligence?: IntelligenceInsight;
+  conversation?: ConversationData;
+  constitutional?: ConstitutionalValidation;
+  qualityScore?: number;
+  
+  // Allow additional properties for flexibility
+  [key: string]: unknown;
+}
+
+export interface ErrorDetails {
+  code: string;
+  message: string;
+  timestamp: UnifiedTimestamp;
+  context?: string;
+  remediation?: string;
+  stackTrace?: string;
+  agentId?: string;
+  sessionId?: string;
+  details?: unknown;
+}
+
+export interface RequestContext {
+  user?: { id: string; name: string };
+  workspace?: string;
+  sessionId?: string;
+  agentId?: string;
+  timestamp: UnifiedTimestamp;
+  metadata?: UnifiedMetadata;
+  
+  // Allow additional properties for flexibility
+  [key: string]: unknown;
+}
+
+export interface ConstitutionalValidation {
+  isValid: boolean;
+  principles: ConstitutionalPrinciple[];
+  violations: string[];
+  score: number;
+  recommendations: string[];
+  timestamp: UnifiedTimestamp;
+}
+
+export interface ConstitutionalPrinciple {
+  id: string;
+  name: string;
+  description: string;
+  category: 'accuracy' | 'transparency' | 'helpfulness' | 'safety';
+  weight: number;
+  isViolated: boolean;
+  confidence: number;
+}
+
+export interface ToolResult {
+  success: boolean;
+  data?: unknown;
+  error?: ErrorDetails;
+  metadata?: UnifiedMetadata;
+  timestamp: UnifiedTimestamp;
+}
+
+export interface AgentAction {
+  id: string;
+  type: string;
+  name: string;
+  description: string;
+  parameters: Record<string, unknown>;
+  requiredPermissions: string[];
+  metadata?: UnifiedMetadata;
+}
+
+export interface AgentCapability {
+  id: string;
+  name: string;
+  description: string;
+  type: 'tool' | 'skill' | 'knowledge' | 'protocol';
+  parameters: Record<string, unknown>;
+  metadata?: UnifiedMetadata;
 }
 
 // ========================================

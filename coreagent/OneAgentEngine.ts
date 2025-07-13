@@ -16,11 +16,26 @@ import { EventEmitter } from 'events';
 import { oneAgentConfig } from './config/index';
 import axios from 'axios';
 
+// Import canonical types
+import {
+  UnifiedTimestamp,
+  UnifiedMetadata,
+  OneAgentRequestParams,
+  OneAgentResponseData,
+  ErrorDetails,
+  RequestContext,
+  ConstitutionalValidation,
+  ToolResult,
+  AgentAction,
+  AgentCapability
+} from './types/oneagent-backbone-types';
+
 // Import core systems
 import { ConstitutionalAI } from './agents/base/ConstitutionalAI';
 import { BMADElicitationEngine } from './agents/base/BMADElicitationEngine';
 import { OneAgentMemory, OneAgentMemoryConfig } from './memory/OneAgentMemory';
 import { agentBootstrap } from './agents/communication/AgentBootstrapService';
+import { createUnifiedTimestamp } from './utils/UnifiedBackboneService';
 
 // Import unified tools
 import { toolRegistry } from './tools/ToolRegistry';
@@ -54,35 +69,42 @@ export interface OneAgentRequest {
   id: string;
   type: 'tool_call' | 'resource_get' | 'prompt_invoke' | 'agent_message';
   method: string;
-  params: any;
-  context?: {
-    user?: { id: string; name: string };
-    workspace?: string;
-    sessionId?: string;
-  };
+  params: OneAgentRequestParams;
+  context?: RequestContext;
   timestamp: string;
 }
 
 export interface OneAgentResponse {
   id: string;
   success: boolean;
-  data?: any;
-  error?: {
-    code: string;
-    message: string;
-    details?: any;
-  };
+  data?: OneAgentResponseData;
+  error?: ErrorDetails;
   constitutionalValidated: boolean;
   qualityScore?: number;
   timestamp: string;
 }
 
 // Type definitions for dynamic registration
-export interface ToolDefinition {
+export interface ToolDescriptor {
   name: string;
   description: string;
-  inputSchema: any;
-  execute: (params: any) => Promise<any> | any;
+  inputSchema: Record<string, unknown>;
+  execute?: (params: OneAgentRequestParams) => Promise<ToolResult> | ToolResult;
+}
+
+export interface ResourceDescriptor {
+  uri: string;
+  name: string;
+  description: string;
+  mimeType?: string;
+  get?: () => Promise<ToolResult> | ToolResult;
+}
+
+export interface PromptDescriptor {
+  name: string;
+  description: string;
+  arguments?: Array<{ name: string; description: string; required: boolean }>;
+  invoke?: (params: OneAgentRequestParams) => Promise<ToolResult> | ToolResult;
 }
 export interface ResourceDefinition {
   uri: string;
@@ -147,7 +169,7 @@ export class OneAgentEngine extends EventEmitter {
   private memorySystem: OneAgentMemory;
 
   // Internal dynamic registries
-  private dynamicTools: Map<string, ToolDefinition> = new Map();
+  private dynamicTools: Map<string, ToolDescriptor> = new Map();
   private dynamicResources: Map<string, ResourceDefinition> = new Map();
   private dynamicPrompts: Map<string, PromptDefinition> = new Map();
   
@@ -291,7 +313,8 @@ export class OneAgentEngine extends EventEmitter {
         error: {
           code: 'PROCESSING_ERROR',
           message: error instanceof Error ? error.message : 'Unknown error',
-          details: error
+          details: error,
+          timestamp: createUnifiedTimestamp()
         },
         constitutionalValidated: false,
         timestamp: new Date().toISOString()
@@ -308,7 +331,7 @@ export class OneAgentEngine extends EventEmitter {
   /**
    * Dynamically register a tool and emit toolsChanged event
    */
-  registerTool(tool: ToolDefinition): void {
+  registerTool(tool: ToolDescriptor): void {
     this.dynamicTools.set(tool.name, tool);
     this.emit('toolsChanged', { tools: this.getAvailableTools() });
   }
@@ -356,7 +379,7 @@ export class OneAgentEngine extends EventEmitter {
   /**
    * Get available tools for MCP server
    */
-  getAvailableTools(): any[] {
+  getAvailableTools(): ToolDescriptor[] {
     const tools = toolRegistry.getToolSchemas();
     const dynamic = Array.from(this.dynamicTools.values());
     
@@ -527,13 +550,13 @@ export class OneAgentEngine extends EventEmitter {
       // Modern NLACS tools are available via the unified ToolRegistry system
     ];
 
-    return [...tools, ...dynamic, ...oneAgentTools];
+    return [...tools, ...dynamic, ...oneAgentTools] as ToolDescriptor[];
   }
 
   /**
    * Get available resources for MCP server
    */
-  getAvailableResources(): any[] {
+  getAvailableResources(): ResourceDescriptor[] {
     const staticResources = [
       {
         uri: 'oneagent://memory/search',
@@ -561,7 +584,7 @@ export class OneAgentEngine extends EventEmitter {
   /**
    * Get available prompt templates
    */
-  getAvailablePrompts(): any[] {
+  getAvailablePrompts(): PromptDescriptor[] {
     const staticPrompts = [
       {
         name: 'oneagent.analyze_code',
@@ -693,32 +716,34 @@ export class OneAgentEngine extends EventEmitter {
     }
   }
   // Request handlers
-  private async handleToolCall(request: OneAgentRequest): Promise<any> {
+  private async handleToolCall(request: OneAgentRequest): Promise<OneAgentResponseData> {
     const { method, params } = request;
     
     // First try registered tools (includes oneagent_memory_create)
     const tool = toolRegistry.getTool(method);
     if (tool) {
-      return tool.execute(params); // Only pass one argument as required
+      const result = await tool.execute(params);
+      return result as unknown as OneAgentResponseData;
     }
     
     // Then handle OneAgent-specific tools that aren't in registry
     if (method.startsWith('oneagent_')) {
-      return this.handleOneAgentTool(method, params);
+      const result = await this.handleOneAgentTool(method, params);
+      return result as OneAgentResponseData;
     }
     
     throw new Error(`Unknown tool: ${method}`);
   }
-  private async handleOneAgentTool(method: string, params: any): Promise<any> {
+  private async handleOneAgentTool(method: string, params: OneAgentRequestParams): Promise<unknown> {
     // Unwrap nested 'arguments' property if present (MCP tool call compatibility)
     let unwrapped = params;
     while (unwrapped && typeof unwrapped === 'object' && 'arguments' in unwrapped && Object.keys(unwrapped).length === 1) {
-      unwrapped = unwrapped.arguments;
+      unwrapped = unwrapped.arguments as OneAgentRequestParams;
     }
     params = unwrapped;
     console.log('[DEBUG] handleOneAgentTool final params:', params);
     switch (method) {
-      case 'oneagent_constitutional_validate':
+      case 'oneagent_constitutional_validate': {
         // Debug: Log params for diagnosis
         console.log('[DEBUG] oneagent_constitutional_validate params:', params);
         // Accept both 'content' and 'response' as input, prefer 'response' if both present
@@ -736,16 +761,23 @@ export class OneAgentEngine extends EventEmitter {
         if (!userMessage) {
           throw new Error('Invalid input: userMessage must be a string');
         }
-        return this.constitutionalAI.validateResponse(response, userMessage, params.context);
+        return this.constitutionalAI.validateResponse(response, userMessage, params.context as Record<string, unknown>);
+      }
       
       case 'oneagent_bmad_analyze':
+        if (!params.task) {
+          throw new Error('task parameter is required for oneagent_bmad_analyze');
+        }
         return this.bmadEngine.applyNinePointElicitation(
           params.task,
           { user: { id: 'system', name: 'System' }, sessionId: 'bmad-analysis' } as any,
           'general'
         );
       
-      case 'oneagent_quality_score':
+      case 'oneagent_quality_score': {
+        if (!params.content) {
+          throw new Error('content parameter is required for oneagent_quality_score');
+        }
         const validation = await this.constitutionalAI.validateResponse(
           params.content, 
           'Quality assessment'
@@ -759,34 +791,72 @@ export class OneAgentEngine extends EventEmitter {
           suggestions: validation.suggestions,
           timestamp: new Date().toISOString()
         };
+      }
 
       // A2A Multi-Agent Communication Tools
       case 'oneagent_a2a_register_agent':
-        return this.handleA2ARegisterAgent(params);
+        return this.handleA2ARegisterAgent(params as {
+          id: string;
+          name: string;
+          capabilities: string[];
+          metadata?: Record<string, unknown>;
+        });
       
       case 'oneagent_a2a_discover_agents':
         return this.handleA2ADiscoverAgents(params);
       
       case 'oneagent_a2a_create_session':
-        return this.handleA2ACreateSession(params);
+        return this.handleA2ACreateSession(params as unknown as {
+          name: string;
+          participants: string[];
+          mode?: 'collaborative' | 'competitive' | 'hierarchical';
+          topic?: string;
+          metadata?: Record<string, unknown>;
+        });
       
       case 'oneagent_a2a_join_session':
-        return this.handleA2AJoinSession(params);
+        return this.handleA2AJoinSession(params as unknown as {
+          sessionId: string;
+          agentId: string;
+        });
       
       case 'oneagent_a2a_send_message':
-        return this.handleA2ASendMessage(params);
+        return this.handleA2ASendMessage(params as unknown as {
+          sessionId: string;
+          fromAgent: string;
+          toAgent: string;
+          message: string;
+          messageType?: 'question' | 'insight' | 'update' | 'decision' | 'action';
+          metadata?: Record<string, unknown>;
+        });
       
       case 'oneagent_a2a_broadcast_message':
-        return this.handleA2ABroadcastMessage(params);
+        return this.handleA2ABroadcastMessage(params as unknown as {
+          sessionId: string;
+          fromAgent: string;
+          message: string;
+          messageType?: 'question' | 'insight' | 'update' | 'decision' | 'action';
+          metadata?: Record<string, unknown>;
+        });
       
       case 'oneagent_a2a_get_message_history':
-        return this.handleA2AGetMessageHistory(params);
+        return this.handleA2AGetMessageHistory(params as unknown as {
+          sessionId: string;
+          limit?: number;
+          offset?: number;
+        });
       
       case 'oneagent_a2a_get_session':
-        return this.handleA2AGetSession(params);
+        return this.handleA2AGetSession(params as unknown as {
+          sessionId: string;
+        });
       
       case 'oneagent_a2a_list_sessions':
-        return this.handleA2AListSessions(params);
+        return this.handleA2AListSessions(params as unknown as {
+          status?: 'active' | 'paused' | 'completed';
+          participantId?: string;
+          limit?: number;
+        });
 
       // NOTE: Legacy OURA v3.0 tool cases removed (coordinate_agents, send_agent_message, register_agent, query_agent_capabilities)
       // These are now handled via the unified ToolRegistry system to eliminate duplicates
@@ -821,6 +891,9 @@ export class OneAgentEngine extends EventEmitter {
     const { method: prompt, params } = request;
     switch (prompt) {
       case 'oneagent.analyze_code':
+        if (!params.code) {
+          throw new Error('code parameter is required for oneagent.analyze_code');
+        }
         return this.analyzeCodeWithConstitutionalAI(params.code);
       case 'oneagent.coordinate_agents':
         // NLACS/multiAgentOrchestrator is deprecated; return not available
