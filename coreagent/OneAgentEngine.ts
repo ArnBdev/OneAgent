@@ -795,7 +795,7 @@ export class OneAgentEngine extends EventEmitter {
 
       // A2A Multi-Agent Communication Tools
       case 'oneagent_a2a_register_agent':
-        return this.handleA2ARegisterAgent(params as {
+        return this.handleA2ARegisterAgent(params as unknown as {
           id: string;
           name: string;
           capabilities: string[];
@@ -894,7 +894,7 @@ export class OneAgentEngine extends EventEmitter {
         if (!params.code) {
           throw new Error('code parameter is required for oneagent.analyze_code');
         }
-        return this.analyzeCodeWithConstitutionalAI(params.code);
+        return this.analyzeCodeWithConstitutionalAI(params.code as string);
       case 'oneagent.coordinate_agents':
         // NLACS/multiAgentOrchestrator is deprecated; return not available
         throw new Error('Agent coordination is not available: NLACS is deprecated.');
