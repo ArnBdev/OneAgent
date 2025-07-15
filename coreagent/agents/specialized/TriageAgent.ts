@@ -168,7 +168,7 @@ export class TriageAgent extends BaseAgent implements ISpecializedAgent {
   }
 
   async getHealthStatus(): Promise<AgentHealthStatus> {
-    const timestamp = this.backbone.time.now();
+    const timestamp = this.unifiedBackbone.getServices().timeService.now();
     return {
       status: 'healthy',
       uptime: timestamp.unix,
@@ -247,7 +247,7 @@ export class TriageAgent extends BaseAgent implements ISpecializedAgent {
   private async assessAgentHealth(agentId?: string): Promise<HealthAssessment> {
     if (agentId) {
       // Check specific agent
-      const timestamp = this.backbone.time.now();
+      const timestamp = this.unifiedBackbone.getServices().timeService.now();
       const agentHealth: AgentHealthStatus = {
         status: 'healthy',
         uptime: timestamp.unix,
@@ -265,7 +265,7 @@ export class TriageAgent extends BaseAgent implements ISpecializedAgent {
       };
     } else {
       // Check all agents
-      const timestamp = this.backbone.time.now();
+      const timestamp = this.unifiedBackbone.getServices().timeService.now();
       const mockAgents: Record<string, AgentHealthStatus> = {
         'CoreAgent': { status: 'healthy', uptime: timestamp.unix, memoryUsage: 30, responseTime: 100, errorRate: 0.005, lastActivity: new Date(timestamp.utc) },
         'DevAgent': { status: 'healthy', uptime: timestamp.unix, memoryUsage: 25, responseTime: 90, errorRate: 0.002, lastActivity: new Date(timestamp.utc) },

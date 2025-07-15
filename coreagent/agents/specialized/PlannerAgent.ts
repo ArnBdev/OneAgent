@@ -190,8 +190,8 @@ export class PlannerAgent extends BaseAgent {
         strategy: await this.selectOptimalStrategy(context),
         assignedAgents: [],
         timeline: {
-          startDate: new Date(this.backbone.time.now().utc),
-          endDate: new Date(this.backbone.time.now().unix + 7 * 24 * 60 * 60 * 1000), // Default 1 week
+          startDate: new Date(this.unifiedBackbone.getServices().timeService.now().utc),
+          endDate: new Date(this.unifiedBackbone.getServices().timeService.now().unix + 7 * 24 * 60 * 60 * 1000), // Default 1 week
           milestones: []
         },
         riskAssessment: {
@@ -628,8 +628,8 @@ export class PlannerAgent extends BaseAgent {
           },
           insights: planningInsights,
           status: 'active',
-          createdAt: new Date(this.backbone.time.now().utc),
-          lastActivity: new Date(this.backbone.time.now().utc)
+          createdAt: new Date(this.unifiedBackbone.getServices().timeService.now().utc),
+          lastActivity: new Date(this.unifiedBackbone.getServices().timeService.now().utc)
         }],
         'What are the key planning insights and recommendations from this discussion?'
       );
