@@ -9,6 +9,7 @@ import {
   BraveSearchConfig,
   BraveSearchError 
 } from '../types/braveSearch';
+import { createUnifiedTimestamp } from '../utils/UnifiedBackboneService';
 
 export class BraveSearchClient {
   private client: AxiosInstance;
@@ -17,7 +18,7 @@ export class BraveSearchClient {
   private lastRequestTime: number = 0;
   private requestCount: number = 0;
   private monthlyRequestCount: number = 0;
-  private monthStart: number = Date.now();
+  private monthStart: number = createUnifiedTimestamp().unix;
 
   constructor(config: BraveSearchConfig) {
     this.config = {
@@ -50,12 +51,12 @@ export class BraveSearchClient {
    * Ensure we respect rate limits (1 request per second, 2000 per month)
    */
   private async enforceRateLimit(): Promise<void> {
-    const now = Date.now();
+    const now = createUnifiedTimestamp();
     
     // Reset monthly counter if needed
-    if (now - this.monthStart > 30 * 24 * 60 * 60 * 1000) { // ~30 days
+    if (now.unix - this.monthStart > 30 * 24 * 60 * 60 * 1000) { // ~30 days
       this.monthlyRequestCount = 0;
-      this.monthStart = now;
+      this.monthStart = now.unix;
     }
     
     // Check monthly limit
@@ -66,14 +67,14 @@ export class BraveSearchClient {
     }
     
     // Enforce 1 request per second limit
-    const timeSinceLastRequest = now - this.lastRequestTime;
+    const timeSinceLastRequest = now.unix - this.lastRequestTime;
     if (timeSinceLastRequest < 1000) {
       const delay = 1000 - timeSinceLastRequest;
       console.log(`⏳ Rate limiting: waiting ${delay}ms before next request`);
       await new Promise(resolve => setTimeout(resolve, delay));
     }
     
-    this.lastRequestTime = Date.now();
+    this.lastRequestTime = createUnifiedTimestamp().unix;
     this.monthlyRequestCount++;
   }
 
@@ -297,7 +298,8 @@ export class BraveSearchClient {
    * Get date string for last week (for recent search)
    */
   private getLastWeekDate(): string {
-    const date = new Date();
+    const timestamp = createUnifiedTimestamp();
+    const date = new Date(timestamp.utc);
     date.setDate(date.getDate() - 7);
     return date.toISOString().split('T')[0];
   }

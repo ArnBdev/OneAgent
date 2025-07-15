@@ -1,7 +1,8 @@
 import { HybridAgentDiscovery } from '../discovery/HybridAgentDiscovery';
 import { HybridAgentRegistry } from '../registry/HybridAgentRegistry';
 import { IAgentCommunication, AgentMessage } from '../interfaces/IAgentCommunication';
-import { AgentCard } from '../interfaces/AgentCard';
+import { AgentCard, createAgentCard } from '../../types/AgentCard';
+import { unifiedTimeService, unifiedMetadataService } from '../../utils/UnifiedBackboneService';
 
 /**
  * HybridAgentOrchestrator
@@ -41,21 +42,39 @@ export class HybridAgentOrchestrator {
       if (health === 'healthy' || health === 'degraded' || health === 'error') return health;
       return 'error';
     };
-    const agentCards: AgentCard[] = candidates.map((c) => ({
-      agentId: c.agentId,
-      displayName: c.displayName || c.agentId,
-      agentType: c.agentType,
-      version: c.version,
-      status: normalizeStatus(c.status),
-      capabilities: c.capabilities,
-      skills: c.skills ?? undefined,
-      health: normalizeHealth(c.health),
-      lastHeartbeat: c.lastHeartbeat,
-      credentials: c.credentials ?? {},
-      authorization: c.authorization ?? {},
-      endpoints: c.endpoints ?? undefined,
-      metadata: c.metadata ?? undefined,
-    }));
+    const agentCards: AgentCard[] = candidates.map((c) => {
+      const card: AgentCard = createAgentCard(
+        {
+          name: c.displayName || c.agentId,
+          agentId: c.agentId,
+          agentType: c.agentType,
+          description: `${c.agentType} agent`,
+          version: c.version,
+          status: normalizeStatus(c.status),
+          health: normalizeHealth(c.health),
+          capabilities: c.capabilities || {}
+        },
+        {
+          timeService: unifiedTimeService,
+          metadataService: unifiedMetadataService
+        }
+      );
+      
+      // Override lastHeartbeat if available
+      if (c.lastHeartbeat) {
+        card.lastHeartbeat = c.lastHeartbeat;
+      }
+      
+      // Add optional fields if they exist
+      if (c.skills) {
+        card.skills = c.skills;
+      }
+      if (c.credentials) card.credentials = c.credentials;
+      if (c.authorization) card.authorization = c.authorization;
+      if (c.endpoints) card.endpoints = c.endpoints;
+      
+      return card;
+    });
     // TODO: Implement advanced selection logic (BMAD-driven, context-aware)
     return agentCards.length > 0 ? agentCards[0] : null;
   }

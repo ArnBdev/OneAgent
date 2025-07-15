@@ -9,6 +9,10 @@ import { oneAgentConfig } from '../../config/index';
 export class HybridAgentRegistry implements IAgentRegistry {
   // In-memory registry (A2A)
   private inMemoryRegistry: Map<string, AgentRegistration> = new Map();
+  
+  // MCP connection state tracking
+  private mcpConnectionState: 'unknown' | 'connected' | 'failed' = 'unknown';
+  private mcpConnectionTested = false;
 
   // MCP RESTful registry base URL (configurable)
   private mcpBaseUrl: string = process.env.MCP_REGISTRY_URL || `${oneAgentConfig.mcpUrl}/mcp/v4/agents`;
@@ -33,10 +37,21 @@ export class HybridAgentRegistry implements IAgentRegistry {
         const err = await res.json().catch(() => ({}));
         throw new Error(`MCP ${method} ${url} failed: ${res.status} ${res.statusText} - ${err.message || ''}`);
       }
+      
+      // Mark connection as successful
+      if (this.mcpConnectionState !== 'connected') {
+        this.mcpConnectionState = 'connected';
+        console.log('[HybridAgentRegistry] MCP connection established');
+      }
+      
       return await res.json();
     } catch (e) {
-      // Log and propagate meaningful error
-      console.error(`[HybridAgentRegistry] MCP request error:`, e);
+      // Only log error once, then track state
+      if (!this.mcpConnectionTested) {
+        console.warn(`[HybridAgentRegistry] MCP connection failed, using in-memory only mode`);
+        this.mcpConnectionState = 'failed';
+        this.mcpConnectionTested = true;
+      }
       throw e;
     }
   }
@@ -44,12 +59,15 @@ export class HybridAgentRegistry implements IAgentRegistry {
   async registerAgent(agent: AgentRegistration): Promise<boolean> {
     // Register in-memory
     this.inMemoryRegistry.set(agent.agentId, agent);
-    // Register with MCP RESTful endpoint (idempotent upsert)
-    try {
-      await this.mcpRequest('POST', '', agent);
-    } catch {
-      // Fallback: log error, continue with in-memory only
-      console.warn(`[HybridAgentRegistry] MCP register failed, using in-memory only for agent ${agent.agentId}`);
+    
+    // Only try MCP if we haven't already determined it's failed
+    if (this.mcpConnectionState !== 'failed') {
+      try {
+        await this.mcpRequest('POST', '', agent);
+      } catch {
+        // Don't log error here - already handled in mcpRequest
+        // Just continue with in-memory only
+      }
     }
     return true;
   }

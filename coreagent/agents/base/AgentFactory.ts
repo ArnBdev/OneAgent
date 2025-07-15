@@ -15,7 +15,7 @@ import { CoreAgent } from '../specialized/CoreAgent';
 import { TriageAgent } from '../specialized/TriageAgent';
 import { PlannerAgent } from '../specialized/PlannerAgent';
 import { ValidationAgent } from '../specialized/ValidationAgent';
-import { unifiedBackbone } from '../../utils/UnifiedBackboneService.js';
+import { unifiedBackbone, createUnifiedTimestamp } from '../../utils/UnifiedBackboneService.js';
 // Fix: Use canonical AgentType from coreagent/types/oneagent-backbone-types
 import type { AgentType as CanonicalAgentType } from '../../types/oneagent-backbone-types';
 
@@ -203,11 +203,12 @@ export class AgentFactory {
     const modelSelection = AgentFactory.selectOptimalModel(factoryConfig);
     // Create unified agent context for consistent time/metadata across all agents
     const backboneAgentType = factoryConfig.type;
+    const timestamp = createUnifiedTimestamp();
     const unifiedContext = unifiedBackbone.createAgentContext(
       factoryConfig.id,
       backboneAgentType as CanonicalAgentType,
       {
-        sessionId: factoryConfig.sessionId || `session_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+        sessionId: factoryConfig.sessionId || `session_${timestamp.unix}_${Math.random().toString(36).substr(2, 9)}`,
         ...(factoryConfig.userId && { userId: factoryConfig.userId }),
         capabilities: factoryConfig.customCapabilities || (isSupportedAgentType(factoryConfig.type) ? AgentFactory.DEFAULT_CAPABILITIES[factoryConfig.type] : []),
         memoryEnabled: factoryConfig.memoryEnabled ?? true,

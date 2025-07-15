@@ -14,8 +14,10 @@ import { v4 as uuidv4 } from 'uuid';
 import { 
   ContextCategory, 
   PrivacyLevel, 
-  ProjectScope
+  ProjectScope,
+  UnifiedTimestamp
 } from './types/oneagent-backbone-types.js';
+import { createUnifiedTimestamp } from './utils/UnifiedBackboneService';
 
 // Import existing agent infrastructure
 import { AgentFactory, AgentFactoryConfig } from './agents/base/AgentFactory';
@@ -55,7 +57,7 @@ export interface ConversationContext {
 
 export interface ConversationMessage {
   id: string;
-  timestamp: Date;
+  timestamp: UnifiedTimestamp;
   from: string; // 'user' or agent id
   content: string;
   contextCategory: ContextCategory;
@@ -125,7 +127,7 @@ export interface TeamMeeting {
   coordinator: string;
   context: ConversationContext;
   status: 'planning' | 'active' | 'synthesizing' | 'completed';
-  startTime: Date;
+  startTime: UnifiedTimestamp;
   perspectives: AgentPerspective[];
   discussion: MeetingDiscussion[];
   synthesis?: MeetingSynthesis;
@@ -136,7 +138,7 @@ export interface MeetingDiscussion {
   agentId: string;
   message: string;
   type: 'perspective' | 'question' | 'response' | 'challenge';
-  timestamp: Date;
+  timestamp: UnifiedTimestamp;
 }
 
 export interface MeetingSynthesis {
@@ -388,8 +390,8 @@ export class OneAgentSystem extends EventEmitter {
               user: { 
                 id: context.userId, 
                 name: 'User',
-                createdAt: new Date().toISOString(),
-                lastActiveAt: new Date().toISOString()
+                createdAt: createUnifiedTimestamp().iso,
+                lastActiveAt: createUnifiedTimestamp().iso
               },
               sessionId: context.sessionId,
               conversationHistory: []
@@ -456,14 +458,14 @@ export class OneAgentSystem extends EventEmitter {
   private async createConversationContext(userId: string): Promise<ConversationContext> {
     return {
       userId,
-      sessionId: `session_${Date.now()}`,
+      sessionId: `session_${createUnifiedTimestamp().unix}`,
       conversationHistory: [],
       currentAgent: 'core-agent',
       contextCategory: 'GENERAL',
       privacyLevel: 'internal',
       projectScope: 'PERSONAL',
       metadata: {
-        startTime: new Date(),
+        startTime: createUnifiedTimestamp(),
         platform: 'oneagent-core'
       }
     };
@@ -474,8 +476,8 @@ export class OneAgentSystem extends EventEmitter {
    */
   private addToConversationHistory(from: string, content: string): void {
     const message: ConversationMessage = {
-      id: `msg_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-      timestamp: new Date(),
+      id: `msg_${createUnifiedTimestamp().unix}_${Math.random().toString(36).substr(2, 9)}`,
+      timestamp: createUnifiedTimestamp(),
       from,
       content,
       contextCategory: this.conversationContext.contextCategory
@@ -671,8 +673,8 @@ class CoreAgent implements SpecialistAgent {
         user: { 
           id: context.userId, 
           name: 'User',
-          createdAt: new Date().toISOString(),
-          lastActiveAt: new Date().toISOString()
+          createdAt: createUnifiedTimestamp().iso,
+          lastActiveAt: createUnifiedTimestamp().iso
         },
         sessionId: context.sessionId,
         conversationHistory: [],
@@ -708,7 +710,7 @@ class TeamMeetingEngine {
       coordinator: 'CoreAgent',
       context: request.context,
       status: 'planning',
-      startTime: new Date(),
+      startTime: createUnifiedTimestamp(),
       perspectives: [],
       discussion: []
     };
@@ -802,7 +804,7 @@ class TeamMeetingEngine {
             agentId: participantId,
             message: perspective.perspective,
             type: 'perspective',
-            timestamp: new Date()
+            timestamp: createUnifiedTimestamp()
           });
         }
       } catch (error) {
@@ -834,7 +836,7 @@ class TeamMeetingEngine {
               agentId: participantId,
               message: response,
               type: 'response',
-              timestamp: new Date()
+              timestamp: createUnifiedTimestamp()
             });
           }
         } catch (error) {

@@ -7,34 +7,28 @@
  * - Specialized domain expertise for each agent
  * - Message handling and response generation
  * 
- * No more metadata-only registration - these are REAL, functioning agents!
+ * Uses CANONICAL systems:
+ * - HybridAgentRegistry for agent registration
+ * - A2AProtocol for standards-compliant communication
+ * - Shared OneAgentMemory for memory-driven context
  */
 
-import { BaseAgent } from '../base/BaseAgent';
-import { MemoryDrivenAgentCommunication, AgentContext } from './MemoryDrivenAgentCommunication';
-import { oneAgentConfig } from '../../config/index';
+import { HybridAgentRegistry } from '../registry/HybridAgentRegistry';
 import { AgentFactory } from '../base/AgentFactory';
 import { ISpecializedAgent } from '../base/ISpecializedAgent';
-import type { AgentType } from '../../types/oneagent-backbone-types';
+import { AgentContext } from '../base/BaseAgent';
+import { AgentRegistration, createAgentCard } from '../../types/AgentCard';
+import { unifiedTimeService, unifiedMetadataService } from '../../utils/UnifiedBackboneService';
 
 export class AgentBootstrapService {
   private agents: Map<string, ISpecializedAgent> = new Map();
   private isBootstrapped: boolean = false;
-  private communicationHub: MemoryDrivenAgentCommunication | undefined = undefined;
+  private registry: HybridAgentRegistry;
   
-  /**
-   * Set the communication protocol for agent registration
-   */
-  async setCommunicationHub(hub: MemoryDrivenAgentCommunication): Promise<void> {
-    this.communicationHub = hub;
-    console.log('🔗 AgentBootstrapService: Communication protocol connected');
-    
-    // If agents are already bootstrapped, register them immediately
-    if (this.isBootstrapped && this.agents.size > 0) {
-      await this.registerAllExistingAgents();
-    }
+  constructor() {
+    this.registry = new HybridAgentRegistry();
   }
-
+  
   /**
    * Bootstrap all REAL agents with memory and AI capabilities
    * This creates actual BaseAgent instances, not just metadata!
@@ -56,8 +50,8 @@ export class AgentBootstrapService {
         this.agents.set(config.id, agent);
         console.log(`📝 Registered REAL agent: ${config.id} (${config.capabilities.length} capabilities)`);
         
-        // Auto-register each agent with the communication protocol
-        await this.registerAgentWithCommunicationProtocol(agent);
+        // Register with canonical HybridAgentRegistry
+        await this.registerAgentWithRegistry(agent);
       }
         console.log('✅ REAL Agent Registration Complete:');
       console.log('   🧠 CoreAgent: Constitutional AI + BMAD orchestrator WITH MEMORY');
@@ -69,7 +63,7 @@ export class AgentBootstrapService {
 
       console.log('✅ AgentBootstrapService: All REAL agents initialized and ready!');
       console.log(`🎯 ${this.agents.size} agents with actual AI processing and memory storage`);
-      console.log('� Agents can now handle real messages with processMessage() method!');
+      console.log('📡 Agents registered with canonical HybridAgentRegistry for discovery');
 
     } catch (error) {
       console.error('❌ AgentBootstrapService: Error during REAL agent initialization:', error);
@@ -157,7 +151,7 @@ export class AgentBootstrapService {
   async processMessageWithAgent(
     agentId: string, 
     message: string, 
-    context: { user: any; sessionId: string; conversationHistory: any[] }
+    context: { user: unknown; sessionId: string; conversationHistory: unknown[] }
   ): Promise<string> {
     const agent = this.agents.get(agentId);
     
@@ -170,7 +164,7 @@ export class AgentBootstrapService {
     }
 
     try {
-      const response = await agent.processMessage(context as any, message);
+      const response = await agent.processMessage(context as AgentContext, message);
       return response.content;
     } catch (error) {
       console.error(`Error processing message with agent ${agentId}:`, error);
@@ -231,54 +225,68 @@ export class AgentBootstrapService {
   }
 
   /**
-   * Centrally register an agent with the communication protocol
-   * This ensures all agents are discoverable through the multi-agent system
+   * Register agent with canonical HybridAgentRegistry
    */
-  private async registerAgentWithCommunicationProtocol(agent: ISpecializedAgent): Promise<void> {
-    if (!this.communicationHub) {
-      console.warn(`⚠️ Communication hub not available for ${agent.config.id} registration`);
-      return;
-    }
+  private async registerAgentWithRegistry(agent: ISpecializedAgent): Promise<void> {
+    const config = agent.config;
+    
+    // Create AgentRegistration using canonical backbone service
+    const agentCard = createAgentCard(
+      {
+        name: config.id,
+        agentId: config.id,
+        agentType: 'specialized',
+        description: `Specialized agent: ${config.id}`,
+        version: '1.0.0',
+        url: '',
+        capabilities: {
+          streaming: false,
+          pushNotifications: false,
+          stateTransitionHistory: false,
+          extensions: []
+        },
+        skills: [],
+        status: 'active',
+        health: 'healthy'
+      },
+      {
+        timeService: unifiedTimeService,
+        metadataService: unifiedMetadataService
+      }
+    );
+    
+    // Create AgentRegistration with required fields
+    const registration: AgentRegistration = {
+      ...agentCard,
+      qualityScore: 85 // Required for AgentRegistration
+    };
 
     try {
-      const config = agent.config;
-      
-      // Create AgentContext for communication hub registration
-      const agentContext: AgentContext = {
-        agentId: config.id,
-        capabilities: config.capabilities,
-        status: 'available' as const,
-        expertise: config.capabilities,
-        recentActivity: new Date(),
-        memoryCollectionId: `agent_${config.id}_memory`
-      };
-
-      // Register with communication hub
-      await this.communicationHub.registerAgent(agentContext);
-      console.log(`✅ Agent ${config.id} registered with communication protocol`);
+      await this.registry.registerAgent(registration);
+      console.log(`📋 Agent ${config.id} registered with HybridAgentRegistry`);
     } catch (error) {
-      console.error(`❌ Error registering ${agent.config.id} with communication protocol:`, error);
+      console.error(`❌ Failed to register agent ${config.id} with registry:`, error);
     }
   }
 
   /**
-   * Register all existing agents with the communication protocol
-   * Called when the communication protocol is set after agents are already created
+   * Register all existing agents with the registry
+   * Called when the registry is set after agents are already created
    */
   async registerAllExistingAgents(): Promise<void> {
-    if (!this.communicationHub) {
-      console.warn('⚠️ Communication hub not available for bulk registration');
+    if (!this.registry) {
+      console.warn('⚠️ Registry not available for bulk registration');
       return;
     }
     
-    console.log('🔄 Registering all existing agents with communication hub...');
+    console.log('🔄 Registering all existing agents with canonical registry...');
     
     const agents = Array.from(this.agents.values());
     for (const agent of agents) {
-      await this.registerAgentWithCommunicationProtocol(agent);
+      await this.registerAgentWithRegistry(agent);
     }
     
-    console.log(`✅ Registered ${this.agents.size} agents with communication protocol`);
+    console.log(`✅ Successfully registered ${agents.length} agents with canonical registry`);
   }
 
   /**

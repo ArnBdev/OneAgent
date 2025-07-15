@@ -166,7 +166,6 @@ class CanonicalSystemValidator {
     // Check for actual memory integration (your real system)
     const memoryFiles = [
       'coreagent/memory/OneAgentMemory.ts',
-      'coreagent/agents/communication/MemoryDrivenAgentCommunication.ts',
       'coreagent/memory/BatchMemoryOperations.ts'
     ];
 

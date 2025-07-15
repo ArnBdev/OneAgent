@@ -14,7 +14,7 @@
  * @created June 14, 2025
  */
 
-import { MemoryDrivenAgentCommunication } from './communication/MemoryDrivenAgentCommunication';
+import { OneAgentA2AProtocol } from '../protocols/a2a/A2AProtocol';
 import { UnifiedContext7MCPIntegration, DocumentationResult } from '../mcp/UnifiedContext7MCPIntegration';
 import { CodeAnalysisResult } from './AdvancedCodeAnalysisEngine';
 import { getEnhancedTimeContext } from '../utils/EnhancedTimeAwareness.js';
@@ -95,11 +95,11 @@ export interface LearningMetrics {
  * Adaptive Learning Engine for DevAgent
  */
 export class DevAgentLearningEngine {
-  private memoryComm: MemoryDrivenAgentCommunication;
+  private a2aProtocol: OneAgentA2AProtocol;
   private context7Integration: UnifiedContext7MCPIntegration;
   private agentId: string;
   private unifiedBackbone: OneAgentUnifiedBackbone;
-  private memoryBridge = new OneAgentMemory({});
+  private memoryBridge: OneAgentMemory;
   
   // In-memory cache for fast access
   private patternCache: Map<string, LearnedPattern> = new Map();
@@ -117,11 +117,12 @@ export class DevAgentLearningEngine {
     mostUsedPatterns: [],
     emergingPatterns: []
   };
-  constructor(agentId: string, memoryComm: MemoryDrivenAgentCommunication) {
+  constructor(agentId: string, a2aProtocol: OneAgentA2AProtocol) {
     this.agentId = agentId;
-    this.memoryComm = memoryComm;
+    this.a2aProtocol = a2aProtocol;
     this.context7Integration = new UnifiedContext7MCPIntegration(agentId);
     this.unifiedBackbone = OneAgentUnifiedBackbone.getInstance();
+    this.memoryBridge = OneAgentMemory.getInstance();
   }
 
   /**

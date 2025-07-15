@@ -13,7 +13,7 @@
  */
 
 import { UnifiedContext7MCPIntegration, DocumentationQuery, DocumentationResult } from '../mcp/UnifiedContext7MCPIntegration';
-import { MemoryDrivenAgentCommunication, MemoryQuery } from './communication/MemoryDrivenAgentCommunication';
+import { OneAgentA2AProtocol } from '../protocols/a2a/A2AProtocol';
 
 export interface CodeAnalysisRequest {
   code: string;
@@ -76,7 +76,7 @@ export interface MemoryInsight {
  */
 export class AdvancedCodeAnalysisEngine {
   private context7Integration: UnifiedContext7MCPIntegration;
-  private memoryComm: MemoryDrivenAgentCommunication;
+  private a2aProtocol: OneAgentA2AProtocol;
   private agentId: string;
   
   // Analysis patterns and metrics
@@ -89,9 +89,9 @@ export class AdvancedCodeAnalysisEngine {
     memoryEnhancements: 0
   };
 
-  constructor(agentId: string, memoryComm: MemoryDrivenAgentCommunication) {
+  constructor(agentId: string, a2aProtocol: OneAgentA2AProtocol) {
     this.agentId = agentId;
-    this.memoryComm = memoryComm;
+    this.a2aProtocol = a2aProtocol;
     this.context7Integration = new UnifiedContext7MCPIntegration(agentId);
     
     this.initializeLanguagePatterns();
@@ -163,21 +163,23 @@ export class AdvancedCodeAnalysisEngine {
    * Get memory insights from previous similar analyses
    */  private async getMemoryInsights(request: CodeAnalysisRequest): Promise<MemoryInsight[]> {
     try {
-      const searchQuery: MemoryQuery = {
-        query: `${request.language} ${request.requestType} ${request.problemDescription || ''} code analysis`,
+      const searchQuery = `${request.language} ${request.requestType} ${request.problemDescription || ''} code analysis`;
+      
+      const memories = await this.a2aProtocol.searchAgentCommunications(searchQuery, {
         limit: 5,
         minQualityScore: 0.6
-      };
+      });
       
-      const memories = await this.memoryComm.searchCommunicationHistory(searchQuery);
-      
-      return memories.map(memory => ({
-        type: this.classifyInsightType(memory.content),
-        content: memory.content,
-        confidence: memory.metadata?.confidenceLevel || 0.7,
-        source: memory.fromAgent || 'unknown',
-        timestamp: new Date(memory.timestamp)
-      }));
+      return memories.map((memory: unknown) => {
+        const mem = memory as { content?: string; metadata?: { confidenceLevel?: number }; fromAgent?: string; timestamp?: string };
+        return {
+          type: this.classifyInsightType(mem.content || ''),
+          content: mem.content || '',
+          confidence: mem.metadata?.confidenceLevel || 0.7,
+          source: mem.fromAgent || 'unknown',
+          timestamp: new Date(mem.timestamp || Date.now())
+        };
+      });
     } catch (error) {
       console.warn(`[CodeAnalysis] Memory insights retrieval failed:`, error);
       return [];
@@ -614,26 +616,19 @@ export class AdvancedCodeAnalysisEngine {
     try {
       const learningContent = `Code analysis: ${request.language} ${request.requestType} - Quality: ${result.qualityScore}% - Patterns: ${result.patterns.length} - Documentation used: ${result.documentation.length}`;
       
-      const message = {
-        id: `analysis-${Date.now()}`,
-        fromAgent: this.agentId,
-        messageType: 'learning' as const,
+      await this.a2aProtocol.sendAgentMessage({
+        toAgent: 'system', // Broadcast to system for learning
         content: learningContent,
-        priority: 'medium' as const,
-        timestamp: new Date(),
+        messageType: 'learning',
         metadata: {
-          context: {
-            type: 'code_analysis',
-            language: request.language,
-            requestType: request.requestType,
-            qualityScore: result.qualityScore,
-            patterns: result.patterns.map(p => p.name),
-            context7Used: result.metadata.context7Used
-          }
+          type: 'code_analysis',
+          language: request.language,
+          requestType: request.requestType,
+          qualityScore: result.qualityScore,
+          patterns: result.patterns.map(p => p.name),
+          context7Used: result.metadata.context7Used
         }
-      };
-      
-      await this.memoryComm.sendMessage(message);
+      });
     } catch (error) {
       console.warn(`[CodeAnalysis] Failed to store analysis for learning:`, error);
     }

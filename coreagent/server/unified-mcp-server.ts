@@ -20,9 +20,9 @@ console.log('DEBUG (import): MEM0_API_KEY from process.env:', process.env.MEM0_A
 console.log('DEBUG: MEM0_API_KEY from process.env:', process.env.MEM0_API_KEY);
 
 import { OneAgentEngine, OneAgentRequest, OneAgentResponse } from '../OneAgentEngine';
+import { createUnifiedTimestamp } from '../utils/UnifiedBackboneService';
 import { oneAgentConfig } from '../config/index';
 import { SimpleAuditLogger } from '../audit/auditLogger';
-import { createUnifiedTimestamp } from '../utils/UnifiedBackboneService';
 import passport from 'passport';
 
 import express from 'express';
@@ -271,7 +271,7 @@ async function handleMCPRequest(mcpRequest: MCPRequest): Promise<MCPResponse> {
       type: determineRequestType(mcpRequest.method),
       method: mcpRequest.method,
       params: mcpRequest.params || {},
-      timestamp: new Date().toISOString()
+      timestamp: createUnifiedTimestamp().iso
     };
     
     const oneAgentResponse = await oneAgent.processRequest(oneAgentRequest);
@@ -287,7 +287,7 @@ async function handleMCPRequest(mcpRequest: MCPRequest): Promise<MCPResponse> {
       error: {
         code: -32603,
         message: error instanceof Error ? error.message : 'Internal error',
-        data: { timestamp: new Date().toISOString() }
+        data: { timestamp: createUnifiedTimestamp().iso }
       }
     };
   }
@@ -383,7 +383,7 @@ async function handleToolCall(mcpRequest: MCPRequest): Promise<MCPResponse> {
     type: 'tool_call',
     method: name,
     params: args,
-    timestamp: new Date().toISOString()
+    timestamp: createUnifiedTimestamp().iso
   };
   
   const response = await oneAgent.processRequest(oneAgentRequest);
@@ -460,7 +460,7 @@ async function handleResourceRead(mcpRequest: MCPRequest): Promise<MCPResponse> 
           enableBackboneMetadata: true,
           enableConstitutionalValidation: true,
           enableTemporalAwareness: true,
-          timestamp: new Date().toISOString(),
+          timestamp: createUnifiedTimestamp().iso,
           // Context7 specific: store retrieved docs in mem0 for collective knowledge
           ...(resourceType === 'development' && {
             storeInMemory: true,
@@ -468,7 +468,7 @@ async function handleResourceRead(mcpRequest: MCPRequest): Promise<MCPResponse> 
             technology: parameter
           })
         },
-        timestamp: new Date().toISOString()
+        timestamp: createUnifiedTimestamp().iso
       };
       
       const response = await oneAgent.processRequest(oneAgentRequest);
@@ -497,9 +497,9 @@ async function handleResourceRead(mcpRequest: MCPRequest): Promise<MCPResponse> 
               metadata: {
                 backboneCompliant: true,
                 constitutionalValidated: true,
-                temporalContext: new Date().toISOString(),
+                temporalContext: createUnifiedTimestamp().iso,
                 qualityScore: response.qualityScore || 'N/A',
-                processingTime: `${Date.now() - parseInt(oneAgentRequest.timestamp)}ms`
+                processingTime: `${createUnifiedTimestamp().unix - parseInt(oneAgentRequest.timestamp)}ms`
               }
             }, null, 2)
           }]
@@ -515,7 +515,7 @@ async function handleResourceRead(mcpRequest: MCPRequest): Promise<MCPResponse> 
         type: 'resource_get',
         method: uri,
         params: mcpRequest.params || {},
-        timestamp: new Date().toISOString()
+        timestamp: createUnifiedTimestamp().iso
       };
       
       const response = await oneAgent.processRequest(oneAgentRequest);
@@ -593,7 +593,7 @@ async function handlePromptGet(mcpRequest: MCPRequest): Promise<MCPResponse> {
     type: 'prompt_invoke',
     method: name,
     params: args || {},
-    timestamp: new Date().toISOString()
+    timestamp: createUnifiedTimestamp().iso
   };
   
   const response = await oneAgent.processRequest(oneAgentRequest);
@@ -709,7 +709,7 @@ app.post('/mcp', async (req: Request, res: Response) => {
       error: {
         code: -32603,
         message: 'Internal error',
-        data: { timestamp: new Date().toISOString() }
+        data: { timestamp: createUnifiedTimestamp().iso }
       }
     });
   }
@@ -729,7 +729,7 @@ app.get('/mcp', (req: Request, res: Response) => {
   sendSseEvent(res, 'mcpNotification', {
     jsonrpc: '2.0',
     method: 'notifications/initialized',
-    params: { timestamp: new Date().toISOString() }
+    params: { timestamp: createUnifiedTimestamp().iso }
   });
 
   // Heartbeat
@@ -761,7 +761,7 @@ app.get('/health', (_req: Request, res: Response) => {
     initialized: serverInitialized,
     constitutional: true,
     bmad: true,
-    timestamp: new Date().toISOString()
+    timestamp: createUnifiedTimestamp().iso
   });
 });
 
@@ -789,7 +789,7 @@ app.get('/info', (_req: Request, res: Response) => {
     },
     client: clientInfo,
     initialized: serverInitialized,
-    timestamp: new Date().toISOString()
+    timestamp: createUnifiedTimestamp().iso
   });
 });
 
@@ -859,13 +859,13 @@ export { startServer, oneAgent };
 // Example: Dynamic notification triggers for tools/resources/prompts
 // These can be called after any change to tools/resources/prompts
 function notifyToolsListChanged() {
-  sendMcpNotificationToAllSseClients('tools/listChanged', { timestamp: new Date().toISOString() });
+  sendMcpNotificationToAllSseClients('tools/listChanged', { timestamp: createUnifiedTimestamp().iso });
 }
 function notifyResourcesListChanged() {
-  sendMcpNotificationToAllSseClients('resources/listChanged', { timestamp: new Date().toISOString() });
+  sendMcpNotificationToAllSseClients('resources/listChanged', { timestamp: createUnifiedTimestamp().iso });
 }
 function notifyPromptsListChanged() {
-  sendMcpNotificationToAllSseClients('prompts/listChanged', { timestamp: new Date().toISOString() });
+  sendMcpNotificationToAllSseClients('prompts/listChanged', { timestamp: createUnifiedTimestamp().iso });
 }
 
 // Wire dynamic notifications to OneAgentEngine events for full compliance
@@ -1028,11 +1028,11 @@ async function handleSampling(mcpRequest: MCPRequest): Promise<MCPResponse> {
           temperature: temperature || 0.7,
           maxTokens: maxTokens || 1000,
           backboneMetadata: true,
-          temporalContext: new Date().toISOString(),
+          temporalContext: createUnifiedTimestamp().iso,
           timestamp: createUnifiedTimestamp()
         }
       },
-      timestamp: new Date().toISOString()
+      timestamp: createUnifiedTimestamp().iso
     };
 
     const constitutionalValidation = await oneAgent.processRequest(constitutionalRequest);
@@ -1052,7 +1052,7 @@ async function handleSampling(mcpRequest: MCPRequest): Promise<MCPResponse> {
         enableBackboneMetadata: true,
         enableTemporalAwareness: true
       },
-      timestamp: new Date().toISOString()
+      timestamp: createUnifiedTimestamp().iso
     };
 
     const response = await oneAgent.processRequest(samplingRequest);
@@ -1080,7 +1080,7 @@ async function handleSampling(mcpRequest: MCPRequest): Promise<MCPResponse> {
             metadata: {
               constitutionallyValidated: constitutionalValidation.success,
               backboneCompliant: true,
-              temporalContext: new Date().toISOString(),
+              temporalContext: createUnifiedTimestamp().iso,
               samplingParams: { model, temperature, maxTokens },
               qualityScore: response.qualityScore || 'N/A'
             }
@@ -1110,8 +1110,8 @@ function handleAuthStatus(mcpRequest: MCPRequest): MCPResponse {
       scopes: ['read', 'write', 'analyze'],
       backboneMetadata: {
         userId: 'dev-user',
-        sessionId: `session_${Date.now()}`,
-        temporalContext: new Date().toISOString(),
+        sessionId: `session_${createUnifiedTimestamp().unix}`,
+        temporalContext: createUnifiedTimestamp().iso,
         constitutionallyValidated: true,
         qualityCompliant: true
       }
@@ -1126,7 +1126,7 @@ function handleAuthStatus(mcpRequest: MCPRequest): MCPResponse {
       memoryIntelligence: true,
       mcpVersion: MCP_PROTOCOL_VERSION
     },
-    timestamp: new Date().toISOString()
+    timestamp: createUnifiedTimestamp().iso
   };
 
   return {

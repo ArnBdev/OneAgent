@@ -17,13 +17,17 @@ export interface OneAgentMemoryConfig {
   enableCaching?: boolean;
   batchSize?: number;
   batchTimeout?: number;
+  requestTimeout?: number; // Add configurable request timeout
   [key: string]: any;
 }
 
 /**
- * Canonical OneAgent memory client
+ * Canonical OneAgent memory client with singleton pattern
  */
 export class OneAgentMemory {
+  private static instance: OneAgentMemory | null = null;
+  private static initializationLogged = false;
+  
   private config: OneAgentMemoryConfig;
   private batchOperations: BatchMemoryOperations;
   private cachingEnabled: boolean;
@@ -36,10 +40,23 @@ export class OneAgentMemory {
     this.batchOperations = new BatchMemoryOperations(this);
     this.cachingEnabled = config.enableCaching !== false; // Default to enabled
     
-    // Always log protocol version and API key for diagnostics
-    console.log(`[OneAgentMemory] MCP Protocol Version: ${MCP_PROTOCOL_VERSION}`);
-    console.log(`[OneAgentMemory] MEM0_API_KEY present:`, !!(config.apiKey || process.env.MEM0_API_KEY));
-    console.log(`[OneAgentMemory] Caching enabled:`, this.cachingEnabled);
+    // Only log initialization once to prevent spam
+    if (!OneAgentMemory.initializationLogged) {
+      console.log(`[OneAgentMemory] MCP Protocol Version: ${MCP_PROTOCOL_VERSION}`);
+      console.log(`[OneAgentMemory] MEM0_API_KEY present:`, !!(config.apiKey || process.env.MEM0_API_KEY));
+      console.log(`[OneAgentMemory] Caching enabled:`, this.cachingEnabled);
+      OneAgentMemory.initializationLogged = true;
+    }
+  }
+
+  /**
+   * Get singleton instance
+   */
+  static getInstance(config?: OneAgentMemoryConfig): OneAgentMemory {
+    if (!OneAgentMemory.instance) {
+      OneAgentMemory.instance = new OneAgentMemory(config || {});
+    }
+    return OneAgentMemory.instance;
   }
 
   /**
@@ -57,7 +74,74 @@ export class OneAgentMemory {
       }
     }
     
-    return this.performAddMemory(data);
+    // Try with retries for timeout/abort errors
+    let lastError: Error | null = null;
+    const maxRetries = 2;
+    
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+      try {
+        return await this.performAddMemory(data);
+      } catch (error) {
+        lastError = error as Error;
+        
+        // Only retry on abort/timeout errors
+        if (lastError.message.includes('aborted') || lastError.message.includes('timeout')) {
+          console.warn(`[OneAgentMemory] addMemory attempt ${attempt} failed: ${lastError.message}`);
+          if (attempt < maxRetries) {
+            console.log(`[OneAgentMemory] Retrying in ${attempt * 1000}ms...`);
+            await new Promise(resolve => setTimeout(resolve, attempt * 1000));
+            continue;
+          }
+        }
+        
+        // For other errors, don't retry
+        throw error;
+      }
+    }
+    
+    // If we get here, all retries failed
+    throw lastError || new Error('Unexpected error during memory add');
+  }
+
+  /**
+   * Sanitize metadata for mem0 compatibility
+   * mem0 only accepts str, int, float, bool, or None in metadata
+   */
+  private sanitizeMetadata(metadata: any): Record<string, any> {
+    if (!metadata || typeof metadata !== 'object') {
+      return {};
+    }
+
+    const sanitized: Record<string, any> = {};
+    
+    for (const [key, value] of Object.entries(metadata)) {
+      if (value === null || value === undefined) {
+        sanitized[key] = null;
+      } else if (typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean') {
+        sanitized[key] = value;
+      } else if (Array.isArray(value)) {
+        // Handle arrays specially - keep as array if all elements are primitives
+        if (value.every(item => typeof item === 'string' || typeof item === 'number' || typeof item === 'boolean')) {
+          sanitized[key] = value;
+        } else {
+          // If array contains complex objects, serialize to JSON string
+          sanitized[key] = JSON.stringify(value);
+        }
+      } else if (typeof value === 'object') {
+        // Serialize complex objects to JSON strings
+        try {
+          sanitized[key] = JSON.stringify(value);
+        } catch (error) {
+          // If JSON serialization fails, convert to string
+          sanitized[key] = String(value);
+        }
+      } else {
+        // Convert everything else to string
+        sanitized[key] = String(value);
+      }
+    }
+    
+    return sanitized;
   }
 
   /**
@@ -66,14 +150,20 @@ export class OneAgentMemory {
   private async performAddMemory(data: any): Promise<any> {
     const baseUrl = process.env.ONEAGENT_MEMORY_URL || this.config.apiUrl || 'http://localhost:8010';
     const endpoint = baseUrl.replace(/\/$/, '') + '/v1/memories';
+    
+    // Sanitize metadata for mem0 compatibility
+    const sanitizedMetadata = this.sanitizeMetadata(data.metadata || {});
+    
     const payload = {
       content: data.content || data.text || data,
       userId: data.user_id || data.userId || 'default-user',
-      metadata: data.metadata || {},
+      metadata: sanitizedMetadata, // Use sanitized metadata
     };
-    const timeoutMs = 10000;
+    const timeoutMs = this.config.requestTimeout || 15000; // Configurable timeout, default 15 seconds
     console.log(`[OneAgentMemory] [addMemory] POST ${endpoint}`);
     console.log(`[OneAgentMemory] [addMemory] Payload:`, payload);
+    console.log(`[OneAgentMemory] [addMemory] Original metadata keys:`, Object.keys(data.metadata || {}));
+    console.log(`[OneAgentMemory] [addMemory] Sanitized metadata keys:`, Object.keys(sanitizedMetadata));
     try {
       const controller = typeof AbortController !== 'undefined' ? new AbortController() : undefined;
       const timeout = setTimeout(() => controller && controller.abort(), timeoutMs);
@@ -145,13 +235,18 @@ export class OneAgentMemory {
   async updateMemory(id: string, data: any): Promise<any> {
     const baseUrl = process.env.ONEAGENT_MEMORY_URL || this.config.apiUrl || 'http://localhost:8010';
     const endpoint = `${baseUrl.replace(/\/$/, '')}/v1/memories/${id}`;
+    
+    // Sanitize metadata for mem0 compatibility
+    const sanitizedMetadata = this.sanitizeMetadata(data.metadata || {});
+    
     const payload = {
       content: data.content || data.text || data,
       userId: data.user_id || data.userId || 'default-user',
-      metadata: data.metadata || {},
+      metadata: sanitizedMetadata, // Use sanitized metadata
     };
     const timeoutMs = 10000;
     console.log(`[OneAgentMemory] [updateMemory] PUT ${endpoint}`);
+    console.log(`[OneAgentMemory] [updateMemory] Sanitized metadata keys:`, Object.keys(sanitizedMetadata));
     try {
       const controller = typeof AbortController !== 'undefined' ? new AbortController() : undefined;
       const timeout = setTimeout(() => controller && controller.abort(), timeoutMs);
@@ -251,17 +346,20 @@ export class OneAgentMemory {
   async patchMemory(id: string, patch: Partial<{ content: any; userId: string; metadata: Record<string, any> }>): Promise<any> {
     const baseUrl = process.env.ONEAGENT_MEMORY_URL || this.config.apiUrl || 'http://localhost:8010';
     const endpoint = `${baseUrl.replace(/\/$/, '')}/v1/memories/${id}`;
+    
     // Deep merge for advanced metadata (backbone metadata system)
     const payload: any = {};
     if (patch.content !== undefined) payload.content = patch.content;
     if (patch.userId !== undefined) payload.userId = patch.userId;
     if (patch.metadata !== undefined) {
-      // Deep merge with existing metadata if needed (client-side, optional)
-      payload.metadata = { ...(patch.metadata || {}) };
+      // Sanitize metadata for mem0 compatibility
+      payload.metadata = this.sanitizeMetadata(patch.metadata);
     }
+    
     const timeoutMs = 10000;
     console.log(`[OneAgentMemory] [patchMemory] PATCH ${endpoint}`);
     console.log(`[OneAgentMemory] [patchMemory] Payload:`, payload);
+    console.log(`[OneAgentMemory] [patchMemory] Sanitized metadata keys:`, Object.keys(payload.metadata || {}));
     try {
       const controller = typeof AbortController !== 'undefined' ? new AbortController() : undefined;
       const timeout = setTimeout(() => controller && controller.abort(), timeoutMs);
@@ -348,6 +446,16 @@ export class OneAgentMemory {
    */
   private handleError(method: string, error: unknown): never {
     const errMsg = error instanceof Error ? error.message : String(error);
+    
+    // Provide more context for common errors
+    if (errMsg.includes('aborted') || errMsg.includes('user aborted')) {
+      console.warn(`[OneAgentMemory] ${method} was aborted - likely due to timeout or cancellation`);
+    } else if (errMsg.includes('ECONNREFUSED') || errMsg.includes('fetch failed')) {
+      console.warn(`[OneAgentMemory] ${method} failed - memory server may be unavailable`);
+    } else if (errMsg.includes('422')) {
+      console.warn(`[OneAgentMemory] ${method} failed - validation error in request payload`);
+    }
+    
     throw new Error(`[OneAgentMemory] ${method} failed: ${errMsg}`);
   }
 }

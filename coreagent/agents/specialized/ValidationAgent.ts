@@ -180,13 +180,14 @@ export class ValidationAgent extends BaseAgent implements ISpecializedAgent {
   }
 
   async getHealthStatus(): Promise<AgentHealthStatus> {
+    const timestamp = this.backbone.time.now();
     return {
       status: 'healthy',
-      uptime: Date.now(),
+      uptime: timestamp.unix,
       memoryUsage: 0,
       responseTime: 0,
       errorRate: 0,
-      lastActivity: new Date()
+      lastActivity: new Date(timestamp.utc)
     };
   }
 

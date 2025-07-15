@@ -13,6 +13,7 @@
 
 import { OneAgentMemory, OneAgentMemoryConfig } from '../memory/OneAgentMemory';
 import { ConversationData, ConversationMetadata, MemorySearchResult, MemoryRecord, IntelligenceInsight } from '../types/oneagent-backbone-types';
+import { createUnifiedTimestamp } from '../utils/UnifiedBackboneService';
 import { OneAgentUnifiedBackbone } from '../utils/UnifiedBackboneService';
 import { ConstitutionalAI } from '../agents/base/ConstitutionalAI';
 import { PromptEngine } from '../agents/base/PromptEngine';
@@ -58,7 +59,7 @@ export class MemoryIntelligence {
     userId: string,
     options: { maxResults?: number } = {}
   ): Promise<MemorySearchResult> {
-    const startTime = Date.now();
+    const startTime = createUnifiedTimestamp();
     try {
       const memoryResults = await this.memorySystem.searchMemory({
         collection: 'conversations',
@@ -105,18 +106,19 @@ export class MemoryIntelligence {
         constitutionalStatus: typeof conv.constitutionalCompliance === 'boolean'
           ? (conv.constitutionalCompliance ? 'compliant' : 'requires_review')
           : 'requires_review',
-        lastValidation: new Date()
+        lastValidation: new Date(createUnifiedTimestamp().utc)
       }));
       const totalQuality = results.reduce((sum, result) => sum + (result.qualityScore || 0), 0);
       const totalRelevance = results.reduce((sum, result) => sum + (result.metadata.relevanceScore || 0), 0);
       const avgQuality = results.length > 0 ? totalQuality / results.length : 0;
       const avgRelevance = results.length > 0 ? totalRelevance / results.length : 0;
+      const endTime = createUnifiedTimestamp();
       return {
         results,
         totalFound: results.length,
         totalResults: results.length,
         query,
-        searchTime: Date.now() - startTime,
+        searchTime: endTime.unix - startTime.unix,
         averageRelevance: avgRelevance,
         averageQuality: avgQuality,
         constitutionalCompliance: results.filter(r => r.constitutionalStatus === 'compliant').length / Math.max(results.length, 1),
@@ -135,7 +137,7 @@ export class MemoryIntelligence {
         totalFound: 0,
         totalResults: 0,
         query,
-        searchTime: Date.now() - startTime,
+        searchTime: endTime.unix - startTime.unix,
         averageRelevance: 0,
         averageQuality: 0,
         constitutionalCompliance: 0,
@@ -159,7 +161,7 @@ export class MemoryIntelligence {
   ): Promise<string> {
     const conversationTimestamp = this.unifiedBackbone.getServices().timeService.now();
     const conversationData: ConversationData = {
-      conversationId: `conv_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+      conversationId: `conv_${conversationTimestamp.unix}_${Math.random().toString(36).substr(2, 9)}`,
       participants: [userId],
       startTime: new Date(conversationTimestamp.utc),
       topics: metadata.messageAnalysis?.contextTags || [],

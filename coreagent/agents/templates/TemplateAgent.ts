@@ -26,6 +26,7 @@ import { BaseAgent, AgentConfig, AgentContext, AgentResponse, AgentAction } from
 import { ISpecializedAgent, AgentHealthStatus } from '../base/ISpecializedAgent';
 import { OneAgentMemory, OneAgentMemoryConfig } from '../../memory/OneAgentMemory';
 import { MemoryRecord } from '../../types/oneagent-backbone-types';
+import { createUnifiedTimestamp } from '../../utils/UnifiedBackboneService';
 
 export class TemplateAgent extends BaseAgent implements ISpecializedAgent {
   public readonly id: string;
@@ -34,7 +35,7 @@ export class TemplateAgent extends BaseAgent implements ISpecializedAgent {
   private errors: string[] = [];
   private readonly qualityThreshold: number = 85;
   private readonly timeZone: string = 'UTC';
-  private lastActivity: Date = new Date();
+  private lastActivity: Date = new Date(createUnifiedTimestamp().utc);
   
   // Constitutional AI validation principles for this agent domain
   private readonly constitutionalPrinciples = {
@@ -48,7 +49,7 @@ export class TemplateAgent extends BaseAgent implements ISpecializedAgent {
 
   constructor(config: AgentConfig) {
     super(config);
-    this.id = config.id || `template-agent-${Date.now()}`;
+    this.id = config.id || `template-agent-${createUnifiedTimestamp().unix}`;
     this.config = config;
     const memoryConfig: OneAgentMemoryConfig = {
       apiKey: process.env.MEM0_API_KEY || 'demo-key',
@@ -67,13 +68,13 @@ export class TemplateAgent extends BaseAgent implements ISpecializedAgent {
         await this.memorySystem.addMemory({
           agentId: this.id,
           content: `Template agent ${this.id} successfully initialized with unified memory system. Constitutional AI validation active.`,
-          timestamp: new Date().toISOString(),
+          timestamp: createUnifiedTimestamp().iso,
           type: 'system'
         });
       } catch (memoryError) {
         console.warn(`⚠️ Could not store initialization memory: ${memoryError}`);
       }
-      this.lastActivity = new Date();
+      this.lastActivity = new Date(createUnifiedTimestamp().utc);
       console.log(`✅ TemplateAgent ${this.id} initialized successfully with Constitutional AI validation`);
     } catch (error) {
       this.errors.push(`Initialization error: ${error instanceof Error ? error.message : String(error)}`);
@@ -92,8 +93,8 @@ export class TemplateAgent extends BaseAgent implements ISpecializedAgent {
    * - Professional error handling with graceful fallbacks
    */
   async processMessage(context: AgentContext, message: string): Promise<AgentResponse> {
-    const startTime = Date.now();
-    this.lastActivity = new Date();
+    const startTime = createUnifiedTimestamp().unix;
+    this.lastActivity = new Date(createUnifiedTimestamp().utc);
     
     try {
       this.validateContext(context);
@@ -106,10 +107,10 @@ export class TemplateAgent extends BaseAgent implements ISpecializedAgent {
         await this.memorySystem.addMemory({
           agentType: 'template',
           sessionId: context.sessionId,
-          timestamp: new Date().toISOString(),
+          timestamp: createUnifiedTimestamp().iso,
           timeZone: this.timeZone,
           messageType: 'user_input',
-          processingId: `proc_${Date.now()}`,
+          processingId: `proc_${createUnifiedTimestamp().unix}`,
           content: message,
           userId: context.user.id,
           type: context.user.id
@@ -149,7 +150,7 @@ export class TemplateAgent extends BaseAgent implements ISpecializedAgent {
               learningType: 'quality_improvement',
               originalQuality: qualityScore,
               threshold: this.qualityThreshold,
-              timestamp: new Date().toISOString()
+              timestamp: createUnifiedTimestamp().iso
             }
           );
         } catch (memoryError) {
@@ -160,13 +161,13 @@ export class TemplateAgent extends BaseAgent implements ISpecializedAgent {
       // 6. RECORD SUCCESSFUL PROCESSING FOR LEARNING
       try {
         await this.addMemory(context.user.id, 
-          `Successfully processed template request. Quality: ${qualityScore}%. Processing time: ${Date.now() - startTime}ms`,
+          `Successfully processed template request. Quality: ${qualityScore}%. Processing time: ${createUnifiedTimestamp().unix - startTime}ms`,
           {
-            processingTime: Date.now() - startTime,
+            processingTime: createUnifiedTimestamp().unix - startTime,
             qualityScore: qualityScore,
             actionsCount: actions.length,
             memoriesUsed: relevantMemories.length,
-            timestamp: new Date().toISOString(),
+            timestamp: createUnifiedTimestamp().iso,
             type: context.user.id
           }
         );
@@ -178,7 +179,7 @@ export class TemplateAgent extends BaseAgent implements ISpecializedAgent {
       const response = this.createResponse(finalResponse, actions, relevantMemories);
       response.metadata = {
         ...response.metadata,
-        processingTime: Date.now() - startTime,
+        processingTime: createUnifiedTimestamp().unix - startTime,
         qualityScore: qualityScore,
         memoryEnhanced: relevantMemories.length > 0,
         timeZone: this.timeZone,
@@ -199,8 +200,8 @@ export class TemplateAgent extends BaseAgent implements ISpecializedAgent {
           {
             errorType: 'processing_error',
             errorMessage,
-            timestamp: new Date().toISOString(),
-            processingTime: Date.now() - startTime,
+            timestamp: createUnifiedTimestamp().iso,
+            processingTime: createUnifiedTimestamp().unix - startTime,
             sessionId: context.sessionId,
             type: context.user.id
           }
@@ -217,7 +218,7 @@ export class TemplateAgent extends BaseAgent implements ISpecializedAgent {
       
       errorResponse.metadata = {
         ...errorResponse.metadata,
-        processingTime: Date.now() - startTime,
+        processingTime: createUnifiedTimestamp().unix - startTime,
         qualityScore: 60, // Low quality due to error
         errorRecovery: true,
         constitutionalValidated: false
@@ -319,7 +320,7 @@ export class TemplateAgent extends BaseAgent implements ISpecializedAgent {
   async getHealthStatus(): Promise<AgentHealthStatus> {
     return {
       status: this.isReady() && this.errors.length < 5 ? 'healthy' : 'degraded',
-      uptime: Date.now(),
+      uptime: createUnifiedTimestamp().unix,
       memoryUsage: 0, // Mock value
       responseTime: 50, // Mock value
       errorRate: this.processedMessages > 0 ? this.errors.length / this.processedMessages : 0
@@ -414,9 +415,9 @@ Be [PERSONALITY TRAITS: professional, friendly, expert, etc.] in your responses.
     return {
       content: `Action 1 completed with input: ${params.input}`,
       metadata: {
-        actionId: `action1_${Date.now()}`,
+        actionId: `action1_${createUnifiedTimestamp().unix}`,
         success: true,
-        timestamp: new Date().toISOString()
+        timestamp: createUnifiedTimestamp().iso
       }
     };
   }
@@ -426,9 +427,9 @@ Be [PERSONALITY TRAITS: professional, friendly, expert, etc.] in your responses.
     return {
       content: `Action 2 completed with data: ${JSON.stringify(params.data)}`,
       metadata: {
-        actionId: `action2_${Date.now()}`,
+        actionId: `action2_${createUnifiedTimestamp().unix}`,
         success: true,
-        timestamp: new Date().toISOString()
+        timestamp: createUnifiedTimestamp().iso
       }
     };
   }
@@ -437,9 +438,9 @@ Be [PERSONALITY TRAITS: professional, friendly, expert, etc.] in your responses.
     return {
       content: 'Action 3 completed',
       metadata: {
-        actionId: `action3_${Date.now()}`,
+        actionId: `action3_${createUnifiedTimestamp().unix}`,
         success: true,
-        timestamp: new Date().toISOString()
+        timestamp: createUnifiedTimestamp().iso
       }
     };
   }
@@ -471,31 +472,30 @@ Be [PERSONALITY TRAITS: professional, friendly, expert, etc.] in your responses.
         {
           coordinationType: 'multi_agent_task',
           task: task,
-          timestamp: new Date().toISOString(),
+          timestamp: createUnifiedTimestamp().iso,
           sessionId: context.sessionId
         }
       );
       
       return {
-        content: `Multi-agent coordination completed for: ${task}. Result: ${coordinationResult.reason}`,
-        metadata: {
-          coordinationType: 'multi_agent_task',
-          task: task,
-          timestamp: new Date().toISOString(),
-          sessionId: context.sessionId,
-          coordinationResult
-        }
-      };
+          content: `Multi-agent coordination completed for: ${task}. Result: ${coordinationResult.reason}`,
+          metadata: {
+            coordinationType: 'multi_agent_task',
+            task: task,
+            timestamp: createUnifiedTimestamp().iso,
+            sessionId: context.sessionId,
+            coordinationResult
+          }
+        };
     } catch (error) {
-      console.warn(`⚠️ Multi-agent coordination failed: ${error}`);
-      return { 
-        content: `Coordination failed: ${error}`,
-        metadata: {
-          success: false,
-          error: `${error}`,
-          timestamp: new Date().toISOString()
-        }
-      };
+      console.warn(`⚠️ Multi-agent coordination failed: ${error}`);        return { 
+          content: `Coordination failed: ${error}`,
+          metadata: {
+            success: false,
+            error: `${error}`,
+            timestamp: createUnifiedTimestamp().iso
+          }
+        };
     }
   }
 
@@ -535,20 +535,12 @@ Be [PERSONALITY TRAITS: professional, friendly, expert, etc.] in your responses.
    * Demonstrates proper time handling with timezone awareness
    */
   private getCurrentTimeStamp(): { iso: string; unix: number; timezone: string; readable: string } {
-    const now = new Date();
+    const timestamp = createUnifiedTimestamp();
     return {
-      iso: now.toISOString(),
-      unix: now.getTime(),
+      iso: timestamp.iso,
+      unix: timestamp.unix,
       timezone: this.timeZone,
-      readable: now.toLocaleString('en-US', { 
-        timeZone: this.timeZone,
-        year: 'numeric',
-        month: '2-digit',
-        day: '2-digit',
-        hour: '2-digit',
-        minute: '2-digit',
-        second: '2-digit'
-      })
+      readable: timestamp.local
     };
   }
 
@@ -615,21 +607,21 @@ Be [PERSONALITY TRAITS: professional, friendly, expert, etc.] in your responses.
    * Demonstrates advanced memory search with fallbacks and quality assessment
    */
   private async searchMemoriesWithFallback(userId: string, query: string, limit: number = 5): Promise<{ memories: MemoryRecord[], searchMetrics: { found: number; searchTime: number; method: string } }> {
-    const searchStart = Date.now();
+    const searchStart = createUnifiedTimestamp().unix;
     let memories: MemoryRecord[] = [];
     let searchSuccess = false;
     
     try {
       memories = await this.searchMemories(userId, query, limit);
       searchSuccess = true;
-      console.log(`🔍 Memory search successful: ${memories.length} results in ${Date.now() - searchStart}ms`);
+      console.log(`🔍 Memory search successful: ${memories.length} results in ${createUnifiedTimestamp().unix - searchStart}ms`);
     } catch (error) {
       console.warn(`⚠️ Memory search failed, using fallback: ${error}`);
       memories = []; // Graceful fallback
     }
     
     const searchMetrics = {
-      searchTime: Date.now() - searchStart,
+      searchTime: createUnifiedTimestamp().unix - searchStart,
       found: memories.length,
       method: searchSuccess ? 'memory_search' : 'fallback'
     };

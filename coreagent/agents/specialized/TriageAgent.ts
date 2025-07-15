@@ -168,13 +168,14 @@ export class TriageAgent extends BaseAgent implements ISpecializedAgent {
   }
 
   async getHealthStatus(): Promise<AgentHealthStatus> {
+    const timestamp = this.backbone.time.now();
     return {
       status: 'healthy',
-      uptime: Date.now(),
+      uptime: timestamp.unix,
       memoryUsage: 0,
       responseTime: 0,
       errorRate: 0,
-      lastActivity: new Date()
+      lastActivity: new Date(timestamp.utc)
     };
   }
 
@@ -246,13 +247,14 @@ export class TriageAgent extends BaseAgent implements ISpecializedAgent {
   private async assessAgentHealth(agentId?: string): Promise<HealthAssessment> {
     if (agentId) {
       // Check specific agent
+      const timestamp = this.backbone.time.now();
       const agentHealth: AgentHealthStatus = {
         status: 'healthy',
-        uptime: Date.now(),
+        uptime: timestamp.unix,
         memoryUsage: 45,
         responseTime: 120,
         errorRate: 0.01,
-        lastActivity: new Date()
+        lastActivity: new Date(timestamp.utc)
       };
       
       return {
@@ -263,10 +265,11 @@ export class TriageAgent extends BaseAgent implements ISpecializedAgent {
       };
     } else {
       // Check all agents
+      const timestamp = this.backbone.time.now();
       const mockAgents: Record<string, AgentHealthStatus> = {
-        'CoreAgent': { status: 'healthy', uptime: Date.now(), memoryUsage: 30, responseTime: 100, errorRate: 0.005, lastActivity: new Date() },
-        'DevAgent': { status: 'healthy', uptime: Date.now(), memoryUsage: 25, responseTime: 90, errorRate: 0.002, lastActivity: new Date() },
-        'FitnessAgent': { status: 'healthy', uptime: Date.now(), memoryUsage: 20, responseTime: 110, errorRate: 0.001, lastActivity: new Date() }
+        'CoreAgent': { status: 'healthy', uptime: timestamp.unix, memoryUsage: 30, responseTime: 100, errorRate: 0.005, lastActivity: new Date(timestamp.utc) },
+        'DevAgent': { status: 'healthy', uptime: timestamp.unix, memoryUsage: 25, responseTime: 90, errorRate: 0.002, lastActivity: new Date(timestamp.utc) },
+        'FitnessAgent': { status: 'healthy', uptime: timestamp.unix, memoryUsage: 20, responseTime: 110, errorRate: 0.001, lastActivity: new Date(timestamp.utc) }
       };
       
       return {

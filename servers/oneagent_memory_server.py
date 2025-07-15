@@ -282,72 +282,84 @@ class OneAgentMemorySystem:
     async def create_memory(self, request: MemoryCreateRequest) -> MemoryResponse:
         """Create new memory with intelligent processing and conflict resolution (mem0 best practice: always store original input)"""
         try:
-            # Always store the original content as a memory (mem0 canonical pattern)
+            # SIMPLIFIED: Always store the original content as a memory (mem0 canonical pattern)
+            # Skip LLM processing unless explicitly requested via metadata
+            use_llm_processing = request.metadata and request.metadata.get('use_llm_processing', False)
+            
             original_memory_id = await self._create_single_memory(
                 request.content,
                 request.user_id,
                 request.metadata,
                 "Original user input (mem0 best practice)"
             )
-            # Extract facts from content using LLM
-            facts = await self.llm_processor.extract_facts(request.content)
-            logger.info(f"Extracted {len(facts)} facts from content")
-            # Search for potentially conflicting existing memories
-            existing_memories = []
-            for fact in facts:
-                fact_embedding = await self.generate_embedding(fact, "search")
-                similar_results = self.collection.query(
-                    query_embeddings=[fact_embedding],
-                    n_results=5,
-                    where={"userId": request.user_id}
-                )
-                if similar_results.get('ids') and similar_results['ids'][0]:
-                    for i, memory_id in enumerate(similar_results['ids'][0]):
-                        if similar_results['distances'][0][i] < 0.3:  # High similarity threshold
-                            existing_memories.append({
-                                "id": memory_id,
-                                "content": similar_results['documents'][0][i],
-                                "similarity": 1.0 - similar_results['distances'][0][i]
-                            })
-            # Resolve conflicts using LLM
-            memory_actions = await self.llm_processor.resolve_memory_conflicts(facts, existing_memories)
-            created_memories = []
-            # Always include the original memory in the response
-            created_memories.append({
+            
+            created_memories = [{
                 "id": original_memory_id,
                 "content": request.content,
                 "action": "ADD_ORIGINAL"
-            })
-            # Execute memory actions for facts (skip if fact is identical to original)
-            for action in memory_actions:
-                if action["action"] == "ADD" and action["text"] == request.content:
-                    continue  # Already stored as original
-                if action["action"] == "ADD":
-                    memory_id = await self._create_single_memory(
-                        action["text"],
-                        request.user_id,
-                        request.metadata,
-                        action.get("reasoning", "")
-                    )
-                    created_memories.append({
-                        "id": memory_id,
-                        "content": action["text"],
-                        "action": "ADD"
-                    })
-                elif action["action"] == "UPDATE":
-                    await self._update_single_memory(
-                        action["target_id"],
-                        action["text"],
-                        request.user_id,
-                        action.get("reasoning", "")
-                    )
-                    created_memories.append({
-                        "id": action["target_id"],
-                        "content": action["text"],
-                        "action": "UPDATE"
-                    })
-                elif action["action"] == "DELETE":
-                    await self.delete_memory(action["target_id"], request.user_id)
+            }]
+            
+            # Only perform LLM processing if explicitly requested
+            if use_llm_processing:
+                try:
+                    # Extract facts from content using LLM (optional)
+                    facts = await self.llm_processor.extract_facts(request.content)
+                    logger.info(f"Extracted {len(facts)} facts from content")
+                    
+                    # Search for potentially conflicting existing memories
+                    existing_memories = []
+                    for fact in facts:
+                        fact_embedding = await self.generate_embedding(fact, "search")
+                        similar_results = self.collection.query(
+                            query_embeddings=[fact_embedding],
+                            n_results=5,
+                            where={"userId": request.user_id}
+                        )
+                        if similar_results.get('ids') and similar_results['ids'][0]:
+                            for i, memory_id in enumerate(similar_results['ids'][0]):
+                                if similar_results['distances'][0][i] < 0.3:  # High similarity threshold
+                                    existing_memories.append({
+                                        "id": memory_id,
+                                        "content": similar_results['documents'][0][i],
+                                        "similarity": 1.0 - similar_results['distances'][0][i]
+                                    })
+                    
+                    # Resolve conflicts using LLM
+                    memory_actions = await self.llm_processor.resolve_memory_conflicts(facts, existing_memories)
+                    
+                    # Execute memory actions for facts (skip if fact is identical to original)
+                    for action in memory_actions:
+                        if action["action"] == "ADD" and action["text"] == request.content:
+                            continue  # Already stored as original
+                        if action["action"] == "ADD":
+                            memory_id = await self._create_single_memory(
+                                action["text"],
+                                request.user_id,
+                                request.metadata,
+                                action.get("reasoning", "")
+                            )
+                            created_memories.append({
+                                "id": memory_id,
+                                "content": action["text"],
+                                "action": "ADD"
+                            })
+                        elif action["action"] == "UPDATE":
+                            await self._update_single_memory(
+                                action["target_id"],
+                                action["text"],
+                                request.user_id,
+                                action.get("reasoning", "")
+                            )
+                            created_memories.append({
+                                "id": action["target_id"],
+                                "content": action["text"],
+                                "action": "UPDATE"
+                            })
+                        elif action["action"] == "DELETE":
+                            await self.delete_memory(action["target_id"], request.user_id)
+                except Exception as llm_error:
+                    logger.warning(f"LLM processing failed but memory stored: {llm_error}")
+                    # Continue without LLM processing
                     created_memories.append({
                         "id": action["target_id"],
                         "content": "DELETED",
@@ -671,15 +683,16 @@ Avoid redundant or trivial information.
 
 Content: {content}
 
-Return format: ["fact1", "fact2", "fact3", ...]
+IMPORTANT: Return ONLY a valid JSON array, nothing else. No markdown code blocks, no explanations.
+Format: ["fact1", "fact2", "fact3", ...]
 """
             
             response = await self.model.generate_content_async(prompt)
             facts_text = response.text.strip()
             
-            # Parse JSON response
-            if facts_text.startswith('[') and facts_text.endswith(']'):
-                facts = json.loads(facts_text)
+            # Robust JSON parsing with fallback handling
+            facts = self._parse_json_response(facts_text)
+            if facts:
                 return [str(fact) for fact in facts if fact and len(str(fact).strip()) > 10]
             else:
                 # Fallback: split by lines and clean
@@ -712,7 +725,8 @@ For each new fact, return ONE action:
 - DELETE: If the fact contradicts and should replace existing information (provide memory_id)
 - SKIP: If the fact is redundant or already covered
 
-Return JSON format:
+IMPORTANT: Return ONLY a valid JSON array, nothing else. No markdown code blocks, no explanations.
+Format:
 [
   {{"action": "ADD|UPDATE|DELETE|SKIP", "text": "fact text", "memory_id": "id_if_applicable", "reasoning": "brief explanation"}}
 ]
@@ -721,9 +735,9 @@ Return JSON format:
             response = await self.model.generate_content_async(prompt)
             actions_text = response.text.strip()
             
-            # Parse JSON response
-            if actions_text.startswith('[') and actions_text.endswith(']'):
-                actions = json.loads(actions_text)
+            # Robust JSON parsing with fallback handling
+            actions = self._parse_json_response(actions_text)
+            if actions:
                 return actions
             else:
                 # Fallback: add all facts
@@ -776,7 +790,8 @@ NEW CONTENT:
 EXISTING CONTENT:
 {json.dumps(existing_contents[:20], indent=2)}
 
-Return JSON format:
+IMPORTANT: Return ONLY a valid JSON array, nothing else. No markdown code blocks, no explanations.
+Format:
 [
   {{"index": 0, "confidence": 0.95, "reasoning": "Nearly identical content"}}
 ]
@@ -787,9 +802,9 @@ Only return matches with confidence > 0.8
             response = await self.model.generate_content_async(prompt)
             duplicates_text = response.text.strip()
             
-            # Parse JSON response
-            if duplicates_text.startswith('[') and duplicates_text.endswith(']'):
-                duplicates = json.loads(duplicates_text)
+            # Use robust JSON parsing
+            duplicates = self._parse_json_response(duplicates_text)
+            if duplicates:
                 return [dup for dup in duplicates if dup.get("confidence", 0) > 0.8]
             else:
                 return []
@@ -797,6 +812,64 @@ Only return matches with confidence > 0.8
         except Exception as e:
             logger.error(f"Duplicate detection failed: {e}")
             return []
+
+    def _parse_json_response(self, response_text: str) -> List:
+        """
+        Robust JSON parsing that handles common LLM response formats
+        
+        Args:
+            response_text: Raw text response from LLM
+            
+        Returns:
+            List: Parsed JSON array or None if parsing fails
+        """
+        try:
+            # Clean the response text
+            cleaned = response_text.strip()
+            
+            # Handle markdown code blocks
+            if cleaned.startswith('```json'):
+                cleaned = cleaned[7:]  # Remove ```json
+            elif cleaned.startswith('```'):
+                cleaned = cleaned[3:]   # Remove ```
+            
+            if cleaned.endswith('```'):
+                cleaned = cleaned[:-3]  # Remove trailing ```
+            
+            # Remove any leading/trailing whitespace again
+            cleaned = cleaned.strip()
+            
+            # Try direct JSON parsing
+            if cleaned.startswith('[') and cleaned.endswith(']'):
+                return json.loads(cleaned)
+            
+            # Try to extract JSON from response
+            json_start = cleaned.find('[')
+            json_end = cleaned.rfind(']')
+            
+            if json_start != -1 and json_end != -1 and json_end > json_start:
+                json_str = cleaned[json_start:json_end+1]
+                return json.loads(json_str)
+                
+            # Try to parse as single-line JSON (without brackets)
+            if '{' in cleaned and '}' in cleaned:
+                # Extract individual JSON objects and wrap in array
+                import re
+                json_objects = re.findall(r'\{[^}]*\}', cleaned)
+                if json_objects:
+                    parsed_objects = []
+                    for obj_str in json_objects:
+                        try:
+                            parsed_objects.append(json.loads(obj_str))
+                        except:
+                            continue
+                    return parsed_objects
+                    
+            return None
+            
+        except Exception as e:
+            logger.error(f"JSON parsing failed: {e} for text: {response_text[:100]}...")
+            return None
 
 # ============================================================================
 # MEMORY MANAGEMENT SYSTEM

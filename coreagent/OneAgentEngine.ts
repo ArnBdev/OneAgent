@@ -35,7 +35,7 @@ import { ConstitutionalAI } from './agents/base/ConstitutionalAI';
 import { BMADElicitationEngine } from './agents/base/BMADElicitationEngine';
 import { OneAgentMemory, OneAgentMemoryConfig } from './memory/OneAgentMemory';
 import { agentBootstrap } from './agents/communication/AgentBootstrapService';
-import { createUnifiedTimestamp } from './utils/UnifiedBackboneService';
+import { unifiedBackbone, createUnifiedTimestamp } from './utils/UnifiedBackboneService';
 
 // Import unified tools
 import { toolRegistry } from './tools/ToolRegistry';
@@ -126,7 +126,7 @@ export interface A2AGroupSession {
   mode: 'collaborative' | 'competitive' | 'hierarchical';
   topic?: string;
   messages: A2AMessage[];
-  createdAt: Date;
+  createdAt: UnifiedTimestamp;
   status: 'active' | 'paused' | 'completed';
   metadata?: Record<string, unknown>;
 }
@@ -138,7 +138,7 @@ export interface A2AMessage {
   toAgent?: string; // Optional for broadcast messages
   message: string;
   messageType: 'update' | 'question' | 'decision' | 'action' | 'insight';
-  timestamp: Date;
+  timestamp: UnifiedTimestamp;
   metadata?: Record<string, unknown>;
 }
 
@@ -146,7 +146,7 @@ export interface A2AAgent {
   id: string;
   name: string;
   capabilities: string[];
-  lastActive: Date;
+  lastActive: UnifiedTimestamp;
   status: 'online' | 'offline' | 'busy';
   metadata?: Record<string, unknown>;
 }
@@ -235,7 +235,7 @@ export class OneAgentEngine extends EventEmitter {
       }
 
       this.initialized = true;
-      this.emit('initialized', { mode, timestamp: new Date().toISOString() });
+      this.emit('initialized', { mode, timestamp: createUnifiedTimestamp().iso });
       
       console.log('✅ OneAgent Engine initialized successfully');
       console.log(`📊 Mode: ${mode}`);
@@ -253,7 +253,7 @@ export class OneAgentEngine extends EventEmitter {
    * Universal request processor - handles all OneAgent requests
    */
   async processRequest(request: OneAgentRequest): Promise<OneAgentResponse> {
-    const startTime = Date.now();
+    const startTime = createUnifiedTimestamp();
     try {
       console.log(`🔄 Processing ${request.type}: ${request.method}`);
       let result: any;
@@ -300,9 +300,9 @@ export class OneAgentEngine extends EventEmitter {
         data: result,
         constitutionalValidated,
         qualityScore: qualityScore || 0,
-        timestamp: new Date().toISOString()
+        timestamp: createUnifiedTimestamp().iso
       };
-      const duration = Date.now() - startTime;
+      const duration = createUnifiedTimestamp().unix - startTime.unix;
       console.log(`✅ Request completed in ${duration}ms (Q:${qualityScore}%)`);
       this.emit('request_completed', { request, response, duration });
       return response;
@@ -317,10 +317,10 @@ export class OneAgentEngine extends EventEmitter {
           timestamp: createUnifiedTimestamp()
         },
         constitutionalValidated: false,
-        timestamp: new Date().toISOString()
+        timestamp: createUnifiedTimestamp().iso
       };
 
-      const duration = Date.now() - startTime;
+      const duration = createUnifiedTimestamp().unix - startTime.unix;
       console.error(`❌ Request failed in ${duration}ms:`, error);
       
       this.emit('request_failed', { request, error, duration });
@@ -706,11 +706,18 @@ export class OneAgentEngine extends EventEmitter {
     if (!this.config.multiAgent.enabled) return;
     
     try {
-      // Bootstrap agents - they will now register with NLACS
+      // Use canonical HybridAgentRegistry and A2A Protocol instead of duplicate systems
+      console.log('🔗 Initializing canonical multi-agent system...');
+      console.log('   ✅ HybridAgentRegistry - Agent registration and discovery');
+      console.log('   ✅ A2AProtocol - Standards-compliant agent communication');
+      console.log('   ✅ HybridAgentOrchestrator - Task coordination and assignment');
+      console.log('   ✅ Shared OneAgentMemory - Memory-driven communication context');
+      
+      // Initialize agent bootstrap service with canonical systems
       await agentBootstrap.bootstrapAllAgents();
       
       console.log('✅ Multi-agent system initialized');
-      console.log('🔗 Agents can now communicate through NLACS conversations');
+      console.log('🔗 Agents communicate via canonical A2A protocol with memory storage');
     } catch (error) {
       console.warn('⚠️ Multi-agent system initialization failed:', error);
     }
@@ -789,7 +796,7 @@ export class OneAgentEngine extends EventEmitter {
           criteria: params.criteria || ['accuracy', 'helpfulness', 'safety'],
           violations: validation.violations,
           suggestions: validation.suggestions,
-          timestamp: new Date().toISOString()
+          timestamp: createUnifiedTimestamp().iso
         };
       }
 
@@ -931,12 +938,12 @@ export class OneAgentEngine extends EventEmitter {
       try {
         const resp = await axios.get(process.env.MEM0_API_URL + '/health');
         memoryHealth = resp.data;
-        memoryHealth.checkedAt = new Date().toISOString();
+        memoryHealth.checkedAt = createUnifiedTimestamp().iso;
       } catch (err: any) {
         memoryHealth = {
           status: 'unreachable',
           error: err?.message || String(err),
-          checkedAt: new Date().toISOString()
+          checkedAt: createUnifiedTimestamp().iso
         };
       }
       return {
@@ -946,7 +953,7 @@ export class OneAgentEngine extends EventEmitter {
         uptime: process.uptime(),
         memory: process.memoryUsage(),
         memoryServer: memoryHealth,
-        timestamp: new Date().toISOString()
+        timestamp: createUnifiedTimestamp().iso
       };
     }
     
@@ -964,7 +971,7 @@ export class OneAgentEngine extends EventEmitter {
     const bmadAnalysis = {
       task: `Code analysis for: ${code.substring(0, 100)}...`,
       framework: '9-point BMAD analysis',
-      timestamp: new Date().toISOString()
+      timestamp: createUnifiedTimestamp().iso
     };
     
     return {
@@ -989,7 +996,7 @@ export class OneAgentEngine extends EventEmitter {
         await this.memorySystem.close?.();
       }
       // NLACS/multiAgentOrchestrator is deprecated; nothing to shutdown
-      this.emit('shutdown', { timestamp: new Date().toISOString() });
+      this.emit('shutdown', { timestamp: createUnifiedTimestamp().iso });
       console.log('✅ OneAgent Engine shutdown complete');
     } catch (error) {
       console.error('❌ Error during shutdown:', error);
@@ -1007,7 +1014,7 @@ export class OneAgentEngine extends EventEmitter {
       id: params.id,
       name: params.name,
       capabilities: params.capabilities,
-      lastActive: new Date(),
+      lastActive: createUnifiedTimestamp(),
       status: 'online',
       ...(params.metadata && { metadata: params.metadata })
     };
@@ -1056,7 +1063,7 @@ export class OneAgentEngine extends EventEmitter {
     topic?: string;
     metadata?: Record<string, unknown>;
   }): Promise<{ sessionId: string; session: A2AGroupSession }> {
-    const sessionId = `a2a_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    const sessionId = `a2a_${createUnifiedTimestamp().unix}_${Math.random().toString(36).substr(2, 9)}`;
     
     const session: A2AGroupSession = {
       id: sessionId,
@@ -1064,7 +1071,7 @@ export class OneAgentEngine extends EventEmitter {
       participants: params.participants,
       mode: params.mode || 'collaborative',
       messages: [],
-      createdAt: new Date(),
+      createdAt: createUnifiedTimestamp(),
       status: 'active',
       ...(params.topic && { topic: params.topic }),
       ...(params.metadata && { metadata: params.metadata })
@@ -1111,7 +1118,7 @@ export class OneAgentEngine extends EventEmitter {
       throw new Error(`A2A Session not found: ${params.sessionId}`);
     }
     
-    const messageId = `msg_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    const messageId = `msg_${createUnifiedTimestamp().unix}_${Math.random().toString(36).substr(2, 9)}`;
     const message: A2AMessage = {
       id: messageId,
       sessionId: params.sessionId,
@@ -1119,7 +1126,7 @@ export class OneAgentEngine extends EventEmitter {
       toAgent: params.toAgent,
       message: params.message,
       messageType: params.messageType || 'update',
-      timestamp: new Date(),
+      timestamp: createUnifiedTimestamp(),
       ...(params.metadata && { metadata: params.metadata })
     };
     
@@ -1146,14 +1153,14 @@ export class OneAgentEngine extends EventEmitter {
       throw new Error(`A2A Session not found: ${params.sessionId}`);
     }
     
-    const messageId = `msg_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    const messageId = `msg_${createUnifiedTimestamp().unix}_${Math.random().toString(36).substr(2, 9)}`;
     const message: A2AMessage = {
       id: messageId,
       sessionId: params.sessionId,
       fromAgent: params.fromAgent,
       message: params.message,
       messageType: params.messageType || 'update',
-      timestamp: new Date(),
+      timestamp: createUnifiedTimestamp(),
       ...(params.metadata && { metadata: params.metadata })
     };
     

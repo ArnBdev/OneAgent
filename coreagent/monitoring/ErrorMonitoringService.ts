@@ -8,7 +8,7 @@
 import { ConstitutionalAI } from '../agents/base/ConstitutionalAI';
 import { TriageAgent } from '../agents/specialized/TriageAgent';
 import { SimpleAuditLogger } from '../audit/auditLogger';
-import { OneAgentUnifiedBackbone } from '../utils/UnifiedBackboneService.js';
+import { OneAgentUnifiedBackbone, createUnifiedTimestamp } from '../utils/UnifiedBackboneService.js';
 
 export interface ErrorContext {
   agentId?: string;
@@ -74,6 +74,7 @@ export class ErrorMonitoringService {
   ): Promise<ErrorReport> {
     const errorId = this.generateErrorId();
     const classification = await this.classifyError(error, context);
+    const timestamp = createUnifiedTimestamp();
     
     // Create error report
     const report: ErrorReport = {
@@ -81,14 +82,14 @@ export class ErrorMonitoringService {
       error,
       context: {
         ...context,
-        timestamp: new Date(),
+        timestamp: new Date(timestamp.utc),
         severity: classification.severity
       },
       classification,
       triageTriggered: false,
       recoveryAttempts: 0,
       resolved: false,
-      timestamp: new Date()
+      timestamp: new Date(timestamp.utc)
     };
 
     // Store error report
@@ -209,12 +210,13 @@ export class ErrorMonitoringService {
     }
 
     try {
+      const timestamp = createUnifiedTimestamp();
       const triageContext = {
         user: {
           id: report.context.userId || 'system',
           name: 'System Error Handler',
-          createdAt: new Date().toISOString(),
-          lastActiveAt: new Date().toISOString()
+          createdAt: timestamp.iso,
+          lastActiveAt: timestamp.iso
         },
         sessionId: report.context.sessionId || `error_${report.id}`,
         conversationHistory: []
@@ -324,7 +326,8 @@ export class ErrorMonitoringService {
    * Generate unique error ID
    */
   private generateErrorId(): string {
-    return `err_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    const timestamp = createUnifiedTimestamp();
+    return `err_${timestamp.unix}_${Math.random().toString(36).substr(2, 9)}`;
   }
 
   /**
@@ -402,7 +405,8 @@ export class ErrorMonitoringService {
    * Clear old error reports (cleanup)
    */
   clearOldReports(olderThan: number = 24 * 60 * 60 * 1000): void {
-    const cutoffTime = Date.now() - olderThan;
+    const timestamp = createUnifiedTimestamp();
+    const cutoffTime = timestamp.unix - olderThan;
     
     for (const [id, report] of this.errorReports.entries()) {
       if (report.timestamp.getTime() < cutoffTime) {

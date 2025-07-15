@@ -6,6 +6,7 @@
  */
 
 import { SimpleAuditLogger, defaultAuditLogger } from '../audit/auditLogger';
+import { createUnifiedTimestamp } from './UnifiedBackboneService';
 
 export interface ErrorContext {
   requestId?: string;
@@ -64,7 +65,7 @@ export class SecureErrorHandler {
     error: Error | any,
     context: ErrorContext = {}
   ): Promise<SecureErrorResponse> {
-    const timestamp = new Date().toISOString();
+    const timestamp = createUnifiedTimestamp();
     const requestId = context.requestId || this.generateRequestId();
 
     // Determine error category and code
@@ -97,7 +98,7 @@ export class SecureErrorHandler {
         message: sanitizedMessage,
         category,
         requestId,
-        timestamp
+        timestamp: timestamp.iso
       }
     };
 
@@ -241,15 +242,19 @@ export class SecureErrorHandler {
    * Generates a unique request ID for error tracking
    */
   private generateRequestId(): string {
-    return `err_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-  }  /**
+    const timestamp = createUnifiedTimestamp();
+    return `err_${timestamp.unix}_${Math.random().toString(36).substr(2, 9)}`;
+  }
+
+  /**
    * Creates a simple success response
    */
   createSuccessResponse<T>(data: T, requestId?: string): { success: true; data: T; requestId?: string; timestamp: string } {
+    const timestamp = createUnifiedTimestamp();
     const response: { success: true; data: T; requestId?: string; timestamp: string } = {
       success: true,
       data,
-      timestamp: new Date().toISOString()
+      timestamp: timestamp.iso
     };
     
     if (requestId !== undefined) {

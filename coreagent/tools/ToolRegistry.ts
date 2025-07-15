@@ -49,11 +49,20 @@ export class ToolRegistry {
   private tools: Map<string, ToolRegistration> = new Map();
   private categories: Map<ToolCategory, string[]> = new Map();
   private initialized = false;
+  private memorySystem: OneAgentMemory | null = null;
 
   constructor() {
     this.initializeCategories();
-    this.registerDefaultTools();
+    this.registerNonMemoryTools();
     this.initialized = true;
+  }
+
+  /**
+   * Set the shared memory system and initialize memory tools
+   */
+  setMemorySystem(memorySystem: OneAgentMemory): void {
+    this.memorySystem = memorySystem;
+    this.registerNonMemoryTools();
   }
 
   /**
@@ -63,10 +72,12 @@ export class ToolRegistry {
     for (const category of Object.values(ToolCategory)) {
       this.categories.set(category as ToolCategory, []);
     }
-  }  /**
-   * Register default unified tools with metadata
+  }
+
+  /**
+   * Register non-memory tools first (before memory system is available)
    */
-  private registerDefaultTools(): void {
+  private registerNonMemoryTools(): void {
     // Web Research Tools  
     this.registerTool(new EnhancedSearchTool(), {
       category: ToolCategory.WEB_RESEARCH,
@@ -128,7 +139,10 @@ export class ToolRegistry {
     });
     
     // Canonical OneAgent memory tools (the only standard, best-practice memory tools)
-    const canonicalMemoryClient = new OneAgentMemory({});
+    const canonicalMemoryClient = OneAgentMemory.getInstance({
+      requestTimeout: 15000, // Increased timeout for MCP operations
+      enableCaching: true
+    });
     this.registerTool(new OneAgentMemorySearchTool(canonicalMemoryClient), {
       category: ToolCategory.MEMORY_CONTEXT,
       constitutionalLevel: 'critical',
@@ -159,9 +173,15 @@ export class ToolRegistry {
   }
 
   /**
-   * Register a new tool with metadata
+   * Register a new tool with metadata (idempotent)
    */
   public registerTool(tool: UnifiedMCPTool, metadata?: Partial<ToolMetadata>): void {
+    // Check if tool is already registered
+    if (this.tools.has(tool.name)) {
+      // Silent skip - tool already registered
+      return;
+    }
+    
     const fullMetadata: ToolMetadata = {
       category: metadata?.category || ToolCategory.DEVELOPMENT,
       constitutionalLevel: metadata?.constitutionalLevel || tool.constitutionalLevel,

@@ -15,6 +15,7 @@ import { WebFetchResponse } from '../types/webFetch';
 import { MemoryIntelligence } from './memoryIntelligence';
 import { IMemoryClient } from '../types/oneagent-backbone-types';
 import { EmbeddingCache } from '../performance/embeddingCache';
+import { createUnifiedTimestamp } from '../utils/UnifiedBackboneService';
 import * as path from 'path';
 import { promises as fs } from 'fs';
 import * as crypto from 'crypto';
@@ -100,15 +101,16 @@ export class WebFindingsManager {
     userId?: string,
     sessionId?: string
   ): Promise<WebSearchFinding> {
-    const startTime = Date.now();
+    const startTime = createUnifiedTimestamp();
     this.stats.operations++;
 
     try {
       // Build metadata object carefully to handle optional properties
+      const endTime = createUnifiedTimestamp();
       const metadata: WebSearchFinding['metadata'] = {
-        timestamp: new Date().toISOString(),
+        timestamp: startTime.iso,
         totalResults: searchResponse.web?.results?.length || 0,
-        searchTime: Date.now() - startTime,
+        searchTime: endTime.unix - startTime.unix,
         source: 'brave'
       };
       
@@ -127,7 +129,7 @@ export class WebFindingsManager {
           persistToMemory: false,
           ttl: this.config.storage.defaultTTL,
           accessCount: 1,
-          lastAccessed: new Date().toISOString()
+          lastAccessed: startTime.iso
         }
       };
 
@@ -171,7 +173,7 @@ export class WebFindingsManager {
     userId?: string,
     sessionId?: string
   ): Promise<WebFetchFinding> {
-    const startTime = Date.now();
+    const startTime = createUnifiedTimestamp();
     this.stats.operations++;
 
     try {
@@ -179,7 +181,7 @@ export class WebFindingsManager {
       const extracted = await this.extractContentData(fetchResponse);
         // Build metadata object carefully to handle optional properties
       const metadata: WebFetchFinding['metadata'] = {
-        timestamp: new Date().toISOString(),
+        timestamp: startTime.iso,
         fetchTime: fetchResponse.fetchTime,
         statusCode: fetchResponse.statusCode,
         domain: this.extractDomain(url) // Add domain for easy citation
@@ -209,7 +211,7 @@ export class WebFindingsManager {
           persistToMemory: false,
           ttl: this.config.storage.defaultTTL,
           accessCount: 1,
-          lastAccessed: new Date().toISOString(),
+          lastAccessed: startTime.iso,
           compressed: false
         }
       };
@@ -249,7 +251,7 @@ export class WebFindingsManager {
    * Search stored findings with intelligent filtering
    */
   async searchFindings(options: FindingsSearchOptions = {}): Promise<FindingsSearchResult> {
-    const startTime = Date.now();
+    const startTime = createUnifiedTimestamp();
     
     try {
       let findings: (WebSearchFinding | WebFetchFinding)[] = [];
@@ -277,7 +279,8 @@ export class WebFindingsManager {
         findings = findings.slice(0, options.limit);
       }
 
-      const searchTime = Date.now() - startTime;
+      const endTime = createUnifiedTimestamp();
+      const searchTime = endTime.unix - startTime.unix;
       
       const metadata: FindingsSearchResult['metadata'] = {
         total: findings.length,
@@ -335,7 +338,7 @@ export class WebFindingsManager {
    * Clean up expired and low-importance findings
    */
   async cleanupFindings(): Promise<FindingsCleanupResult> {
-    const startTime = Date.now();
+    const startTime = createUnifiedTimestamp();
     
     try {
       const removed = { expired: 0, lowImportance: 0, duplicates: 0 };
@@ -357,7 +360,8 @@ export class WebFindingsManager {
       }
 
       retained = (this.searchCache.size + this.fetchCache.size);
-      const operationTime = Date.now() - startTime;
+      const endTime = createUnifiedTimestamp();
+      const operationTime = endTime.unix - startTime.unix;
 
       console.log(`🧹 Cleanup completed: removed ${removed.expired + removed.lowImportance + removed.duplicates} findings, retained ${retained}, saved ${spaceSaved}MB in ${operationTime}ms`);
 
@@ -398,7 +402,8 @@ export class WebFindingsManager {
   }
 
   private generateFindingId(type: 'search' | 'fetch', input: string): string {
-    const hash = crypto.createHash('sha256').update(input + Date.now()).digest('hex');
+    const timestamp = createUnifiedTimestamp();
+    const hash = crypto.createHash('sha256').update(input + timestamp.unix).digest('hex');
     return `${type}_${hash.substring(0, 16)}`;
   }
 
@@ -731,7 +736,8 @@ export class WebFindingsManager {
 
   private calculateCacheSize(): { sizeInMB: number; oldestEntry: string; newestEntry: string } {
     let totalSize = 0;
-    let oldestTime = Date.now();
+    const currentTime = createUnifiedTimestamp();
+    let oldestTime = currentTime.unix;
     let newestTime = 0;
 
     // Calculate search cache size
@@ -756,8 +762,8 @@ export class WebFindingsManager {
 
     return {
       sizeInMB: totalSize / (1024 * 1024),
-      oldestEntry: new Date(oldestTime).toISOString(),
-      newestEntry: new Date(newestTime).toISOString()
+      oldestEntry: new Date(oldestTime * 1000).toISOString(),
+      newestEntry: new Date(newestTime * 1000).toISOString()
     };
   }
 
@@ -841,11 +847,11 @@ export class WebFindingsManager {
   private async cleanupCache(): Promise<{ expired: number; lowImportance: number }> {
     let expired = 0;
     let lowImportance = 0;
-    const now = Date.now();
+    const now = createUnifiedTimestamp();
 
     // Clean search cache
     for (const [key, finding] of Array.from(this.searchCache.entries())) {
-      const age = now - new Date(finding.storage.lastAccessed).getTime();
+      const age = now.unix - new Date(finding.storage.lastAccessed).getTime();
       if (age > finding.storage.ttl) {
         this.searchCache.delete(key);
         expired++;
@@ -857,7 +863,7 @@ export class WebFindingsManager {
 
     // Clean fetch cache
     for (const [key, finding] of Array.from(this.fetchCache.entries())) {
-      const age = now - new Date(finding.storage.lastAccessed).getTime();
+      const age = now.unix - new Date(finding.storage.lastAccessed).getTime();
       if (age > finding.storage.ttl) {
         this.fetchCache.delete(key);
         expired++;
@@ -875,7 +881,7 @@ export class WebFindingsManager {
     let lowImportance = 0;
     const duplicates = 0;
     let spaceSaved = 0;
-    const now = Date.now();
+    const now = createUnifiedTimestamp();
 
     try {
       // Cleanup search findings
@@ -890,7 +896,7 @@ export class WebFindingsManager {
               const content = await fs.readFile(filepath, 'utf-8');
               const finding: WebSearchFinding = JSON.parse(content);
               
-              const age = now - new Date(finding.storage.lastAccessed).getTime();
+              const age = now.unix - new Date(finding.storage.lastAccessed).getTime();
               const shouldDelete = age > finding.storage.ttl || 
                                  finding.classification.importance < 0.3;
               
@@ -922,7 +928,7 @@ export class WebFindingsManager {
               const content = await fs.readFile(filepath, 'utf-8');
               const finding: WebFetchFinding = JSON.parse(content);
               
-              const age = now - new Date(finding.storage.lastAccessed).getTime();
+              const age = now.unix - new Date(finding.storage.lastAccessed).getTime();
               const shouldDelete = age > finding.storage.ttl || 
                                  finding.classification.importance < 0.3;
               

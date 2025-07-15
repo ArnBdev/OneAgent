@@ -16,6 +16,7 @@
  */
 
 import { EventEmitter } from 'events';
+import { createUnifiedTimestamp } from '../utils/UnifiedBackboneService';
 
 // =====================================
 // Health Monitoring Interfaces
@@ -259,7 +260,7 @@ export class HealthMonitoringService extends EventEmitter {
   }
 
   async getSystemHealth(): Promise<SystemHealthReport> {
-    const timestamp = new Date();
+    const timestamp = createUnifiedTimestamp();
     
     // Get component health
     const components = await this.getComponentHealthMap();
@@ -299,7 +300,7 @@ export class HealthMonitoringService extends EventEmitter {
   }
 
   async getComponentHealth(component: string): Promise<ComponentHealth> {
-    const startTime = Date.now();
+    const startTime = createUnifiedTimestamp().unix;
     
     try {
       switch (component) {
@@ -315,7 +316,7 @@ export class HealthMonitoringService extends EventEmitter {
           throw new Error(`Unknown component: ${component}`);
       }
     } finally {
-      const responseTime = Date.now() - startTime;
+      const responseTime = createUnifiedTimestamp().unix - startTime;
       console.log(`🔍 Component health check (${component}): ${responseTime}ms`);
     }
   }
@@ -325,7 +326,7 @@ export class HealthMonitoringService extends EventEmitter {
   // =====================================
 
   async trackPerformanceMetrics(): Promise<PerformanceMetrics> {
-    const startTime = Date.now();
+    const startTime = createUnifiedTimestamp().unix;
     
     const [
       agentResponseTimes,
@@ -352,7 +353,7 @@ export class HealthMonitoringService extends EventEmitter {
       this.performanceHistory.shift();
     }
     
-    const responseTime = Date.now() - startTime;
+    const responseTime = createUnifiedTimestamp().unix - startTime;
     console.log(`📊 Performance metrics collected: ${responseTime}ms`);
     
     return performance;
@@ -382,7 +383,7 @@ export class HealthMonitoringService extends EventEmitter {
           'Scale up resources',
           'Optimize agent workloads'
         ],
-        timestamp: new Date()
+        timestamp: createUnifiedTimestamp().date
       });
     }
     
@@ -422,7 +423,7 @@ export class HealthMonitoringService extends EventEmitter {
       return {
         status: 'healthy',
         violations,
-        lastAudit: new Date(),
+        lastAudit: createUnifiedTimestamp().date,
         isolationAccuracy
       };
     } catch (error) {
@@ -434,9 +435,9 @@ export class HealthMonitoringService extends EventEmitter {
           severity: 'critical',
           description: `User isolation validation failed: ${error}`,
           userId: 'system',
-          timestamp: new Date()
+          timestamp: createUnifiedTimestamp().date
         }],
-        lastAudit: new Date(),
+        lastAudit: createUnifiedTimestamp().date,
         isolationAccuracy: 0
       };
     }
@@ -463,7 +464,7 @@ export class HealthMonitoringService extends EventEmitter {
           helpfulness: overallCompliance,
           safety: overallCompliance
         },
-        lastConstitutionalAudit: new Date()
+        lastConstitutionalAudit: createUnifiedTimestamp().date
       };
     } catch (error) {
       console.error('Constitutional compliance check failed:', error);
@@ -477,7 +478,7 @@ export class HealthMonitoringService extends EventEmitter {
           helpfulness: 0,
           safety: 0
         },
-        lastConstitutionalAudit: new Date()
+        lastConstitutionalAudit: createUnifiedTimestamp().date
       };
     }
   }
@@ -583,10 +584,10 @@ export class HealthMonitoringService extends EventEmitter {
     // Placeholder - would check orchestrator health
     return {
       status: 'healthy',
-      uptime: Date.now(),
+      uptime: createUnifiedTimestamp().unix,
       responseTime: 30,
       errorRate: 0,
-      lastCheck: new Date(),
+      lastCheck: createUnifiedTimestamp().date,
       details: {
         requestsProcessed: 100,
         averageResponseTime: 150
@@ -598,10 +599,10 @@ export class HealthMonitoringService extends EventEmitter {
     // Placeholder - would check API health
     return {
       status: 'healthy',
-      uptime: Date.now(),
+      uptime: createUnifiedTimestamp().unix,
       responseTime: 25,
       errorRate: 0,
-      lastCheck: new Date(),
+      lastCheck: createUnifiedTimestamp().date,
       details: {
         endpointsAvailable: 15,
         averageLatency: 75
@@ -615,7 +616,7 @@ export class HealthMonitoringService extends EventEmitter {
       uptime: 0,
       responseTime: 0,
       errorRate: 1,
-      lastCheck: new Date(),
+      lastCheck: createUnifiedTimestamp().date,
       details: { error: reason }
     };
   }
@@ -658,7 +659,7 @@ export class HealthMonitoringService extends EventEmitter {
         avgResponseTime: 120,
         successRate: 0.98,
         errorCount: 2,
-        lastActivity: new Date()
+        lastActivity: createUnifiedTimestamp().date
       }
     };
   }
@@ -699,7 +700,7 @@ export class HealthMonitoringService extends EventEmitter {
       encryptionStatus: true,
       dataRetentionCompliance: true,
       gdprCompliance: true,
-      lastPrivacyAudit: new Date()
+      lastPrivacyAudit: createUnifiedTimestamp().date
     };
   }
 
@@ -709,7 +710,7 @@ export class HealthMonitoringService extends EventEmitter {
       status: 'healthy',
       unauthorizedAttempts: 0,
       accessViolations: [],
-      lastAccessAudit: new Date()
+      lastAccessAudit: createUnifiedTimestamp().date
     };
   }
 
@@ -719,7 +720,7 @@ export class HealthMonitoringService extends EventEmitter {
       status: 'healthy',
       encryptionLevel: 'AES-256',
       keyRotationStatus: true,
-      lastEncryptionAudit: new Date()
+      lastEncryptionAudit: createUnifiedTimestamp().date
     };
   }
 

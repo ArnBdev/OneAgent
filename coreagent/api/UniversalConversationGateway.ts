@@ -11,6 +11,7 @@ import { IMemoryClient, AgentType } from '../types/oneagent-backbone-types';
 import { AgentFactory } from '../agents/base/AgentFactory';
 import { ISpecializedAgent } from '../agents/base/ISpecializedAgent';
 import { AgentContext, AgentResponse } from '../agents/base/BaseAgent';
+import { createUnifiedTimestamp } from '../utils/UnifiedBackboneService';
 
 export interface ConversationParticipant {
   id: string;
@@ -77,7 +78,7 @@ export class EnhancedChatAPI {
         fromParticipant: request.fromParticipant,
         ...(request.toParticipant && { toParticipant: request.toParticipant }),
         content: request.content,
-        timestamp: new Date(),
+        timestamp: createUnifiedTimestamp(),
         conversationId: conversationId,
         metadata: {
           confidence: 1.0,
@@ -91,8 +92,8 @@ export class EnhancedChatAPI {
         user: { 
           id: request.userId, 
           name: 'User',
-          createdAt: new Date().toISOString(),
-          lastActiveAt: new Date().toISOString()
+          createdAt: createUnifiedTimestamp().iso,
+          lastActiveAt: createUnifiedTimestamp().iso
         },
         sessionId: request.conversationId || messageId,
         conversationHistory: [],
@@ -128,7 +129,7 @@ export class EnhancedChatAPI {
         },
         toParticipant: request.fromParticipant,
         content: agentResponse.content,
-        timestamp: new Date(),
+        timestamp: new Date(createUnifiedTimestamp().utc),
         conversationId: conversationId,
         metadata: responseMetadata
       };
@@ -146,7 +147,7 @@ export class EnhancedChatAPI {
           id: this.generateMessageId(),
           fromParticipant: { id: 'system', type: 'agent', name: 'System' },
           content: 'I apologize, but I encountered an error processing your message.',
-          timestamp: new Date(),
+          timestamp: new Date(createUnifiedTimestamp().utc),
           conversationId: request.conversationId || 'error',
           metadata: { qualityScore: 0.0 }
         },
@@ -317,7 +318,7 @@ export class EnhancedChatAPI {
           : 'general';
         return AgentFactory.createAgent({
           type: agentType,
-          id: `${requestedType}_${Date.now()}`,
+          id: `${requestedType}_${createUnifiedTimestamp().unix}`,
           name: request.toParticipant.name,
           memoryEnabled: true,
           aiEnabled: true,
@@ -327,7 +328,7 @@ export class EnhancedChatAPI {
         // Fallback to general agent if specific agent can't be created
         return AgentFactory.createAgent({
           type: 'general',
-          id: `fallback_${Date.now()}`,
+          id: `fallback_${createUnifiedTimestamp().unix}`,
           name: 'FallbackAgent',
           memoryEnabled: true,
           aiEnabled: true,
@@ -339,7 +340,7 @@ export class EnhancedChatAPI {
     // Default to a general agent for routing and general processing
     return AgentFactory.createAgent({
       type: 'general',
-      id: `default_${Date.now()}`,
+      id: `default_${createUnifiedTimestamp().unix}`,
       name: 'DefaultAgent',
       memoryEnabled: true,
       aiEnabled: true,
@@ -390,10 +391,10 @@ export class EnhancedChatAPI {
 
   // Utility methods
   private generateConversationId(): string {
-    return `conv_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    return `conv_${createUnifiedTimestamp().unix}_${Math.random().toString(36).substr(2, 9)}`;
   }
 
   private generateMessageId(): string {
-    return `msg_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    return `msg_${createUnifiedTimestamp().unix}_${Math.random().toString(36).substr(2, 9)}`;
   }
 }

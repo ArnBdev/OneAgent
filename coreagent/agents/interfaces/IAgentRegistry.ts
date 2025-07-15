@@ -1,33 +1,7 @@
-export interface AgentCard {
-  agentId: string;
-  agentType: string;
-  capabilities: string[];
-  version: string;
-  status: 'active' | 'inactive' | 'pending' | 'retired';
-  health: 'healthy' | 'degraded' | 'offline';
-  lastHeartbeat: number;
-  credentials?: Record<string, any>;
-  authorization?: Record<string, any>;
-  [key: string]: any;
-}
+import { AgentCard, AgentRegistration, AgentFilter } from '../../types/AgentCard';
 
-export interface AgentRegistration extends AgentCard {
-  qualityScore: number;
-  endpoint?: string;
-  loadLevel?: number;
-  lastSeen?: Date;
-}
-
-export interface AgentFilter {
-  type?: string;
-  capability?: string;
-  skill?: string;
-  health?: string;
-  version?: string;
-  credentials?: string;
-  authorization?: string;
-  [key: string]: any;
-}
+// Re-export canonical types
+export { AgentCard, AgentRegistration, AgentFilter };
 
 export interface IAgentRegistry {
   registerAgent(agent: AgentRegistration): Promise<boolean>;
