@@ -10,6 +10,7 @@ import { GeminiClient } from './geminiClient';
 import { OneAgentMemory, OneAgentMemoryConfig } from '../memory/OneAgentMemory';
 import { EmbeddingResult, EmbeddingTaskType } from '../types/gemini';
 import { globalProfiler } from '../performance/profiler';
+import { createUnifiedTimestamp } from '../utils/UnifiedBackboneService';
 
 export interface SemanticSearchOptions {
   taskType?: EmbeddingTaskType;
@@ -77,8 +78,8 @@ export class GeminiEmbeddingsTool {
     query: string,
     options?: MemoryEmbeddingOptions
   ): Promise<{ results: SemanticSearchResult[]; analytics: EmbeddingAnalytics }> {
-    const startTime = Date.now();
-    const operationId = `semantic-search-${Date.now()}`;
+    const startTime = createUnifiedTimestamp().unix;
+    const operationId = `semantic-search-${createUnifiedTimestamp().unix}`;
     try {
       globalProfiler.startOperation(operationId, 'semantic-search');
       // If mem0 supports embedding-based search, delegate to it:
@@ -124,7 +125,7 @@ export class GeminiEmbeddingsTool {
         searchResults: results.length,
         averageSimilarity: results.length > 0 ? results.reduce((sum, r) => sum + r.similarity, 0) / results.length : 0,
         topSimilarity: results.length > 0 ? results[0].similarity : 0,
-        processingTime: Date.now() - startTime
+        processingTime: createUnifiedTimestamp().unix - startTime
       };
       globalProfiler.endOperation(operationId, true);
       return { results, analytics };
@@ -138,7 +139,7 @@ export class GeminiEmbeddingsTool {
           searchResults: 0,
           averageSimilarity: 0,
           topSimilarity: 0,
-          processingTime: Date.now() - startTime
+          processingTime: createUnifiedTimestamp().unix - startTime
         }
       };
     }
@@ -154,12 +155,12 @@ export class GeminiEmbeddingsTool {
     memoryType: 'conversation' | 'learning' | 'pattern' = 'conversation',
     metadata?: Record<string, unknown>
   ): Promise<{ memoryId: string; embedding?: EmbeddingResult }> {
-    const operationId = `store-memory-${Date.now()}`;
+    const operationId = `store-memory-${createUnifiedTimestamp().unix}`;
     try {
       globalProfiler.startOperation(operationId, 'store-memory-embedding');
       // If mem0 supports embedding, just add memory
       const memoryData: Record<string, unknown> = {
-        id: `${memoryType}_${Date.now()}`,
+        id: `${memoryType}_${createUnifiedTimestamp().unix}`,
         agentId,
         userId,
         content,

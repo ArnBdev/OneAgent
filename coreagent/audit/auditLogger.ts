@@ -7,6 +7,7 @@
 
 import { promises as fs } from 'fs';
 import * as path from 'path';
+import { createUnifiedTimestamp } from '../utils/UnifiedBackboneService';
 
 export interface AuditLogEntry {
   timestamp: string;
@@ -107,7 +108,7 @@ export class SimpleAuditLogger {
     if (this.isShuttingDown) return;
 
     const entry: AuditLogEntry = {
-      timestamp: new Date().toISOString(),
+      timestamp: createUnifiedTimestamp().iso,
       level,
       category,
       message,
@@ -197,7 +198,7 @@ export class SimpleAuditLogger {
    * Gets the current log file path
    */
   private getCurrentLogFile(): string {
-    const today = new Date().toISOString().split('T')[0];
+    const today = createUnifiedTimestamp().iso.split('T')[0];
     return path.join(this.config.logDirectory, `audit-${today}.log`);
   }
 
@@ -208,7 +209,7 @@ export class SimpleAuditLogger {
     try {
       const stats = await fs.stat(logFile);
       if (stats.size > this.config.maxFileSize) {
-        const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+        const timestamp = createUnifiedTimestamp().iso.replace(/[:.]/g, '-');
         const rotatedFile = logFile.replace('.log', `-${timestamp}.log`);
         await fs.rename(logFile, rotatedFile);
         

@@ -8,6 +8,7 @@
 
 import { PerformanceMonitor } from '../../monitoring/PerformanceMonitor';
 import { ConversationData } from '../../types/oneagent-backbone-types';
+import { createUnifiedTimestamp } from '../../utils/UnifiedBackboneService';
 
 export interface SuccessMetrics {
   overallScore: number;
@@ -41,7 +42,7 @@ export class PerformanceAnalyzer {
    * WHY: Quantified metrics enable data-driven evolution decisions
    */
   async calculateSuccessMetrics(conversations: ConversationData[]): Promise<SuccessMetrics> {
-    const startTime = Date.now();
+    const startTime = createUnifiedTimestamp().unix;
 
     try {
       if (conversations.length === 0) {
@@ -86,7 +87,7 @@ export class PerformanceAnalyzer {
         userEngagement: engagementScore
       };
 
-      await this.performanceMonitor.recordLatency('calculate_success_metrics', Date.now() - startTime);
+      await this.performanceMonitor.recordLatency('calculate_success_metrics', createUnifiedTimestamp().unix - startTime);
       return metrics;
 
     } catch (error) {
@@ -100,7 +101,7 @@ export class PerformanceAnalyzer {
    * WHY: Patterns reveal what works and what doesn't across different contexts
    */
   async identifyPerformancePatterns(data: ConversationData[]): Promise<PerformancePattern[]> {
-    const startTime = Date.now();
+    const startTime = createUnifiedTimestamp().unix;
 
     try {
       const patterns: PerformancePattern[] = [];
@@ -121,7 +122,7 @@ export class PerformanceAnalyzer {
       const temporalPatterns = this.analyzeTemporalPatterns(data);
       patterns.push(...temporalPatterns);
 
-      await this.performanceMonitor.recordLatency('identify_performance_patterns', Date.now() - startTime);
+      await this.performanceMonitor.recordLatency('identify_performance_patterns', createUnifiedTimestamp().unix - startTime);
       return patterns;
 
     } catch (error) {

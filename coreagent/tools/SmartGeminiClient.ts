@@ -13,6 +13,7 @@ import { GoogleGenerativeAI, GenerativeModel } from '@google/generative-ai';
 import { GeminiClient } from './geminiClient';
 import { GeminiConfig, ChatResponse, ChatOptions } from '../types/gemini';
 import * as dotenv from 'dotenv';
+import { createUnifiedTimestamp } from '../utils/UnifiedBackboneService';
 
 // Load environment variables
 dotenv.config();
@@ -64,7 +65,7 @@ export class SmartGeminiClient {
    * Smart content generation with enterprise wrapper + direct fallback
    */
   async generateContent(prompt: string, options?: ChatOptions): Promise<ChatResponse> {
-    const startTime = Date.now();
+    const startTime = createUnifiedTimestamp().unix;
     
     // Try enterprise wrapper first (if enabled)
     if (this.config.useWrapperFirst && !this.fallbackActive) {
@@ -73,7 +74,7 @@ export class SmartGeminiClient {
         
         const response = await this.wrapperClient.chat(prompt, options);
         
-        console.log(`✅ Enterprise wrapper success (${Date.now() - startTime}ms)`);
+        console.log(`✅ Enterprise wrapper success (${createUnifiedTimestamp().unix - startTime}ms)`);
         return response;
         
       } catch (error: unknown) {
@@ -103,7 +104,7 @@ export class SmartGeminiClient {
           timestamp: new Date().toISOString()
         };
         
-        console.log(`✅ Direct Gemini success (${Date.now() - startTime}ms)`);
+        console.log(`✅ Direct Gemini success (${createUnifiedTimestamp().unix - startTime}ms)`);
         return chatResponse;
         
       } catch (error: unknown) {

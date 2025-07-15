@@ -7,6 +7,7 @@
 
 import { UnifiedMCPTool, ToolExecutionResult, InputSchema } from './UnifiedMCPTool';
 import { OneAgentMemory } from '../memory/OneAgentMemory';
+import { createUnifiedTimestamp, createUnifiedId } from '../utils/UnifiedBackboneService';
 
 export interface Context7StoreParams {
   source: string;
@@ -102,7 +103,7 @@ export class UnifiedContext7StoreTool extends UnifiedMCPTool {
    * Core execution method implementing documentation storage
    */
   public async executeCore(args: Context7StoreParams): Promise<ToolExecutionResult> {
-    const startTime = Date.now();
+    const startTime = createUnifiedTimestamp().unix;
 
     try {
       // Apply Constitutional AI validation to content
@@ -133,7 +134,7 @@ export class UnifiedContext7StoreTool extends UnifiedMCPTool {
       const storeResult = await this.storeInContext7(documentationEntry);
 
       // Store learning in unified memory
-      await this.storeLearning(args, storeResult, Date.now() - startTime);
+      await this.storeLearning(args, storeResult, createUnifiedTimestamp().unix - startTime);
 
       // Create response
       const responseData: Context7StoreResult = {
@@ -145,7 +146,7 @@ export class UnifiedContext7StoreTool extends UnifiedMCPTool {
           qualityScore,
           cached: true,
           indexUpdated: storeResult.indexUpdated,
-          storageTime: Date.now() - startTime,
+          storageTime: createUnifiedTimestamp().unix - startTime,
           metadata: {
             operation: 'documentation_store',
             contentLength: args.content.length,
@@ -279,7 +280,7 @@ export class UnifiedContext7StoreTool extends UnifiedMCPTool {
     
     try {
       // Generate document ID
-      const documentId = `doc_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+      const documentId = createUnifiedId('document', 'context7_store');
       
       // Simulate storage delay
       await new Promise(resolve => setTimeout(resolve, 50));
@@ -300,7 +301,7 @@ export class UnifiedContext7StoreTool extends UnifiedMCPTool {
   private async storeLearning(args: Context7StoreParams, storeResult: StoreResult, operationTime: number): Promise<void> {
     try {
       const learning: Context7Learning = {
-        id: `learning_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+        id: createUnifiedId('learning', 'context7_documentation'),
         agentId: this.name, // Use tool name as agentId for now
         learningType: 'documentation_context',
         content: JSON.stringify({

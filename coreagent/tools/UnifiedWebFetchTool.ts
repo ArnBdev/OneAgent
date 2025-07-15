@@ -6,6 +6,7 @@
 import { UnifiedMCPTool, ToolExecutionResult, InputSchema } from './UnifiedMCPTool';
 import { WebFetchTool } from './webFetch';
 import { OneAgentMemory, OneAgentMemoryConfig } from '../memory/OneAgentMemory';
+import { createUnifiedTimestamp, createUnifiedId } from '../utils/UnifiedBackboneService';
 
 export interface WebFetchParams {
   url: string;
@@ -321,7 +322,7 @@ export class UnifiedWebFetchTool extends UnifiedMCPTool {
   private async storeFetchLearning(url: string, fetchResult: WebFetchResult): Promise<void> {
     try {
       const learning: FetchLearning = {
-        id: `learning_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+        id: createUnifiedId('learning', 'web_fetch'),
         agentId: 'oneagent_web_fetch',
         learningType: 'documentation_context',
         content: JSON.stringify({

@@ -35,7 +35,7 @@ import { ConstitutionalAI } from './agents/base/ConstitutionalAI';
 import { BMADElicitationEngine } from './agents/base/BMADElicitationEngine';
 import { OneAgentMemory, OneAgentMemoryConfig } from './memory/OneAgentMemory';
 import { agentBootstrap } from './agents/communication/AgentBootstrapService';
-import { unifiedBackbone, createUnifiedTimestamp } from './utils/UnifiedBackboneService';
+import { unifiedBackbone, createUnifiedTimestamp, createUnifiedId } from './utils/UnifiedBackboneService';
 
 // Import unified tools
 import { toolRegistry } from './tools/ToolRegistry';
@@ -1063,7 +1063,7 @@ export class OneAgentEngine extends EventEmitter {
     topic?: string;
     metadata?: Record<string, unknown>;
   }): Promise<{ sessionId: string; session: A2AGroupSession }> {
-    const sessionId = `a2a_${createUnifiedTimestamp().unix}_${Math.random().toString(36).substr(2, 9)}`;
+    const sessionId = createUnifiedId('session', 'a2a_group');
     
     const session: A2AGroupSession = {
       id: sessionId,
@@ -1118,7 +1118,7 @@ export class OneAgentEngine extends EventEmitter {
       throw new Error(`A2A Session not found: ${params.sessionId}`);
     }
     
-    const messageId = `msg_${createUnifiedTimestamp().unix}_${Math.random().toString(36).substr(2, 9)}`;
+    const messageId = createUnifiedId('message', 'a2a_send');
     const message: A2AMessage = {
       id: messageId,
       sessionId: params.sessionId,
@@ -1153,7 +1153,7 @@ export class OneAgentEngine extends EventEmitter {
       throw new Error(`A2A Session not found: ${params.sessionId}`);
     }
     
-    const messageId = `msg_${createUnifiedTimestamp().unix}_${Math.random().toString(36).substr(2, 9)}`;
+    const messageId = createUnifiedId('message', 'a2a_broadcast');
     const message: A2AMessage = {
       id: messageId,
       sessionId: params.sessionId,

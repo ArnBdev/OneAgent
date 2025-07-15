@@ -913,7 +913,7 @@ ${params.replyToMessageId ? `Reply to: ${params.replyToMessageId}` : ''}`,
 
   /**
    * Get contextual information for agent decision making
-   * This preserves the getAgentContext functionality from MemoryDrivenAgentCommunication
+   * Enhanced A2A Protocol context retrieval for intelligent inter-agent communication
    */
   async getAgentContext(agentId: string, currentTask?: string): Promise<{
     recentMessages: unknown[];

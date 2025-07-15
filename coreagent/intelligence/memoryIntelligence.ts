@@ -13,7 +13,7 @@
 
 import { OneAgentMemory, OneAgentMemoryConfig } from '../memory/OneAgentMemory';
 import { ConversationData, ConversationMetadata, MemorySearchResult, MemoryRecord, IntelligenceInsight } from '../types/oneagent-backbone-types';
-import { createUnifiedTimestamp } from '../utils/UnifiedBackboneService';
+import { createUnifiedTimestamp, createUnifiedId } from '../utils/UnifiedBackboneService';
 import { OneAgentUnifiedBackbone } from '../utils/UnifiedBackboneService';
 import { ConstitutionalAI } from '../agents/base/ConstitutionalAI';
 import { PromptEngine } from '../agents/base/PromptEngine';
@@ -162,7 +162,7 @@ export class MemoryIntelligence {
   ): Promise<string> {
     const conversationTimestamp = this.unifiedBackbone.getServices().timeService.now();
     const conversationData: ConversationData = {
-      conversationId: `conv_${conversationTimestamp.unix}_${Math.random().toString(36).substr(2, 9)}`,
+      conversationId: createUnifiedId('conversation', 'memory_intelligence'),
       participants: [userId],
       startTime: new Date(conversationTimestamp.utc),
       topics: metadata.messageAnalysis?.contextTags || [],
@@ -343,7 +343,7 @@ export class MemoryIntelligence {
   async calculateImportanceScore(memory: any): Promise<{ overall: number; [key: string]: number }> {
     const content = memory.content || memory.description || '';
     const recency = memory.timestamp ? 
-      Math.max(0, 100 - (Date.now() - new Date(memory.timestamp).getTime()) / (1000 * 60 * 60 * 24)) : 50;
+      Math.max(0, 100 - (createUnifiedTimestamp().unix - new Date(memory.timestamp).getTime()) / (1000 * 60 * 60 * 24)) : 50;
     return {
       overall: Math.round((recency + 50) / 2),
       recency: Math.round(recency),
@@ -393,7 +393,7 @@ export class MemoryIntelligence {
     const insights: IntelligenceInsight[] = [];
     if (conversations.length === 0) return insights;
     insights.push({
-      id: `insight-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+      id: this.generateUnifiedId('insight'),
       type: 'trend',
       title: 'Conversation Volume Analysis',
       description: `Found ${conversations.length} relevant conversations`,
@@ -401,7 +401,7 @@ export class MemoryIntelligence {
       confidence: 0.9,
       evidence: [`Conversation count: ${conversations.length}`],
       implications: [`${conversations.length < 5 ? 'Low conversation volume may indicate limited context' : 'Sufficient conversation history for analysis'}`],
-      timeframe: { start: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000), end: new Date() },
+      timeframe: { start: new Date(createUnifiedTimestamp().unix - 30 * 24 * 60 * 60 * 1000), end: new Date() },
       categories: ['conversation-analysis', 'volume-metrics'],
       recommendations: conversations.length < 5 ? ['Increase engagement to build better context'] : ['Continue regular conversation patterns'],
       preventiveActions: ['Monitor conversation frequency'],
@@ -413,12 +413,12 @@ export class MemoryIntelligence {
       actionabilityScore: conversations.length < 5 ? 0.8 : 0.5,
       riskLevel: conversations.length < 5 ? 'medium' : 'low',
       createdAt: new Date(),
-      validUntil: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)
+      validUntil: new Date(createUnifiedTimestamp().unix + 7 * 24 * 60 * 60 * 1000)
     });
     const avgQuality = this.calculateAverageQuality(conversations);
     if (avgQuality > 0) {
       insights.push({
-        id: `insight-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+        id: this.generateUnifiedId('insight'),
         type: 'suggestion',
         title: 'Conversation Quality Assessment',
         description: `Average conversation quality: ${(avgQuality * 100).toFixed(1)}%`,
@@ -426,7 +426,7 @@ export class MemoryIntelligence {
         confidence: 0.8,
         evidence: [`Quality score: ${(avgQuality * 100).toFixed(1)}%`],
         implications: [avgQuality < 0.7 ? 'Below optimal quality threshold' : 'Good quality conversations'],
-        timeframe: { start: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000), end: new Date() },
+        timeframe: { start: new Date(createUnifiedTimestamp().unix - 7 * 24 * 60 * 60 * 1000), end: new Date() },
         categories: ['quality-analysis', 'performance-metrics'],
         recommendations: avgQuality < 0.7 ? ['Focus on improving response quality', 'Enhance contextual understanding'] : ['Maintain current quality standards'],
         preventiveActions: ['Regular quality monitoring', 'Feedback collection'],
@@ -438,7 +438,7 @@ export class MemoryIntelligence {
         actionabilityScore: avgQuality < 0.7 ? 0.9 : 0.4,
         riskLevel: avgQuality < 0.5 ? 'high' : avgQuality < 0.7 ? 'medium' : 'low',
         createdAt: new Date(),
-        validUntil: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)
+        validUntil: new Date(createUnifiedTimestamp().unix + 7 * 24 * 60 * 60 * 1000)
       });
     }
     return insights;
@@ -450,7 +450,7 @@ export class MemoryIntelligence {
   private convertToConversationData(memory: any): ConversationData {
     const conversionTimestamp = this.unifiedBackbone.getServices().timeService.now();
     return {
-      conversationId: memory.id || memory.conversationId || `conv_${Date.now()}`,
+      conversationId: memory.id || memory.conversationId || this.generateUnifiedId('conv'),
       participants: memory.participants || [memory.userId || 'unknown'],
       startTime: memory.timestamp || new Date(conversionTimestamp.utc),
       endTime: memory.endTime,
@@ -513,7 +513,7 @@ export class MemoryIntelligence {
    */
   private mapConversationDataToMemory(data: ConversationData, userId: string): any {
     return {
-      id: data.conversationId || `conv_${Date.now()}`,
+      id: data.conversationId || this.generateUnifiedId('conv'),
       agentId: data.participants?.[0] || 'unknown',
       userId: userId,
       timestamp: data.timestamp || new Date(),
@@ -612,6 +612,21 @@ export class MemoryIntelligence {
       context
     );
     return validation;
+  }
+
+  /**
+   * Generate unified ID following canonical architecture
+   */
+  private generateUnifiedId(type: string, context?: string): string {
+    const timestamp = createUnifiedTimestamp().unix;
+    const randomSuffix = this.generateSecureRandomSuffix();
+    const prefix = context ? `${type}_${context}` : type;
+    return `${prefix}_${timestamp}_${randomSuffix}`;
+  }
+  
+  private generateSecureRandomSuffix(): string {
+    // Use canonical ID generation for consistent randomness
+    return createUnifiedId('operation', 'secure_random').split('_').pop() || 'fallback';
   }
 }
 

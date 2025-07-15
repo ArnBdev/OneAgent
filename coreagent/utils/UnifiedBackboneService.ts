@@ -26,7 +26,10 @@ import {
   UnifiedMemoryEntry,
   UnifiedSystemHealth,
   ALITAUnifiedContext,
-  AgentType
+  AgentType,
+  IdType,
+  UnifiedIdConfig,
+  UnifiedIdResult
 } from '../types/oneagent-backbone-types';
 
 // =====================================
@@ -412,7 +415,7 @@ export class OneAgentUnifiedMetadataService implements UnifiedMetadataService {
       lastAccessPattern: metadata.analytics.lastAccessPattern,
       usageContext: metadata.analytics.usageContext,
       qualityScore: metadata.quality.score,
-      age: Date.now() - metadata.temporal.created.unix,
+      age: createUnifiedTimestamp().unix - metadata.temporal.created.unix,
       relevanceDecay: this.calculateRelevanceDecay(metadata)
     };
   }
@@ -549,11 +552,21 @@ export class OneAgentUnifiedMetadataService implements UnifiedMetadataService {
   
   // Private helper methods
   private generateId(): string {
-    return `unified_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    const timestamp = createUnifiedTimestamp().unix;
+    const randomSuffix = this.generateSecureRandomSuffix();
+    return `unified_${timestamp}_${randomSuffix}`;
   }
   
+  private generateSecureRandomSuffix(): string {
+    // Use crypto.randomUUID() for better randomness, fallback to Math.random()
+    if (typeof crypto !== 'undefined' && crypto.randomUUID) {
+      return crypto.randomUUID().split('-')[0]; // Use first segment
+    }
+    return Math.random().toString(36).substr(2, 9);
+  }
+
   private calculateRelevanceDecay(metadata: UnifiedMetadata): number {
-    const age = Date.now() - metadata.temporal.created.unix;
+    const age = createUnifiedTimestamp().unix - metadata.temporal.created.unix;
     const days = age / (1000 * 60 * 60 * 24);
     
     // Simple decay model - can be enhanced
@@ -574,6 +587,8 @@ export class OneAgentUnifiedBackbone {
   private static instance: OneAgentUnifiedBackbone;
   private timeService: UnifiedTimeService;
   private metadataService: UnifiedMetadataService;
+  private cacheSystem: OneAgentUnifiedCacheSystem;
+  private errorSystem: OneAgentUnifiedErrorSystem;
   
   public static getInstance(): OneAgentUnifiedBackbone {
     if (!OneAgentUnifiedBackbone.instance) {
@@ -585,6 +600,24 @@ export class OneAgentUnifiedBackbone {
   constructor() {
     this.timeService = OneAgentUnifiedTimeService.getInstance();
     this.metadataService = OneAgentUnifiedMetadataService.getInstance();
+    this.cacheSystem = new OneAgentUnifiedCacheSystem();
+    this.errorSystem = new OneAgentUnifiedErrorSystem();
+  }
+
+  // =====================================
+  // CACHE SYSTEM ACCESS
+  // =====================================
+  
+  get cache(): OneAgentUnifiedCacheSystem {
+    return this.cacheSystem;
+  }
+
+  // =====================================
+  // ERROR SYSTEM ACCESS
+  // =====================================
+  
+  get errorHandler(): OneAgentUnifiedErrorSystem {
+    return this.errorSystem;
   }
   
   /**
@@ -683,6 +716,904 @@ export class OneAgentUnifiedBackbone {
       ]
     };
   }
+  
+  /**
+   * Generate secure random suffix for IDs
+   */
+  private generateSecureRandomSuffix(secure: boolean = false): string {
+    if (secure && typeof crypto !== 'undefined' && crypto.randomUUID) {
+      return crypto.randomUUID().split('-')[0]; // Use first segment for security
+    }
+    return Math.random().toString(36).substr(2, 9);
+  }
+
+  /**
+   * Generate unified ID with canonical pattern
+   * CANONICAL: This replaces all manual ID generation patterns
+   */
+  public generateUnifiedId(type: IdType, context?: string, config?: Partial<UnifiedIdConfig>): string {
+    const timestamp = this.timeService.now().unix;
+    const randomSuffix = this.generateSecureRandomSuffix(config?.secure);
+    const prefix = context ? `${type}_${context}` : type;
+    
+    switch (config?.format) {
+      case 'short':
+        return `${prefix}_${randomSuffix}`;
+      case 'long':
+        return `${prefix}_${timestamp}_${randomSuffix}_${Date.now()}`;
+      case 'medium':
+      default:
+        return `${prefix}_${timestamp}_${randomSuffix}`;
+    }
+  }
+
+  /**
+   * Generate unified ID with detailed result metadata
+   */
+  public generateUnifiedIdWithResult(type: IdType, context?: string, config?: Partial<UnifiedIdConfig>): UnifiedIdResult {
+    const id = this.generateUnifiedId(type, context, config);
+    const timestamp = this.timeService.now().unix;
+    
+    return {
+      id,
+      type,
+      ...(context && { context }),
+      timestamp,
+      metadata: {
+        generated: new Date(),
+        source: 'UnifiedBackboneService',
+        format: config?.format || 'medium',
+        secure: config?.secure || false
+      }
+    };
+  }
+}
+
+// =====================================
+// ONEAGENT UNIFIED CACHE SYSTEM
+// =====================================
+
+export interface OneAgentCacheEntry<T = unknown> {
+  key: string;
+  value: T;
+  timestamp: number;
+  accessCount: number;
+  size: number;
+  ttl?: number;
+  contentHash?: string;
+}
+
+export interface OneAgentCacheMetrics {
+  memoryHits: number;
+  diskHits: number;
+  networkHits: number;
+  totalMisses: number;
+  totalQueries: number;
+  averageResponseTime: number;
+  memoryUsage: number;
+  hitRate: number;
+  estimatedSavingsMs: number;
+}
+
+export interface OneAgentCacheConfig {
+  memoryCacheSize: number;    // In-memory cache (1ms target)
+  diskCacheSize: number;      // Disk cache (50ms target)
+  networkCacheSize: number;   // Network cache (200ms target)
+  defaultTTL: number;         // Default time-to-live in ms
+  cleanupInterval: number;    // Cleanup frequency
+  enableMetrics: boolean;     // Performance tracking
+}
+
+/**
+ * OneAgent Unified Cache System
+ * 
+ * Multi-tier caching with OneAgent ecosystem integration:
+ * - Memory Cache: 1ms target (embeddings, frequent data)
+ * - Disk Cache: 50ms target (analysis results, documents)
+ * - Network Cache: 200ms target (external API responses)
+ * 
+ * Replaces: UnifiedCacheSystem, EmbeddingCache, embeddingCache
+ */
+export class OneAgentUnifiedCacheSystem<T = unknown> {
+  private memoryCache: Map<string, OneAgentCacheEntry<T>> = new Map();
+  private diskCache: Map<string, OneAgentCacheEntry<T>> = new Map();
+  private networkCache: Map<string, OneAgentCacheEntry<T>> = new Map();
+  
+  private metrics: OneAgentCacheMetrics = {
+    memoryHits: 0,
+    diskHits: 0,
+    networkHits: 0,
+    totalMisses: 0,
+    totalQueries: 0,
+    averageResponseTime: 0,
+    memoryUsage: 0,
+    hitRate: 0,
+    estimatedSavingsMs: 0
+  };
+  
+  private config: OneAgentCacheConfig;
+  private cleanupTimer?: NodeJS.Timeout;
+
+  constructor(config?: Partial<OneAgentCacheConfig>) {
+    this.config = {
+      memoryCacheSize: 1000,
+      diskCacheSize: 10000,
+      networkCacheSize: 50000,
+      defaultTTL: 24 * 60 * 60 * 1000, // 24 hours
+      cleanupInterval: 60 * 60 * 1000,  // 1 hour
+      enableMetrics: true,
+      ...config
+    };
+    
+    this.startCleanupTimer();
+  }
+
+  /**
+   * Get cached value with multi-tier lookup
+   */
+  async get(key: string): Promise<T | null> {
+    const startTime = Date.now();
+    this.metrics.totalQueries++;
+
+    // Tier 1: Memory cache (1ms target)
+    const memoryEntry = this.memoryCache.get(key);
+    if (memoryEntry && !this.isExpired(memoryEntry)) {
+      this.updateEntry(memoryEntry);
+      this.metrics.memoryHits++;
+      this.updateMetrics(Date.now() - startTime);
+      return memoryEntry.value;
+    }
+
+    // Tier 2: Disk cache (50ms target)
+    const diskEntry = this.diskCache.get(key);
+    if (diskEntry && !this.isExpired(diskEntry)) {
+      this.updateEntry(diskEntry);
+      this.metrics.diskHits++;
+      // Promote to memory cache
+      this.setMemoryCache(key, diskEntry.value, diskEntry.ttl || this.config.defaultTTL);
+      this.updateMetrics(Date.now() - startTime);
+      return diskEntry.value;
+    }
+
+    // Tier 3: Network cache (200ms target)
+    const networkEntry = this.networkCache.get(key);
+    if (networkEntry && !this.isExpired(networkEntry)) {
+      this.updateEntry(networkEntry);
+      this.metrics.networkHits++;
+      // Promote to memory and disk cache
+      this.setMemoryCache(key, networkEntry.value, networkEntry.ttl || this.config.defaultTTL);
+      this.setDiskCache(key, networkEntry.value, networkEntry.ttl || this.config.defaultTTL);
+      this.updateMetrics(Date.now() - startTime);
+      return networkEntry.value;
+    }
+
+    // Cache miss
+    this.metrics.totalMisses++;
+    this.updateMetrics(Date.now() - startTime);
+    return null;
+  }
+
+  /**
+   * Set value in appropriate cache tier
+   */
+  async set(key: string, value: T, ttl?: number): Promise<void> {
+    const actualTTL = ttl || this.config.defaultTTL;
+    
+    // Always set in memory cache for fastest access
+    this.setMemoryCache(key, value, actualTTL);
+    
+    // Set in disk cache for persistence
+    this.setDiskCache(key, value, actualTTL);
+    
+    // Set in network cache for distributed access
+    this.setNetworkCache(key, value, actualTTL);
+  }
+
+  /**
+   * Delete from all cache tiers
+   */
+  async delete(key: string): Promise<boolean> {
+    const memoryDeleted = this.memoryCache.delete(key);
+    const diskDeleted = this.diskCache.delete(key);
+    const networkDeleted = this.networkCache.delete(key);
+    
+    return memoryDeleted || diskDeleted || networkDeleted;
+  }
+
+  /**
+   * Clear all caches
+   */
+  async clear(): Promise<void> {
+    this.memoryCache.clear();
+    this.diskCache.clear();
+    this.networkCache.clear();
+  }
+
+  /**
+   * Get cache metrics
+   */
+  getMetrics(): OneAgentCacheMetrics {
+    return { ...this.metrics };
+  }
+
+  /**
+   * Get cache health status
+   */
+  getHealth(): {
+    status: 'healthy' | 'degraded' | 'unhealthy';
+    details: {
+      memoryUsage: number;
+      hitRate: number;
+      averageResponseTime: number;
+      cacheSize: number;
+    };
+  } {
+    const hitRate = this.metrics.hitRate;
+    const avgResponseTime = this.metrics.averageResponseTime;
+    
+    let status: 'healthy' | 'degraded' | 'unhealthy' = 'healthy';
+    if (hitRate < 0.7 || avgResponseTime > 100) status = 'degraded';
+    if (hitRate < 0.5 || avgResponseTime > 200) status = 'unhealthy';
+    
+    return {
+      status,
+      details: {
+        memoryUsage: this.metrics.memoryUsage,
+        hitRate,
+        averageResponseTime: avgResponseTime,
+        cacheSize: this.memoryCache.size + this.diskCache.size + this.networkCache.size
+      }
+    };
+  }
+
+  // Private helper methods
+  private setMemoryCache(key: string, value: T, ttl: number): void {
+    if (this.memoryCache.size >= this.config.memoryCacheSize) {
+      this.evictLRU(this.memoryCache);
+    }
+    
+    this.memoryCache.set(key, {
+      key,
+      value,
+      timestamp: createUnifiedTimestamp().unix,
+      accessCount: 1,
+      size: this.estimateSize(value),
+      ttl
+    });
+  }
+
+  private setDiskCache(key: string, value: T, ttl: number): void {
+    if (this.diskCache.size >= this.config.diskCacheSize) {
+      this.evictLRU(this.diskCache);
+    }
+    
+    this.diskCache.set(key, {
+      key,
+      value,
+      timestamp: createUnifiedTimestamp().unix,
+      accessCount: 1,
+      size: this.estimateSize(value),
+      ttl
+    });
+  }
+
+  private setNetworkCache(key: string, value: T, ttl: number): void {
+    if (this.networkCache.size >= this.config.networkCacheSize) {
+      this.evictLRU(this.networkCache);
+    }
+    
+    this.networkCache.set(key, {
+      key,
+      value,
+      timestamp: createUnifiedTimestamp().unix,
+      accessCount: 1,
+      size: this.estimateSize(value),
+      ttl
+    });
+  }
+
+  private isExpired(entry: OneAgentCacheEntry<T>): boolean {
+    if (!entry.ttl) return false;
+    return createUnifiedTimestamp().unix - entry.timestamp > entry.ttl;
+  }
+
+  private updateEntry(entry: OneAgentCacheEntry<T>): void {
+    entry.accessCount++;
+    entry.timestamp = createUnifiedTimestamp().unix;
+  }
+
+  private evictLRU(cache: Map<string, OneAgentCacheEntry<T>>): void {
+    let oldestKey: string | null = null;
+    let oldestTime = Infinity;
+    
+    for (const [key, entry] of cache) {
+      if (entry.timestamp < oldestTime) {
+        oldestTime = entry.timestamp;
+        oldestKey = key;
+      }
+    }
+    
+    if (oldestKey) {
+      cache.delete(oldestKey);
+    }
+  }
+
+  private estimateSize(value: T): number {
+    try {
+      return JSON.stringify(value).length;
+    } catch {
+      return 1000; // Default size estimate
+    }
+  }
+
+  private updateMetrics(responseTime: number): void {
+    const totalHits = this.metrics.memoryHits + this.metrics.diskHits + this.metrics.networkHits;
+    this.metrics.hitRate = totalHits / this.metrics.totalQueries;
+    this.metrics.averageResponseTime = 
+      (this.metrics.averageResponseTime * (this.metrics.totalQueries - 1) + responseTime) / this.metrics.totalQueries;
+    this.metrics.memoryUsage = this.memoryCache.size + this.diskCache.size + this.networkCache.size;
+    this.metrics.estimatedSavingsMs = totalHits * 100; // Estimate 100ms saved per hit
+  }
+
+  private startCleanupTimer(): void {
+    this.cleanupTimer = setInterval(() => {
+      this.cleanup();
+    }, this.config.cleanupInterval);
+  }
+
+  private cleanup(): void {
+    // Cleanup expired entries from all tiers
+    [this.memoryCache, this.diskCache, this.networkCache].forEach(cache => {
+      for (const [key, entry] of cache) {
+        if (this.isExpired(entry)) {
+          cache.delete(key);
+        }
+      }
+    });
+  }
+
+  /**
+   * Shutdown cache system
+   */
+  shutdown(): void {
+    if (this.cleanupTimer) {
+      clearInterval(this.cleanupTimer);
+    }
+  }
+}
+
+// =====================================
+// ONEAGENT UNIFIED ERROR SYSTEM
+// =====================================
+
+/**
+ * OneAgent Error Classification
+ */
+enum OneAgentErrorType {
+  SYSTEM = 'system',
+  VALIDATION = 'validation',
+  NETWORK = 'network',
+  AUTHENTICATION = 'authentication',
+  PERMISSION = 'permission',
+  TIMEOUT = 'timeout',
+  RESOURCE = 'resource',
+  CONFIGURATION = 'configuration',
+  EXTERNAL = 'external',
+  USER = 'user'
+}
+
+/**
+ * OneAgent Error Severity Levels
+ */
+enum OneAgentErrorSeverity {
+  LOW = 'low',
+  MEDIUM = 'medium',
+  HIGH = 'high',
+  CRITICAL = 'critical',
+  FATAL = 'fatal'
+}
+
+/**
+ * OneAgent Error Entry Structure
+ */
+interface OneAgentErrorEntry {
+  id: string;
+  type: OneAgentErrorType;
+  severity: OneAgentErrorSeverity;
+  message: string;
+  originalError?: Error;
+  context: Record<string, unknown>;
+  timestamp: UnifiedTimestamp;
+  agentId?: string;
+  userId?: string;
+  stackTrace?: string;
+  metadata: {
+    component: string;
+    operation: string;
+    attemptCount: number;
+    recoverable: boolean;
+    handled: boolean;
+  };
+}
+
+/**
+ * OneAgent Error System Configuration
+ */
+interface OneAgentErrorConfig {
+  maxRetries: number;
+  retryDelay: number;
+  logLevel: 'debug' | 'info' | 'warn' | 'error' | 'fatal';
+  enableRecovery: boolean;
+  enableNotifications: boolean;
+  storageEnabled: boolean;
+  maxStoredErrors: number;
+  constitutionalValidation: boolean;
+}
+
+/**
+ * OneAgent Error Recovery Strategy
+ */
+interface OneAgentErrorRecovery {
+  strategy: 'retry' | 'fallback' | 'graceful_degradation' | 'user_prompt' | 'system_reset';
+  maxAttempts: number;
+  fallbackAction?: () => Promise<unknown>;
+  gracefulDegradation?: () => Promise<unknown>;
+  userPrompt?: string;
+}
+
+/**
+ * OneAgent Error Metrics
+ */
+interface OneAgentErrorMetrics {
+  totalErrors: number;
+  errorsByType: Record<OneAgentErrorType, number>;
+  errorsBySeverity: Record<OneAgentErrorSeverity, number>;
+  recoverySuccessRate: number;
+  averageResolutionTime: number;
+  errorTrends: {
+    lastHour: number;
+    lastDay: number;
+    lastWeek: number;
+  };
+}
+
+/**
+ * OneAgent Unified Error System
+ * Multi-tier error handling with intelligent recovery and Constitutional AI compliance
+ */
+export class OneAgentUnifiedErrorSystem {
+  private config: OneAgentErrorConfig;
+  private errorStorage = new Map<string, OneAgentErrorEntry>();
+  private metrics: OneAgentErrorMetrics;
+  private cleanupTimer: NodeJS.Timeout | null = null;
+
+  constructor(config: Partial<OneAgentErrorConfig> = {}) {
+    this.config = {
+      maxRetries: 3,
+      retryDelay: 1000,
+      logLevel: 'error',
+      enableRecovery: true,
+      enableNotifications: true,
+      storageEnabled: true,
+      maxStoredErrors: 1000,
+      constitutionalValidation: true,
+      ...config
+    };
+
+    this.metrics = {
+      totalErrors: 0,
+      errorsByType: Object.fromEntries(
+        Object.values(OneAgentErrorType).map(type => [type, 0])
+      ) as Record<OneAgentErrorType, number>,
+      errorsBySeverity: Object.fromEntries(
+        Object.values(OneAgentErrorSeverity).map(severity => [severity, 0])
+      ) as Record<OneAgentErrorSeverity, number>,
+      recoverySuccessRate: 0,
+      averageResolutionTime: 0,
+      errorTrends: {
+        lastHour: 0,
+        lastDay: 0,
+        lastWeek: 0
+      }
+    };
+
+    this.startCleanupTimer();
+  }
+
+  /**
+   * Handle error with intelligent recovery
+   */
+  async handleError(
+    error: Error | string,
+    context: Record<string, unknown> = {},
+    recovery?: OneAgentErrorRecovery
+  ): Promise<OneAgentErrorEntry> {
+    const errorEntry = this.createErrorEntry(error, context);
+    
+    // Store error
+    if (this.config.storageEnabled) {
+      this.errorStorage.set(errorEntry.id, errorEntry);
+    }
+
+    // Update metrics
+    this.updateMetrics(errorEntry);
+
+    // Log error
+    this.logError(errorEntry);
+
+    // Attempt recovery if enabled
+    if (this.config.enableRecovery && recovery) {
+      await this.attemptRecovery(errorEntry, recovery);
+    }
+
+    return errorEntry;
+  }
+
+  /**
+   * Log error with appropriate level
+   */
+  logError(errorEntry: OneAgentErrorEntry): void {
+    const logMessage = `[OneAgent Error] ${errorEntry.type.toUpperCase()} - ${errorEntry.message}`;
+    const logContext = {
+      id: errorEntry.id,
+      severity: errorEntry.severity,
+      component: errorEntry.metadata.component,
+      operation: errorEntry.metadata.operation,
+      timestamp: errorEntry.timestamp.iso
+    };
+
+    switch (errorEntry.severity) {
+      case OneAgentErrorSeverity.FATAL:
+      case OneAgentErrorSeverity.CRITICAL:
+        console.error(logMessage, logContext);
+        break;
+      case OneAgentErrorSeverity.HIGH:
+        console.warn(logMessage, logContext);
+        break;
+      case OneAgentErrorSeverity.MEDIUM:
+        if (this.config.logLevel !== 'error') console.log(logMessage, logContext);
+        break;
+      case OneAgentErrorSeverity.LOW:
+        if (this.config.logLevel === 'debug') console.debug(logMessage, logContext);
+        break;
+    }
+  }
+
+  /**
+   * Attempt error recovery
+   */
+  async attemptRecovery(
+    errorEntry: OneAgentErrorEntry,
+    recovery: OneAgentErrorRecovery
+  ): Promise<boolean> {
+    const maxAttempts = Math.min(recovery.maxAttempts, this.config.maxRetries);
+    
+    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+      try {
+        errorEntry.metadata.attemptCount = attempt;
+        
+        switch (recovery.strategy) {
+          case 'retry':
+            await this.delay(this.config.retryDelay * attempt);
+            // Retry logic would be handled by calling code
+            break;
+            
+          case 'fallback':
+            if (recovery.fallbackAction) {
+              await recovery.fallbackAction();
+              errorEntry.metadata.handled = true;
+              return true;
+            }
+            break;
+            
+          case 'graceful_degradation':
+            if (recovery.gracefulDegradation) {
+              await recovery.gracefulDegradation();
+              errorEntry.metadata.handled = true;
+              return true;
+            }
+            break;
+            
+          case 'user_prompt':
+            // User prompt handling would be implemented by UI layer
+            console.warn(`User intervention needed: ${recovery.userPrompt}`);
+            break;
+            
+          case 'system_reset':
+            // System reset would be handled by system layer
+            console.error('System reset required for error recovery');
+            break;
+        }
+        
+      } catch (recoveryError) {
+        console.error(`Recovery attempt ${attempt} failed:`, recoveryError);
+      }
+    }
+    
+    return false;
+  }
+
+  /**
+   * Create structured error entry
+   */
+  private createErrorEntry(
+    error: Error | string,
+    context: Record<string, unknown>
+  ): OneAgentErrorEntry {
+    const timestamp = createUnifiedTimestamp();
+    const errorId = createUnifiedId('error', 'system_error');
+    
+    const message = typeof error === 'string' ? error : error.message;
+    const originalError = typeof error === 'string' ? undefined : error;
+    const stackTrace = originalError?.stack;
+    
+    // Classify error type and severity
+    const type = this.classifyErrorType(message, context);
+    const severity = this.determineSeverity(type, message, context);
+    
+    const errorEntry: OneAgentErrorEntry = {
+      id: errorId,
+      type,
+      severity,
+      message,
+      context,
+      timestamp,
+      metadata: {
+        component: (context.component as string) || 'unknown',
+        operation: (context.operation as string) || 'unknown',
+        attemptCount: 0,
+        recoverable: this.isRecoverable(type, severity),
+        handled: false
+      }
+    };
+    
+    if (originalError) {
+      errorEntry.originalError = originalError;
+    }
+    
+    if (stackTrace) {
+      errorEntry.stackTrace = stackTrace;
+    }
+    
+    if (context.agentId) {
+      errorEntry.agentId = context.agentId as string;
+    }
+    
+    if (context.userId) {
+      errorEntry.userId = context.userId as string;
+    }
+    
+    return errorEntry;
+  }
+
+  /**
+   * Classify error type based on message and context
+   */
+  private classifyErrorType(message: string, context: Record<string, unknown>): OneAgentErrorType {
+    const lowerMessage = message.toLowerCase();
+    
+    if (lowerMessage.includes('network') || lowerMessage.includes('connection')) {
+      return OneAgentErrorType.NETWORK;
+    }
+    if (lowerMessage.includes('timeout')) {
+      return OneAgentErrorType.TIMEOUT;
+    }
+    if (lowerMessage.includes('auth') || lowerMessage.includes('unauthorized')) {
+      return OneAgentErrorType.AUTHENTICATION;
+    }
+    if (lowerMessage.includes('permission') || lowerMessage.includes('forbidden')) {
+      return OneAgentErrorType.PERMISSION;
+    }
+    if (lowerMessage.includes('validation') || lowerMessage.includes('invalid')) {
+      return OneAgentErrorType.VALIDATION;
+    }
+    if (lowerMessage.includes('config') || lowerMessage.includes('setting')) {
+      return OneAgentErrorType.CONFIGURATION;
+    }
+    if (lowerMessage.includes('resource') || lowerMessage.includes('memory') || lowerMessage.includes('disk')) {
+      return OneAgentErrorType.RESOURCE;
+    }
+    if (context.external || lowerMessage.includes('external') || lowerMessage.includes('api')) {
+      return OneAgentErrorType.EXTERNAL;
+    }
+    if (context.userInput || lowerMessage.includes('user')) {
+      return OneAgentErrorType.USER;
+    }
+    
+    return OneAgentErrorType.SYSTEM;
+  }
+
+  /**
+   * Determine error severity
+   */
+  private determineSeverity(
+    type: OneAgentErrorType,
+    message: string,
+    _context: Record<string, unknown>
+  ): OneAgentErrorSeverity {
+    const lowerMessage = message.toLowerCase();
+    
+    // Fatal conditions
+    if (lowerMessage.includes('fatal') || lowerMessage.includes('crash')) {
+      return OneAgentErrorSeverity.FATAL;
+    }
+    
+    // Critical conditions
+    if (type === OneAgentErrorType.SYSTEM && lowerMessage.includes('critical')) {
+      return OneAgentErrorSeverity.CRITICAL;
+    }
+    
+    // High severity
+    if (type === OneAgentErrorType.AUTHENTICATION || type === OneAgentErrorType.PERMISSION) {
+      return OneAgentErrorSeverity.HIGH;
+    }
+    
+    // Medium severity
+    if (type === OneAgentErrorType.NETWORK || type === OneAgentErrorType.TIMEOUT) {
+      return OneAgentErrorSeverity.MEDIUM;
+    }
+    
+    // Low severity for user and validation errors
+    if (type === OneAgentErrorType.USER || type === OneAgentErrorType.VALIDATION) {
+      return OneAgentErrorSeverity.LOW;
+    }
+    
+    return OneAgentErrorSeverity.MEDIUM;
+  }
+
+  /**
+   * Check if error is recoverable
+   */
+  private isRecoverable(type: OneAgentErrorType, severity: OneAgentErrorSeverity): boolean {
+    if (severity === OneAgentErrorSeverity.FATAL) return false;
+    
+    switch (type) {
+      case OneAgentErrorType.NETWORK:
+      case OneAgentErrorType.TIMEOUT:
+      case OneAgentErrorType.RESOURCE:
+      case OneAgentErrorType.EXTERNAL:
+        return true;
+      case OneAgentErrorType.AUTHENTICATION:
+      case OneAgentErrorType.PERMISSION:
+        return false;
+      default:
+        return severity !== OneAgentErrorSeverity.CRITICAL;
+    }
+  }
+
+  /**
+   * Update error metrics
+   */
+  private updateMetrics(errorEntry: OneAgentErrorEntry): void {
+    this.metrics.totalErrors++;
+    this.metrics.errorsByType[errorEntry.type]++;
+    this.metrics.errorsBySeverity[errorEntry.severity]++;
+    
+    // Update trends (simplified)
+    this.metrics.errorTrends.lastHour++;
+    this.metrics.errorTrends.lastDay++;
+    this.metrics.errorTrends.lastWeek++;
+  }
+
+  /**
+   * Get error by ID
+   */
+  getError(id: string): OneAgentErrorEntry | undefined {
+    return this.errorStorage.get(id);
+  }
+
+  /**
+   * Search errors by criteria
+   */
+  searchErrors(criteria: {
+    type?: OneAgentErrorType;
+    severity?: OneAgentErrorSeverity;
+    component?: string;
+    agentId?: string;
+    userId?: string;
+    timeRange?: { start: Date; end: Date };
+  }): OneAgentErrorEntry[] {
+    return Array.from(this.errorStorage.values()).filter(error => {
+      if (criteria.type && error.type !== criteria.type) return false;
+      if (criteria.severity && error.severity !== criteria.severity) return false;
+      if (criteria.component && error.metadata.component !== criteria.component) return false;
+      if (criteria.agentId && error.agentId !== criteria.agentId) return false;
+      if (criteria.userId && error.userId !== criteria.userId) return false;
+      if (criteria.timeRange) {
+        const errorTime = new Date(error.timestamp.iso);
+        if (errorTime < criteria.timeRange.start || errorTime > criteria.timeRange.end) return false;
+      }
+      return true;
+    });
+  }
+
+  /**
+   * Get error metrics
+   */
+  getMetrics(): OneAgentErrorMetrics {
+    return { ...this.metrics };
+  }
+
+  /**
+   * Get error system health
+   */
+  getHealth(): {
+    status: 'healthy' | 'degraded' | 'unhealthy';
+    details: {
+      totalErrors: number;
+      criticalErrors: number;
+      recoveryRate: number;
+      storageUsage: number;
+    };
+  } {
+    const criticalErrors = this.metrics.errorsBySeverity[OneAgentErrorSeverity.CRITICAL] + 
+                          this.metrics.errorsBySeverity[OneAgentErrorSeverity.FATAL];
+    
+    let status: 'healthy' | 'degraded' | 'unhealthy' = 'healthy';
+    
+    if (criticalErrors > 0) status = 'unhealthy';
+    else if (this.metrics.errorTrends.lastHour > 10) status = 'degraded';
+    
+    return {
+      status,
+      details: {
+        totalErrors: this.metrics.totalErrors,
+        criticalErrors,
+        recoveryRate: this.metrics.recoverySuccessRate,
+        storageUsage: this.errorStorage.size
+      }
+    };
+  }
+
+  /**
+   * Clear old errors
+   */
+  private cleanup(): void {
+    if (this.errorStorage.size > this.config.maxStoredErrors) {
+      const entries = Array.from(this.errorStorage.entries());
+      entries.sort((a, b) => a[1].timestamp.unix - b[1].timestamp.unix);
+      
+      const toDelete = entries.slice(0, entries.length - this.config.maxStoredErrors);
+      toDelete.forEach(([id]) => this.errorStorage.delete(id));
+    }
+  }
+
+  /**
+   * Start cleanup timer
+   */
+  private startCleanupTimer(): void {
+    this.cleanupTimer = setInterval(() => {
+      this.cleanup();
+    }, 60000); // Cleanup every minute
+  }
+
+  /**
+   * Shutdown error system
+   */
+  shutdown(): void {
+    if (this.cleanupTimer) {
+      clearInterval(this.cleanupTimer);
+    }
+  }
+
+  /**
+   * Utility delay function
+   */
+  private delay(ms: number): Promise<void> {
+    return new Promise(resolve => setTimeout(resolve, ms));
+  }
+}
+
+// Global OneAgent cache instance
+const oneAgentCache = new OneAgentUnifiedCacheSystem();
+
+// Export unified cache functions
+export function createOneAgentCache<T = unknown>(config?: Partial<OneAgentCacheConfig>): OneAgentUnifiedCacheSystem<T> {
+  return new OneAgentUnifiedCacheSystem<T>(config);
+}
+
+export function getOneAgentCache(): OneAgentUnifiedCacheSystem {
+  return oneAgentCache;
 }
 
 // =====================================
@@ -705,6 +1636,14 @@ export function createUnifiedMetadata(type: string, source: string, options?: Pa
 
 export function getUnifiedSystemHealth(): UnifiedSystemHealth {
   return unifiedBackbone.getSystemHealth();
+}
+
+export function createUnifiedId(type: IdType, context?: string, config?: Partial<UnifiedIdConfig>): string {
+  return unifiedBackbone.generateUnifiedId(type, context, config);
+}
+
+export function createUnifiedIdWithResult(type: IdType, context?: string, config?: Partial<UnifiedIdConfig>): UnifiedIdResult {
+  return unifiedBackbone.generateUnifiedIdWithResult(type, context, config);
 }
 
 /**

@@ -4,6 +4,7 @@
 import { BraveSearchClient } from './braveSearchClient';
 import { BraveSearchResult } from '../types/braveSearch';
 import { OneAgentMemory } from '../memory/OneAgentMemory';
+import { createUnifiedTimestamp } from '../utils/UnifiedBackboneService';
 
 // Canonical memory integration for search result caching and learning
 
@@ -79,7 +80,7 @@ export class WebSearchTool {
    * Perform a web search and return formatted results
    */
   async search(options: WebSearchOptions): Promise<WebSearchResponse> {
-    const startTime = Date.now();
+    const startTime = createUnifiedTimestamp().unix;
     
     try {
       console.log(`🔍 WebSearchTool: Searching for "${options.query}"`);
@@ -117,7 +118,7 @@ export class WebSearchTool {
         relevanceScore: this.calculateRelevanceScore(result, options.query, index)
       }));
 
-      const searchTime = Date.now() - startTime;
+      const searchTime = createUnifiedTimestamp().unix - startTime;
       this.updateStats(searchTime);
       
       const response: WebSearchResponse = {
@@ -150,7 +151,7 @@ export class WebSearchTool {
       return response;
 
     } catch (error: unknown) {
-      const searchTime = Date.now() - startTime;
+      const searchTime = createUnifiedTimestamp().unix - startTime;
       const errorClassification = this.classifySearchError(error);
       
       console.error(`❌ WebSearchTool error (${errorClassification.code}):`, errorClassification.technicalDetails || errorClassification.message);

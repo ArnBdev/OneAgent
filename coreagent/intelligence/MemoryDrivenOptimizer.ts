@@ -7,6 +7,7 @@
 
 import { OneAgentMemory } from '../memory/OneAgentMemory';
 import { ConstitutionalAI } from '../agents/base/ConstitutionalAI';
+import { createUnifiedTimestamp } from '../utils/UnifiedBackboneService';
 
 export interface OptimizationProfile {
   id: string;
@@ -375,7 +376,7 @@ export class MemoryDrivenOptimizer {
     
     for (const gap of gaps) {
       const strategy: OptimizationStrategy = {
-        id: `strategy-${gap.metric}-${Date.now()}`,
+        id: this.generateUnifiedId('strategy', gap.metric),
         name: `Optimize ${gap.metric}`,
         description: `Improve ${gap.metric} performance by ${gap.gap.toFixed(2)}`,
         targetMetric: gap.metric,
@@ -502,7 +503,7 @@ export class MemoryDrivenOptimizer {
   private generateActionsForMetric(metric: keyof PerformanceMetrics): OptimizationAction[] {
     const baseActions: OptimizationAction[] = [
       {
-        id: `action-${metric}-${Date.now()}`,
+        id: this.generateUnifiedId('action', metric),
         type: 'memory_restructure',
         description: `Optimize memory usage for ${metric}`,
         parameters: { metric, approach: 'restructure' },
@@ -510,7 +511,7 @@ export class MemoryDrivenOptimizer {
         implementationPriority: 'medium'
       },
       {
-        id: `action-${metric}-${Date.now() + 1}`,
+        id: this.generateUnifiedId('action', metric),
         type: 'workflow_adjust',
         description: `Adjust workflow to improve ${metric}`,
         parameters: { metric, approach: 'workflow' },
@@ -653,7 +654,7 @@ export class MemoryDrivenOptimizer {
   private analyzeTemporalPatterns(memoryData: any[]): string[] {
     const patterns: string[] = [];
     
-    const now = Date.now();
+    const now = createUnifiedTimestamp().unix;
     const recent = memoryData.filter(item => 
       item.timestamp && (now - item.timestamp) < (7 * 24 * 60 * 60 * 1000)
     );
@@ -729,5 +730,23 @@ export class MemoryDrivenOptimizer {
     const insightDepth = Math.min(insights.length / 5, 1.0);
     
     return Math.round((dataQuality * 0.6 + insightDepth * 0.4) * 100) / 100;
+  }
+
+  /**
+   * Generate unified ID following canonical architecture
+   */
+  private generateUnifiedId(type: string, context?: string): string {
+    const timestamp = createUnifiedTimestamp().unix;
+    const randomSuffix = this.generateSecureRandomSuffix();
+    const prefix = context ? `${type}_${context}` : type;
+    return `${prefix}_${timestamp}_${randomSuffix}`;
+  }
+  
+  private generateSecureRandomSuffix(): string {
+    // Use crypto.randomUUID() for better randomness, fallback to Math.random()
+    if (typeof crypto !== 'undefined' && crypto.randomUUID) {
+      return crypto.randomUUID().split('-')[0]; // Use first segment
+    }
+    return Math.random().toString(36).substr(2, 9);
   }
 }

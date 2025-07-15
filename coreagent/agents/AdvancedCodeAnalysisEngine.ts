@@ -14,6 +14,7 @@
 
 import { UnifiedContext7MCPIntegration, DocumentationQuery, DocumentationResult } from '../mcp/UnifiedContext7MCPIntegration';
 import { OneAgentA2AProtocol } from '../protocols/a2a/A2AProtocol';
+import { createUnifiedTimestamp } from '../utils/UnifiedBackboneService';
 
 export interface CodeAnalysisRequest {
   code: string;
@@ -101,7 +102,7 @@ export class AdvancedCodeAnalysisEngine {
    * Perform comprehensive code analysis
    */
   async analyzeCode(request: CodeAnalysisRequest): Promise<CodeAnalysisResult> {
-    const startTime = Date.now();
+    const startTime = createUnifiedTimestamp().unix;
     this.analysisMetrics.totalAnalyses++;
 
     try {
@@ -139,7 +140,7 @@ export class AdvancedCodeAnalysisEngine {
         metadata: {
           analysisType: request.requestType,
           confidence: this.calculateConfidence(suggestions, documentation, memoryInsights),
-          processingTime: Date.now() - startTime,
+          processingTime: createUnifiedTimestamp().unix - startTime,
           context7Used: documentation.length > 0,
           memoryEnhanced: memoryInsights.length > 0
         }
@@ -177,7 +178,7 @@ export class AdvancedCodeAnalysisEngine {
           content: mem.content || '',
           confidence: mem.metadata?.confidenceLevel || 0.7,
           source: mem.fromAgent || 'unknown',
-          timestamp: new Date(mem.timestamp || Date.now())
+          timestamp: new Date(mem.timestamp || createUnifiedTimestamp().utc)
         };
       });
     } catch (error) {

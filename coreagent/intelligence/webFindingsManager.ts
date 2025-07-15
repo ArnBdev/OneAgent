@@ -14,7 +14,7 @@ import { BraveSearchResponse } from '../types/braveSearch';
 import { WebFetchResponse } from '../types/webFetch';
 import { MemoryIntelligence } from './memoryIntelligence';
 import { IMemoryClient } from '../types/oneagent-backbone-types';
-import { EmbeddingCache } from '../performance/embeddingCache';
+import { OneAgentUnifiedBackbone } from '../utils/UnifiedBackboneService';
 import { createUnifiedTimestamp } from '../utils/UnifiedBackboneService';
 import * as path from 'path';
 import { promises as fs } from 'fs';
@@ -23,7 +23,7 @@ import * as crypto from 'crypto';
 export class WebFindingsManager {
   private config: WebFindingsConfig;
   private memoryIntelligence: MemoryIntelligence | undefined;
-  private embeddingCache: EmbeddingCache | undefined;
+  private cacheSystem = OneAgentUnifiedBackbone.getInstance().cache;
   private memoryClient: IMemoryClient | undefined;
   
   // In-memory caches
@@ -47,7 +47,7 @@ export class WebFindingsManager {
   constructor(
     config?: Partial<WebFindingsConfig>,
     memoryIntelligence?: MemoryIntelligence,
-    embeddingCache?: EmbeddingCache,
+    _embeddingCache?: unknown, // Legacy parameter, now using unified cache
     memoryClient?: IMemoryClient
   ) {
     this.config = {
@@ -65,7 +65,7 @@ export class WebFindingsManager {
         devAgentRelevanceBoost: 1.5
       },      integration: {
         memoryIntelligence: !!memoryIntelligence,
-        embeddingCache: !!embeddingCache,
+        embeddingCache: true, // Always available via unified cache
         memoryBridge: !!memoryClient // Use memoryClient for memoryBridge compatibility
       },
       privacy: {
@@ -80,7 +80,7 @@ export class WebFindingsManager {
       },
       ...config
     };    this.memoryIntelligence = memoryIntelligence;
-    this.embeddingCache = embeddingCache;
+    // Legacy embeddingCache parameter ignored - using unified cache system
     this.memoryClient = memoryClient;
 
     // Setup file system paths

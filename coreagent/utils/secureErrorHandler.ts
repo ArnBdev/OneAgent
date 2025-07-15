@@ -6,7 +6,7 @@
  */
 
 import { SimpleAuditLogger, defaultAuditLogger } from '../audit/auditLogger';
-import { createUnifiedTimestamp } from './UnifiedBackboneService';
+import { createUnifiedTimestamp, createUnifiedId } from './UnifiedBackboneService';
 
 export interface ErrorContext {
   requestId?: string;
@@ -242,8 +242,7 @@ export class SecureErrorHandler {
    * Generates a unique request ID for error tracking
    */
   private generateRequestId(): string {
-    const timestamp = createUnifiedTimestamp();
-    return `err_${timestamp.unix}_${Math.random().toString(36).substr(2, 9)}`;
+    return createUnifiedId('error', 'request_tracking');
   }
 
   /**

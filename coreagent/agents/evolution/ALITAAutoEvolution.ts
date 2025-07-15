@@ -13,6 +13,7 @@
 import { ConstitutionalValidator } from '../../validation/ConstitutionalValidator';
 import { ConversationData, TimeWindow } from '../../types/oneagent-backbone-types';
 import { PerformanceMonitor } from '../../monitoring/PerformanceMonitor';
+import { createUnifiedTimestamp } from '../../utils/UnifiedBackboneService';
 
 // ========================================
 // Evolution Framework Interfaces
@@ -155,7 +156,7 @@ export class ALITAAutoEvolution implements IALITAAutoEvolution {
    * WHY: Pattern analysis drives intelligent evolution decisions
    */
   async analyzeSuccessPatterns(): Promise<SuccessPattern[]> {
-    const startTime = Date.now();
+    const startTime = createUnifiedTimestamp().unix;
 
     try {
       // Get conversation data from OneAgentMemory
@@ -198,7 +199,7 @@ export class ALITAAutoEvolution implements IALITAAutoEvolution {
         }
       }
 
-      await this.performanceMonitor.recordLatency('pattern_analysis', Date.now() - startTime);
+      await this.performanceMonitor.recordLatency('pattern_analysis', createUnifiedTimestamp().unix - startTime);
       return validatedPatterns;
 
     } catch (error) {
@@ -212,11 +213,11 @@ export class ALITAAutoEvolution implements IALITAAutoEvolution {
    * WHY: Systematic evolution prevents chaotic changes and ensures measurable improvement
    */
   async evolveResponseStrategy(patterns: SuccessPattern[]): Promise<EvolutionPlan> {
-    const startTime = Date.now();
+    const startTime = createUnifiedTimestamp().unix;
 
     try {
       // Check if enough time has passed since last evolution
-      if (Date.now() - this.lastEvolutionTime.getTime() < this.minimumEvolutionInterval) {
+      if (createUnifiedTimestamp().unix - this.lastEvolutionTime.getTime() < this.minimumEvolutionInterval) {
         throw new Error('Minimum evolution interval not met - evolution too frequent can be destabilizing');
       }
 
@@ -235,7 +236,7 @@ export class ALITAAutoEvolution implements IALITAAutoEvolution {
       
       // Create evolution plan
       const evolutionPlan: EvolutionPlan = {
-        planId: `evolution_${Date.now()}`,
+        planId: this.generateUnifiedId('evolution'),
         version: '1.0.0',
         targetImprovements,
         implementationStrategy: await this.createImplementationStrategy(topPatterns),
@@ -247,7 +248,7 @@ export class ALITAAutoEvolution implements IALITAAutoEvolution {
         approvedBy: 'ALITAAutoEvolution'
       };
 
-      await this.performanceMonitor.recordLatency('evolution_planning', Date.now() - startTime);
+      await this.performanceMonitor.recordLatency('evolution_planning', createUnifiedTimestamp().unix - startTime);
       return evolutionPlan;
 
     } catch (error) {
@@ -261,7 +262,7 @@ export class ALITAAutoEvolution implements IALITAAutoEvolution {
    * WHY: Validation prevents harmful changes and ensures evolution maintains quality
    */
   async validateEvolution(evolutionPlan: EvolutionPlan): Promise<ValidationResult> {
-    const startTime = Date.now();
+    const startTime = createUnifiedTimestamp().unix;
 
     try {
       // Safety validation
@@ -298,7 +299,7 @@ export class ALITAAutoEvolution implements IALITAAutoEvolution {
         this.lastEvolutionTime = new Date();
       }
 
-      await this.performanceMonitor.recordLatency('evolution_validation', Date.now() - startTime);
+      await this.performanceMonitor.recordLatency('evolution_validation', createUnifiedTimestamp().unix - startTime);
       return validationResult;
 
     } catch (error) {
@@ -312,7 +313,7 @@ export class ALITAAutoEvolution implements IALITAAutoEvolution {
    * WHY: Rollback capability ensures safe experimentation and quick recovery
    */
   async rollbackEvolution(evolutionId: string): Promise<void> {
-    const startTime = Date.now();
+    const startTime = createUnifiedTimestamp().unix;
 
     try {
       const evolutionPlan = this.evolutionHistory.get(evolutionId);
@@ -329,7 +330,7 @@ export class ALITAAutoEvolution implements IALITAAutoEvolution {
       // Log rollback for analysis
       console.warn(`Evolution ${evolutionId} rolled back successfully`);
       
-      await this.performanceMonitor.recordLatency('evolution_rollback', Date.now() - startTime);
+      await this.performanceMonitor.recordLatency('evolution_rollback', createUnifiedTimestamp().unix - startTime);
 
     } catch (error) {
       await this.performanceMonitor.recordError('evolution_rollback', error as Error);
@@ -381,7 +382,7 @@ export class ALITAAutoEvolution implements IALITAAutoEvolution {
       
       if (successRate >= 0.6) { // Only consider patterns with 60%+ success rate
         patterns.push({
-          patternId: `pattern_${Date.now()}_${Math.random()}`,
+          patternId: `pattern_${createUnifiedTimestamp().unix}_${Math.random().toString(36).slice(2)}`,
           description: this.describePattern(characteristics),
           successRate,
           sampleSize: convos.length,
@@ -642,6 +643,24 @@ export class ALITAAutoEvolution implements IALITAAutoEvolution {
   private async calculateAverageImprovement(): Promise<number> {
     // Implementation would calculate average improvement across evolutions
     return 12.5; // 12.5% average improvement
+  }
+
+  /**
+   * Generate unified ID following canonical architecture
+   */
+  private generateUnifiedId(type: string, context?: string): string {
+    const timestamp = createUnifiedTimestamp().unix;
+    const randomSuffix = this.generateSecureRandomSuffix();
+    const prefix = context ? `${type}_${context}` : type;
+    return `${prefix}_${timestamp}_${randomSuffix}`;
+  }
+  
+  private generateSecureRandomSuffix(): string {
+    // Use crypto.randomUUID() for better randomness, fallback to Math.random()
+    if (typeof crypto !== 'undefined' && crypto.randomUUID) {
+      return crypto.randomUUID().split('-')[0]; // Use first segment
+    }
+    return Math.random().toString(36).substr(2, 9);
   }
 }
 

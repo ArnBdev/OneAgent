@@ -2,7 +2,7 @@ import { HybridAgentDiscovery } from '../discovery/HybridAgentDiscovery';
 import { HybridAgentRegistry } from '../registry/HybridAgentRegistry';
 import { IAgentCommunication, AgentMessage } from '../interfaces/IAgentCommunication';
 import { AgentCard, createAgentCard } from '../../types/AgentCard';
-import { unifiedTimeService, unifiedMetadataService } from '../../utils/UnifiedBackboneService';
+import { unifiedTimeService, unifiedMetadataService, createUnifiedTimestamp } from '../../utils/UnifiedBackboneService';
 
 /**
  * HybridAgentOrchestrator
@@ -93,7 +93,7 @@ export class HybridAgentOrchestrator {
         content: JSON.stringify(taskContext),
         type: 'request' as const,
         context: { taskType: taskContext.type },
-        timestamp: Date.now(),
+        timestamp: createUnifiedTimestamp().unix,
       };
       if (agent.credentials) message.credentials = agent.credentials;
       await this.comm.sendMessage(message);

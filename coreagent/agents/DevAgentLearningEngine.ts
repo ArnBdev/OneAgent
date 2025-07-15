@@ -20,6 +20,7 @@ import { CodeAnalysisResult } from './AdvancedCodeAnalysisEngine';
 import { getEnhancedTimeContext } from '../utils/EnhancedTimeAwareness.js';
 import { OneAgentUnifiedBackbone } from '../utils/UnifiedBackboneService.js';
 import { OneAgentMemory } from '../memory/OneAgentMemory';
+import { createUnifiedTimestamp } from '../utils/UnifiedBackboneService';
 
 export interface LearnedPattern {
   id: string;
@@ -568,7 +569,7 @@ export class DevAgentLearningEngine {
   private async storeNewPattern(pattern: LearnedPattern): Promise<LearnedPattern> {
     try {
       await this.memoryBridge.addMemory({
-        id: `learned_pattern_${pattern.id}_${Date.now()}`,
+        id: `learned_pattern_${pattern.id}_${createUnifiedTimestamp().unix}`,
         agentId: this.agentId,
         learningType: 'pattern',
         content: JSON.stringify(pattern),
@@ -804,7 +805,7 @@ export class DevAgentLearningEngine {
     return pattern;
   }  private async updatePatternInMemory(pattern: LearnedPattern): Promise<void> {
     await this.memoryBridge.addMemory({
-      id: `learned_pattern_${pattern.id}_${Date.now()}`,
+      id: `learned_pattern_${pattern.id}_${createUnifiedTimestamp().unix}`,
       agentId: this.agentId,
       learningType: 'pattern',
       content: JSON.stringify(pattern),

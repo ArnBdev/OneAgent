@@ -8,6 +8,7 @@
 import { UnifiedMCPTool, ToolExecutionResult, InputSchema } from './UnifiedMCPTool';
 import { Context7MCPIntegration, WebDocumentationQuery, WebDocumentationResult, WebDevelopmentSource } from '../mcp/Context7MCPIntegration';
 import { OneAgentMemory, OneAgentMemoryConfig } from '../memory/OneAgentMemory';
+import { createUnifiedTimestamp } from '../utils/UnifiedBackboneService';
 
 export interface Context7Learning {
   id: string;
@@ -91,7 +92,7 @@ export class UnifiedContext7QueryTool extends UnifiedMCPTool {
    * Core execution method implementing documentation search
    */
   public async executeCore(args: Context7QueryParams): Promise<ToolExecutionResult> {
-    const startTime = Date.now();
+    const startTime = createUnifiedTimestamp().unix;
 
     try {
       // Prepare web documentation query with proper type handling
@@ -108,7 +109,7 @@ export class UnifiedContext7QueryTool extends UnifiedMCPTool {
 
       // Execute web documentation search
       const results = await this.context7Integration.queryWebDocumentation(docQuery);
-      const queryTime = Date.now() - startTime;
+      const queryTime = createUnifiedTimestamp().unix - startTime;
 
       // Apply Constitutional AI validation to results
       const validatedResults = await this.validateResults(results, args.query);
@@ -244,7 +245,7 @@ export class UnifiedContext7QueryTool extends UnifiedMCPTool {
   private async storeLearning(params: Context7QueryParams, results: WebDocumentationResult[], queryTime: number): Promise<void> {
     try {
       const learning: Context7Learning = {
-        id: `learning_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+        id: `learning_${createUnifiedTimestamp().unix}_${Math.random().toString(36).substr(2, 9)}`,
         agentId: this.name, // Use tool name as agentId for now
         learningType: 'documentation_context',
         content: JSON.stringify({

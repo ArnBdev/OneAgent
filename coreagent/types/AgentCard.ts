@@ -18,6 +18,7 @@ import {
   UnifiedTimeService,
   UnifiedMetadataService 
 } from './oneagent-backbone-types';
+import { createUnifiedTimestamp } from '../utils/UnifiedBackboneService';
 
 // =============================================================================
 // CANONICAL AGENT CARD INTERFACE
@@ -208,7 +209,7 @@ export function createTestAgentCard(overrides: Partial<AgentCard> = {}): AgentCa
   // For production code, use createAgentCard() with UnifiedBackboneService
   
   // Create minimal timestamps (NOT canonical)
-  const now = Date.now();
+  const now = createUnifiedTimestamp().unix;
   const basicTimestamp = {
     iso: new Date(now).toISOString(),
     unix: now,

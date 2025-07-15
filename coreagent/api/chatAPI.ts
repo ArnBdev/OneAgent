@@ -6,7 +6,7 @@ import {
   ProjectContext 
 } from '../types/oneagent-backbone-types';
 import { AgentFactory } from '../agents/base/AgentFactory';
-import { OneAgentUnifiedTimeService, OneAgentUnifiedMetadataService } from '../utils/UnifiedBackboneService';
+import { OneAgentUnifiedTimeService, OneAgentUnifiedMetadataService, createUnifiedTimestamp } from '../utils/UnifiedBackboneService';
 import { OneAgentMemory } from '../memory/OneAgentMemory';
 
 interface ChatRequest {
@@ -123,7 +123,7 @@ export class ChatAPI {
       return this.processMessage(content, userId, {
       fromAgent: fromAgentType,
       toAgent: toAgentType,
-      conversationId: conversationId || `${fromAgentType}_to_${toAgentType}_${Date.now()}`,
+      conversationId: conversationId || `${fromAgentType}_to_${toAgentType}_${createUnifiedTimestamp().unix}`,
       agentType: toAgentType
     });
   }
@@ -190,7 +190,7 @@ export class ChatAPI {
       }
       // Store user message in memory using canonical memory client
       await this.memoryClient.addMemory({
-        id: `user_message_${userId}_${Date.now()}`,
+        id: `user_message_${userId}_${createUnifiedTimestamp().unix}`,
         userId,
         content: message,
         conversationId: req.body.conversationId,
@@ -202,7 +202,7 @@ export class ChatAPI {
       // const agentResponse = await this.coreAgent.processMessage(message, userId);
       // Store agent response in memory
       await this.memoryClient.addMemory({
-        id: `agent_response_${userId}_${Date.now()}`,
+        id: `agent_response_${userId}_${createUnifiedTimestamp().unix}`,
         userId,
         content: message,
         conversationId: req.body.conversationId,
@@ -269,7 +269,11 @@ export class ChatAPI {
             timestamp: memory.timestamp,
             agentType: memory.agentType
           }))
-          .sort((a: any, b: any) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime())
+          .sort((a: any, b: any) => {
+            const aTime = new Date(a.timestamp).getTime();
+            const bTime = new Date(b.timestamp).getTime();
+            return aTime - bTime;
+          })
         : [];
 
       res.json({
@@ -454,7 +458,7 @@ export class ChatAPI {
     try {
       // Store user message with full metadata
       await this.memoryClient.addMemory({
-        id: `user_message_${userId}_${Date.now()}`,
+        id: `user_message_${userId}_${createUnifiedTimestamp().unix}`,
         userId,
         content: userMessage,
         conversationId: options.conversationId,
@@ -463,7 +467,7 @@ export class ChatAPI {
 
       // Store agent response with full metadata
       await this.memoryClient.addMemory({
-        id: `agent_response_${userId}_${Date.now()}`,
+        id: `agent_response_${userId}_${createUnifiedTimestamp().unix}`,
         userId,
         content: agentResponse.content,
         conversationId: options.conversationId,
@@ -475,7 +479,7 @@ export class ChatAPI {
       
       // Fallback to basic storage
       await this.memoryClient.addMemory({
-        id: `fallback_user_message_${userId}_${Date.now()}`,
+        id: `fallback_user_message_${userId}_${createUnifiedTimestamp().unix}`,
         userId,
         content: userMessage,
         conversationId: options.conversationId,
@@ -483,7 +487,7 @@ export class ChatAPI {
       });
 
       await this.memoryClient.addMemory({
-        id: `fallback_agent_response_${userId}_${Date.now()}`,
+        id: `fallback_agent_response_${userId}_${createUnifiedTimestamp().unix}`,
         userId,
         content: agentResponse.content,
         conversationId: options.conversationId,

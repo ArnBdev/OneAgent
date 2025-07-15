@@ -4,6 +4,8 @@
  * Demonstrates the core OneAgent functionality with minimal dependencies
  */
 
+import { createUnifiedId } from '../coreagent/utils/UnifiedBackboneService';
+
 console.log('🚀 OneAgent System Demo - Starting...');
 console.log('====================================\n');
 
@@ -239,7 +241,7 @@ They're working together to analyze your request and will provide a comprehensiv
 
   private addToConversationHistory(from: string, content: string): void {
     const message: MockConversationMessage = {
-      id: `msg-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+      id: createUnifiedId('message', 'demo_conversation'),
       timestamp: new Date(),
       from,
       content,

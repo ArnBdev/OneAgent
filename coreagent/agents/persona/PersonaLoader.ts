@@ -15,6 +15,7 @@ import * as path from 'path';
 import { watch, FSWatcher } from 'chokidar';
 import { EventEmitter } from 'events';
 import { OneAgentMemory, OneAgentMemoryConfig } from '../../memory/OneAgentMemory';
+import { createUnifiedTimestamp } from '../../utils/UnifiedBackboneService';
 
 export interface PersonaConfig {
   id: string;
@@ -347,7 +348,7 @@ Please respond according to your persona configuration and quality standards.`;
   private async storePersonaInMemory(persona: PersonaConfig, template: PromptTemplate): Promise<void> {
     try {
       const conversationData = {
-        id: `persona_config_${persona.id}_${Date.now()}`,
+        id: this.generateUnifiedId('persona_config', persona.id),
         agentId: persona.id,
         userId: 'oneagent_system',
         timestamp: new Date(),
@@ -355,8 +356,8 @@ Please respond according to your persona configuration and quality standards.`;
         context: {
           userId: persona.id,
           agentId: persona.id,
-          sessionId: `persona_config_${Date.now()}`,
-          conversationId: `persona_config_${Date.now()}`,
+          sessionId: this.generateUnifiedId('persona_config'),
+          conversationId: this.generateUnifiedId('persona_config'),
           messageType: 'system',
           platform: 'oneagent'
         },
@@ -468,6 +469,24 @@ Please respond according to your persona configuration and quality standards.`;
     this.personas.clear();
     this.promptTemplates.clear();
     this.isInitialized = false;
+  }
+
+  /**
+   * Generate unified ID following canonical architecture
+   */
+  private generateUnifiedId(type: string, context?: string): string {
+    const timestamp = createUnifiedTimestamp().unix;
+    const randomSuffix = this.generateSecureRandomSuffix();
+    const prefix = context ? `${type}_${context}` : type;
+    return `${prefix}_${timestamp}_${randomSuffix}`;
+  }
+  
+  private generateSecureRandomSuffix(): string {
+    // Use crypto.randomUUID() for better randomness, fallback to Math.random()
+    if (typeof crypto !== 'undefined' && crypto.randomUUID) {
+      return crypto.randomUUID().split('-')[0]; // Use first segment
+    }
+    return Math.random().toString(36).substr(2, 9);
   }
 }
 

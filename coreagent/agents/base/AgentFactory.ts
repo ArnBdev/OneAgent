@@ -208,7 +208,7 @@ export class AgentFactory {
       factoryConfig.id,
       backboneAgentType as CanonicalAgentType,
       {
-        sessionId: factoryConfig.sessionId || `session_${timestamp.unix}_${Math.random().toString(36).substr(2, 9)}`,
+        sessionId: factoryConfig.sessionId || this.generateSecureUnifiedId('session', timestamp.unix.toString()),
         ...(factoryConfig.userId && { userId: factoryConfig.userId }),
         capabilities: factoryConfig.customCapabilities || (isSupportedAgentType(factoryConfig.type) ? AgentFactory.DEFAULT_CAPABILITIES[factoryConfig.type] : []),
         memoryEnabled: factoryConfig.memoryEnabled ?? true,
@@ -461,5 +461,23 @@ export class AgentFactory {
       costPerInteraction: Math.round(costPerInteraction * 10000) / 10000,
       recommendations
     };
+  }
+
+  /**
+   * Generate secure unified ID following canonical architecture
+   */
+  private static generateSecureUnifiedId(type: string, context?: string): string {
+    const timestamp = createUnifiedTimestamp().unix;
+    const randomSuffix = this.generateSecureRandomSuffix();
+    const prefix = context ? `${type}_${context}` : type;
+    return `${prefix}_${timestamp}_${randomSuffix}`;
+  }
+  
+  private static generateSecureRandomSuffix(): string {
+    // Use crypto.randomUUID() for better randomness, fallback to Math.random()
+    if (typeof crypto !== 'undefined' && crypto.randomUUID) {
+      return crypto.randomUUID().split('-')[0]; // Use first segment
+    }
+    return Math.random().toString(36).substr(2, 9);
   }
 }

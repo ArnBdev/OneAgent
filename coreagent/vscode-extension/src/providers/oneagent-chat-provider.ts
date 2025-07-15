@@ -1,5 +1,11 @@
 import * as vscode from 'vscode';
 import { OneAgentClient } from '../connection/oneagent-client';
+import { createUnifiedTimestamp } from '../utils/unified-backbone';
+
+// Canonical timestamp function using UnifiedBackboneService
+const getCanonicalTimestamp = () => {
+  return createUnifiedTimestamp().unix;
+};
 
 export class OneAgentChatProvider {
     constructor(private client: OneAgentClient) {}
@@ -82,7 +88,7 @@ export class OneAgentChatProvider {
                 await this.client.memoryCreate({
                     content: JSON.stringify({
                         type: 'copilot_chat_interaction',
-                        timestamp: new Date().toISOString(),
+                        timestamp: createUnifiedTimestamp().iso,
                         userMessage,
                         assistantResponse,
                         qualityScore: aiResponse.data?.qualityScore,
@@ -93,7 +99,7 @@ export class OneAgentChatProvider {
                             language: vscode.window.activeTextEditor?.document.languageId
                         },
                         userBehavior: {
-                            responseTime: Date.now(), // Could be enhanced with actual timing
+                            responseTime: getCanonicalTimestamp(), // TODO: Replace with actual timing from UnifiedBackboneService
                             followupUsed: false // Will be updated if user uses followups
                         }                    }),
                     userId,

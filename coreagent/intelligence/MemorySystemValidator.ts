@@ -8,6 +8,8 @@
 
 import { oneAgentConfig } from '../config/index';
 import { IIntelligenceProvider } from '../interfaces/IIntelligenceProvider';
+import { OneAgentMemory } from '../memory/OneAgentMemory';
+import { createUnifiedTimestamp } from '../utils/UnifiedBackboneService';
 
 export interface MemorySystemType {
   type: 'Gemini-ChromaDB' | 'Mem0-Local' | 'MockMemory' | 'Unknown';
@@ -45,7 +47,7 @@ export class MemorySystemValidator implements IIntelligenceProvider {
   }  /**
    * Comprehensive memory system validation with deception detection
    */  async validateMemorySystem(endpoint = oneAgentConfig.memoryUrl): Promise<MemoryValidationResult> {
-    const cacheKey = `${endpoint}_${Date.now().toString().slice(-6)}`;
+    const cacheKey = `${endpoint}_${createUnifiedTimestamp().unix.toString().slice(-6)}`;
     
     try {
       // Step 1: Test basic connectivity
@@ -113,11 +115,11 @@ export class MemorySystemValidator implements IIntelligenceProvider {
     responseTime: number;
     serverInfo?: any;
   }> {
-    const startTime = Date.now();
+    const startTime = createUnifiedTimestamp().unix;
     
     try {
       const response = await fetch(`${endpoint}/health`);
-      const responseTime = Date.now() - startTime;
+      const responseTime = createUnifiedTimestamp().unix - startTime;
       
       if (!response.ok) {
         return { status: 'degraded', responseTime };
@@ -138,7 +140,7 @@ export class MemorySystemValidator implements IIntelligenceProvider {
       return { status: 'connected', responseTime, serverInfo };
       
     } catch (error) {
-      return { status: 'disconnected', responseTime: Date.now() - startTime };
+      return { status: 'disconnected', responseTime: createUnifiedTimestamp().unix - startTime };
     }
   }  /**
    * Identify the actual memory system type
@@ -356,7 +358,7 @@ export class MemorySystemValidator implements IIntelligenceProvider {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          id: `mem0_test_${Date.now()}`,
+          id: `mem0_test_${createUnifiedTimestamp().unix}`,
           agent_id: 'system_test',
           learning_type: 'mem0_validation',
           content: 'Memory system validation test',
@@ -364,7 +366,7 @@ export class MemorySystemValidator implements IIntelligenceProvider {
           application_count: 0,
           last_applied: new Date().toISOString(),
           source_conversations: [],
-          metadata: { test: true, timestamp: Date.now() }
+          metadata: { test: true, timestamp: createUnifiedTimestamp().unix }
         })
       });
 
@@ -394,7 +396,7 @@ export class MemorySystemValidator implements IIntelligenceProvider {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           content: 'Memory system validation test',
-          metadata: { test: true, timestamp: Date.now() },
+          metadata: { test: true, timestamp: createUnifiedTimestamp().unix },
           user_id: 'system_test'
         })
       });
@@ -443,9 +445,9 @@ export class MemorySystemValidator implements IIntelligenceProvider {
           indicators.push('test_server_identifier');
         }
       }      // Test 2: Check for suspiciously fast responses (adjust threshold for local servers)
-      const startTime = Date.now();
+      const startTime = createUnifiedTimestamp().unix;
       await fetch(`${endpoint}/health`);
-      const responseTime = Date.now() - startTime;
+      const responseTime = createUnifiedTimestamp().unix - startTime;
       
       if (responseTime < 2) { // Only flag extremely fast responses (under 2ms)
         indicators.push('suspiciously_fast_response');
@@ -483,7 +485,7 @@ export class MemorySystemValidator implements IIntelligenceProvider {
     persistence: boolean;
     testResults: any;
   }> {
-    const testId = `quality_test_${Date.now()}`;
+    const testId = `quality_test_${createUnifiedTimestamp().unix}`;
       try {
       // Add test memory using unified memory endpoint
       const addResponse = await fetch(`${endpoint}/memory/learnings`, {

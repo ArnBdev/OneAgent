@@ -4,6 +4,7 @@
  */
 
 import { OneAgentMemory } from './OneAgentMemory';
+import { createUnifiedTimestamp } from '../utils/UnifiedBackboneService';
 
 export interface BatchOperation {
   type: 'add' | 'search' | 'edit' | 'delete';
@@ -59,7 +60,7 @@ export class BatchMemoryOperations {
       return { success: true, results: [], errors: [], processingTime: 0 };
     }
 
-    const startTime = Date.now();
+    const startTime = createUnifiedTimestamp().unix;
     const operations = [...this.batchQueue];
     this.batchQueue = [];
     
@@ -100,7 +101,7 @@ export class BatchMemoryOperations {
       errors.push({ error: error instanceof Error ? error.message : String(error), operations: operations.length });
     }
 
-    const processingTime = Date.now() - startTime;
+    const processingTime = createUnifiedTimestamp().unix - startTime;
     console.log(`[BatchMemoryOperations] Batch completed in ${processingTime}ms`);
 
     return {

@@ -3,7 +3,7 @@
 // This module provides a production-grade, type-safe interface for memory actions.
 
 import fetch from 'node-fetch';
-import { globalEmbeddingCache } from './EmbeddingCache';
+import { OneAgentUnifiedBackbone } from '../utils/UnifiedBackboneService';
 import { BatchMemoryOperations } from './BatchMemoryOperations';
 
 const MCP_PROTOCOL_VERSION = '2025-06-18';
@@ -67,7 +67,8 @@ export class OneAgentMemory {
     
     // Check cache for duplicate content
     if (this.cachingEnabled && typeof content === 'string') {
-      const cachedEmbedding = globalEmbeddingCache.getCachedEmbedding(content);
+      const cacheKey = `embedding:${content.slice(0, 100)}`;
+      const cachedEmbedding = await OneAgentUnifiedBackbone.getInstance().cache.get(cacheKey);
       if (cachedEmbedding) {
         console.log(`[OneAgentMemory] Cache hit for content length: ${content.length}`);
         // Skip if exact content already exists (optional optimization)
@@ -394,8 +395,8 @@ export class OneAgentMemory {
     // Flush any pending batch operations
     await this.batchOperations.flushBatch();
     
-    // Cleanup embedding cache
-    globalEmbeddingCache.cleanup();
+    // Cleanup embedding cache (handled by unified cache system)
+    // OneAgentUnifiedBackbone.getInstance().cache.clear();
   }
 
   /**
@@ -428,7 +429,7 @@ export class OneAgentMemory {
    */
   getOptimizationStats(): any {
     return {
-      cache: globalEmbeddingCache.getStats(),
+      cache: OneAgentUnifiedBackbone.getInstance().cache.getHealth(),
       batch: this.batchOperations.getBatchStatus(),
       cachingEnabled: this.cachingEnabled
     };

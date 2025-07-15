@@ -6,6 +6,7 @@
  */
 
 import { OneAgentMemory } from '../memory/OneAgentMemory';
+import { createUnifiedTimestamp } from '../utils/UnifiedBackboneService';
 
 export interface ConversationPattern {
   id: string;
@@ -174,7 +175,7 @@ export class CrossConversationLearningEngine {
         estimatedImprovement: this.calculateEstimatedImprovement(relevantPatterns),
         applicablePatterns: relevantPatterns.map(p => p.id),
         metadata: {
-          analysisTimestamp: new Date(),
+          analysisTimestamp: createUnifiedTimestamp().iso,
           patternCount: relevantPatterns.length,
           domain: currentConversation.domain
         }
@@ -219,15 +220,15 @@ export class CrossConversationLearningEngine {
     for (const conversation of conversations) {
       if (conversation.confidence > 0.7) {
         const pattern: ConversationPattern = {
-          id: `workflow-${conversation.id}-${Date.now()}`,
+          id: `workflow-${conversation.id}-${createUnifiedTimestamp().unix}`,
           type: 'workflow',
           pattern: `Successful workflow in ${conversation.domain}`,
           confidence: conversation.confidence,
           successRate: 0.85,
           usageCount: 1,
           domain: conversation.domain,
-          createdAt: new Date(),
-          lastUsed: new Date(),
+          createdAt: new Date(createUnifiedTimestamp().iso),
+          lastUsed: new Date(createUnifiedTimestamp().iso),
           outcomes: [conversation.outcome],
           metadata: {
             sourceConversation: conversation.id,
@@ -249,15 +250,15 @@ export class CrossConversationLearningEngine {
     for (const conversation of multiParticipantConversations) {
       if (conversation.confidence > 0.6) {
         const pattern: ConversationPattern = {
-          id: `collaboration-${conversation.id}-${Date.now()}`,
+          id: `collaboration-${conversation.id}-${createUnifiedTimestamp().unix}`,
           type: 'collaboration',
           pattern: `Effective collaboration with ${conversation.participants.length} participants`,
           confidence: conversation.confidence,
           successRate: 0.75,
           usageCount: 1,
           domain: conversation.domain,
-          createdAt: new Date(),
-          lastUsed: new Date(),
+          createdAt: new Date(createUnifiedTimestamp().iso),
+          lastUsed: new Date(createUnifiedTimestamp().iso),
           outcomes: [conversation.outcome],
           metadata: {
             participantCount: conversation.participants.length,
@@ -282,15 +283,15 @@ export class CrossConversationLearningEngine {
     for (const conversation of problemSolvingConversations) {
       if (conversation.confidence > 0.65) {
         const pattern: ConversationPattern = {
-          id: `problem-solving-${conversation.id}-${Date.now()}`,
+          id: `problem-solving-${conversation.id}-${createUnifiedTimestamp().unix}`,
           type: 'problem_solving',
           pattern: `Problem-solving approach in ${conversation.domain}`,
           confidence: conversation.confidence,
           successRate: 0.8,
           usageCount: 1,
           domain: conversation.domain,
-          createdAt: new Date(),
-          lastUsed: new Date(),
+          createdAt: new Date(createUnifiedTimestamp().iso),
+          lastUsed: new Date(createUnifiedTimestamp().iso),
           outcomes: [conversation.outcome],
           metadata: {
             problemKeywords: this.extractProblemKeywords(conversation.messages),
@@ -309,7 +310,7 @@ export class CrossConversationLearningEngine {
     
     if (steps.length > 0) {
       return {
-        id: `workflow-${conversation.id}-${Date.now()}`,
+        id: `workflow-${conversation.id}-${createUnifiedTimestamp().unix}`,
         name: `${conversation.domain} Workflow`,
         steps,
         domain: conversation.domain,
@@ -318,8 +319,8 @@ export class CrossConversationLearningEngine {
         complexity: this.determineComplexity(steps),
         prerequisites: this.extractPrerequisites(conversation.messages),
         outcomes: [conversation.outcome],
-        createdAt: new Date(),
-        lastUsed: new Date(),
+        createdAt: new Date(createUnifiedTimestamp().iso),
+        lastUsed: new Date(createUnifiedTimestamp().iso),
         metadata: {
           sourceConversation: conversation.id,
           messageCount: conversation.messages.length
@@ -482,7 +483,7 @@ export class CrossConversationLearningEngine {
         domain: pattern.domain,
         confidence: pattern.confidence,
         successRate: pattern.successRate,
-        timestamp: Date.now(),
+        timestamp: createUnifiedTimestamp().unix,
         category: 'phase4_learning'
       }
     });
@@ -497,7 +498,7 @@ export class CrossConversationLearningEngine {
         domain: workflow.domain,
         successRate: workflow.successRate,
         complexity: workflow.complexity,
-        timestamp: Date.now(),
+        timestamp: createUnifiedTimestamp().unix,
         category: 'phase4_learning'
       }
     });

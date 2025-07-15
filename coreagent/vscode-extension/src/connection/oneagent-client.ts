@@ -1,5 +1,11 @@
 import * as vscode from 'vscode';
 import { getServerUrl } from '../config/environment';
+import { createUnifiedTimestamp } from '../utils/unified-backbone';
+
+// Canonical timestamp function using UnifiedBackboneService
+const getCanonicalTimestamp = () => {
+  return createUnifiedTimestamp().unix;
+};
 
 export interface OneAgentResponse<T = any> {
     success: boolean;
@@ -253,7 +259,7 @@ export class OneAgentClient {
                 const toolName = endpoint.replace('/tools/', '');
                 options.body = JSON.stringify({
                     jsonrpc: '2.0',
-                    id: Date.now(),
+                    id: getCanonicalTimestamp(),
                     method: 'tools/call',
                     params: {
                         name: toolName,

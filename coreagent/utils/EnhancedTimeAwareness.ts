@@ -9,7 +9,7 @@
  * Created: 2024-06-18
  */
 
-import { OneAgentUnifiedBackbone } from './UnifiedBackboneService.js';
+import { OneAgentUnifiedBackbone, createUnifiedTimestamp } from './UnifiedBackboneService.js';
 import { UnifiedTimeContext } from '../types/oneagent-backbone-types.js';
 
 // =====================================
@@ -387,7 +387,7 @@ export class OneAgentTimeAwareness {
   
   private inferTimeframe(_timeContext: EnhancedTimeContext, options: any): TemporalMetadata['lifeCoaching']['goalTimeline']['timeframe'] {
     if (options.deadline) {
-      const daysToDeadline = Math.floor((options.deadline.getTime() - Date.now()) / (1000 * 60 * 60 * 24));
+      const daysToDeadline = Math.floor((options.deadline.getTime() - createUnifiedTimestamp().unix) / (1000 * 60 * 60 * 24));
       if (daysToDeadline <= 1) return 'daily';
       if (daysToDeadline <= 7) return 'weekly';
       if (daysToDeadline <= 30) return 'monthly';
@@ -419,7 +419,7 @@ export class OneAgentTimeAwareness {
     
     return {
       systemTime: timeContext,
-      syncTimestamp: Date.now(),
+      syncTimestamp: createUnifiedTimestamp().unix,
       timezone: timeContext.realTime.timezone
     };
   }

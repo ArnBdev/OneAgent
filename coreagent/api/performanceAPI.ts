@@ -10,6 +10,7 @@ import { MemoryIntelligence } from '../intelligence/memoryIntelligence';
 import { GeminiClient } from '../tools/geminiClient';
 import { OneAgentMemory } from '../memory/OneAgentMemory';
 import { GeminiEmbeddingsTool } from '../tools/geminiEmbeddings';
+import { createUnifiedTimestamp } from '../utils/UnifiedBackboneService';
 
 export interface PerformanceAPIResponse<T = any> {
   success: boolean;
@@ -333,7 +334,7 @@ export class PerformanceAPI {
    */
   async recordEvent(eventType: string, data: Record<string, any>): Promise<void> {
     try {
-      const operationId = `${eventType}_${Date.now()}`;
+      const operationId = this.generateUnifiedId('event', eventType);
       globalProfiler.startOperation(operationId, eventType, data);
       globalProfiler.endOperation(operationId, true);
     } catch (error) {
@@ -346,7 +347,7 @@ export class PerformanceAPI {
    * Record security-related events and metrics
    */
   async recordSecurityEvent(eventType: string, metadata: Record<string, any>): Promise<void> {
-    const operationId = `security_${eventType}_${Date.now()}`;
+    const operationId = this.generateUnifiedId('security', eventType);
     globalProfiler.startOperation(operationId, `security_${eventType}`, metadata);
     globalProfiler.endOperation(operationId, true);
   }
@@ -379,5 +380,23 @@ export class PerformanceAPI {
         timestamp: new Date().toISOString()
       };
     }
+  }
+
+  /**
+   * Generate unified ID following canonical architecture
+   */
+  private generateUnifiedId(type: string, context?: string): string {
+    const timestamp = createUnifiedTimestamp().unix;
+    const randomSuffix = this.generateSecureRandomSuffix();
+    const prefix = context ? `${type}_${context}` : type;
+    return `${prefix}_${timestamp}_${randomSuffix}`;
+  }
+  
+  private generateSecureRandomSuffix(): string {
+    // Use crypto.randomUUID() for better randomness, fallback to Math.random()
+    if (typeof crypto !== 'undefined' && crypto.randomUUID) {
+      return crypto.randomUUID().split('-')[0]; // Use first segment
+    }
+    return Math.random().toString(36).substr(2, 9);
   }
 }

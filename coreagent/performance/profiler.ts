@@ -1,3 +1,5 @@
+import { createUnifiedTimestamp } from '../utils/UnifiedBackboneService';
+
 /**
  * Performance Profiler for OneAgent
  * 
@@ -45,7 +47,7 @@ export class PerformanceProfiler {
    * Start timing an operation
    */
   startOperation(operationId: string, operationType: string, metadata?: Record<string, any>): void {
-    const startTime = Date.now();
+    const startTime = createUnifiedTimestamp().unix;
     this.activeOperations.set(operationId, startTime);
       // Store initial metric entry
     this.metrics.push({
@@ -67,7 +69,7 @@ export class PerformanceProfiler {
    * End timing an operation
    */
   endOperation(operationId: string, success: boolean = true, error?: string): void {
-    const endTime = Date.now();
+    const endTime = createUnifiedTimestamp().unix;
     const startTime = this.activeOperations.get(operationId);
     
     if (!startTime) {

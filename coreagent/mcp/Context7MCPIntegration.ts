@@ -9,6 +9,9 @@
  */
 
 import { LocalMCPAdapter, MCPServerConfig } from './adapter';
+import { UnifiedMCPTool, ToolExecutionResult, InputSchema } from '../tools/UnifiedMCPTool';
+import { OneAgentMemory } from '../memory/OneAgentMemory';
+import { createUnifiedTimestamp } from '../utils/UnifiedBackboneService';
 
 export interface WebDevelopmentSource {
   name: string;
@@ -81,7 +84,7 @@ export class Context7MCPIntegration {
    * Query web development documentation and store in mem0 for collective learning
    */
   async queryWebDocumentation(query: WebDocumentationQuery): Promise<WebDocumentationResult[]> {
-    const startTime = Date.now();
+    const startTime = createUnifiedTimestamp().unix;
     this.cacheMetrics.totalQueries++;
 
     try {
@@ -90,7 +93,7 @@ export class Context7MCPIntegration {
       
       if (cachedResults) {
         this.cacheMetrics.cacheHits++;
-        this.updateMetrics(Date.now() - startTime);
+        this.updateMetrics(createUnifiedTimestamp().unix - startTime);
         // Store cached access in mem0 for learning patterns
         await this.storeInMem0(query, cachedResults, 'cache-hit');
         return cachedResults;
@@ -99,7 +102,7 @@ export class Context7MCPIntegration {
       this.cacheMetrics.cacheMisses++;
       const results = await this.queryWebDevelopmentSources(query);
       this.documentationCache.set(cacheKey, results);
-      this.updateMetrics(Date.now() - startTime);
+      this.updateMetrics(createUnifiedTimestamp().unix - startTime);
       
       // Store new findings in mem0 for collective learning
       await this.storeInMem0(query, results, 'new-discovery');
@@ -303,7 +306,7 @@ export class Context7MCPIntegration {
 
   private async cleanupCache(): Promise<void> {
     const maxCacheAge = 3600000; // 1 hour
-    const now = Date.now();
+    const now = createUnifiedTimestamp().unix;
     
     for (const [key, results] of Array.from(this.documentationCache.entries())) {
       // Check if any result is older than max age

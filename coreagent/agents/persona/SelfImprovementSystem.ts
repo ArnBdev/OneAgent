@@ -14,6 +14,7 @@ import { personaLoader, PersonaConfig } from './PersonaLoader';
 import { OneAgentMemory, OneAgentMemoryConfig } from '../../memory/OneAgentMemory';
 // ALITA Integration
 import { ALITA } from '../evolution';
+import { createUnifiedTimestamp } from '../../utils/UnifiedBackboneService';
 
 export interface PerformanceMetrics {
   agentId: string;
@@ -138,9 +139,9 @@ export class SelfImprovementSystem extends EventEmitter {
     }
     
     this.performanceHistory.set(metrics.agentId, history);
-      // Store in memory for persistence
+    // Store in memory for persistence
     await this.memorySystem.addMemory({
-      id: `performance_metrics_${metrics.agentId}_${Date.now()}`,
+      id: this.generateUnifiedId('performance_metrics', metrics.agentId),
       agentId: metrics.agentId,
       metrics,
       timestamp: new Date().toISOString(),
@@ -189,9 +190,9 @@ export class SelfImprovementSystem extends EventEmitter {
       overallHealth,
       recommendedActions
     };
-      // Store evaluation results
+    // Store evaluation results
     await this.memorySystem.addMemory({
-      id: `self_evaluation_${agentId}_${Date.now()}`,
+      id: this.generateUnifiedId('self_evaluation', agentId),
       agentId,
       userId: 'system',
       timestamp: new Date(),
@@ -199,8 +200,8 @@ export class SelfImprovementSystem extends EventEmitter {
       context: {
         userId: agentId,
         agentId,
-        sessionId: `self_evaluation_${Date.now()}`,
-        conversationId: `self_evaluation_${Date.now()}`,
+        sessionId: this.generateUnifiedId('self_evaluation'),
+        conversationId: this.generateUnifiedId('self_evaluation'),
         messageType: 'system',
         platform: 'oneagent'
       },
@@ -327,9 +328,9 @@ export class SelfImprovementSystem extends EventEmitter {
         await personaLoader.updatePersona(agentId, suggestion.proposedChange);
         
         console.log(`[SelfImprovementSystem] Auto-applied improvement for ${agentId}: ${suggestion.description}`);
-          // Record the improvement
+        // Record the improvement
         await this.memorySystem.addMemory({
-          id: `auto_improvement_${agentId}_${Date.now()}`,
+          id: this.generateUnifiedId('auto_improvement', agentId),
           agentId,
           learningType: 'pattern',
           content: `Auto-applied improvement: ${suggestion.description}`,
@@ -581,6 +582,24 @@ export class SelfImprovementSystem extends EventEmitter {
     this.evaluationSchedule.clear();
     this.performanceHistory.clear();
     this.isActive = false;
+  }
+
+  /**
+   * Generate unified ID following canonical architecture
+   */
+  private generateUnifiedId(type: string, context?: string): string {
+    const timestamp = createUnifiedTimestamp().unix;
+    const randomSuffix = this.generateSecureRandomSuffix();
+    const prefix = context ? `${type}_${context}` : type;
+    return `${prefix}_${timestamp}_${randomSuffix}`;
+  }
+  
+  private generateSecureRandomSuffix(): string {
+    // Use crypto.randomUUID() for better randomness, fallback to Math.random()
+    if (typeof crypto !== 'undefined' && crypto.randomUUID) {
+      return crypto.randomUUID().split('-')[0]; // Use first segment
+    }
+    return Math.random().toString(36).substr(2, 9);
   }
 }
 

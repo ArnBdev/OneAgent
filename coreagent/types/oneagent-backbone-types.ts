@@ -929,5 +929,52 @@ export interface AgentCapability {
 }
 
 // ========================================
+// ID GENERATION SYSTEM
+// ========================================
+
+export type IdType = 
+  | 'operation' 
+  | 'analysis' 
+  | 'document' 
+  | 'learning' 
+  | 'memory' 
+  | 'cache' 
+  | 'error' 
+  | 'mcp'
+  | 'agent'
+  | 'session'
+  | 'message'
+  | 'conversation'
+  | 'task'
+  | 'workflow'
+  | 'intelligence'
+  | 'evolution'
+  | 'validation'
+  | 'system';
+
+export interface UnifiedIdConfig {
+  type: IdType;
+  context?: string;
+  prefix?: string;
+  includeTimestamp?: boolean;
+  includeRandomness?: boolean;
+  format?: 'short' | 'medium' | 'long';
+  secure?: boolean;
+}
+
+export interface UnifiedIdResult {
+  id: string;
+  type: IdType;
+  context?: string;
+  timestamp: number;
+  metadata: {
+    generated: Date;
+    source: string;
+    format: string;
+    secure: boolean;
+  };
+}
+
+// ========================================
 // END OF CANONICAL TYPES
 // ========================================

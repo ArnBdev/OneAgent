@@ -840,7 +840,7 @@ export abstract class BaseAgent {
       metadata: {
         userId,
         agentId: this.config.id,
-        timestamp: new Date(),
+        timestamp: new Date(this.unifiedBackbone.getServices().timeService.now().utc),
         ...metadata
       }
     });
@@ -894,7 +894,7 @@ export abstract class BaseAgent {
       memories,
       metadata: {
         agentId: this.config.id,
-        timestamp: new Date(),
+        timestamp: new Date(this.unifiedBackbone.getServices().timeService.now().utc),
         confidence: 0.85
       }
     };

@@ -1,5 +1,5 @@
 import { OneAgentMemory } from '../memory/OneAgentMemory';
-import { unifiedBackbone } from '../utils/UnifiedBackboneService';
+import { unifiedBackbone, createUnifiedTimestamp } from '../utils/UnifiedBackboneService';
 
 export interface Insight {
   id: string;
@@ -240,7 +240,7 @@ export class EmergentIntelligenceEngine {
       for (const conversation of conversations) {
         if (conversation.confidence > 0.8) {
           const insight: BreakthroughInsight = {
-            id: `breakthrough-${Date.now()}-${Math.random()}`,
+            id: `breakthrough-${createUnifiedTimestamp().unix}-${Math.random()}`,
             type: 'breakthrough',
             domain: conversation.domain,
             content: conversation.content,
@@ -356,7 +356,7 @@ export class EmergentIntelligenceEngine {
       domain: domain,
       content: memory.content,
       confidence: 0.8,
-      timestamp: new Date(memory.timestamp || Date.now()),
+      timestamp: new Date(memory.timestamp || createUnifiedTimestamp().unix),
       metadata: memory.metadata
     }));
   }
@@ -374,7 +374,7 @@ export class EmergentIntelligenceEngine {
       domain: 'cross-domain',
       content: memory.content,
       confidence: 0.7,
-      timestamp: new Date(memory.timestamp || Date.now()),
+      timestamp: new Date(memory.timestamp || createUnifiedTimestamp().unix),
       metadata: memory.metadata
     }));
   }
@@ -468,7 +468,7 @@ export class EmergentIntelligenceEngine {
         domain: request.domain,
         qualityScore: result.qualityScore,
         confidence: result.confidence,
-        timestamp: Date.now(),
+        timestamp: createUnifiedTimestamp().unix,
         category: 'phase4_intelligence'
       }
     });
@@ -557,7 +557,7 @@ export class EmergentIntelligenceEngine {
         evolutionType: result.evolutionType,
         qualityImprovement: result.qualityImprovement,
         confidence: result.confidence,
-        timestamp: Date.now(),
+        timestamp: createUnifiedTimestamp().unix,
         category: 'phase4_intelligence'
       }
     });
@@ -615,7 +615,7 @@ export class EmergentIntelligenceEngine {
         domain: insight.domain,
         impact: insight.impact,
         confidence: insight.confidence,
-        timestamp: Date.now(),
+        timestamp: createUnifiedTimestamp().unix,
         category: 'phase4_intelligence'
       }
     });
@@ -667,7 +667,7 @@ export class EmergentIntelligenceEngine {
     const strength = Math.min(sharedConcepts.length / 5, 1.0);
     
     return {
-      id: `connection-${domain1}-${domain2}-${Date.now()}`,
+      id: `connection-${domain1}-${domain2}-${createUnifiedTimestamp().unix}`,
       domains: [domain1, domain2],
       strength,
       type: 'concept_overlap',
@@ -699,7 +699,7 @@ export class EmergentIntelligenceEngine {
     );
     
     return {
-      id: `synthesis-${Date.now()}`,
+      id: `synthesis-${createUnifiedTimestamp().unix}`,
       type: 'cross_domain_synthesis',
       content,
       confidence,
@@ -732,7 +732,7 @@ export class EmergentIntelligenceEngine {
         type: 'synthesis',
         synthesisId: synthesis.id,
         confidence: synthesis.confidence,
-        timestamp: Date.now(),
+        timestamp: createUnifiedTimestamp().unix,
         category: 'phase4_intelligence'
       }
     });
@@ -767,9 +767,9 @@ export class EmergentIntelligenceEngine {
       content: `Memory Evolution: ${evolution.description}`,
       metadata: {
         type: 'memory_evolution',
-        evolutionId: `evolution-${Date.now()}`,
+        evolutionId: `evolution-${createUnifiedTimestamp().unix}`,
         changeType: evolution.changeType,
-        timestamp: Date.now(),
+        timestamp: createUnifiedTimestamp().unix,
         category: 'phase4_intelligence'
       }
     });
@@ -780,7 +780,7 @@ export class EmergentIntelligenceEngine {
         type: 'institutional_memory',
         knowledgeId: updatedKnowledge.id,
         domain: updatedKnowledge.domain,
-        timestamp: Date.now(),
+        timestamp: createUnifiedTimestamp().unix,
         category: 'phase4_intelligence'
       }
     });

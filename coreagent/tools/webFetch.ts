@@ -4,6 +4,8 @@
 import axios, { AxiosInstance, AxiosResponse } from 'axios';
 import { JSDOM } from 'jsdom';
 import { OneAgentMemory } from '../memory/OneAgentMemory';
+import { createUnifiedTimestamp } from '../utils/UnifiedBackboneService';
+
 import { 
   WebFetchOptions, 
   WebFetchResponse, 
@@ -83,7 +85,7 @@ export class WebFetchTool {
    * Fetch content from a URL with full content extraction
    */
   async fetchContent(options: WebFetchOptions): Promise<WebFetchResponse> {
-    const startTime = Date.now();
+    const startTime = createUnifiedTimestamp().unix;
     
     try {
       if (this.mockMode) {
@@ -131,7 +133,7 @@ export class WebFetchTool {
         ? await this.extractMetadata(response.data, options.url, response.request?.responseURL)
         : {};
 
-      const fetchTime = Date.now() - startTime;
+      const fetchTime = createUnifiedTimestamp().unix - startTime;
 
       const result: WebFetchResponse = {
         url: options.url,
@@ -150,7 +152,7 @@ export class WebFetchTool {
       return result;
 
     } catch (error: any) {
-      const fetchTime = Date.now() - startTime;
+      const fetchTime = createUnifiedTimestamp().unix - startTime;
       console.error('❌ WebFetchTool error:', error.message);
       
       const webFetchError: WebFetchError = {
@@ -288,7 +290,7 @@ export class WebFetchTool {
    * Enforce rate limiting
    */
   private async enforceRateLimit(): Promise<void> {
-    const now = Date.now();
+    const now = createUnifiedTimestamp().unix;
     const timeSinceLastRequest = now - this.lastRequestTime;
     const minInterval = 1000 / (this.config.rateLimit?.requestsPerSecond || 2);
     
@@ -297,7 +299,7 @@ export class WebFetchTool {
       await new Promise(resolve => setTimeout(resolve, delay));
     }
     
-    this.lastRequestTime = Date.now();
+    this.lastRequestTime = createUnifiedTimestamp().unix;
     this.requestCount++;
   }
 

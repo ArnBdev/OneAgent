@@ -7,6 +7,7 @@
 
 import { UnifiedMCPTool, ToolExecutionResult, InputSchema } from './UnifiedMCPTool';
 import { OneAgentMemory, OneAgentMemoryConfig } from '../memory/OneAgentMemory';
+import { createUnifiedTimestamp, createUnifiedId } from '../utils/UnifiedBackboneService';
 import * as fs from 'fs/promises';
 import * as path from 'path';
 
@@ -114,7 +115,7 @@ export class CodeAnalysisTool extends UnifiedMCPTool {
    * Core execution method implementing code analysis
    */
   public async executeCore(args: CodeAnalysisParams): Promise<ToolExecutionResult> {
-    const startTime = Date.now();
+    const startTime = createUnifiedTimestamp().unix;
 
     try {
       const { 
@@ -169,7 +170,7 @@ export class CodeAnalysisTool extends UnifiedMCPTool {
         await this.storeAnalysisInMemory(analysis, sourceFile, detectedLanguage);
       }
 
-      const duration = Date.now() - startTime;
+      const duration = createUnifiedTimestamp().unix - startTime;
 
       return {
         success: true,
@@ -205,7 +206,7 @@ export class CodeAnalysisTool extends UnifiedMCPTool {
    * Perform comprehensive code analysis
    */
   private async performCodeAnalysis(code: string, language: string, analysisType: string): Promise<AnalysisResult> {
-    const analysisId = `analysis_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    const analysisId = createUnifiedId('analysis', 'code_analysis');
 
     // Simulate analysis processing
     await this.delay(500);

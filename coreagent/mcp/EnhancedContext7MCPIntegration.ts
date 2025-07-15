@@ -6,6 +6,7 @@
  */
 
 import { Context7MCPIntegration, WebDocumentationQuery, WebDocumentationResult, CacheMetrics } from './Context7MCPIntegration';
+import { createUnifiedTimestamp } from '../utils/UnifiedBackboneService';
 
 // Enhanced interfaces for advanced capabilities
 export interface EnhancedDocumentationQuery {
@@ -222,7 +223,7 @@ export class EnhancedContext7MCPIntegration extends Context7MCPIntegration {
     context?: DevelopmentContext,
     options: Partial<EnhancedDocumentationQuery> = {}
   ): Promise<EnhancedDocumentationResult[]> {
-    const startTime = Date.now();
+    const startTime = createUnifiedTimestamp().unix;
 
     try {
       // 1. Semantic query analysis
@@ -248,7 +249,7 @@ export class EnhancedContext7MCPIntegration extends Context7MCPIntegration {
       await this.updatePredictiveModels(query, enhancedResults, context);
       
       // 7. Performance tracking
-      const responseTime = Date.now() - startTime;
+      const responseTime = createUnifiedTimestamp().unix - startTime;
       this.trackPerformanceMetrics(responseTime, enhancedResults.length);
 
       return enhancedResults;
@@ -622,7 +623,7 @@ export class EnhancedContext7MCPIntegration extends Context7MCPIntegration {
   private calculateFreshnessScore(lastUpdated?: Date): number {
     if (!lastUpdated) return 0.5;
     
-    const daysSinceUpdate = (Date.now() - lastUpdated.getTime()) / (1000 * 60 * 60 * 24);
+    const daysSinceUpdate = (createUnifiedTimestamp().unix - lastUpdated.getTime()) / (1000 * 60 * 60 * 24);
     
     if (daysSinceUpdate < 30) return 1.0;
     if (daysSinceUpdate < 90) return 0.8;
@@ -921,7 +922,7 @@ export class EnhancedContext7MCPIntegration extends Context7MCPIntegration {
 
   private isCacheValid(entry: PredictiveCacheEntry): boolean {
     const maxAge = 24 * 60 * 60 * 1000; // 24 hours
-    return (Date.now() - entry.created.getTime()) < maxAge;
+    return (createUnifiedTimestamp().unix - entry.created.getTime()) < maxAge;
   }
 
   private calculateCacheConfidence(
@@ -932,7 +933,7 @@ export class EnhancedContext7MCPIntegration extends Context7MCPIntegration {
     
     if (entry.accessCount > 5) confidence += 0.1;
     
-    const hoursSinceCreated = (Date.now() - entry.created.getTime()) / (1000 * 60 * 60);
+    const hoursSinceCreated = (createUnifiedTimestamp().unix - entry.created.getTime()) / (1000 * 60 * 60);
     if (hoursSinceCreated < 1) confidence += 0.1;
     
     return Math.min(confidence, 1.0);

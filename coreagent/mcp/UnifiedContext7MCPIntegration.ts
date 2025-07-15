@@ -13,6 +13,8 @@
 
 import { LocalMCPAdapter, MCPServerConfig } from './adapter';
 import { OneAgentMemory, OneAgentMemoryConfig } from '../memory/OneAgentMemory';
+import { UnifiedMCPTool, ToolExecutionResult, InputSchema } from '../tools/UnifiedMCPTool';
+import { createUnifiedTimestamp } from '../utils/UnifiedBackboneService';
 
 export interface DocumentationSource {
   name: string;
@@ -123,7 +125,7 @@ export class UnifiedContext7MCPIntegration {
    * Enhanced documentation query with unified memory integration
    */
   async queryDocumentation(query: DocumentationQuery): Promise<DocumentationResult[]> {
-    const startTime = Date.now();
+    const startTime = createUnifiedTimestamp().unix;
     this.cacheMetrics.totalQueries++;
 
     try {
@@ -264,7 +266,7 @@ export class UnifiedContext7MCPIntegration {
   ): Promise<void> {
     try {
       const conversationMemory = {
-        id: `doc-query-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+        id: `doc-query-${createUnifiedTimestamp().unix}-${Math.random().toString(36).substr(2, 9)}`,
         agentId: this.agentId,
         userId: query.userId || 'system',
         timestamp: new Date(),
@@ -315,7 +317,7 @@ export class UnifiedContext7MCPIntegration {
       const successfulSources = results.filter(r => r.relevanceScore > 0.7).map(r => r.source);
       
       if (successfulSources.length > 0) {        const patternMemory = {
-          id: `doc-pattern-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+          id: `doc-pattern-${createUnifiedTimestamp().unix}-${Math.random().toString(36).substr(2, 9)}`,
           agentId: this.agentId,
           description: `Documentation pattern: ${queryPattern} -> successful sources: ${successfulSources.join(', ')}`,
           frequency: 1,
@@ -373,7 +375,7 @@ export class UnifiedContext7MCPIntegration {
   ): Promise<void> {
     try {
       const learningMemory = {
-        id: `doc-learning-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+        id: `doc-learning-${createUnifiedTimestamp().unix}-${Math.random().toString(36).substr(2, 9)}`,
         agentId: this.agentId,
         content: `High-quality documentation found for "${query.query}" in source "${query.source}". Best result: "${results[0].title}" with relevance ${results[0].relevanceScore.toFixed(2)}. This pattern indicates ${query.source} is effective for ${this.categorizeQueryType(query.query)} queries.`,
         confidence: results[0].relevanceScore,
@@ -496,7 +498,7 @@ export class UnifiedContext7MCPIntegration {
   private async storeSourceConfiguration(sources: DocumentationSource[]): Promise<void> {
     try {
       const configMemory = {
-        id: `context7-config-${Date.now()}`,
+        id: `context7-config-${createUnifiedTimestamp().unix}`,
         agentId: this.agentId,
         userId: 'system',
         timestamp: new Date(),
@@ -630,7 +632,7 @@ export class UnifiedContext7MCPIntegration {
   private async storeMemoryPattern(query: DocumentationQuery, results: DocumentationResult[]): Promise<void> {
     try {
       const patternMemory = {
-        id: `doc-pattern-${Date.now()}`,
+        id: `doc-pattern-${createUnifiedTimestamp().unix}`,
         agentId: this.agentId,
         patternType: 'documentation_pattern',
         description: `Successful documentation retrieval: query="${query.query}" source="${query.source || 'any'}" results=${results.length} relevance=${results[0]?.relevanceScore || 0}`,
@@ -661,7 +663,7 @@ export class UnifiedContext7MCPIntegration {
   private async createDocumentationLearningPattern(query: DocumentationQuery): Promise<void> {
     try {
       const learningMemory = {
-        id: `doc-learning-${Date.now()}`,
+        id: `doc-learning-${createUnifiedTimestamp().unix}`,
         agentId: this.agentId,
         learningType: 'documentation_context',
         content: `Documentation gap identified: "${query.query}" for source "${query.source || 'unspecified'}". This represents a learning opportunity for external source integration.`,
@@ -691,7 +693,7 @@ export class UnifiedContext7MCPIntegration {
   ): Promise<void> {
     try {
       const patternMemory = {
-        id: `memory-success-${Date.now()}`,
+        id: `memory-success-${createUnifiedTimestamp().unix}`,
         agentId: this.agentId,
         patternType: 'documentation_pattern',
         description: `Successful memory-based documentation retrieval: query="${query.query}" source="${query.source || 'any'}" results=${results.length} avgRelevance=${(results.reduce((sum, r) => sum + r.relevanceScore, 0) / results.length).toFixed(2)}`,
@@ -726,7 +728,7 @@ export class UnifiedContext7MCPIntegration {
   private async createComprehensiveLearningPattern(query: DocumentationQuery): Promise<void> {
     try {
       const learningMemory = {
-        id: `memory-growth-${Date.now()}`,
+        id: `memory-growth-${createUnifiedTimestamp().unix}`,
         agentId: this.agentId,
         learningType: 'documentation_context',
         content: `MEMORY GROWTH OPPORTUNITY: Query "${query.query}" for source "${query.source || 'unspecified'}" found no matches in unified memory. This represents a high-priority learning opportunity. Future agent interactions related to this topic should be prioritized for memory storage and cross-agent sharing.`,
@@ -849,7 +851,7 @@ The unified memory system is designed to grow organically through real agent int
   ): Promise<void> {
     try {
       const conversationMemory = {
-        id: `fallback-learning-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+        id: `fallback-learning-${createUnifiedTimestamp().unix}-${Math.random().toString(36).substr(2, 9)}`,
         agentId: this.agentId,
         userId: query.userId || 'system',
         timestamp: new Date(),

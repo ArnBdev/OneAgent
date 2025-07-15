@@ -9,6 +9,7 @@
 import { ConstitutionalValidator } from '../../validation/ConstitutionalValidator';
 import { PerformanceMonitor } from '../../monitoring/PerformanceMonitor';
 import { EvolutionPlan } from './ALITAAutoEvolution';
+import { createUnifiedTimestamp } from '../../utils/UnifiedBackboneService';
 
 export interface SafetyValidation {
   passed: boolean;
@@ -51,7 +52,7 @@ export class EvolutionValidator {
    * WHY: Safety validation prevents harmful changes that could damage user experience
    */
   async validateSafetyCompliance(plan: EvolutionPlan): Promise<SafetyValidation> {
-    const startTime = Date.now();
+    const startTime = createUnifiedTimestamp().unix;
 
     try {
       const riskFactors: string[] = [];
@@ -109,7 +110,7 @@ export class EvolutionValidator {
         mitigations
       };
 
-      await this.performanceMonitor.recordLatency('safety_validation', Date.now() - startTime);
+      await this.performanceMonitor.recordLatency('safety_validation', createUnifiedTimestamp().unix - startTime);
       return validation;
 
     } catch (error) {
@@ -123,7 +124,7 @@ export class EvolutionValidator {
    * WHY: Hypothesis testing ensures evolution is based on sound evidence
    */
   async testEvolutionHypothesis(plan: EvolutionPlan): Promise<HypothesisTest> {
-    const startTime = Date.now();
+    const startTime = createUnifiedTimestamp().unix;
 
     try {
       // Formulate hypothesis
@@ -146,7 +147,7 @@ export class EvolutionValidator {
         testMethod: 'Confidence interval analysis with impact projection'
       };
 
-      await this.performanceMonitor.recordLatency('hypothesis_testing', Date.now() - startTime);
+      await this.performanceMonitor.recordLatency('hypothesis_testing', createUnifiedTimestamp().unix - startTime);
       return hypothesisTest;
 
     } catch (error) {
@@ -160,7 +161,7 @@ export class EvolutionValidator {
    * WHY: Regression analysis prevents evolution from reducing overall performance
    */
   async checkRegressionRisk(plan: EvolutionPlan): Promise<RegressionAnalysis> {
-    const startTime = Date.now();
+    const startTime = createUnifiedTimestamp().unix;
 
     try {
       const riskFactors: string[] = [];
@@ -205,7 +206,7 @@ export class EvolutionValidator {
         rollbackTriggers
       };
 
-      await this.performanceMonitor.recordLatency('regression_analysis', Date.now() - startTime);
+      await this.performanceMonitor.recordLatency('regression_analysis', createUnifiedTimestamp().unix - startTime);
       return analysis;
 
     } catch (error) {

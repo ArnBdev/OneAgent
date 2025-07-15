@@ -14,6 +14,7 @@
  */
 
 import { OneAgentMemory } from '../memory/OneAgentMemory';
+import { createUnifiedTimestamp } from '../utils/UnifiedBackboneService';
 import { ConstitutionalAI } from '../agents/base/ConstitutionalAI';
 import { CrossConversationLearningEngine, ConversationPattern, WorkflowPattern } from './CrossConversationLearningEngine';
 import { EmergentIntelligenceEngine, BreakthroughInsight, SynthesizedIntelligence } from './EmergentIntelligenceEngine';
@@ -104,7 +105,7 @@ export class Phase4MemoryDrivenIntelligence {
     console.log(`🧠 Starting comprehensive Phase 4 analysis for ${domain}...`);
     
     try {
-      const startTime = Date.now();
+      const startTime = createUnifiedTimestamp().unix;
       
       // Step 1: Cross-Conversation Learning
       const conversationPatterns = await this.performCrossConversationLearning(domain);
@@ -147,7 +148,7 @@ export class Phase4MemoryDrivenIntelligence {
       // Store comprehensive analysis result
       await this.storeAnalysisResult(result);
       
-      const processingTime = Date.now() - startTime;
+      const processingTime = createUnifiedTimestamp().unix - startTime;
       console.log(`✅ Phase 4 analysis completed in ${processingTime}ms with ${qualityScore.toFixed(2)} quality score`);
       
       return result;
@@ -226,7 +227,7 @@ export class Phase4MemoryDrivenIntelligence {
       optimizations: [],
       performance: [],
       metadata: {
-        exportTime: Date.now(),
+        exportTime: createUnifiedTimestamp().unix,
         configuration: this.configuration,
         version: '4.0.0'
       }
@@ -409,7 +410,7 @@ export class Phase4MemoryDrivenIntelligence {
       metadata: {
         type: 'phase4_analysis_result',
         result,
-        timestamp: Date.now(),
+        timestamp: createUnifiedTimestamp().unix,
         category: 'phase4_comprehensive'
       }
     });
