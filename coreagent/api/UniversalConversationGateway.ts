@@ -78,7 +78,7 @@ export class EnhancedChatAPI {
         fromParticipant: request.fromParticipant,
         ...(request.toParticipant && { toParticipant: request.toParticipant }),
         content: request.content,
-        timestamp: createUnifiedTimestamp(),
+        timestamp: new Date(createUnifiedTimestamp().utc),
         conversationId: conversationId,
         metadata: {
           confidence: 1.0,

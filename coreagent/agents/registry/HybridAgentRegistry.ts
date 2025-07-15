@@ -89,8 +89,8 @@ export class HybridAgentRegistry implements IAgentRegistry {
     // Apply filtering (in-memory)
     if (filter) {
       if (filter.type) agents = agents.filter(a => a.agentType === filter.type);
-      if (filter.capability !== undefined) agents = agents.filter(a => a.capabilities?.includes(filter.capability ?? ''));
-      if (filter.skill !== undefined) agents = agents.filter(a => a.skills?.includes(filter.skill ?? ''));
+      if (filter.capability !== undefined) agents = agents.filter(a => a.capabilityList?.includes(filter.capability ?? ''));
+      if (filter.skill !== undefined) agents = agents.filter(a => a.skillList?.includes(filter.skill ?? ''));
       if (filter.health) agents = agents.filter(a => a.health === filter.health);
       if (filter.version) agents = agents.filter(a => a.version === filter.version);
       if (filter.status) agents = agents.filter(a => a.status === filter.status);

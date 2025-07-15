@@ -132,6 +132,7 @@ export class MemoryIntelligence {
       };
     } catch (error) {
       console.error('Intelligent search failed:', error);
+      const endTime = createUnifiedTimestamp();
       return {
         results: [],
         totalFound: 0,

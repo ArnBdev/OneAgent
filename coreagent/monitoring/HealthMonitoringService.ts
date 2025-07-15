@@ -282,7 +282,7 @@ export class HealthMonitoringService extends EventEmitter {
     
     const healthReport: SystemHealthReport = {
       overall,
-      timestamp,
+      timestamp: new Date(timestamp.utc),
       components,
       performance,
       compliance,
@@ -383,7 +383,7 @@ export class HealthMonitoringService extends EventEmitter {
           'Scale up resources',
           'Optimize agent workloads'
         ],
-        timestamp: createUnifiedTimestamp().date
+        timestamp: new Date(createUnifiedTimestamp().utc)
       });
     }
     
@@ -423,7 +423,7 @@ export class HealthMonitoringService extends EventEmitter {
       return {
         status: 'healthy',
         violations,
-        lastAudit: createUnifiedTimestamp().date,
+        lastAudit: new Date(createUnifiedTimestamp().utc),
         isolationAccuracy
       };
     } catch (error) {
@@ -435,9 +435,9 @@ export class HealthMonitoringService extends EventEmitter {
           severity: 'critical',
           description: `User isolation validation failed: ${error}`,
           userId: 'system',
-          timestamp: createUnifiedTimestamp().date
+          timestamp: new Date(createUnifiedTimestamp().utc)
         }],
-        lastAudit: createUnifiedTimestamp().date,
+        lastAudit: new Date(createUnifiedTimestamp().utc),
         isolationAccuracy: 0
       };
     }
@@ -464,7 +464,7 @@ export class HealthMonitoringService extends EventEmitter {
           helpfulness: overallCompliance,
           safety: overallCompliance
         },
-        lastConstitutionalAudit: createUnifiedTimestamp().date
+        lastConstitutionalAudit: new Date(createUnifiedTimestamp().utc)
       };
     } catch (error) {
       console.error('Constitutional compliance check failed:', error);
@@ -478,7 +478,7 @@ export class HealthMonitoringService extends EventEmitter {
           helpfulness: 0,
           safety: 0
         },
-        lastConstitutionalAudit: createUnifiedTimestamp().date
+        lastConstitutionalAudit: new Date(createUnifiedTimestamp().utc)
       };
     }
   }
@@ -587,7 +587,7 @@ export class HealthMonitoringService extends EventEmitter {
       uptime: createUnifiedTimestamp().unix,
       responseTime: 30,
       errorRate: 0,
-      lastCheck: createUnifiedTimestamp().date,
+      lastCheck: new Date(createUnifiedTimestamp().utc),
       details: {
         requestsProcessed: 100,
         averageResponseTime: 150
@@ -602,7 +602,7 @@ export class HealthMonitoringService extends EventEmitter {
       uptime: createUnifiedTimestamp().unix,
       responseTime: 25,
       errorRate: 0,
-      lastCheck: createUnifiedTimestamp().date,
+      lastCheck: new Date(createUnifiedTimestamp().utc),
       details: {
         endpointsAvailable: 15,
         averageLatency: 75
@@ -616,7 +616,7 @@ export class HealthMonitoringService extends EventEmitter {
       uptime: 0,
       responseTime: 0,
       errorRate: 1,
-      lastCheck: createUnifiedTimestamp().date,
+      lastCheck: new Date(createUnifiedTimestamp().utc),
       details: { error: reason }
     };
   }
@@ -659,7 +659,7 @@ export class HealthMonitoringService extends EventEmitter {
         avgResponseTime: 120,
         successRate: 0.98,
         errorCount: 2,
-        lastActivity: createUnifiedTimestamp().date
+        lastActivity: new Date(createUnifiedTimestamp().utc)
       }
     };
   }
@@ -700,7 +700,7 @@ export class HealthMonitoringService extends EventEmitter {
       encryptionStatus: true,
       dataRetentionCompliance: true,
       gdprCompliance: true,
-      lastPrivacyAudit: createUnifiedTimestamp().date
+      lastPrivacyAudit: new Date(createUnifiedTimestamp().utc)
     };
   }
 
@@ -710,7 +710,7 @@ export class HealthMonitoringService extends EventEmitter {
       status: 'healthy',
       unauthorizedAttempts: 0,
       accessViolations: [],
-      lastAccessAudit: createUnifiedTimestamp().date
+      lastAccessAudit: new Date(createUnifiedTimestamp().utc)
     };
   }
 
@@ -720,7 +720,7 @@ export class HealthMonitoringService extends EventEmitter {
       status: 'healthy',
       encryptionLevel: 'AES-256',
       keyRotationStatus: true,
-      lastEncryptionAudit: createUnifiedTimestamp().date
+      lastEncryptionAudit: new Date(createUnifiedTimestamp().utc)
     };
   }
 
