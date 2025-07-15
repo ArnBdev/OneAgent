@@ -37,9 +37,8 @@ export type {
 export { BaseAgent } from '../base/BaseAgent';
 export type { AgentConfig, AgentContext, AgentResponse } from '../base/ISpecializedAgent';
 
-// Export NLACS integration
-export { NLACSCoordinator } from '../../nlacs/NLACSCoordinator';
-export { AdvancedNLACSEngine } from '../../nlacs/AdvancedNLACSEngine';
+// NLACS REMOVED: A2A Protocol provides complete replacement functionality
+// Previous NLACS exports have been removed as A2A Protocol is the canonical agent coordination system
 
 // Export Constitutional AI
 export { ConstitutionalAI } from '../base/ConstitutionalAI';

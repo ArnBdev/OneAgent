@@ -1,6 +1,6 @@
 import { IAgentDiscovery } from '../interfaces/IAgentDiscovery';
 import { AgentRegistration } from '../interfaces/IAgentRegistry';
-import { AgentFilter } from '../interfaces/AgentCard';
+import { AgentFilter } from '../../types/AgentCard';
 import { oneAgentConfig } from '../../config/index';
 
 /**

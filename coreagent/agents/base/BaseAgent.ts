@@ -1002,7 +1002,7 @@ export abstract class BaseAgent {
       capabilities: this.config.capabilities,
       memoryEnabled: this.config.memoryEnabled,
       aiEnabled: this.config.aiEnabled,
-      lastActivity: new Date(this.backbone.time.now().utc),
+      lastActivity: new Date(this.unifiedBackbone.getServices().timeService.now().utc),
       isHealthy: this.isInitialized,
       processedMessages: 0,
       errors: 0
@@ -1028,7 +1028,7 @@ export abstract class BaseAgent {
     lastActivity?: Date;
     errors?: string[];
   }> {
-    const timestamp = this.backbone.time.now();
+    const timestamp = this.unifiedBackbone.getServices().timeService.now();
     return {
       status: this.isInitialized ? 'healthy' : 'offline',
       uptime: timestamp.unix,

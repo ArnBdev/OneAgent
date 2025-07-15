@@ -14,10 +14,13 @@ import { v4 as uuidv4 } from 'uuid';
 import { OneAgentMemory } from '../../memory/OneAgentMemory';
 import { OneAgentUnifiedBackbone } from '../../utils/UnifiedBackboneService';
 import { oneAgentConfig } from '../../config/index';
+import { AgentCard as CanonicalAgentCard } from '../../types/AgentCard';
+
 // =============================================================================
 // A2A PROTOCOL TYPES (v0.2.5 Specification)
 // =============================================================================
 
+// A2A-specific AgentCard (follows Google A2A spec exactly)
 export interface AgentCard {
   protocolVersion: string;
   name: string;
