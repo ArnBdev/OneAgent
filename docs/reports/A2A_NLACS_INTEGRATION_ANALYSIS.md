@@ -1,5 +1,25 @@
 # OneAgent Architecture Analysis: A2A Protocol, BaseAgent, and NLACS Integration
 
+## 🚨 **DOCUMENT MOVED AND CONSOLIDATED**
+
+This document has been **consolidated** into a comprehensive plan:
+
+📋 **[ONEAGENT_UNIFIED_ARCHITECTURE_PLAN.md](../../ONEAGENT_UNIFIED_ARCHITECTURE_PLAN.md)**
+
+The unified document includes:
+- Complete parallel systems inventory (9 systems)
+- Canonical architecture design
+- Agent communication failure analysis (from this document)
+- Context7 legacy adapter issues
+- Comprehensive consolidation roadmap
+- All information from previous documents preserved
+
+**Please use the unified document for all future architectural planning.**
+
+---
+
+## 🎯 **LEGACY CONTENT BELOW** (For Reference Only)
+
 ## Current Architecture Status
 
 ### 🔍 **What We Have:**

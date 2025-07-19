@@ -186,9 +186,9 @@ async function testAgentIntegration(): Promise<{ contextCreation: boolean; alita
     // Test system health
     const systemHealth = unifiedBackbone.getSystemHealth();
     const healthValid = systemHealth &&
-                       systemHealth.timeService.operational &&
-                       systemHealth.metadataService.operational &&
-                       typeof systemHealth.agentSystems.unifiedCompliance === 'number';
+                       systemHealth.components.timeService.operational &&
+                       systemHealth.components.metadataService.operational &&
+                       typeof systemHealth.overall.score === 'number';
     
     console.log('✅ System Health:', healthValid ? 'PASS' : 'FAIL', systemHealth);
     

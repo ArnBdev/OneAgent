@@ -1,53 +1,95 @@
-# OneAgent Professional Development Instructions for GitHub Copilot
+# OneAgent Professional Development Instructions
 
-## System Overview
-You are working with OneAgent, a Professional AI Development Platform featuring Constitutional AI, BMAD Framework analysis, and quality-first development principles. OneAgent operates as an MCP (Model Context Protocol) server to extend your capabilities.
+## Project Overview
+OneAgent is a Professional AI Development Platform featuring Constitutional AI, BMAD Framework analysis, and quality-first development principles. This is a complex architectural project requiring systematic consolidation of parallel systems.
 
-## Architecture Overview
+## Critical Architecture Mission
+**PRIMARY GOAL**: Consolidate 9 parallel systems into canonical implementations to prevent architectural fragmentation and maintain system integrity.
 
-### Core Components
-- **BaseAgent**: Abstract base class for all agents (`coreagent/agents/base/BaseAgent.ts`)
-- **ISpecializedAgent**: Interface defining agent contracts (`coreagent/agents/base/ISpecializedAgent.ts`)
-- **AgentFactory**: Factory pattern for creating agents with tier-based model selection (`coreagent/agents/base/AgentFactory.ts`)
-- **UnifiedBackboneService**: Single source of truth for time and metadata across all systems (`coreagent/utils/UnifiedBackboneService.ts`)
-- **OneAgentEngine**: Central engine managing all agent operations (`coreagent/OneAgentEngine.ts`)
+### System Status (Current)
+- **Time System**: 95% canonical (UnifiedBackboneService.createUnifiedTimestamp)
+- **ID Generation**: 100% canonical (UnifiedBackboneService.createUnifiedId)
+- **Memory System**: 100% canonical (OneAgentMemory singleton)
+- **Cache System**: 100% canonical (OneAgentUnifiedBackbone.getInstance().cache)
+- **Agent Communication**: 0% canonical (8 parallel implementations) - CRITICAL PRIORITY
+- **Error Handling**: 20% canonical (UnifiedBackboneService.errorHandler)
+- **MCP Integration**: 30% canonical (UnifiedBackboneService.mcp)
+- **Monitoring**: 10% canonical (UnifiedBackboneService.monitoring)
+- **Context7**: 25% canonical (legacy adapter.ts blocking)
 
-### Agent Creation Pattern
+## Mandatory Anti-Parallel System Protocol
+
+### Before ANY Implementation
+1. **Search existing implementations** using oneagent_memory_search
+2. **Check UnifiedBackboneService** for canonical methods
+3. **Verify OneAgentMemory** for memory operations
+4. **Confirm OneAgentUnifiedBackbone** for caching needs
+5. **NEVER create parallel systems** - always expand existing ones
+
+### Canonical System Requirements
 ```typescript
-// Always use AgentFactory for agent creation
-const agent = await AgentFactory.createAgent({
-  type: 'development', // canonical AgentType
-  id: 'unique-agent-id',
-  name: 'Agent Name',
-  memoryEnabled: true,
-  aiEnabled: true,
-  modelTier: 'standard', // economy/standard/premium
-  nlacsEnabled: true
-});
+// ✅ REQUIRED - Use these patterns exclusively
+const timestamp = createUnifiedTimestamp();
+const id = createUnifiedId('operation', 'context');
+const cache = OneAgentUnifiedBackbone.getInstance().cache;
+const memory = OneAgentMemory.getInstance();
+
+// ❌ FORBIDDEN - These create parallel systems
+const timestamp = Date.now(); // Creates parallel time system
+const id = Math.random().toString(36); // Creates parallel ID system
+const cache = new Map(); // Creates parallel cache system
+const memory = new CustomMemoryClass(); // Creates parallel memory system
 ```
 
-### Memory System (Canonical mem0)
-- **OneAgentMemory**: Primary memory interface using mem0 backend
-- **Memory Server**: Python-based memory backend on port 8010
-- **Context7**: Documentation and context management system
-- Always use structured memory operations with metadata
+## Development Standards
 
-## Available OneAgent Tools (Verified MCP Integration)
+### Code Quality
+- **Minimum Quality Score**: 80% (Grade A)
+- **Constitutional AI Compliance**: 100%
+- **TypeScript**: Strict typing with comprehensive error handling
+- **Documentation**: Self-documenting code with clear reasoning
 
-### Constitutional AI Tools
-- `oneagent_constitutional_validate`: Validate responses against 4 core principles (Accuracy, Transparency, Helpfulness, Safety)
-- `oneagent_quality_score`: Generate quality scoring with professional grading (A-D scale)
-- `oneagent_bmad_analyze`: Systematic task analysis using 9-point BMAD framework
+### Architecture Principles
+- **Single Source of Truth**: UnifiedBackboneService for all operations
+- **Expand Before Create**: Always enhance existing systems
+- **Complete Features**: Don't remove incomplete features, complete them
+- **Memory-First**: Use oneagent_memory_search before implementing
+- **Quality Validation**: Apply Constitutional AI for critical decisions
 
-### Memory & Context Tools (Canonical)
-- `oneagent_memory_search`: Search canonical OneAgent memory using natural language queries
-- `oneagent_memory_add`: Add items to canonical OneAgent memory with metadata
-- `oneagent_memory_edit`: Edit existing memory items by ID
-- `oneagent_memory_delete`: Delete memory items by ID
-- `oneagent_system_health`: Comprehensive system health and performance metrics
+### File Organization
+- **coreagent/**: Core TypeScript implementation
+- **coreagent/agents/base/**: Base classes and interfaces
+- **coreagent/agents/specialized/**: Concrete agent implementations
+- **coreagent/server/**: MCP server implementation
+- **coreagent/utils/**: Shared utilities (UnifiedBackboneService)
+- **coreagent/types/**: Canonical type definitions
 
-### Research Tools
-- `oneagent_enhanced_search`: Web search with quality filtering and Constitutional AI validation
+## OneAgent MCP Tools (Available)
+- `oneagent_constitutional_validate`: Validate responses (Accuracy, Transparency, Helpfulness, Safety)
+- `oneagent_quality_score`: Professional grading (A-D scale)
+- `oneagent_bmad_analyze`: 9-point framework analysis
+- `oneagent_memory_search`: Search canonical memory
+- `oneagent_memory_add`: Add items with metadata
+- `oneagent_system_health`: System health metrics
+- `oneagent_enhanced_search`: Quality-filtered web search
+- `oneagent_context7_query`: Documentation queries
+
+## Constitutional AI Principles
+1. **Accuracy**: Prefer "I don't know" to speculation
+2. **Transparency**: Explain reasoning and acknowledge limitations
+3. **Helpfulness**: Provide actionable, relevant guidance
+4. **Safety**: Avoid harmful or misleading recommendations
+
+## Context7 Integration
+- **ALWAYS use Context7** for documentation before coding
+- **Auto-memory storage**: Store ALL Context7 retrievals in memory
+- **Build knowledge webs**: Link technologies, versions, best practices
+- **Quality threshold**: 80%+ relevance for long-term storage
+
+## Critical Mission Priority
+**Agent Communication System Consolidation**: 8 parallel implementations must be unified into single canonical system. This is the highest architectural priority to prevent further fragmentation.
+
+Remember: You are working as lead developer, architect, and project manager. Handle all technical decisions with due diligence and focus on preventing parallel systems while maintaining architectural integrity.
 - `oneagent_web_search`: Web search with configurable parameters
 - `oneagent_web_fetch`: Fetch and extract content from web pages
 - `oneagent_context7_query`: Query documentation and context sources

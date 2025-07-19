@@ -11,6 +11,8 @@
     "**/.git/subtree-cache/**": true,
     "**/tmp/**": true,
     "**/temp/**": true
+    ,"**/build/**": true
+    ,"**/dist/**": true
   },
   
   // Search optimizations
@@ -20,6 +22,8 @@
     "**/node_modules/**": true,
     "**/tmp/**": true,
     "**/temp/**": true
+    ,"**/build/**": true
+    ,"**/dist/**": true
   },
   
   // File explorer optimizations

@@ -1,5 +1,17 @@
 /**
- * MCP (Model Context Protocol) Adapter for CoreAgent
+ * MCP (Model Context Protocol) Legacy Adapter for CoreAgent
+ * 
+ * 🚨 DEPRECATED - LEGACY SYSTEM - MIGRATION REQUIRED
+ * 
+ * This legacy adapter is being replaced by the OneAgentUnifiedMCPSystem
+ * in UnifiedBackboneService.ts. The new system provides:
+ * - Modern MCP 2025-06-18 protocol support
+ * - Intelligent routing and load balancing
+ * - Constitutional AI integration
+ * - Enhanced error handling and monitoring
+ * 
+ * Status: DEPRECATED - Still used by Context7 integrations
+ * Migration Path: Update Context7 integrations to use UnifiedMCPTool pattern
  * 
  * Handles communication with MCP servers, supporting both local and HTTP communication.
  */

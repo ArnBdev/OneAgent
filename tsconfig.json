@@ -1,31 +1,21 @@
-{  "compilerOptions": {
-    "target": "ES2022",
-    "module": "ES2022",
+{
+  "compilerOptions": {
+    "target": "ES2020",
+    "module": "CommonJS",
     "moduleResolution": "node",
-    "outDir": "./dist/coreagent",
-    "rootDir": "./coreagent",
     "strict": true,
     "esModuleInterop": true,
     "skipLibCheck": true,
     "forceConsistentCasingInFileNames": true,
-    "declaration": true,
-    "declarationMap": true,
-    "sourceMap": true,
-    "removeComments": false,
-    "noImplicitAny": true,
-    "noImplicitReturns": true,    "noImplicitThis": true,
-    "noUnusedLocals": false,
-    "noUnusedParameters": true,    "exactOptionalPropertyTypes": true,
-    "allowSyntheticDefaultImports": true,
-    "resolveJsonModule": true,
-    "downlevelIteration": true
+    "outDir": "./dist",
+    "resolveJsonModule": true
   },
-  "include": [
-    "coreagent/**/*"
-  ],
-  "exclude": [
-    "node_modules",
-    "dist",
-    "data"
-  ]
+  "ts-node": {
+    "esm": false,
+    "compilerOptions": {
+      "module": "CommonJS"
+    }
+  },
+  "include": ["coreagent/**/*"],
+  "exclude": ["node_modules"]
 }

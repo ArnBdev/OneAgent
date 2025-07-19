@@ -1,12 +1,23 @@
 /**
  * A2A Protocol Server Integration Test
  * 
+ * 🚫 CRITICAL PRODUCTION VERIFICATION SYSTEM - DO NOT DELETE
+ * 
+ * This file contains ESSENTIAL production verification logic:
+ * - A2A Protocol integration verification
+ * - Real server integration testing
+ * - Multi-agent communication verification
+ * - A2A protocol compliance validation
+ * 
+ * Status: PRODUCTION VERIFICATION - ARCHITECTURAL ESSENTIAL
+ * 
  * Tests the A2A protocol with the real OneAgent server running
  */
 
 import { OneAgentA2AProtocol, AgentCard } from '../coreagent/protocols/a2a/A2AProtocol';
 import { oneAgentConfig } from '../coreagent/config/index';
 import { v4 as uuidv4 } from 'uuid';
+import { createUnifiedId } from '../coreagent/utils/UnifiedBackboneService';
 
 // Test Agent Card for real server integration
 const testAgentCard: AgentCard = {
@@ -158,7 +169,7 @@ async function testA2AMessageStructure() {
       params: {
         message: testMessage
       },
-      id: Date.now()
+      id: createUnifiedId('message', 'a2a_test') // Fixed: Use unified ID generation instead of Date.now()
     };
     
     console.log('\n✅ JSON-RPC 2.0 wrapper validation:');

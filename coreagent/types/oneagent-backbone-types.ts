@@ -716,6 +716,103 @@ export interface IntelligenceInsight {
 // AGENT SYSTEM TYPES
 // ========================================
 
+export interface UnifiedAgentCommunicationInterface {
+    registerAgent(agent: AgentRegistration): Promise<AgentId>;
+    discoverAgents(filter: AgentFilter): Promise<AgentCard[]>;
+    createSession(sessionConfig: SessionConfig): Promise<SessionId>;
+    joinSession(sessionId: SessionId, agentId: AgentId): Promise<boolean>;
+    leaveSession(sessionId: SessionId, agentId: AgentId): Promise<boolean>;
+    sendMessage(message: AgentMessage): Promise<MessageId>;
+    broadcastMessage(message: AgentMessage): Promise<MessageId>;
+    getMessageHistory(sessionId: SessionId, limit?: number): Promise<A2AMessage[]>;
+    getSessionInfo(sessionId: SessionId): Promise<SessionInfo | null>;
+}
+
+export interface AgentRegistration {
+    id?: string;
+    name: string;
+    capabilities: string[];
+    metadata?: Record<string, any>;
+}
+
+export type AgentId = string;
+
+export interface AgentFilter {
+    capabilities?: string[];
+    status?: 'online' | 'offline' | 'busy';
+    limit?: number;
+}
+
+export interface AgentCard {
+    id: AgentId;
+    name: string;
+    capabilities: string[];
+    status: 'online' | 'offline' | 'busy';
+}
+
+export interface AgentMessage {
+    sessionId: SessionId;
+    fromAgent: AgentId;
+    toAgent?: AgentId; // Optional for broadcast
+    content: string;
+    messageType?: 'update' | 'question' | 'decision' | 'action' | 'insight';
+    metadata?: Record<string, any>;
+}
+
+export type MessageId = string;
+
+export interface SessionConfig {
+    name: string;
+    participants: AgentId[];
+    mode?: 'collaborative' | 'competitive' | 'hierarchical';
+    topic: string;
+    metadata?: Record<string, any>;
+}
+
+export type SessionId = string;
+
+export interface SessionInfo {
+    id: SessionId;
+    name: string;
+    participants: AgentId[];
+    mode: 'collaborative' | 'competitive' | 'hierarchical';
+    topic: string;
+    status: 'active' | 'inactive' | 'concluded';
+    createdAt: UnifiedTimestamp;
+}
+
+export interface A2AAgent {
+    id: AgentId;
+    name: string;
+    capabilities: string[];
+    lastActive: UnifiedTimestamp;
+    status: 'online' | 'offline' | 'busy';
+    metadata: Record<string, any>;
+}
+
+export interface A2AGroupSession {
+    id: SessionId;
+    name: string;
+    participants: AgentId[];
+    mode: 'collaborative' | 'competitive' | 'hierarchical';
+    topic: string;
+    messages: A2AMessage[];
+    createdAt: UnifiedTimestamp;
+    status: 'active' | 'inactive' | 'concluded';
+    metadata: Record<string, any>;
+}
+
+export interface A2AMessage {
+    id: MessageId;
+    sessionId: SessionId;
+    fromAgent: AgentId;
+    toAgent?: AgentId;
+    message: string;
+    messageType: 'update' | 'question' | 'decision' | 'action' | 'insight';
+    timestamp: UnifiedTimestamp;
+    metadata?: Record<string, any>;
+}
+
 export interface AgentResponse {
   content: string;
   metadata?: Record<string, unknown>;

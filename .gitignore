@@ -313,6 +313,16 @@ docs/build/
 site/
 
 # ================================
+# ONEAGENT - IGNORE COMPILED JS IN SOURCE
+# ================================
+
+# Ignore compiled JavaScript and map files in the coreagent directory
+# to prevent conflicts with TypeScript source files.
+/coreagent/**/*.js
+/coreagent/**/*.js.map
+
+
+# ================================
 # MISCELLANEOUS
 # ================================
 

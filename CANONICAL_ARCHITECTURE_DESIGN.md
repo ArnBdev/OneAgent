@@ -1,5 +1,25 @@
 # OneAgent Canonical Architecture Design
 
+## 🚨 **DOCUMENT MOVED AND CONSOLIDATED**
+
+This document has been **consolidated** into a comprehensive plan:
+
+📋 **[ONEAGENT_UNIFIED_ARCHITECTURE_PLAN.md](./ONEAGENT_UNIFIED_ARCHITECTURE_PLAN.md)**
+
+The unified document includes:
+- Complete parallel systems inventory (9 systems)
+- Canonical architecture design
+- Agent communication failure analysis
+- Context7 legacy adapter issues
+- Comprehensive consolidation roadmap
+- All information from previous documents preserved
+
+**Please use the unified document for all future architectural planning.**
+
+---
+
+## 🎯 **LEGACY CONTENT BELOW** (For Reference Only)
+
 ## 🏗️ **UNIFIED BACKBONE SERVICE: The Single Source of Truth**
 
 ### **Current Architecture Analysis**

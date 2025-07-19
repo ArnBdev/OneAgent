@@ -1,6 +1,16 @@
 /**
  * OneAgent System Demo - Working Implementation
  * 
+ * 🚫 CRITICAL PRODUCTION VERIFICATION SYSTEM - DO NOT DELETE
+ * 
+ * This file contains ESSENTIAL production verification logic:
+ * - Core OneAgent functionality demonstration
+ * - Mock conversation context creation
+ * - Core agent interface validation
+ * - Unified service integration testing
+ * 
+ * Status: PRODUCTION VERIFICATION - ARCHITECTURAL ESSENTIAL
+ * 
  * Demonstrates the core OneAgent functionality with minimal dependencies
  */
 
@@ -226,7 +236,7 @@ They're working together to analyze your request and will provide a comprehensiv
   private createConversationContext(userId: string): MockConversationContext {
     return {
       userId,
-      sessionId: `session-${Date.now()}`,
+      sessionId: createUnifiedId('session', 'demo_test'), // Fixed: Use unified ID generation
       conversationHistory: [],
       currentAgent: 'CoreAgent',
       contextCategory: 'general',

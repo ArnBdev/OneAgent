@@ -2,23 +2,35 @@
 
 This directory contains all test files and verification scripts for OneAgent.
 
-## Structure
+## Current Testing Architecture
 
-- **Unit Tests**: Component-level testing
-- **Integration Tests**: System integration validation  
+**Status**: Transitioning from ad-hoc testing to formal testing framework
+
+### Current Testing Types
+- **Production Verification**: Critical system validation (`oneagent-demo.ts`)
+- **Integration Tests**: A2A Protocol and system integration validation
 - **MCP Tests**: MCP server and tool testing
 - **Performance Tests**: Performance benchmarking
-- **Verification Scripts**: System verification and health checks
+- **Health Checks**: System verification and monitoring
+
+### Migration to Formal Testing Framework
+- **Target**: Jest/Vitest for structured testing
+- **Benefits**: Automated discovery, rich assertions, mocking, coverage reporting
+- **Timeline**: Next month implementation
+- **Status**: Evaluation phase - current tests serve as production verification
 
 ## Test Files
 
-### Core System Tests
+### 🚨 Critical Production Verification Systems
+- **`oneagent-demo.ts`** - Core OneAgent functionality demonstration and production verification
+- **`a2a-server-integration.test.ts`** - A2A Protocol integration verification for multi-agent communication
+- **`tests/integration/SystemIntegrationVerifier.ts`** - Production readiness verification and system health monitoring
+
+### Legacy Web and API Tests
 - `test_all_oneagent_features.js` - Comprehensive feature testing
 - `test_mcp_connection.js` - MCP server connection tests
 - `test_new_mcp_tools.js` - New MCP tools validation
 - `test-mcp-copilot-server.ts` - MCP Copilot server testing
-
-### Web and API Tests
 - `test_webfetch_tool.js` - Web fetch tool testing
 - `test_webfetch_compiled.js` - Compiled web fetch validation
 - `test-chat-api.js` - Chat API integration tests
@@ -26,16 +38,35 @@ This directory contains all test files and verification scripts for OneAgent.
 - **`test-real-api.ts`** - Comprehensive API integration test with real Google AI Studio API key
 - **`test-api-key.ts`** - Validates Google API key format and basic functionality
 
-### Debug and Development
+### Development and Debug Tests
 - `debug_test.js` - Debug utilities and testing
 - `simple_test.js` - Simple system validation
-
-### Component Tests
 - **`test-import.ts`** - Tests module imports and basic instantiation
 - **`test-gemini.ts`** - Specific Gemini client testing
 
+### 🔧 Technical Debt Status
+- **Date.now() Violations**: ✅ FIXED - All test files now use UnifiedBackboneService
+- **Standards Compliance**: ✅ COMPLETED - All tests use unified ID and timestamp generation
+- **Architectural Protection**: ✅ ADDED - Critical test files marked with protective comments
+
 ## 🚀 Running Tests
 
+### Production Verification (Current)
+```bash
+# Run core OneAgent demonstration
+npx tsx tests/oneagent-demo.ts
+
+# Run A2A Protocol integration test
+npx tsx tests/a2a-server-integration.test.ts
+
+# Run system integration verification
+npx tsx tests/integration/SystemIntegrationVerifier.ts
+
+# Build verification
+npm run build
+```
+
+### Legacy API Tests
 ```bash
 # Run all API tests
 npm run test:api
@@ -48,6 +79,15 @@ npm run test:imports
 
 # Test embeddings specifically
 npm run test:embeddings
+```
+
+### 🔮 Future Testing Framework (Next Month)
+```bash
+# Formal testing framework (Jest/Vitest)
+npm test                    # Run all tests
+npm run test:watch          # Watch mode
+npm run test:coverage       # Coverage reporting
+npm run test:ci             # CI/CD integration
 ```
 
 ## 📊 Expected Test Results

@@ -1,6 +1,17 @@
 /**
  * OneAgent System Integration Verification
  * 
+ * 🚫 CRITICAL PRODUCTION VERIFICATION SYSTEM - DO NOT DELETE
+ * 
+ * This file contains ESSENTIAL production verification logic:
+ * - Agent compliance verification
+ * - Quality metrics calculation (80%+ threshold)
+ * - Deployment readiness assessment
+ * - Health status monitoring
+ * - Production readiness validation
+ * 
+ * Status: PRODUCTION CRITICAL - ARCHITECTURAL ESSENTIAL
+ * 
  * This file verifies that all core OneAgent systems are properly integrated
  * and using canonical types and interfaces throughout the codebase.
  * 
@@ -14,6 +25,7 @@ import { MemoryRecord, MemoryMetadata, UnifiedTimeContext } from '../../coreagen
 import { TriageAgent } from '../../coreagent/agents/specialized/TriageAgent';
 import { ValidationAgent } from '../../coreagent/agents/specialized/ValidationAgent';
 import { TemplateAgent } from '../../coreagent/agents/templates/TemplateAgent';
+import { createUnifiedTimestamp } from '../../coreagent/utils/UnifiedBackboneService';
 
 /**
  * Integration Verification Results
@@ -136,7 +148,7 @@ export class SystemIntegrationVerifier {
       // Test AgentHealthStatus interface consistency
       const testHealth: AgentHealthStatus = {
         status: 'healthy',
-        uptime: Date.now(),
+        uptime: createUnifiedTimestamp().unix, // Fixed: Use unified timestamp instead of Date.now()
         memoryUsage: 45,
         responseTime: 120,
         errorRate: 0.01,
@@ -231,7 +243,7 @@ export class SystemIntegrationVerifier {
           contextUpdated: new Date()
         },
         realTime: {
-          unix: Date.now(),
+          unix: createUnifiedTimestamp().unix, // Fixed: Use unified timestamp instead of Date.now()
           utc: new Date().toISOString(),
           local: new Date().toLocaleString(),
           timezone: 'UTC',

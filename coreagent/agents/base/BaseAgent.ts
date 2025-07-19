@@ -29,6 +29,9 @@ import { ConstitutionalAI, ValidationResult } from './ConstitutionalAI';
 import { BMADElicitationEngine, ElicitationResult } from './BMADElicitationEngine';
 import { PersonalityEngine, PersonalityContext, PersonalityExpression } from '../personality/PersonalityEngine';
 
+// A2A Protocol Integration
+import { OneAgentA2AProtocol, createA2AProtocol, AgentCard, AgentSkill, Message as A2AMessage, Task as A2ATask } from '../../protocols/a2a/A2AProtocol';
+
 export interface AgentConfig {
   id: string;
   name: string;
@@ -94,7 +97,8 @@ export abstract class BaseAgent {
   protected promptConfig?: PromptConfig;
   protected personalityEngine?: PersonalityEngine;
   
-  // A2A Multi-Agent Communication
+  // A2A Protocol Integration
+  protected a2aProtocol?: OneAgentA2AProtocol;
   protected a2aEnabled: boolean = false;
   protected a2aCapabilities: string[] = [];
   protected currentSessions: Set<string> = new Set();
@@ -181,6 +185,11 @@ export abstract class BaseAgent {
 
       // Initialize Personality Engine
       this.personalityEngine = new PersonalityEngine();
+
+      // Initialize A2A Protocol if enabled
+      if (this.config.a2aEnabled !== false) {
+        await this.initializeA2AProtocol();
+      }
 
       this.isInitialized = true;
       console.log(`✅ BaseAgent ${this.config.id} initialized successfully`);
