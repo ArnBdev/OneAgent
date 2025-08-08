@@ -133,60 +133,44 @@ config = MemoryConfig()
 # DATA MODELS (PYDANTIC FOR VALIDATION)
 # ============================================================================
 
-class MemoryMetadata(BaseModel):
-    """Memory metadata with validation - accepts rich contextual data"""
-    # Core system metadata
-    source: Optional[str] = None
-    memoryType: Optional[str] = Field(default="long_term", pattern="^(short_term|long_term|workflow|session)$")
-    agentId: Optional[str] = None
-    workflowId: Optional[str] = None
-    sessionId: Optional[str] = None
-    tags: Optional[List[str]] = None
-    priority: Optional[int] = Field(default=1, ge=1, le=5)
-    expiresAt: Optional[str] = None
+# ============================================================================
+# DATA MODELS (PYDANTIC FOR VALIDATION)
+# ============================================================================
+
+class UnifiedTimestamp(BaseModel):
+    """Unified timestamp structure matching TypeScript implementation"""
+    iso: str
+    unix: int
+    utc: str
+    local: str
+    timezone: str
+    context: str
+    contextual: Dict[str, Any] = {}
+    metadata: Dict[str, Any] = {}
+
+class UnifiedMetadata(BaseModel):
+    """Canonical OneAgent metadata structure matching TypeScript UnifiedMetadata"""
+    id: str
+    type: str
+    version: str
+    temporal: Dict[str, Any]  # Contains created, updated, accessed timestamps
+    system: Dict[str, Any]    # Contains source, component, sessionId, userId, agent info
+    quality: Dict[str, Any]   # Contains score, constitutionalCompliant, validationLevel, confidence
+    content: Dict[str, Any]   # Contains category, tags, sensitivity, relevanceScore, contextDependency
+    relationships: Dict[str, Any] = {}  # Contains parent, children, related, dependencies
+    analytics: Dict[str, Any] = {}      # Contains accessCount, lastAccessPattern, usageContext
     
-    # Extended metadata for rich context (all optional)
-    toolName: Optional[str] = None
-    toolVersion: Optional[str] = None
-    systemVersion: Optional[str] = None
-    createdVia: Optional[str] = None
-    timestamp: Optional[str] = None
-    dateCreated: Optional[str] = None
-    timeCreated: Optional[str] = None
-    epochTime: Optional[int] = None
-    weekday: Optional[str] = None
-    constitutionalCompliant: Optional[bool] = None
-    qualityScore: Optional[float] = None
-    validated: Optional[bool] = None
-    confidenceLevel: Optional[str] = None
-    userId: Optional[str] = None
-    contentLength: Optional[int] = None
-    contentType: Optional[str] = None
-    language: Optional[str] = None
-    wordCount: Optional[int] = None
-    hasCode: Optional[bool] = None
-    hasUrl: Optional[bool] = None
-    parentMemoryId: Optional[str] = None
-    relatedMemories: Optional[List[str]] = None
-    category: Optional[str] = None
-    visibility: Optional[str] = None
-    serverPort: Optional[int] = None
-    serverUrl: Optional[str] = None
-    configurationValid: Optional[bool] = None
-    capabilities: Optional[List[str]] = None
-    
-    # Allow additional arbitrary metadata
     class Config:
-        extra = "allow"  # Allow additional fields not defined in the model
+        extra = "allow"  # Allow additional fields for flexibility
 
 class MemoryCreateRequest(BaseModel):
-    """Memory creation request"""
+    """Memory creation request using canonical UnifiedMetadata"""
     content: str = Field(..., min_length=1, max_length=50000)
     user_id: str = Field(..., min_length=1, max_length=100, alias="userId")
-    metadata: Optional[MemoryMetadata] = None
+    metadata: Optional[UnifiedMetadata] = None
     
     class Config:
-        populate_by_name = True  # Updated for Pydantic V2
+        populate_by_name = True
 
 class MemorySearchRequest(BaseModel):
     """Memory search request"""
@@ -196,7 +180,7 @@ class MemorySearchRequest(BaseModel):
     metadata_filter: Optional[Dict[str, Any]] = None
     
     class Config:
-        populate_by_name = True  # Updated for Pydantic V2
+        populate_by_name = True
 
 class MemoryResponse(BaseModel):
     """Memory response model"""
@@ -227,7 +211,7 @@ class OneAgentMemorySystem:
         # Initialize Gemini with latest models
         genai.configure(api_key=config.gemini_api_key)
         # Use a supported Gemini embedding model for embeddings (see https://ai.google.dev/gemini-api/docs/embeddings)
-        self.embedding_model = "gemini-embedding-exp-03-07"  # Supported for embed_content
+        self.embedding_model = "gemini-embedding-001"  # Latest stable embedding model
         self.llm_model = "gemini-2.5-flash"  # LLM for text/fact extraction (recommended)
         # Initialize LLM processor for intelligent memory management
         self.llm_processor = LLMMemoryProcessor(config.gemini_api_key, self.llm_model)
@@ -284,7 +268,9 @@ class OneAgentMemorySystem:
         try:
             # SIMPLIFIED: Always store the original content as a memory (mem0 canonical pattern)
             # Skip LLM processing unless explicitly requested via metadata
-            use_llm_processing = request.metadata and request.metadata.get('use_llm_processing', False)
+            # Convert metadata to dict if it's a Pydantic model
+            metadata_dict = request.metadata.model_dump() if request.metadata else {}
+            use_llm_processing = metadata_dict.get('use_llm_processing', False)
             
             original_memory_id = await self._create_single_memory(
                 request.content,
@@ -384,26 +370,67 @@ class OneAgentMemorySystem:
             logger.error(f"Memory creation failed: {e}")
             raise HTTPException(status_code=500, detail=f"Memory creation failed: {str(e)}")
     
-    async def _create_single_memory(self, content: str, user_id: str, metadata: Optional[MemoryMetadata], reasoning: str = "") -> str:
-        """Create a single memory entry"""
+    async def _create_single_memory(self, content: str, user_id: str, metadata: Optional[UnifiedMetadata], reasoning: str = "") -> str:
+        """Create a single memory entry using canonical UnifiedMetadata"""
         memory_id = str(uuid4())
         now = datetime.now(timezone.utc).isoformat()
         
-        # Prepare metadata
+        # Extract and process UnifiedMetadata
         if metadata:
             metadata_dict = metadata.model_dump()
-            processed_metadata = {}
-            for k, v in metadata_dict.items():
-                if v is not None:
-                    if isinstance(v, list):
-                        processed_metadata[k] = ",".join(str(item) for item in v)
-                    else:
-                        processed_metadata[k] = v
-        else:
-            processed_metadata = {}
+            # Extract key information from UnifiedMetadata structure
+            processed_metadata = {
+                # Core OneAgent fields
+                "memoryId": metadata_dict.get("id", memory_id),
+                "type": metadata_dict.get("type", "memory"),
+                "version": metadata_dict.get("version", "1.0.0"),
+                
+                # System information
+                "userId": metadata_dict.get("system", {}).get("userId", user_id),
+                "sessionId": metadata_dict.get("system", {}).get("sessionId"),
+                "source": metadata_dict.get("system", {}).get("source", "OneAgent"),
+                "component": metadata_dict.get("system", {}).get("component", "memory-system"),
+                "agentId": metadata_dict.get("system", {}).get("agent", {}).get("id") if isinstance(metadata_dict.get("system", {}).get("agent"), dict) else metadata_dict.get("system", {}).get("agent"),
+                
+                # Content information
+                "category": metadata_dict.get("content", {}).get("category", "general"),
+                "tags": metadata_dict.get("content", {}).get("tags", []),
+                "sensitivity": metadata_dict.get("content", {}).get("sensitivity", "internal"),
+                "relevanceScore": metadata_dict.get("content", {}).get("relevanceScore", 0.5),
+                "contextDependency": metadata_dict.get("content", {}).get("contextDependency", "session"),
+                
+                # Quality information
+                "qualityScore": metadata_dict.get("quality", {}).get("score", 0.8),
+                "constitutionallyValidated": metadata_dict.get("quality", {}).get("constitutionalCompliant", False),
+                "validationLevel": metadata_dict.get("quality", {}).get("validationLevel", "basic"),
+                "confidence": metadata_dict.get("quality", {}).get("confidence", 0.8),
+                
+                # Temporal information
+                "createdAt": metadata_dict.get("temporal", {}).get("created", {}).get("iso", now),
+                "updatedAt": metadata_dict.get("temporal", {}).get("updated", {}).get("iso", now),
+                
+                # Analytics information
+                "accessCount": metadata_dict.get("analytics", {}).get("accessCount", 0),
+                "lastAccessPattern": metadata_dict.get("analytics", {}).get("lastAccessPattern", "created"),
+                "usageContext": metadata_dict.get("analytics", {}).get("usageContext", [])
+            }
             
+            # Convert lists to comma-separated strings for ChromaDB compatibility
+            for key, value in processed_metadata.items():
+                if isinstance(value, list):
+                    processed_metadata[key] = ",".join(str(item) for item in value)
+                elif value is None:
+                    processed_metadata[key] = ""
+        else:
+            processed_metadata = {
+                "userId": user_id,
+                "type": "memory",
+                "category": "general",
+                "source": "OneAgent"
+            }
+            
+        # Add standard processing metadata
         processed_metadata.update({
-            "userId": user_id,
             "createdAt": now,
             "updatedAt": now,
             "memoryType": processed_metadata.get("memoryType", "long_term"),

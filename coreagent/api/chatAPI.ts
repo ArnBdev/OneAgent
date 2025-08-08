@@ -1,19 +1,82 @@
 import { Request, Response } from 'express';
 import { 
-  ConversationMetadata, 
   ContextCategory, 
   PrivacyLevel,
-  ProjectContext 
+  MemorySearchResult,
+  MemoryRecord,
+  AgentType
 } from '../types/oneagent-backbone-types';
-import { AgentFactory } from '../agents/base/AgentFactory';
-import { OneAgentUnifiedTimeService, OneAgentUnifiedMetadataService, createUnifiedTimestamp } from '../utils/UnifiedBackboneService';
+
+// Canonical A2A protocol types
+
+
+interface A2ATextPart {
+  kind: 'text';
+  text: string;
+  metadata?: Record<string, unknown>;
+}
+
+interface A2AFilePart {
+  kind: 'file';
+  file: {
+    name?: string;
+    mimeType?: string;
+    bytes?: string;
+    uri?: string;
+  };
+  metadata?: Record<string, unknown>;
+}
+
+interface A2ADataPart {
+  kind: 'data';
+  data: Record<string, unknown>;
+  metadata?: Record<string, unknown>;
+}
+
+type A2AMessagePart = A2ATextPart | A2AFilePart | A2ADataPart;
+
+interface A2AMessage {
+  role: 'user' | 'agent';
+  parts: A2AMessagePart[];
+  messageId: string;
+  taskId?: string;
+  contextId?: string;
+  metadata?: Record<string, unknown>;
+  extensions?: string[];
+  referenceTaskIds?: string[];
+  kind?: 'message';
+}
+
+interface A2ATask {
+  id: string;
+  contextId: string;
+  status: {
+    state: string;
+    message?: A2AMessage;
+    timestamp?: string;
+  };
+  history?: A2AMessage[];
+  artifacts?: Array<{
+    artifactId: string;
+    name?: string;
+    description?: string;
+    parts: A2AMessagePart[];
+    metadata?: Record<string, unknown>;
+    extensions?: string[];
+  }>;
+  metadata?: Record<string, unknown>;
+  kind: 'task';
+}
 import { OneAgentMemory } from '../memory/OneAgentMemory';
+import { unifiedAgentCommunicationService } from '../utils/UnifiedAgentCommunicationService';
+import { OneAgentUnifiedTimeService, OneAgentUnifiedMetadataService, createUnifiedTimestamp, createUnifiedId } from '../utils/UnifiedBackboneService';
+// Removed unused import for OneAgentMemory
 
 interface ChatRequest {
   message: string;
   userId: string;
   agentType?: string;
-  memoryContext?: any;
+  memoryContext?: MemorySearchResult;
   // New: Support for agent-to-agent communication
   fromAgent?: string;
   toAgent?: string;
@@ -24,10 +87,7 @@ interface ChatResponse {
   response: string;
   agentType: string;
   conversationId?: string;
-  memoryContext?: {
-    relevantMemories: number;
-    searchTerms?: string[];
-  } | undefined;
+  memoryContext?: MemorySearchResult;
   error?: string;
 }
 
@@ -42,7 +102,7 @@ export class ChatAPI {
   private timeService: OneAgentUnifiedTimeService;
   private metadataService: OneAgentUnifiedMetadataService;
   constructor() {
-    this.memoryClient = new OneAgentMemory({});
+    this.memoryClient = OneAgentMemory.getInstance();
     this.timeService = OneAgentUnifiedTimeService.getInstance();
     this.metadataService = OneAgentUnifiedMetadataService.getInstance();
   }
@@ -59,34 +119,106 @@ export class ChatAPI {
       fromAgent?: string;
       toAgent?: string;
       conversationId?: string;
-      memoryContext?: any;
+      memoryContext?: MemorySearchResult;
     } = {}
   ): Promise<ChatResponse> {
     try {
       const conversationId = options.conversationId || this.generateConversationId();
-      
-      // Determine target agent
-      const targetAgentType = options.toAgent || options.agentType || 'core';
-      const targetAgent = await this.selectAgent(targetAgentType, userId);
-      
-      // Process message through the agent's processMessage method
-      await targetAgent.processMessage(content, {
-        userId,
-        requestId: this.generateMessageId(),
+      const contextId = conversationId;
+      const messageId = this.generateMessageId();
+      // Compose canonical A2A message with full NLACS extension fields
+      // --- NLACS: Semantic/NL Analysis ---
+      const semanticAnalysis = {
+        intent: this.analyzeIntentCategory(content),
+        entities: [], // Placeholder: entity extraction not yet implemented
+        sentiment: { score: this.analyzeSentiment(content), magnitude: 1 },
+        complexity: this.analyzeComplexity(content) > 0.5 ? 'complex' : 'simple',
+      };
+
+      // --- NLACS: Constitutional AI Validation ---
+      // Placeholder: Real constitutional validation should be called here
+      const constitutionalValidation = {
+        score: 1.0, // Placeholder: always fully compliant
+        compliance: true,
+        violations: []
+      };
+
+      // --- NLACS: Privacy/Isolation Metadata ---
+      const contextCategory = this.determineContextCategory(content);
+      const privacyLevel = this.determinePrivacyLevel(content, contextCategory);
+      const privacyMetadata = {
+        privacyLevel,
+        userIsolation: privacyLevel === 'confidential',
+        contextCategory
+      };
+
+      // --- NLACS: Emergent Intelligence & Cross-Session Learning ---
+      // Placeholders: To be implemented with future insight synthesis and knowledge graph
+      const emergentIntelligence = {
+        insights: [], // Placeholder: no insights yet
+        crossSessionLinks: [] // Placeholder: no cross-session links yet
+      };
+
+      // --- NLACS: Context Tags ---
+      const contextTags = this.extractContextTags(content);
+
+      const a2aMessage: A2AMessage = {
+        role: options.fromAgent ? 'agent' : 'user',
+        parts: [{ kind: 'text', text: content }],
+        messageId,
+        contextId,
         metadata: {
           conversationId,
           fromAgent: options.fromAgent,
           toAgent: options.toAgent,
-          isAgentToAgent: !!options.fromAgent
+          isAgentToAgent: !!options.fromAgent,
+          agentType: options.agentType || options.toAgent || 'core',
+          nlacs: true, // NLACS extension marker
+          semanticAnalysis, // NLACS: semantic/nl analysis
+          constitutionalValidation, // NLACS: constitutional AI validation
+          privacy: privacyMetadata, // NLACS: privacy/isolation
+          emergentIntelligence, // NLACS: emergent intelligence/cross-session
+          contextTags // NLACS: context tags
+        },
+        extensions: ['https://oneagent.ai/extensions/nlacs'],
+        kind: 'message'
+      };
+
+      // Store message in canonical memory system
+      await this.memoryClient.addMemory({
+        content: JSON.stringify(a2aMessage),
+        userId,
+        metadata: {
+          conversationId,
+          agentType: options.agentType || options.toAgent || 'core',
+          type: 'a2a-message',
+          timestamp: new Date(),
+          role: a2aMessage.role,
+          nlacs: true
         }
-      });      // Store conversation in memory
-      // [CANONICAL FIX] Remove all references to agentResponse for now to allow build to succeed.
-      // await this.storeConversation(content, agentResponse, userId, {
-      //   conversationId,
-      //   ...(options.fromAgent && { fromAgent: options.fromAgent }),
-      //   ...(options.toAgent && { toAgent: options.toAgent }),
-      //   agentType: targetAgentType
-      // });
+      });
+
+      // Canonical agent discovery and communication (A2A)
+      const targetAgentType: AgentType = (options.toAgent as AgentType) || (options.agentType as AgentType) || 'core';
+      const agents = await unifiedAgentCommunicationService.discoverAgents({ capabilities: [targetAgentType] });
+      const toAgentId = agents.length > 0 ? agents[0].id : undefined;
+      if (toAgentId) {
+        await unifiedAgentCommunicationService.sendMessage({
+          sessionId: conversationId,
+          fromAgent: options.fromAgent || userId,
+          toAgent: toAgentId,
+          content,
+          messageType: 'update',
+          metadata: {
+            conversationId,
+            fromAgent: options.fromAgent,
+            toAgent: options.toAgent,
+            isAgentToAgent: !!options.fromAgent,
+            contextId,
+            nlacs: true
+          }
+        });
+      }
 
       // Get memory context if requested
       const memoryContext = options.memoryContext ?
@@ -101,7 +233,6 @@ export class ChatAPI {
 
     } catch (error) {
       console.error('Chat processing error:', error);
-      
       return {
         response: 'I apologize, but I encountered an error processing your message.',
         agentType: 'error',
@@ -114,18 +245,31 @@ export class ChatAPI {
    * Agent-to-Agent communication using the same infrastructure
    */
   async sendAgentMessage(
-    fromAgentType: string,
+    fromAgentId: string,
     toAgentType: string,
     content: string,
     userId: string,
     conversationId?: string
   ): Promise<ChatResponse> {
-      return this.processMessage(content, userId, {
-      fromAgent: fromAgentType,
-      toAgent: toAgentType,
-      conversationId: conversationId || `${fromAgentType}_to_${toAgentType}_${createUnifiedTimestamp().unix}`,
-      agentType: toAgentType
-    });
+    // Discover the target agent by type
+    const agents = await unifiedAgentCommunicationService.discoverAgents({ capabilities: [toAgentType] });
+    const toAgentId = agents.length > 0 ? agents[0].id : undefined;
+    const sessionId = conversationId || `${fromAgentId}_to_${toAgentType}_${createUnifiedTimestamp().unix}`;
+    if (toAgentId) {
+      await unifiedAgentCommunicationService.sendMessage({
+        sessionId,
+        fromAgent: fromAgentId,
+        toAgent: toAgentId,
+        content,
+        messageType: 'update',
+        metadata: { conversationId: sessionId }
+      });
+    }
+    return {
+      response: content,
+      agentType: toAgentType,
+      conversationId: sessionId
+    };
   }
 
   /**
@@ -137,43 +281,42 @@ export class ChatAPI {
     userId: string,
     facilitator: string = 'core'
   ): Promise<ChatResponse[]> {
-    
-    const conversationId = this.generateConversationId();
-    const responses: ChatResponse[] = [];
-
+    const sessionId = this.generateConversationId();
     // Facilitator introduces the meeting
-    const introResponse = await this.sendAgentMessage(
-      facilitator,
-      'team',
-      `Let's begin our team meeting about: ${topic}. I'd like to hear perspectives from each team member.`,
-      userId,
-      conversationId
-    );
-    responses.push(introResponse);
-
+    await unifiedAgentCommunicationService.sendMessage({
+      sessionId,
+      fromAgent: facilitator,
+      toAgent: 'all',
+      content: `Let's begin our team meeting about: ${topic}. I'd like to hear perspectives from each team member.`,
+      messageType: 'update',
+      metadata: { conversationId: sessionId }
+    });
     // Each agent contributes their perspective
     for (const agentType of participantAgentTypes) {
       if (agentType !== facilitator) {
-        const agentResponse = await this.sendAgentMessage(
-          agentType,
-          'team',
-          `As the ${agentType} specialist, here's my perspective on ${topic}...`,
-          userId,
-          conversationId
-        );
-        responses.push(agentResponse);
+        await unifiedAgentCommunicationService.sendMessage({
+          sessionId,
+          fromAgent: agentType,
+          toAgent: 'all',
+          content: `As the ${agentType} specialist, here's my perspective on ${topic}...`,
+          messageType: 'update',
+          metadata: { conversationId: sessionId }
+        });
       }
     }
-
     // Facilitator provides synthesis
-    const synthesisResponse = await this.sendAgentMessage(
-      facilitator,
-      'team',
-      `Based on our discussion, here's my synthesis of the team's perspectives on ${topic}...`,
-      userId,
-      conversationId
-    );
-    responses.push(synthesisResponse);    return responses;
+    await unifiedAgentCommunicationService.sendMessage({
+      sessionId,
+      fromAgent: facilitator,
+      toAgent: 'all',
+      content: `Based on our discussion, here's my synthesis of the team's perspectives on ${topic}...`,
+      messageType: 'update',
+      metadata: { conversationId: sessionId }
+    });
+    // Return a summary response (could be enhanced to fetch message history)
+    return [
+      { response: `Team meeting on ${topic} completed.`, agentType: facilitator, conversationId: sessionId }
+    ];
   }
 
   /**
@@ -190,42 +333,39 @@ export class ChatAPI {
       }
       // Store user message in memory using canonical memory client
       await this.memoryClient.addMemory({
-        id: `user_message_${userId}_${createUnifiedTimestamp().unix}`,
-        userId,
         content: message,
-        conversationId: req.body.conversationId,
-        agentType,
-        type: 'chat-messages'
+        userId,
+        metadata: {
+          conversationId: req.body.conversationId,
+          agentType,
+          type: 'chat-messages',
+          timestamp: new Date(),
+          role: 'user'
+        }
       });
       // Process the message through CoreAgent
       // [CANONICAL FIX] Remove all references to coreAgent for now to allow build to succeed.
       // const agentResponse = await this.coreAgent.processMessage(message, userId);
       // Store agent response in memory
       await this.memoryClient.addMemory({
-        id: `agent_response_${userId}_${createUnifiedTimestamp().unix}`,
-        userId,
         content: message,
-        conversationId: req.body.conversationId,
-        agentType,
-        confidence: 0.8,
-        type: 'chat-messages'
+        userId,
+        metadata: {
+          conversationId: req.body.conversationId,
+          agentType,
+          type: 'chat-messages',
+          timestamp: new Date(),
+          role: 'assistant',
+          confidence: 0.8
+        }
       });
       // Get relevant memory context for response
       const memoryResponse = memoryContext ? 
-        await this.memoryClient.searchMemory({
-          query: message,
-          userId,
-          semanticSearch: true,
-          type: 'chat-messages'
-        }) : null;
-      const relevantMemories = (memoryResponse as any)?.results || (memoryResponse as any)?.memories || (memoryResponse as any)?.entries || [];
+        await this.memoryClient.searchMemory({ query: message, userId, type: 'chat-messages' }) : undefined;
       const response: ChatResponse = {
         response: message,
         agentType: agentType,
-        memoryContext: relevantMemories.length > 0 ? {
-          relevantMemories: relevantMemories.length,
-          searchTerms: [message]
-        } : undefined
+        memoryContext: memoryResponse
       };
       res.json(response);
     } catch (error) {
@@ -245,33 +385,36 @@ export class ChatAPI {
   async getChatHistory(req: Request, res: Response): Promise<void> {
     try {
       const { userId } = req.params;
-      const { limit = 50, offset = 0 } = req.query;
+      const { limit = 50 } = req.query;
       if (!userId) {
         res.status(400).json({ error: 'Missing userId parameter' });
         return;
       }
       // Search for chat messages in memory
-      const memoryResult = await this.memoryClient.searchMemory({
-        query: 'chat message',
-        userId,
-        limit: parseInt(limit as string),
-        type: 'chat-messages'
-      });
-      const memories = (memoryResult as any).results || (memoryResult as any).memories || (memoryResult as any).entries || [];
-      // Filter and format chat messages
-      const chatHistory = memories.length > 0 ? 
+
+      const memoryResult = await this.memoryClient.searchMemory({ query: 'chat message', userId, limit: parseInt(limit as string), type: 'chat-messages' });
+      const memories = memoryResult.results || [];
+      // Parse and format canonical A2A messages from memory
+      const chatHistory = memories.length > 0 ?
         memories
-          .filter((memory: any) => memory.role === 'user' || memory.role === 'assistant')
-          .map((memory: any) => ({
-            id: memory.id,
-            content: memory.content,
-            role: memory.role,
-            timestamp: memory.timestamp,
-            agentType: memory.agentType
-          }))
-          .sort((a: any, b: any) => {
-            const aTime = new Date(a.timestamp).getTime();
-            const bTime = new Date(b.timestamp).getTime();
+          .map((memory: MemoryRecord) => {
+            let parsed: A2AMessage | null = null;
+            try {
+              parsed = JSON.parse(memory.content);
+            } catch {
+              // fallback: treat as plain text
+            }
+            return {
+              id: memory.id,
+              content: parsed && parsed.parts && parsed.parts[0] && parsed.parts[0].kind === 'text' ? parsed.parts[0].text : memory.content,
+              role: parsed?.role || 'user',
+              timestamp: memory.metadata?.timestamp,
+              agentType: (parsed?.metadata && typeof parsed.metadata.agentType === 'string') ? parsed.metadata.agentType : undefined
+            };
+          })
+          .sort((a: { timestamp?: string }, b: { timestamp?: string }) => {
+            const aTime = a.timestamp ? new Date(a.timestamp).getTime() : 0;
+            const bTime = b.timestamp ? new Date(b.timestamp).getTime() : 0;
             return aTime - bTime;
           })
         : [];
@@ -303,9 +446,10 @@ export class ChatAPI {
         return;
       }
 
-      // Note: Mem0Client doesn't have a direct delete by metadata method
-      // This would need to be implemented based on the specific memory system
-      // For now, we'll just return success
+      // TODO: Implement canonical chat history deletion when memory backend supports delete by metadata/session.
+      // Note: Mem0Client doesn't have a direct delete by metadata method yet.
+      // This should be added to OneAgentMemory and UnifiedAgentCommunicationService for full compliance.
+      // For now, we'll just return success.
       console.log(`Chat history clear requested for user: ${userId}`);
 
       res.json({
@@ -327,197 +471,44 @@ export class ChatAPI {
    * Generate unique conversation ID with temporal context
    */
   private generateConversationId(): string {
-    const timestamp = this.timeService.now();
-    return `conv_${timestamp.unix}_${Math.random().toString(36).substr(2, 9)}`;
+    return createUnifiedId('conversation', 'chat');
   }
 
   /**
    * Generate unique message ID
    */
   private generateMessageId(): string {
-    const timestamp = this.timeService.now();
-    return `msg_${timestamp.unix}_${Math.random().toString(36).substr(2, 9)}`;
+    return createUnifiedId('message', 'chat');
   }
   /**
    * Select appropriate agent for conversation
    */
-  private async selectAgent(agentType: string, userId: string): Promise<any> {
-    try {
-      // Use AgentFactory static method to create agent instance
-      const agent = await AgentFactory.createAgent({
-        type: agentType as any,
-        id: `${agentType}_${userId}`,
-        name: `${agentType} Agent for ${userId}`,
-        memoryEnabled: true,
-        aiEnabled: true
-      });
-      
-      return agent;
-    } catch (error) {
-      // Fallback to CoreAgent
-      console.warn(`Failed to create ${agentType} agent, falling back to CoreAgent:`, error);
-      // [CANONICAL FIX] Remove all references to coreAgent for now to allow build to succeed.
-      // return this.coreAgent;
-    }
-  }
+
 
   /**
    * Store conversation with full backbone metadata and context categorization
    */
-  private async storeConversation(
-    userMessage: string, 
-    agentResponse: any, 
-    userId: string, 
-    options: {
-      conversationId: string;
-      fromAgent?: string;
-      toAgent?: string;
-      agentType: string;
-      contextCategory?: ContextCategory;
-      privacyLevel?: PrivacyLevel;
-      projectContext?: ProjectContext;
-    }
-  ): Promise<void> {
-    
-    const timestamp = this.timeService.now();
-    const context = this.timeService.getContext();
-    
-    // Determine context category based on conversation content
-    const contextCategory = options.contextCategory || this.determineContextCategory(userMessage);
-    const privacyLevel = options.privacyLevel || this.determinePrivacyLevel(userMessage, contextCategory);
-      // Create comprehensive conversation metadata
-    const conversationMetadata: ConversationMetadata = {
-      messageAnalysis: {
-        communicationStyle: this.analyzeCommunicationStyle(userMessage),
-        expertiseLevel: this.analyzeExpertiseLevel(userMessage),
-        intentCategory: this.analyzeIntentCategory(userMessage),
-        contextTags: this.extractContextTags(userMessage),
-        contextCategory,
-        privacyLevel,
-        sentimentScore: this.analyzeSentiment(userMessage),
-        complexityScore: this.analyzeComplexity(userMessage),
-        urgencyLevel: this.analyzeUrgency(userMessage)
-      },
-      responseAnalysis: {
-        qualityScore: agentResponse.metadata?.qualityScore || 85,
-        helpfulnessScore: agentResponse.metadata?.helpfulnessScore || 80,
-        accuracyScore: agentResponse.metadata?.accuracyScore || 85,
-        constitutionalCompliance: agentResponse.metadata?.constitutionalCompliance || 95,
-        responseTimeMs: agentResponse.metadata?.responseTime || 0,
-        tokensUsed: agentResponse.metadata?.tokensUsed || 0
-      },
-      userId,
-      sessionId: options.conversationId, // Use conversationId as sessionId for continuity
-      conversationId: options.conversationId,
-      timestamp: new Date(timestamp.unix),
-      ...(options.projectContext && { projectContext: options.projectContext })
-    };// Create unified metadata for both user message and agent response
-    const userMessageMetadata = this.metadataService.create('conversation_message', 'chat_api', {
-      system: {
-        source: 'chat_api',
-        component: 'chat_api',
-        sessionId: options.conversationId,
-        userId,
-        agent: options.fromAgent || 'user'
-      },
-      content: {
-        category: contextCategory.toLowerCase(),        tags: [
-          'user_message',
-          'conversation',
-          options.agentType,
-          ...(options.fromAgent ? ['agent_to_agent'] : ['user_to_agent']),
-          ...(conversationMetadata.messageAnalysis?.contextTags || [])
-        ],        sensitivity: privacyLevel === 'public' ? 'public' : 
-                    privacyLevel === 'internal' ? 'internal' : 'restricted',
-        relevanceScore: 0.8,
-        contextDependency: 'session'
-      }
-    });    const agentResponseMetadata = this.metadataService.create('conversation_response', 'chat_api', {
-      system: {
-        source: 'chat_api',
-        component: 'chat_api',
-        sessionId: options.conversationId,
-        userId,
-        agent: options.toAgent || options.agentType
-      },
-      content: {
-        category: contextCategory.toLowerCase(),        tags: [
-          'agent_response',
-          'conversation',
-          options.agentType,
-          ...(options.fromAgent ? ['agent_to_agent'] : ['agent_to_user']),
-          ...(conversationMetadata.messageAnalysis?.contextTags || [])
-        ],
-        sensitivity: privacyLevel === 'public' ? 'public' : 
-                    privacyLevel === 'internal' ? 'internal' : 'restricted',
-        relevanceScore: 0.85,
-        contextDependency: 'session'
-      }
-    });
-
-    try {
-      // Store user message with full metadata
-      await this.memoryClient.addMemory({
-        id: `user_message_${userId}_${createUnifiedTimestamp().unix}`,
-        userId,
-        content: userMessage,
-        conversationId: options.conversationId,
-        type: 'chat-messages'
-      });
-
-      // Store agent response with full metadata
-      await this.memoryClient.addMemory({
-        id: `agent_response_${userId}_${createUnifiedTimestamp().unix}`,
-        userId,
-        content: agentResponse.content,
-        conversationId: options.conversationId,
-        type: 'chat-messages'
-      });
-
-    } catch (error) {
-      console.error('Failed to store conversation with backbone metadata:', error);
-      
-      // Fallback to basic storage
-      await this.memoryClient.addMemory({
-        id: `fallback_user_message_${userId}_${createUnifiedTimestamp().unix}`,
-        userId,
-        content: userMessage,
-        conversationId: options.conversationId,
-        type: 'chat-messages'
-      });
-
-      await this.memoryClient.addMemory({
-        id: `fallback_agent_response_${userId}_${createUnifiedTimestamp().unix}`,
-        userId,
-        content: agentResponse.content,
-        conversationId: options.conversationId,
-        type: 'chat-messages'
-      });
-    }
-  }
+  // Legacy storeConversation method removed for canonical compliance and codebase clarity.
 
   /**
    * Get enriched memory context for conversations
    */
-  private async getMemoryContext(query: string, userId: string, limit: number = 5): Promise<any> {
+  private async getMemoryContext(query: string, userId: string, limit: number = 5): Promise<MemorySearchResult> {
     try {
-      const memoryResult = await this.memoryClient.searchMemory({
-        query,
-        userId,
-        limit,
-        type: 'chat-messages'
-      });
-      return {
-        relevantMemories: memoryResult.results?.length || 0,
-        searchTerms: [query],
-        memories: memoryResult.results || []
-      };
+      const memoryResult = await this.memoryClient.searchMemory({ query, userId, limit, type: 'chat-messages' });
+      return memoryResult;
     } catch (error) {
       console.error('Failed to get memory context:', error);
       return {
-        relevantMemories: 0,
-        searchTerms: [query],
-        memories: []
+        results: [],
+        totalFound: 0,
+        searchTime: 0,
+        averageRelevance: 0,
+        averageQuality: 0,
+        constitutionalCompliance: 1,
+        queryContext: [],
+        suggestedRefinements: [],
+        relatedQueries: []
       };
     }
   }

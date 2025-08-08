@@ -1,10 +1,11 @@
 // Gemini Model Registry for OneAgent
-// MCP 2025-06-18 compliant, modular, and extensible
-// Canonical Gemini model list based on Google official documentation (2025-06)
-// See: https://ai.google.dev/pricing and https://ai.google.dev/models/gemini
+// Updated 2025-01-07 with latest Gemini 2.5 and stable embedding models
+// Constitutional AI compliant, modular, and extensible
+// Based on Google AI documentation: https://ai.google.dev/gemini-api/docs/models
+// Embedding models: https://ai.google.dev/gemini-api/docs/embeddings
 
 export interface GeminiModel {
-  name: string; // Canonical model name (e.g., 'gemini-2.5-pro', 'gemini-embedding-exp-03-07')
+  name: string; // Canonical model name (e.g., 'gemini-2.5-pro', 'gemini-embedding-001')
   tier: 'pro' | 'flash' | 'lite' | 'embedding';
   type: 'llm' | 'embedding';
   description: string;
@@ -12,7 +13,13 @@ export interface GeminiModel {
   inputLimitTokens?: number;
   outputLimitTokens?: number;
   version?: string;
-  [key: string]: any; // For extensibility
+  thinkingEnabled?: boolean; // For models with thinking capabilities
+  outputDimensions?: number[]; // For embedding models
+  experimental?: boolean;
+  deprecated?: boolean;
+  replacedBy?: string;
+  lastUpdate?: string;
+  recommended?: boolean;
 }
 
 export const GEMINI_MODELS: Record<string, GeminiModel> = {
@@ -20,42 +27,72 @@ export const GEMINI_MODELS: Record<string, GeminiModel> = {
     name: 'gemini-2.5-pro',
     tier: 'pro',
     type: 'llm',
-    description: 'Gemini 2.5 Pro (latest, full context, best for complex tasks)',
+    description: 'Gemini 2.5 Pro (latest stable, enhanced thinking and reasoning, multimodal understanding)',
     pricingUSDper1Ktokens: 1.00,
     inputLimitTokens: 1048576,
     outputLimitTokens: 8192,
-    version: '2.5'
+    version: '2.5',
+    thinkingEnabled: true
   },
   'gemini-2.5-flash': {
     name: 'gemini-2.5-flash',
     tier: 'flash',
     type: 'llm',
-    description: 'Gemini 2.5 Flash (ultra-fast, cost-effective, lower latency)',
+    description: 'Gemini 2.5 Flash (adaptive thinking, cost efficiency, best price-performance)',
     pricingUSDper1Ktokens: 0.35,
     inputLimitTokens: 1048576,
     outputLimitTokens: 8192,
-    version: '2.5-flash'
+    version: '2.5-flash',
+    thinkingEnabled: true
   },
-  'gemini-2.5-lite': {
-    name: 'gemini-2.5-lite',
+  'gemini-2.5-flash-lite': {
+    name: 'gemini-2.5-flash-lite',
     tier: 'lite',
     type: 'llm',
-    description: 'Gemini 2.5 Lite (lightweight, lowest cost, for simple tasks)',
+    description: 'Gemini 2.5 Flash-Lite (most cost-efficient, high throughput, real-time use cases)',
     pricingUSDper1Ktokens: 0.10,
     inputLimitTokens: 32768,
     outputLimitTokens: 4096,
-    version: '2.5-lite'
+    version: '2.5-flash-lite'
   },
+  'gemini-2.0-flash': {
+    name: 'gemini-2.0-flash',
+    tier: 'flash',
+    type: 'llm',
+    description: 'Gemini 2.0 Flash (next generation features, speed, realtime streaming)',
+    pricingUSDper1Ktokens: 0.35,
+    inputLimitTokens: 1048576,
+    outputLimitTokens: 8192,
+    version: '2.0-flash',
+    experimental: false
+  },
+  'gemini-embedding-001': {
+    name: 'gemini-embedding-001',
+    tier: 'embedding',
+    type: 'embedding',
+    description: 'Gemini Embedding 001 (latest stable, Matryoshka Representation Learning, flexible dimensions)',
+    pricingUSDper1Ktokens: 0.13,
+    inputLimitTokens: 2048,
+    outputLimitTokens: 3072, // Max embedding dimension
+    outputDimensions: [128, 256, 512, 768, 1536, 2048, 3072],
+    experimental: false,
+    version: '001',
+    lastUpdate: '2025-06',
+    recommended: true
+  },
+  // Legacy models for backward compatibility
   'gemini-embedding-exp-03-07': {
     name: 'gemini-embedding-exp-03-07',
     tier: 'embedding',
     type: 'embedding',
-    description: 'Gemini Embedding Experimental (SOTA, multi-lingual/code/retrieval, elastic output, March 2025)',
-    pricingUSDper1Ktokens: 0.13, // Use latest pricing if available
+    description: 'Gemini Embedding Experimental (DEPRECATED - use gemini-embedding-001)',
+    pricingUSDper1Ktokens: 0.13,
     inputLimitTokens: 8192,
-    outputLimitTokens: 8192, // Embedding output is vector, not tokens
+    outputLimitTokens: 8192,
     outputDimensions: [3072, 1536, 768],
     experimental: true,
+    deprecated: true,
+    replacedBy: 'gemini-embedding-001',
     version: 'exp-03-07',
     lastUpdate: '2025-03'
   },
@@ -63,15 +100,16 @@ export const GEMINI_MODELS: Record<string, GeminiModel> = {
     name: 'text-embedding-004',
     tier: 'embedding',
     type: 'embedding',
-    description: 'Text Embedding 004 (SOTA, best for new projects, April 2024)',
-    pricingUSDper1Ktokens: 0.13, // Use latest pricing if available
+    description: 'Text Embedding 004 (legacy model - use gemini-embedding-001 for new projects)',
+    pricingUSDper1Ktokens: 0.13,
     inputLimitTokens: 2048,
-    outputLimitTokens: 2048, // Embedding output is vector, not tokens
+    outputLimitTokens: 2048,
     outputDimensions: [768],
     experimental: false,
+    deprecated: true,
+    replacedBy: 'gemini-embedding-001',
     version: '004',
-    lastUpdate: '2024-04',
-    recommended: true
+    lastUpdate: '2024-04'
   }
 };
 
@@ -90,13 +128,17 @@ export function getModelForAgentType(agentType: string): GeminiModel {
   // Example mapping, update as needed for your agent taxonomy
   switch (agentType) {
     case 'advanced':
-      return GEMINI_MODELS['gemini-advanced'];
+      return GEMINI_MODELS['gemini-2.5-pro'];
     case 'flash':
       return GEMINI_MODELS['gemini-2.5-flash'];
     case 'pro':
       return GEMINI_MODELS['gemini-2.5-pro'];
+    case 'lite':
+      return GEMINI_MODELS['gemini-2.5-flash-lite'];
+    case 'embedding':
+      return GEMINI_MODELS['gemini-embedding-001'];
     default:
-      return GEMINI_MODELS['gemini-2.5-pro'];
+      return GEMINI_MODELS['gemini-2.5-flash']; // Default to best price-performance
   }
 }
 
@@ -105,4 +147,29 @@ export function getModelForAgentType(agentType: string): GeminiModel {
  */
 export function listGeminiModels(): GeminiModel[] {
   return Object.values(GEMINI_MODELS);
+}
+
+/**
+ * Get the recommended replacement for deprecated models.
+ */
+export function getRecommendedReplacement(modelName: string): GeminiModel {
+  const model = GEMINI_MODELS[modelName];
+  if (model?.deprecated && model.replacedBy) {
+    return GEMINI_MODELS[model.replacedBy];
+  }
+  return model || GEMINI_MODELS['gemini-2.5-flash'];
+}
+
+/**
+ * Get all non-deprecated models for production use.
+ */
+export function getProductionModels(): GeminiModel[] {
+  return Object.values(GEMINI_MODELS).filter(model => !model.deprecated);
+}
+
+/**
+ * Get the latest embedding model (recommended for new implementations).
+ */
+export function getLatestEmbeddingModel(): GeminiModel {
+  return GEMINI_MODELS['gemini-embedding-001'];
 }

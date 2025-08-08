@@ -13,6 +13,7 @@
  * - memoryIntelligence.ts
  * - memoryBridge.ts
  * - oneagent-mcp-copilot.ts
+ * - ConstitutionalAIValidator.ts (BMAD-GENERATED)
  * 
  * @version 1.0.0 - PRODUCTION TYPES ONLY
  * @date 2025-06-19
@@ -374,7 +375,7 @@ export interface MemoryMetadata {
 export interface MemoryRecord {
   id: string;
   content: string;
-  metadata: MemoryMetadata;
+  metadata: UnifiedMetadata;
   relatedMemories: string[];
   conversationId?: string;
   parentMemory?: string;
@@ -440,7 +441,7 @@ export interface MemoryAnalytics {
 }
 
 export interface IMemoryClient {
-  store(content: string, metadata: MemoryMetadata): Promise<string>;
+  store(content: string, metadata: UnifiedMetadata): Promise<string>;
   retrieve(query: string, options?: MemorySearchOptions): Promise<MemorySearchResult>;
   update(id: string, changes: Partial<MemoryRecord>): Promise<boolean>;
   delete(id: string): Promise<boolean>;
@@ -715,27 +716,88 @@ export interface IntelligenceInsight {
 // ========================================
 // AGENT SYSTEM TYPES
 // ========================================
+// ========================================
+// CANONICAL A2A PROTOCOL TYPE
+// ========================================
+
+export interface OneAgentA2AProtocol {
+  protocolId: string;
+  sessionId: SessionId;
+  agents: AgentId[];
+  messages: A2AMessage[];
+  createdAt: UnifiedTimestamp;
+  status: 'active' | 'inactive' | 'concluded';
+  metadata?: Record<string, unknown>;
+}
 
 export interface UnifiedAgentCommunicationInterface {
-    registerAgent(agent: AgentRegistration): Promise<AgentId>;
-    discoverAgents(filter: AgentFilter): Promise<AgentCard[]>;
-    createSession(sessionConfig: SessionConfig): Promise<SessionId>;
+    /**
+     * Register an agent with health/availability and metadata
+     */
+    registerAgent(agent: AgentRegistration & { health?: AgentHealthStatus; status?: 'online' | 'offline' | 'busy'; }): Promise<AgentId>;
+
+    /**
+     * Discover agents with advanced filtering (role, health, capabilities, etc.)
+     */
+    discoverAgents(filter: AgentFilter & { health?: 'healthy' | 'degraded' | 'critical' | 'offline'; role?: string; }): Promise<AgentCardWithHealth[]>;
+
+    /**
+     * Create a multiagent session (NLACS-enabled)
+     */
+    createSession(sessionConfig: SessionConfig & { context?: Record<string, unknown>; nlacs?: boolean }): Promise<SessionId>;
+
     joinSession(sessionId: SessionId, agentId: AgentId): Promise<boolean>;
     leaveSession(sessionId: SessionId, agentId: AgentId): Promise<boolean>;
-    sendMessage(message: AgentMessage): Promise<MessageId>;
-    broadcastMessage(message: AgentMessage): Promise<MessageId>;
+
+    /**
+     * Send a message (A2A/NLACS-compatible)
+     */
+    sendMessage(message: AgentMessage & { nlacs?: boolean }): Promise<MessageId>;
+
+    broadcastMessage(message: AgentMessage & { nlacs?: boolean }): Promise<MessageId>;
+
     getMessageHistory(sessionId: SessionId, limit?: number): Promise<A2AMessage[]>;
     getSessionInfo(sessionId: SessionId): Promise<SessionInfo | null>;
+
+    /**
+     * Event-driven coordination: subscribe to agent lifecycle and communication events
+     */
+    on(event: AgentCommunicationEvent, handler: (payload: unknown) => void): void;
+
+    /**
+     * Extensibility: register new orchestration logic, protocols, or agent types
+     */
+    registerExtension(extension: AgentCommunicationExtension): void;
 }
+
+export type AgentCommunicationEvent =
+    | 'agent_registered'
+    | 'agent_deregistered'
+    | 'agent_status_changed'
+    | 'session_created'
+    | 'session_joined'
+    | 'session_left'
+    | 'message_sent'
+    | 'message_received'
+    | 'broadcast'
+    | 'health_changed'
+    | 'nlacs_event';
+
+export interface AgentCommunicationExtension {
+    name: string;
+    description?: string;
+    apply: (service: UnifiedAgentCommunicationInterface) => void;
+}
+
+// CANONICAL AGENT REPRESENTATION - Single source of truth
+export type AgentId = string;
 
 export interface AgentRegistration {
     id?: string;
     name: string;
     capabilities: string[];
-    metadata?: Record<string, any>;
+    metadata?: Record<string, unknown>;
 }
-
-export type AgentId = string;
 
 export interface AgentFilter {
     capabilities?: string[];
@@ -748,7 +810,14 @@ export interface AgentCard {
     name: string;
     capabilities: string[];
     status: 'online' | 'offline' | 'busy';
+    health?: AgentHealthStatus; // Optional to resolve forward reference
+    role?: string;
+    lastActive?: Date;
+    metadata?: Record<string, unknown>;
 }
+
+// DEPRECATED: AgentCardWithHealth is now just AgentCard (health included by default)
+export type AgentCardWithHealth = AgentCard;
 
 export interface AgentMessage {
     sessionId: SessionId;
@@ -756,7 +825,7 @@ export interface AgentMessage {
     toAgent?: AgentId; // Optional for broadcast
     content: string;
     messageType?: 'update' | 'question' | 'decision' | 'action' | 'insight';
-    metadata?: Record<string, any>;
+    metadata?: Record<string, unknown>;
 }
 
 export type MessageId = string;
@@ -766,7 +835,7 @@ export interface SessionConfig {
     participants: AgentId[];
     mode?: 'collaborative' | 'competitive' | 'hierarchical';
     topic: string;
-    metadata?: Record<string, any>;
+    metadata?: Record<string, unknown>;
 }
 
 export type SessionId = string;
@@ -787,7 +856,7 @@ export interface A2AAgent {
     capabilities: string[];
     lastActive: UnifiedTimestamp;
     status: 'online' | 'offline' | 'busy';
-    metadata: Record<string, any>;
+    metadata: Record<string, unknown>;
 }
 
 export interface A2AGroupSession {
@@ -799,7 +868,7 @@ export interface A2AGroupSession {
     messages: A2AMessage[];
     createdAt: UnifiedTimestamp;
     status: 'active' | 'inactive' | 'concluded';
-    metadata: Record<string, any>;
+    metadata: Record<string, unknown>;
 }
 
 export interface A2AMessage {
@@ -810,7 +879,7 @@ export interface A2AMessage {
     message: string;
     messageType: 'update' | 'question' | 'decision' | 'action' | 'insight';
     timestamp: UnifiedTimestamp;
-    metadata?: Record<string, any>;
+    metadata?: Record<string, unknown>;
 }
 
 export interface AgentResponse {
@@ -915,6 +984,282 @@ export interface NLACSCapability {
 }
 
 // ========================================
+// PHASE 3: ENHANCED COORDINATION TYPES
+// ========================================
+
+export interface EnhancedSessionConfig extends SessionConfig {
+  communicationMode: 'A2A' | 'NLACS' | 'hybrid';
+  discussionType: 'collaborative' | 'debate' | 'consensus' | 'brainstorming';
+  facilitationMode: 'moderated' | 'democratic' | 'emergent';
+  insightTargets: string[]; // Expected breakthrough areas
+  consensusThreshold: number; // 0.0-1.0 for agreement level
+  qualityTargets: {
+    breakthroughInsights: number; // Target number of insights
+    consensusTime: number; // Target time to reach consensus (minutes)
+    participationRate: number; // Minimum participation percentage
+  };
+  businessContext?: BusinessContext;
+}
+
+export interface BusinessContext {
+  industry: string;
+  stakeholders: string[];
+  timeline: string;
+  budget?: string;
+  riskTolerance: 'low' | 'medium' | 'high';
+  innovationLevel: 'incremental' | 'disruptive' | 'revolutionary';
+  marketContext: string[];
+  competitiveFactors: string[];
+}
+
+export interface ConsensusResult {
+  agreed: boolean;
+  consensusLevel: number; // 0.0-1.0
+  supportingAgents: AgentId[];
+  objectingAgents: AgentId[];
+  neutralAgents: AgentId[];
+  finalDecision: string;
+  compromisesReached: string[];
+  timeToConsensus: number; // minutes
+  qualityScore: number;
+  constitutionallyValidated: boolean;
+  metadata: {
+    discussionSummary: string;
+    keyArguments: { for: string[]; against: string[]; neutral: string[] };
+    breakthroughMoments: string[];
+    synthesizedInsights: EmergentInsight[];
+  };
+}
+
+export interface AgreementAnalysis {
+  overallAgreement: number; // 0.0-1.0
+  topicAgreementBreakdown: Record<string, number>;
+  agentAgreementMatrix: Record<AgentId, Record<AgentId, number>>;
+  conflictPoints: ConflictPoint[];
+  consensusOpportunities: ConsensusOpportunity[];
+  compromiseSuggestions: CompromiseSolution[];
+}
+
+export interface ConflictPoint {
+  id: string;
+  topic: string;
+  conflictingViews: ViewPoint[];
+  severity: 'minor' | 'moderate' | 'major' | 'critical';
+  resolutionStrategies: string[];
+  affectedAgents: AgentId[];
+}
+
+export interface ViewPoint {
+  agentId: AgentId;
+  position: string;
+  reasoning: string[];
+  evidence: string[];
+  confidence: number;
+  flexibility: number; // 0.0-1.0 willingness to compromise
+}
+
+export interface ConsensusOpportunity {
+  id: string;
+  topic: string;
+  agreementLevel: number;
+  requiredActions: string[];
+  timeframe: string;
+  likelihood: number;
+}
+
+export interface CompromiseSolution {
+  id: string;
+  description: string;
+  affectedParties: AgentId[];
+  tradeoffs: Record<string, string>;
+  benefits: string[];
+  risks: string[];
+  implementationSteps: string[];
+  acceptanceScore: number;
+}
+
+export interface MessagePriority {
+  level: 'low' | 'normal' | 'high' | 'urgent' | 'critical';
+  reasoning: string;
+  deadline?: Date;
+  dependencies: string[];
+  impactAssessment: 'local' | 'session' | 'workflow' | 'system';
+}
+
+export interface SessionCoherence {
+  coherenceScore: number; // 0.0-1.0
+  topicDrift: number; // How far discussion has drifted from original topic
+  participationBalance: Record<AgentId, number>; // Participation percentage per agent
+  insightGeneration: number; // Rate of insight generation
+  discussionQuality: number; // Overall quality of discussion
+  issues: CoherenceIssue[];
+  recommendations: string[];
+}
+
+export interface CoherenceIssue {
+  type: 'topic_drift' | 'uneven_participation' | 'circular_discussion' | 'low_quality' | 'conflict_escalation';
+  severity: 'minor' | 'moderate' | 'major';
+  description: string;
+  affectedAgents: AgentId[];
+  suggestedActions: string[];
+}
+
+export interface FacilitationRules {
+  maxMessageLength: number;
+  minParticipationRate: number; // Percentage
+  topicDriftThreshold: number;
+  consensusTimeLimit: number; // minutes
+  conflictResolutionMode: 'immediate' | 'deferred' | 'democratic';
+  insightSynthesisInterval: number; // minutes
+  qualityThreshold: number; // Minimum message quality score
+  constitutionalValidation: boolean;
+}
+
+export interface BusinessWorkflowTemplate {
+  id: string;
+  name: string;
+  description: string;
+  phases: WorkflowPhase[];
+  requiredAgentTypes: AgentType[];
+  estimatedDuration: number; // hours
+  complexityLevel: 'simple' | 'moderate' | 'complex' | 'expert';
+  businessValue: 'operational' | 'strategic' | 'transformational';
+  successMetrics: string[];
+  riskFactors: string[];
+}
+
+export interface WorkflowPhase {
+  id: string;
+  name: string;
+  description: string;
+  objectives: string[];
+  requiredAgents: AgentType[];
+  estimatedDuration: number; // minutes
+  prerequisites: string[];
+  deliverables: string[];
+  qualityGates: string[];
+  facilitationMode: 'structured' | 'organic' | 'guided';
+  communicationMode: 'A2A' | 'NLACS' | 'hybrid';
+}
+
+export interface WorkflowInstance {
+  id: string;
+  templateId: string;
+  name: string;
+  currentPhase: string;
+  status: 'planning' | 'executing' | 'completed' | 'paused' | 'failed';
+  participants: AgentId[];
+  startTime: Date;
+  endTime?: Date;
+  progress: WorkflowProgress;
+  sessions: SessionId[];
+  outcomes: BusinessOutcome[];
+  metadata: Record<string, unknown>;
+}
+
+export interface WorkflowProgress {
+  overallProgress: number; // 0.0-1.0
+  phaseProgress: Record<string, number>;
+  completedObjectives: string[];
+  activeObjectives: string[];
+  blockedObjectives: string[];
+  qualityScore: number;
+  riskLevel: 'low' | 'medium' | 'high' | 'critical';
+  timeToCompletion: number; // estimated hours
+  resourceUtilization: Record<AgentType, number>;
+}
+
+export interface BusinessOutcome {
+  id: string;
+  type: 'decision' | 'insight' | 'plan' | 'solution' | 'optimization' | 'innovation';
+  title: string;
+  description: string;
+  businessValue: 'operational' | 'strategic' | 'transformational';
+  impact: 'low' | 'medium' | 'high' | 'revolutionary';
+  implementationComplexity: 'simple' | 'moderate' | 'complex' | 'expert';
+  timeToImplement: number; // days
+  contributors: AgentId[];
+  evidenceBase: string[];
+  riskAssessment: BusinessRisk[];
+  successMetrics: string[];
+  createdAt: Date;
+  validated: boolean;
+  constitutionallyCompliant: boolean;
+}
+
+export interface BusinessRisk {
+  id: string;
+  type: 'technical' | 'financial' | 'operational' | 'market' | 'regulatory' | 'competitive';
+  severity: 'low' | 'medium' | 'high' | 'critical';
+  probability: number; // 0.0-1.0
+  impact: string;
+  mitigationStrategies: string[];
+  contingencyPlans: string[];
+  monitoringIndicators: string[];
+}
+
+export interface BreakthroughInsight extends EmergentInsight {
+  businessImpact: 'incremental' | 'significant' | 'transformational' | 'revolutionary';
+  noveltyScore: number; // 0.0-1.0
+  marketAdvantage: 'none' | 'minor' | 'significant' | 'game_changing';
+  implementationFeasibility: 'immediate' | 'short_term' | 'long_term' | 'research_needed';
+  competitiveImplications: string[];
+  resourceRequirements: string[];
+  riskProfile: BusinessRisk[];
+}
+
+export interface NovelConnection {
+  id: string;
+  sourceIds: string[]; // Message or memory IDs
+  connectionType: 'causal' | 'correlation' | 'analogy' | 'synthesis' | 'pattern' | 'opposition';
+  description: string;
+  insights: string[];
+  businessRelevance: number; // 0.0-1.0
+  noveltyScore: number; // 0.0-1.0
+  actionableImplications: string[];
+  evidenceStrength: number; // 0.0-1.0
+  createdAt: Date;
+  validatedBy: AgentId[];
+}
+
+export interface SynthesizedInsight {
+  id: string;
+  title: string;
+  content: string;
+  sourceAgents: AgentId[];
+  perspectivesSynthesized: number;
+  synthesisMethod: 'consensus' | 'integration' | 'abstraction' | 'contradiction_resolution';
+  qualityScore: number;
+  noveltyScore: number;
+  businessValue: number;
+  implementationComplexity: number;
+  evidenceBase: string[];
+  contradictions: string[];
+  assumptions: string[];
+  limitations: string[];
+  recommendedActions: string[];
+  createdAt: Date;
+  constitutionallyValidated: boolean;
+}
+
+export interface AgentContribution {
+  agentId: AgentId;
+  messageIds: MessageId[];
+  keyPoints: string[];
+  perspective: string;
+  expertise: string[];
+  uniqueInsights: string[];
+  supportingEvidence: string[];
+  qualityScore: number;
+  originalityScore: number;
+  collaborationRating: number;
+}
+
+// ========================================
+// END PHASE 3 TYPES
+// ========================================
+
+// ========================================
 // ONEAGENT ENGINE TYPES
 // ========================================
 
@@ -996,6 +1341,8 @@ export interface ConstitutionalPrinciple {
   weight: number;
   isViolated: boolean;
   confidence: number;
+  validationRule: string;
+  severityLevel: 'low' | 'medium' | 'high' | 'critical';
 }
 
 export interface ToolResult {
@@ -1041,13 +1388,18 @@ export type IdType =
   | 'agent'
   | 'session'
   | 'message'
+  | 'validation'
+  | 'constitutional-validation'
   | 'conversation'
   | 'task'
   | 'workflow'
   | 'intelligence'
   | 'evolution'
   | 'validation'
-  | 'system';
+  | 'system'
+  | 'context'
+  | 'discussion'
+  | 'knowledge';
 
 export interface UnifiedIdConfig {
   type: IdType;

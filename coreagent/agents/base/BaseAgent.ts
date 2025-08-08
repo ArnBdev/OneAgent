@@ -12,25 +12,22 @@
  */
 
 import { OneAgentMemory } from '../../memory/OneAgentMemory';
-import { oneAgentConfig } from '../../config/index';
-import { OneAgentUnifiedBackbone } from '../../utils/UnifiedBackboneService';
+// import { UnifiedBackboneService } from '../../utils/UnifiedBackboneService';
+import { OneAgentUnifiedBackbone, generateUnifiedId } from '../../utils/UnifiedBackboneService';
 import { SmartGeminiClient } from '../../tools/SmartGeminiClient';
-import { GeminiClient } from '../../tools/geminiClient';
 import { User } from '../../types/user';
 import { MemoryIntelligence } from '../../intelligence/memoryIntelligence';
-import { ConversationData, IntelligenceInsight, MemorySearchResult, SessionContext, NLACSMessage, EmergentInsight, ConversationThread, NLACSCapability, MemoryRecord, UnifiedMetadata } from '../../types/oneagent-backbone-types';
+import { NLACSMessage, EmergentInsight, ConversationThread, NLACSCapability, MemoryRecord, UnifiedMetadata, A2AMessage, AgentId, SessionId, MessageId } from '../../types/oneagent-backbone-types';
+import { unifiedAgentCommunicationService } from '../../utils/UnifiedAgentCommunicationService';
 import { 
   PromptEngine, 
   PromptConfig, 
-  AgentPersona,
-  ConstitutionalPrinciple
+  AgentPersona
 } from './PromptEngine';
-import { ConstitutionalAI, ValidationResult } from './ConstitutionalAI';
-import { BMADElicitationEngine, ElicitationResult } from './BMADElicitationEngine';
-import { PersonalityEngine, PersonalityContext, PersonalityExpression } from '../personality/PersonalityEngine';
+import { ConstitutionalAI } from './ConstitutionalAI';
+import { BMADElicitationEngine } from './BMADElicitationEngine';
+import { PersonalityEngine } from '../personality/PersonalityEngine';
 
-// A2A Protocol Integration
-import { OneAgentA2AProtocol, createA2AProtocol, AgentCard, AgentSkill, Message as A2AMessage, Task as A2ATask } from '../../protocols/a2a/A2AProtocol';
 
 export interface AgentConfig {
   id: string;
@@ -39,22 +36,19 @@ export interface AgentConfig {
   capabilities: string[];
   memoryEnabled: boolean;
   aiEnabled: boolean;
-  // A2A system configuration
-  a2aEnabled?: boolean;
-  a2aCapabilities?: string[];
 }
 
 export interface AgentContext {
   user: User;
   sessionId: string;
   conversationHistory: Message[];
-  memoryContext?: any[];
+  memoryContext?: unknown[];
   // enrichedContext?: any;  // Optional enriched context (interface removed)
   
   // Enhanced context for inter-agent communication
   projectContext?: string; // Project identifier for context isolation
   topicContext?: string; // Topic/domain for context organization
-  metadata?: any; // Unified metadata for enhanced tracking
+  metadata?: Record<string, unknown>; // Unified metadata for enhanced tracking
 }
 
 export interface Message {
@@ -62,20 +56,20 @@ export interface Message {
   content: string;
   sender: 'user' | 'agent';
   timestamp: Date;
-  metadata?: Record<string, any>;
+  metadata?: Record<string, unknown>;
 }
 
 export interface AgentResponse {
   content: string;
   actions?: AgentAction[];
-  memories?: any[];
-  metadata?: Record<string, any>;
+  memories?: unknown[];
+  metadata?: Record<string, unknown>;
 }
 
 export interface AgentAction {
   type: string;
   description: string;
-  parameters: Record<string, any>;
+  parameters: Record<string, unknown>;
 }
 
 /**
@@ -97,11 +91,11 @@ export abstract class BaseAgent {
   protected promptConfig?: PromptConfig;
   protected personalityEngine?: PersonalityEngine;
   
-  // A2A Protocol Integration
-  protected a2aProtocol?: OneAgentA2AProtocol;
-  protected a2aEnabled: boolean = false;
-  protected a2aCapabilities: string[] = [];
+  // Canonical agent communication handled via UnifiedBackboneService only.
   protected currentSessions: Set<string> = new Set();
+
+  // Canonical A2A/NLACS communication via unified service only
+  protected comm = unifiedAgentCommunicationService;
   
   // =============================================================================
   // NLACS (Natural Language Agent Coordination System) Extensions - Phase 1
@@ -117,12 +111,69 @@ export abstract class BaseAgent {
   constructor(config: AgentConfig, promptConfig?: PromptConfig) {
     this.config = config;
     this.unifiedBackbone = new OneAgentUnifiedBackbone();
-    
     // Initialize enhanced prompt engine if config provided
     if (promptConfig) {
       this.promptEngine = new PromptEngine(promptConfig);
       this.promptConfig = promptConfig;
     }
+    // All A2A/NLACS handled via canonical unifiedAgentCommunicationService
+  }
+  /**
+   * Initialize canonical A2A protocol (if not already initialized)
+   */
+  // No direct protocol initialization; all handled by unifiedAgentCommunicationService
+
+  /**
+   * Send a canonical A2A message with NLACS extension (for multi-agent/NLACS ops)
+   */
+  /**
+   * Send a canonical A2A message with NLACS extension (for multi-agent/NLACS ops)
+   */
+  protected async sendA2ANLACSMessage(params: {
+    sessionId: SessionId;
+    toAgent: AgentId;
+    content: string;
+    messageType: 'update' | 'question' | 'decision' | 'action' | 'insight';
+    nlacsExtension?: Record<string, unknown>;
+    metadata?: Record<string, unknown>;
+  }): Promise<MessageId | null> {
+    try {
+      const messageId = await this.comm.sendMessage({
+        sessionId: params.sessionId,
+        fromAgent: this.config.id as AgentId,
+        toAgent: params.toAgent,
+        content: params.content,
+        messageType: params.messageType,
+        metadata: {
+          ...params.metadata,
+          extensions: [
+            {
+              uri: 'https://oneagent.ai/extensions/nlacs',
+              ...params.nlacsExtension
+            }
+          ],
+          nlacs: true
+        }
+      });
+      return messageId;
+    } catch (error) {
+      console.error('Failed to send A2A NLACS message:', error);
+      return null;
+    }
+  }
+
+  /**
+   * Receive/process a canonical A2A message (NLACS extension aware)
+   */
+  protected async handleA2AIncomingMessage(a2aMessage: A2AMessage): Promise<void> {
+    // Route to NLACS discussion if extension present
+    const extensions = a2aMessage.metadata?.extensions;
+    if (Array.isArray(extensions) && extensions.some((ext: { uri: string }) => ext.uri === 'https://oneagent.ai/extensions/nlacs')) {
+      // Process as NLACS message (could call contributeToDiscussion, etc.)
+      console.log('Received NLACS-enabled A2A message:', a2aMessage);
+      // Optionally: parse and store in memory, trigger NLACS workflows
+    }
+    // Handle other message types as needed
   }
 
   /**
@@ -148,31 +199,47 @@ export abstract class BaseAgent {
       // Initialize Constitutional AI
       this.constitutionalAI = new ConstitutionalAI({
         principles: [
-          { 
-            id: 'accuracy', 
-            name: 'accuracy', 
+          {
+            id: 'accuracy',
+            name: 'accuracy',
             description: 'Provide accurate and factual information',
+            category: 'accuracy',
+            weight: 1,
+            isViolated: false,
+            confidence: 1,
             validationRule: 'content.length > 0',
             severityLevel: 'high'
           },
-          { 
-            id: 'transparency', 
-            name: 'transparency', 
+          {
+            id: 'transparency',
+            name: 'transparency',
             description: 'Be transparent about limitations and reasoning',
+            category: 'transparency',
+            weight: 1,
+            isViolated: false,
+            confidence: 1,
             validationRule: 'content.length > 0',
             severityLevel: 'medium'
           },
-          { 
-            id: 'helpfulness', 
-            name: 'helpfulness', 
+          {
+            id: 'helpfulness',
+            name: 'helpfulness',
             description: 'Provide helpful and actionable responses',
+            category: 'helpfulness',
+            weight: 1,
+            isViolated: false,
+            confidence: 1,
             validationRule: 'content.length > 0',
             severityLevel: 'medium'
           },
-          { 
-            id: 'safety', 
-            name: 'safety', 
+          {
+            id: 'safety',
+            name: 'safety',
             description: 'Ensure safe and ethical behavior',
+            category: 'safety',
+            weight: 1,
+            isViolated: false,
+            confidence: 1,
             validationRule: 'content.length > 0',
             severityLevel: 'critical'
           }
@@ -186,10 +253,7 @@ export abstract class BaseAgent {
       // Initialize Personality Engine
       this.personalityEngine = new PersonalityEngine();
 
-      // Initialize A2A Protocol if enabled
-      if (this.config.a2aEnabled !== false) {
-        await this.initializeA2AProtocol();
-      }
+      // Canonical agent communication is initialized via UnifiedBackboneService only.
 
       this.isInitialized = true;
       console.log(`✅ BaseAgent ${this.config.id} initialized successfully`);
@@ -363,7 +427,7 @@ export abstract class BaseAgent {
       
       // Create canonical NLACS message with backbone metadata
       const message: NLACSMessage = {
-        id: `msg_${contributionTimestamp.unix}_${this.config.id}`,
+        id: generateUnifiedId('message', this.config.id),
         discussionId,
         agentId: this.config.id,
         content,
@@ -464,7 +528,7 @@ export abstract class BaseAgent {
       // Pattern-based insight generation with canonical metadata
       if (messageTypes.includes('question') && messageTypes.includes('contribution')) {
         const insight: EmergentInsight = {
-          id: `insight_${analysisTimestamp.unix}_${this.config.id}`,
+          id: generateUnifiedId('analysis', this.config.id),
           type: 'pattern',
           content: `Effective Q&A pattern observed with ${participants.size} participants over ${Math.round(timeSpan / 1000)}s`,
           confidence: 0.75,
@@ -481,7 +545,7 @@ export abstract class BaseAgent {
       if (messageTypes.includes('synthesis')) {
         const synthesisMessages = conversationHistory.filter(m => m.messageType === 'synthesis');
         const insight: EmergentInsight = {
-          id: `insight_${analysisTimestamp.unix + 1}_${this.config.id}`,
+          id: generateUnifiedId('knowledge', this.config.id),
           type: 'synthesis',
           content: `Knowledge synthesis achieved through ${synthesisMessages.length} synthesis points with ${participants.size} participants`,
           confidence: 0.82,
@@ -605,7 +669,7 @@ export abstract class BaseAgent {
         content: `Knowledge Synthesis: ${synthesis}`,
         metadata: {
           type: 'knowledge_synthesis',
-          synthesisId: `synthesis_${synthesisTimestamp.unix}_${this.config.id}`,
+          synthesisId: generateUnifiedId('knowledge', this.config.id),
           synthesisQuestion: synthesisQuestion,
           sourceThreadIds: conversationThreads.map(t => t.id),
           sourceInsightIds: allInsights.map(i => i.id),
@@ -631,7 +695,7 @@ export abstract class BaseAgent {
               source: 'nlacs_knowledge_synthesis',
               action: 'synthesize_cross_conversation',
               agentId: this.config.id,
-              synthesisId: `synthesis_${synthesisTimestamp}_${this.config.id}`,
+              synthesisId: generateUnifiedId('knowledge', this.config.id),
               sourceThreads: conversationThreads.map(t => t.id),
               timestamp: synthesisTimestamp
             }
@@ -727,7 +791,7 @@ export abstract class BaseAgent {
         content: `Conversation Pattern Analysis: ${patterns.length} patterns, ${insights.length} insights`,
         metadata: {
           type: 'pattern_analysis',
-          analysisId: `pattern_${analysisTimestamp}_${this.config.id}`,
+          analysisId: generateUnifiedId('analysis', this.config.id),
           agentId: this.config.id,
           patternCount: patterns.length,
           insightCount: insights.length,
@@ -753,7 +817,7 @@ export abstract class BaseAgent {
               source: 'nlacs_pattern_analysis',
               action: 'extract_conversation_patterns',
               agentId: this.config.id,
-              analysisId: `pattern_${analysisTimestamp}_${this.config.id}`,
+              analysisId: generateUnifiedId('analysis', this.config.id),
               timestamp: analysisTimestamp
             }
           }

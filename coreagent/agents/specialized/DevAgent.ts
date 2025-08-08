@@ -10,10 +10,11 @@
  * - Provides actual development assistance
  */
 
-import { BaseAgent, AgentConfig, AgentContext, AgentResponse, Message } from '../base/BaseAgent';
+import { BaseAgent, AgentConfig, AgentContext, AgentResponse } from '../base/BaseAgent';
+import type { AgentMessage } from '../../types/oneagent-backbone-types';
 import { ISpecializedAgent } from '../base/ISpecializedAgent';
 import { PromptConfig } from '../base/PromptEngine';
-import { v4 as uuidv4 } from 'uuid';
+
 
 export interface DevAgentCapabilities {
   codeReview: boolean;
@@ -35,7 +36,7 @@ export interface DevAgentResponse extends AgentResponse {
  */
 export class DevAgent extends BaseAgent implements ISpecializedAgent {
   private capabilities: DevAgentCapabilities;
-  private conversationHistory: Message[] = [];
+  private conversationHistory: AgentMessage[] = [];
   
   constructor(config: AgentConfig, promptConfig?: PromptConfig) {
     super(config, promptConfig);
@@ -57,13 +58,13 @@ export class DevAgent extends BaseAgent implements ISpecializedAgent {
     this.validateContext(context);
 
     // Add to conversation history
-    const userMessage: Message = {
-      id: uuidv4(),
+    const userMessage: AgentMessage = {
+      sessionId: context.sessionId,
+      fromAgent: this.config.id,
+      toAgent: undefined,
       content: message,
-      sender: 'user',
-      timestamp: new Date(),
+      messageType: 'question',
       metadata: {
-        sessionId: context.sessionId,
         userId: context.user.id
       }
     };
@@ -76,13 +77,13 @@ export class DevAgent extends BaseAgent implements ISpecializedAgent {
     const aiResponse = await this.generateDevelopmentResponse(message, context, requestType);
 
     // Add to conversation history
-    const agentMessage: Message = {
-      id: uuidv4(),
+    const agentMessage: AgentMessage = {
+      sessionId: context.sessionId,
+      fromAgent: this.config.id,
+      toAgent: undefined,
       content: aiResponse,
-      sender: 'agent',
-      timestamp: new Date(),
+      messageType: 'update',
       metadata: {
-        sessionId: context.sessionId,
         requestType,
         qualityScore: 85 // TODO: Calculate actual quality score
       }
@@ -211,7 +212,7 @@ Provide helpful, actionable development guidance with specific examples where ap
   /**
    * Get conversation history for this session
    */
-  getConversationHistory(): Message[] {
+  getConversationHistory(): AgentMessage[] {
     return [...this.conversationHistory];
   }
 

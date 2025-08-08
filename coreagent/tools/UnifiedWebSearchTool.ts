@@ -6,7 +6,7 @@
 import { UnifiedMCPTool, ToolExecutionResult, InputSchema } from './UnifiedMCPTool';
 import { WebSearchTool, WebSearchOptions } from './webSearch';
 import { BraveSearchClient } from './braveSearchClient';
-import { oneAgentConfig } from '../config/index';
+import { UnifiedBackboneService } from '../utils/UnifiedBackboneService';
 
 export interface WebSearchArgs {
   query: string;
@@ -50,7 +50,7 @@ export class UnifiedWebSearchTool extends UnifiedMCPTool {
       'enhanced'
     );    // Initialize with proper Brave client using centralized config
     const braveClient = new BraveSearchClient({
-      apiKey: oneAgentConfig.braveApiKey || 'mock_mode',
+      apiKey: UnifiedBackboneService.config.braveApiKey || 'mock_mode',
       baseUrl: 'https://api.search.brave.com/res/v1/web/search',
       timeout: 10000,
       retryAttempts: 3

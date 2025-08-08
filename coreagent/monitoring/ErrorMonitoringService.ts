@@ -8,6 +8,7 @@
 import { ConstitutionalAI } from '../agents/base/ConstitutionalAI';
 import { TriageAgent } from '../agents/specialized/TriageAgent';
 import { SimpleAuditLogger } from '../audit/auditLogger';
+import { createUnifiedId } from '../utils/UnifiedBackboneService';
 import { OneAgentUnifiedBackbone, createUnifiedTimestamp } from '../utils/UnifiedBackboneService.js';
 
 export interface ErrorContext {
@@ -326,8 +327,7 @@ export class ErrorMonitoringService {
    * Generate unique error ID
    */
   private generateErrorId(): string {
-    const timestamp = createUnifiedTimestamp();
-    return `err_${timestamp.unix}_${Math.random().toString(36).substr(2, 9)}`;
+    return createUnifiedId('error', 'monitoring');
   }
 
   /**

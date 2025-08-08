@@ -10,13 +10,14 @@ import { GeminiClient } from './geminiClient';
 import { OneAgentMemory, OneAgentMemoryConfig } from '../memory/OneAgentMemory';
 import { EmbeddingResult, EmbeddingTaskType } from '../types/gemini';
 import { globalProfiler } from '../performance/profiler';
-import { createUnifiedTimestamp } from '../utils/UnifiedBackboneService';
+import { createUnifiedTimestamp, generateUnifiedId } from '../utils/UnifiedBackboneService';
+import { IdType } from '../types/oneagent-backbone-types';
 
 export interface SemanticSearchOptions {
   taskType?: EmbeddingTaskType;
   topK?: number;
   similarityThreshold?: number;
-  model?: 'text-embedding-004' | 'embedding-001' | 'gemini-embedding-exp-03-07';
+  model?: 'gemini-embedding-001' | 'text-embedding-004' | 'gemini-embedding-exp-03-07';
 }
 
 export interface MemoryEmbeddingOptions extends SemanticSearchOptions {
@@ -55,7 +56,7 @@ export interface EmbeddingAnalytics {
 export class GeminiEmbeddingsTool {
   private geminiClient: GeminiClient;
   private memorySystem: OneAgentMemory;
-  private embeddingCache: Map<string, EmbeddingResult> = new Map();
+  private cache = require('../utils/UnifiedBackboneService').OneAgentUnifiedBackbone.getInstance().cache;
 
   constructor(geminiClient: GeminiClient, memorySystem?: OneAgentMemory) {
     this.geminiClient = geminiClient;
@@ -66,7 +67,7 @@ export class GeminiEmbeddingsTool {
         apiKey: process.env.MEM0_API_KEY || 'demo-key',
         apiUrl: process.env.MEM0_API_URL
       };
-      this.memorySystem = new OneAgentMemory(memoryConfig);
+      this.memorySystem = require('../utils/UnifiedBackboneService').UnifiedBackboneService.memory;
     }
     console.log('🔢 GeminiEmbeddingsTool initialized with canonical OneAgentMemory');
   }
@@ -79,7 +80,7 @@ export class GeminiEmbeddingsTool {
     options?: MemoryEmbeddingOptions
   ): Promise<{ results: SemanticSearchResult[]; analytics: EmbeddingAnalytics }> {
     const startTime = createUnifiedTimestamp().unix;
-    const operationId = `semantic-search-${createUnifiedTimestamp().unix}`;
+    const operationId = generateUnifiedId('operation', query);
     try {
       globalProfiler.startOperation(operationId, 'semantic-search');
       // If mem0 supports embedding-based search, delegate to it:
@@ -88,7 +89,7 @@ export class GeminiEmbeddingsTool {
         query,
         topK: options?.topK || 10,
         similarityThreshold: options?.similarityThreshold || 0.1,
-        embeddingModel: options?.model || 'gemini-embedding-exp-03-07',
+        embeddingModel: options?.model || 'gemini-embedding-001',
         semanticSearch: true
       });
       // Map results to SemanticSearchResult format
@@ -155,12 +156,12 @@ export class GeminiEmbeddingsTool {
     memoryType: 'conversation' | 'learning' | 'pattern' = 'conversation',
     metadata?: Record<string, unknown>
   ): Promise<{ memoryId: string; embedding?: EmbeddingResult }> {
-    const operationId = `store-memory-${createUnifiedTimestamp().unix}`;
+    const operationId = generateUnifiedId('memory', agentId);
     try {
       globalProfiler.startOperation(operationId, 'store-memory-embedding');
       // If mem0 supports embedding, just add memory
       const memoryData: Record<string, unknown> = {
-        id: `${memoryType}_${createUnifiedTimestamp().unix}`,
+        id: generateUnifiedId(memoryType === 'conversation' ? 'conversation' : memoryType as IdType, agentId),
         agentId,
         userId,
         content,
@@ -219,17 +220,18 @@ export class GeminiEmbeddingsTool {
    * Clear embedding cache (utility)
    */
   clearCache(): void {
-    this.embeddingCache.clear();
-    console.log('🧹 Embedding cache cleared');
+    this.cache.clear();
+    console.log('🧹 Canonical cache cleared');
   }
 
   /**
    * Get cache statistics (utility)
    */
   getCacheStats(): { size: number; keys: string[] } {
+    // Canonical cache stats
     return {
-      size: this.embeddingCache.size,
-      keys: Array.from(this.embeddingCache.keys())
+      size: this.cache.memoryCache.size,
+      keys: Array.from(this.cache.memoryCache.keys())
     };
   }
 }

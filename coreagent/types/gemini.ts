@@ -133,7 +133,7 @@ export interface EmbeddingBatchResponse {
 export interface EmbeddingOptions {
   taskType?: EmbeddingTaskType;
   title?: string;
-  model?: 'gemini-embedding-exp-03-07' | undefined;
+  model?: 'gemini-embedding-001' | undefined;
 }
 
 export interface EmbeddingResult {

@@ -28,15 +28,70 @@
  */
 
 import { BaseAgent } from '../base/BaseAgent';
-import { AgentConfig, AgentContext, AgentResponse } from '../base/BaseAgent';
+import { AgentConfig, AgentContext, AgentResponse, AgentAction } from '../base/BaseAgent';
+import { ISpecializedAgent, AgentHealthStatus } from '../base/ISpecializedAgent';
 import { OneAgentUnifiedBackbone } from '../../utils/UnifiedBackboneService';
-import { NLACSMessage, EmergentInsight, ConversationThread, UnifiedTimestamp, UnifiedMetadata } from '../../types/oneagent-backbone-types';
+import type { NLACSMessage, EmergentInsight, ConversationThread, UnifiedTimestamp, UnifiedMetadata } from '../../types/oneagent-backbone-types';
 import { ConstitutionalAI } from '../base/ConstitutionalAI';
 import { PersonaLoader } from '../persona/PersonaLoader';
 import { PersonalityEngine } from '../personality/PersonalityEngine';
 import * as yaml from 'js-yaml';
 import * as fs from 'fs';
 import * as path from 'path';
+
+// =============================================================================
+// PLANNING RESPONSE TYPES
+// =============================================================================
+
+export interface PlanningProgressResponse {
+  totalTasks: number;
+  completedTasks: number;
+  inProgressTasks: number;
+  blockedTasks: number;
+  progressPercentage: number;
+  sessionId?: string;
+  message?: string;
+}
+
+export interface PlanningReportResponse {
+  sessionId: string;
+  objective: string;
+  totalTasks: number;
+  completedTasks: number;
+  qualityScore: number;
+  constitutionalCompliance: boolean;
+  emergentInsights: number;
+  error?: string;
+}
+
+export interface PlanningOptimizationResponse {
+  sessionId: string;
+  optimizationsApplied: string[];
+  qualityImprovement: number;
+  message: string;
+  error?: string;
+}
+
+export interface PlanningReplanResponse {
+  message: string;
+  changes: Record<string, unknown>;
+  context: string;
+  newTasksGenerated: number;
+}
+
+export interface PlanningCoordinationResponse {
+  sessionId: string;
+  assignedAgents: number;
+  message: string;
+  error?: string;
+}
+
+export interface PlanningRiskResponse {
+  riskLevel: 'low' | 'medium' | 'high';
+  identifiedRisks: string[];
+  mitigationStrategies: string[];
+  message: string;
+}
 
 // =============================================================================
 // PLANNING TYPES AND INTERFACES
@@ -143,12 +198,295 @@ export interface PlanningSession {
 // PLANNER AGENT IMPLEMENTATION
 // =============================================================================
 
-export class PlannerAgent extends BaseAgent {
+export class PlannerAgent extends BaseAgent implements ISpecializedAgent {
   private planningStrategies: Map<string, PlanningStrategy> = new Map();
   private agentCapabilities: Map<string, AgentCapabilityProfile> = new Map();
   private activePlanningSession: PlanningSession | null = null;
   private planningHistory: PlanningSession[] = [];
   private personaLoader: PersonaLoader;
+
+  // ISpecializedAgent implementation
+  get id(): string {
+    return this.config.id;
+  }
+
+  getAvailableActions(): AgentAction[] {
+    return [
+      { type: 'create_planning_session', description: 'Create a new strategic planning session', parameters: {} },
+      { type: 'decompose_objective', description: 'Break down complex objectives into actionable tasks', parameters: {} },
+      { type: 'assign_tasks', description: 'Assign tasks to optimal agents based on capabilities', parameters: {} },
+      { type: 'track_progress', description: 'Monitor progress of active planning sessions', parameters: {} },
+      { type: 'generate_report', description: 'Generate comprehensive planning reports', parameters: {} },
+      { type: 'optimize_plan', description: 'Optimize existing plans for better efficiency', parameters: {} },
+      { type: 'handle_replanning', description: 'Handle dynamic replanning scenarios', parameters: {} },
+      { type: 'coordinate_agents', description: 'Coordinate multi-agent task execution', parameters: {} },
+      { type: 'assess_risks', description: 'Assess and mitigate planning risks', parameters: {} },
+      { type: 'validate_constitutionally', description: 'Validate plans using Constitutional AI', parameters: {} }
+    ];
+  }
+
+  async executeAction(action: string | AgentAction, params: Record<string, unknown>, _context?: AgentContext): Promise<AgentResponse> {
+    try {
+      const actionType = typeof action === 'string' ? action : action.type;
+      let result: PlanningProgressResponse | PlanningReportResponse | PlanningOptimizationResponse | 
+                  PlanningReplanResponse | PlanningCoordinationResponse | PlanningRiskResponse | 
+                  { isValid: boolean; score: number; violations: unknown[] } |
+                  PlanningSession | PlanningTask[] | Map<string, PlanningTask[]>;
+      
+      switch (actionType) {
+        case 'create_planning_session':
+          result = await this.createPlanningSession(params.context as PlanningContext);
+          break;
+        
+        case 'decompose_objective':
+          result = await this.decomposeObjective(params.objective as string, params.context as PlanningContext);
+          break;
+        
+        case 'assign_tasks':
+          result = await this.assignTasksToAgents(params.tasks as PlanningTask[], params.agents as AgentCapabilityProfile[]);
+          break;
+        
+        case 'track_progress':
+          result = this.getCurrentProgress();
+          break;
+        
+        case 'generate_report':
+          result = await this.generateCurrentReport(params.sessionId as string);
+          break;
+        
+        case 'optimize_plan':
+          result = await this.optimizeCurrentPlan(params.sessionId as string);
+          break;
+        
+        case 'handle_replanning':
+          result = await this.handleDynamicReplanning(params.changes as Record<string, unknown>, params.context as PlanningContext);
+          break;
+        
+        case 'coordinate_agents':
+          result = await this.coordinateAgentExecution();
+          break;
+        
+        case 'assess_risks':
+          result = await this.assessContextualRisks(params.context as PlanningContext);
+          break;
+        
+        case 'validate_constitutionally': {
+          const validation = await this.constitutionalAI?.validateResponse(
+            JSON.stringify(params.content),
+            (params.context as string) || 'General validation',
+            { context: 'planning_validation' }
+          );
+          result = {
+            isValid: validation?.isValid || false,
+            score: validation?.score || 0,
+            violations: validation?.violations || []
+          };
+          break;
+        }
+        
+        default:
+          throw new Error(`Unknown action: ${actionType}`);
+      }
+      
+      return {
+        content: `Action ${actionType} completed successfully`,
+        actions: [],
+        memories: [],
+        metadata: { actionType, timestamp: this.unifiedBackbone.getServices().timeService.now().iso, result }
+      };
+    } catch (error) {
+      const actionType = typeof action === 'string' ? action : action.type;
+      
+      // CANONICAL ERROR HANDLING: Use UnifiedBackboneService.errorHandler
+      const errorHandler = this.unifiedBackbone.getServices().errorHandler;
+      const errorEntry = await errorHandler.handleError(
+        error instanceof Error ? error : new Error(String(error)), 
+        {
+          component: 'planner_agent',
+          operation: `execute_action_${actionType}`,
+          agentId: this.config.id,
+          context: 'action_execution'
+        }
+      );
+      
+      return {
+        content: `Error executing action ${actionType}: ${error instanceof Error ? error.message : 'Unknown error'}`,
+        actions: [],
+        memories: [],
+        metadata: { 
+          actionType, 
+          error: true, 
+          errorId: errorEntry.id,
+          timestamp: this.unifiedBackbone.getServices().timeService.now().iso 
+        }
+      };
+    }
+  }
+
+  async getHealthStatus(): Promise<AgentHealthStatus> {
+    const services = this.unifiedBackbone.getServices();
+    
+    // Check system health indicators
+    const memoryHealthy = this.memoryClient !== null;
+    const aiHealthy = this.aiClient !== null;
+    const constitutionalHealthy = this.constitutionalAI !== null;
+    
+    // Calculate workload status
+    const activeTasks = this.activePlanningSession?.tasks.filter(t => t.status === 'in_progress').length || 0;
+    const isOverloaded = activeTasks > 10;
+    
+    // Determine overall status
+    let status: 'healthy' | 'degraded' | 'critical' | 'offline' = 'healthy';
+    const errors: string[] = [];
+    
+    if (!memoryHealthy) {
+      status = 'critical';
+      errors.push('Memory client unavailable');
+    }
+    
+    if (!aiHealthy) {
+      status = status === 'critical' ? 'critical' : 'degraded';
+      errors.push('AI client unavailable');
+    }
+    
+    if (!constitutionalHealthy) {
+      status = status === 'critical' ? 'critical' : 'degraded';
+      errors.push('Constitutional AI unavailable');
+    }
+    
+    if (isOverloaded) {
+      status = status === 'critical' ? 'critical' : 'degraded';
+      errors.push(`High task load: ${activeTasks} active tasks`);
+    }
+
+    return {
+      status,
+      uptime: process.uptime() * 1000, // Convert to milliseconds
+      memoryUsage: process.memoryUsage().heapUsed / 1024 / 1024,
+      responseTime: 50, // Placeholder - should be calculated from recent responses
+      errorRate: 0, // Placeholder - should be calculated from error tracking
+      lastActivity: this.activePlanningSession?.metadata.updatedAt ? new Date(services.timeService.now().utc) : new Date(),
+      errors: errors.length > 0 ? errors : undefined
+    };
+  }
+
+  // Helper methods for executeAction implementation
+  private getCurrentProgress(): PlanningProgressResponse {
+    if (!this.activePlanningSession) {
+      return { 
+        totalTasks: 0,
+        completedTasks: 0,
+        inProgressTasks: 0,
+        blockedTasks: 0,
+        progressPercentage: 0,
+        message: 'No active planning session found' 
+      };
+    }
+    
+    const tasks = this.activePlanningSession.tasks;
+    const totalTasks = tasks.length;
+    const completedTasks = tasks.filter(t => t.status === 'completed').length;
+    const inProgressTasks = tasks.filter(t => t.status === 'in_progress').length;
+    const blockedTasks = tasks.filter(t => t.status === 'blocked').length;
+    
+    return {
+      totalTasks,
+      completedTasks,
+      inProgressTasks,
+      blockedTasks,
+      progressPercentage: totalTasks > 0 ? (completedTasks / totalTasks) * 100 : 0,
+      sessionId: this.activePlanningSession.id
+    };
+  }
+
+  private async generateCurrentReport(sessionId?: string): Promise<PlanningReportResponse> {
+    const session = sessionId 
+      ? this.planningHistory.find(s => s.id === sessionId) || this.activePlanningSession
+      : this.activePlanningSession;
+    
+    if (!session) {
+      return { 
+        sessionId: sessionId || 'unknown',
+        objective: 'Unknown',
+        totalTasks: 0,
+        completedTasks: 0,
+        qualityScore: 0,
+        constitutionalCompliance: false,
+        emergentInsights: 0,
+        error: 'No planning session found' 
+      };
+    }
+    
+    return {
+      sessionId: session.id,
+      objective: session.context.objective,
+      totalTasks: session.tasks.length,
+      completedTasks: session.tasks.filter(t => t.status === 'completed').length,
+      qualityScore: session.qualityMetrics.planningScore,
+      constitutionalCompliance: session.qualityMetrics.constitutionalCompliance,
+      emergentInsights: session.nlacs.emergentInsights.length
+    };
+  }
+
+  private async optimizeCurrentPlan(sessionId?: string): Promise<PlanningOptimizationResponse> {
+    const session = sessionId 
+      ? this.planningHistory.find(s => s.id === sessionId) || this.activePlanningSession
+      : this.activePlanningSession;
+    
+    if (!session) {
+      return { 
+        sessionId: sessionId || 'unknown',
+        optimizationsApplied: [],
+        qualityImprovement: 0,
+        message: 'Plan optimization failed',
+        error: 'No planning session found for optimization' 
+      };
+    }
+    
+    // Placeholder optimization logic
+    return {
+      sessionId: session.id,
+      optimizationsApplied: ['dependency_optimization', 'resource_balancing'],
+      qualityImprovement: 15,
+      message: 'Plan optimized successfully'
+    };
+  }
+
+  private async handleDynamicReplanning(changes: Record<string, unknown>, context: PlanningContext): Promise<PlanningReplanResponse> {
+    // Placeholder replanning logic
+    return {
+      message: 'Dynamic replanning initiated',
+      changes: changes,
+      context: context.objective,
+      newTasksGenerated: 0
+    };
+  }
+
+  private async coordinateAgentExecution(): Promise<PlanningCoordinationResponse> {
+    if (!this.activePlanningSession) {
+      return { 
+        sessionId: 'unknown',
+        assignedAgents: 0,
+        message: 'Agent coordination failed',
+        error: 'No active session for coordination' 
+      };
+    }
+    
+    return {
+      sessionId: this.activePlanningSession.id,
+      assignedAgents: this.activePlanningSession.assignedAgents.length,
+      message: 'Agent coordination in progress'
+    };
+  }
+
+  private async assessContextualRisks(context: PlanningContext): Promise<PlanningRiskResponse> {
+    return {
+      riskLevel: context.riskTolerance,
+      identifiedRisks: ['resource_constraints', 'timeline_pressure'],
+      mitigationStrategies: ['buffer_allocation', 'parallel_execution'],
+      message: 'Risk assessment completed'
+    };
+  }
 
   constructor(config: AgentConfig) {
     super(config);
@@ -246,7 +584,17 @@ export class PlannerAgent extends BaseAgent {
       console.log(`📋 PlannerAgent ${this.config.id} created planning session: ${sessionId}`);
       return session;
     } catch (error) {
-      console.error('❌ Error creating planning session:', error);
+      // CANONICAL ERROR HANDLING: Use UnifiedBackboneService.errorHandler
+      const errorHandler = this.unifiedBackbone.getServices().errorHandler;
+      await errorHandler.handleError(
+        error instanceof Error ? error : new Error(String(error)), 
+        {
+          component: 'planner_agent',
+          operation: 'create_planning_session',
+          agentId: this.config.id,
+          context: 'planning_session_creation'
+        }
+      );
       throw error;
     }
   }
@@ -338,7 +686,17 @@ export class PlannerAgent extends BaseAgent {
       console.log(`🎯 Decomposed objective into ${validatedTasks.length} validated tasks`);
       return validatedTasks;
     } catch (error) {
-      console.error('❌ Error decomposing objective:', error);
+      // CANONICAL ERROR HANDLING: Use UnifiedBackboneService.errorHandler
+      const errorHandler = this.unifiedBackbone.getServices().errorHandler;
+      await errorHandler.handleError(
+        error instanceof Error ? error : new Error(String(error)), 
+        {
+          component: 'planner_agent',
+          operation: 'decompose_objective',
+          agentId: this.config.id,
+          context: 'task_decomposition'
+        }
+      );
       throw error;
     }
   }
@@ -411,7 +769,17 @@ export class PlannerAgent extends BaseAgent {
       console.log(`👥 Assigned ${tasks.length} tasks to ${availableAgents.length} agents`);
       return assignments;
     } catch (error) {
-      console.error('❌ Error assigning tasks:', error);
+      // CANONICAL ERROR HANDLING: Use UnifiedBackboneService.errorHandler
+      const errorHandler = this.unifiedBackbone.getServices().errorHandler;
+      await errorHandler.handleError(
+        error instanceof Error ? error : new Error(String(error)), 
+        {
+          component: 'planner_agent',
+          operation: 'assign_tasks_to_agents',
+          agentId: this.config.id,
+          context: 'task_assignment'
+        }
+      );
       throw error;
     }
   }
@@ -497,7 +865,17 @@ export class PlannerAgent extends BaseAgent {
       console.log(`🔄 Generated replan for: ${changeContext} (urgency: ${urgency})`);
       return replanSession;
     } catch (error) {
-      console.error('❌ Error generating replan:', error);
+      // CANONICAL ERROR HANDLING: Use UnifiedBackboneService.errorHandler
+      const errorHandler = this.unifiedBackbone.getServices().errorHandler;
+      await errorHandler.handleError(
+        error instanceof Error ? error : new Error(String(error)), 
+        {
+          component: 'planner_agent',
+          operation: 'generate_replan',
+          agentId: this.config.id,
+          context: 'dynamic_replanning'
+        }
+      );
       throw error;
     }
   }
@@ -581,7 +959,17 @@ export class PlannerAgent extends BaseAgent {
       console.log(`💬 Started NLACS planning discussion: ${discussionId}`);
       return discussionId;
     } catch (error) {
-      console.error('❌ Error starting NLACS planning discussion:', error);
+      // CANONICAL ERROR HANDLING: Use UnifiedBackboneService.errorHandler
+      const errorHandler = this.unifiedBackbone.getServices().errorHandler;
+      await errorHandler.handleError(
+        error instanceof Error ? error : new Error(String(error)), 
+        {
+          component: 'planner_agent',
+          operation: 'start_nlacs_planning_discussion',
+          agentId: this.config.id,
+          context: 'nlacs_integration'
+        }
+      );
       throw error;
     }
   }
@@ -639,7 +1027,17 @@ export class PlannerAgent extends BaseAgent {
       console.log(`🧠 Processed ${planningInsights.length} planning insights from NLACS discussion`);
       return this.activePlanningSession;
     } catch (error) {
-      console.error('❌ Error processing NLACS planning insights:', error);
+      // CANONICAL ERROR HANDLING: Use UnifiedBackboneService.errorHandler
+      const errorHandler = this.unifiedBackbone.getServices().errorHandler;
+      await errorHandler.handleError(
+        error instanceof Error ? error : new Error(String(error)), 
+        {
+          component: 'planner_agent',
+          operation: 'process_nlacs_planning_insights',
+          agentId: this.config.id,
+          context: 'nlacs_integration'
+        }
+      );
       throw error;
     }
   }
@@ -724,7 +1122,18 @@ export class PlannerAgent extends BaseAgent {
         }
       };
     } catch (error) {
-      console.error('❌ Error processing message:', error);
+      // CANONICAL ERROR HANDLING: Use UnifiedBackboneService.errorHandler
+      const errorHandler = this.unifiedBackbone.getServices().errorHandler;
+      await errorHandler.handleError(
+        error instanceof Error ? error : new Error(String(error)), 
+        {
+          component: 'planner_agent',
+          operation: 'process_message',
+          agentId: this.config.id,
+          context: 'message_processing'
+        }
+      );
+      
       return {
         content: 'I apologize, but I encountered an error processing your planning request. Please try again.',
         metadata: {

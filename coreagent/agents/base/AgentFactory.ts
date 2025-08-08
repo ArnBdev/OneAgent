@@ -226,9 +226,7 @@ export class AgentFactory {
       capabilities: factoryConfig.customCapabilities || (isSupportedAgentType(factoryConfig.type) ? AgentFactory.DEFAULT_CAPABILITIES[factoryConfig.type] : []),
       memoryEnabled: factoryConfig.memoryEnabled ?? true,
       aiEnabled: factoryConfig.aiEnabled ?? true,
-      // A2A system configuration
-      a2aEnabled: factoryConfig.nlacsEnabled ?? true,
-      a2aCapabilities: factoryConfig.customCapabilities || (isSupportedAgentType(factoryConfig.type) ? AgentFactory.DEFAULT_CAPABILITIES[factoryConfig.type] : [])
+      // Canonical agent communication handled via UnifiedAgentCommunicationService and NLACS extensions only.
     };
 
     let agent: BaseAgent | undefined;

@@ -13,7 +13,7 @@ import {
 import { BraveSearchResponse } from '../types/braveSearch';
 import { WebFetchResponse } from '../types/webFetch';
 import { MemoryIntelligence } from './memoryIntelligence';
-import { IMemoryClient } from '../types/oneagent-backbone-types';
+import type { IMemoryClient } from '../types/oneagent-backbone-types';
 import { OneAgentUnifiedBackbone } from '../utils/UnifiedBackboneService';
 import { createUnifiedTimestamp } from '../utils/UnifiedBackboneService';
 import * as path from 'path';

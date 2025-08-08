@@ -1,36 +1,183 @@
-/**
- * OneAgent Unified Backbone Service
- * Critical Foundation: Time + Metadata + Agent Integration
- * 
- * This is the SINGLE SOURCE OF TRUTH for time and metadata across ALL OneAgent systems:
- * - AgentFactory and all specialized agents
- * - Memory systems (UnifiedMemoryInterface, Context7)
- * - Chat interfaces and UI components
- * - ALITA evolution tracking
- * - Background services and utilities
- * 
- * ARCHITECTURAL PRINCIPLE: Every system that uses time or metadata MUST use this service
- * 
- * Version: 1.0.0
- * Created: 2024-06-18
- * Priority: CRITICAL BACKBONE
- */
-
-import { 
-  UnifiedTimeContext, 
-  UnifiedTimestamp, 
-  UnifiedMetadata, 
-  UnifiedTimeService, 
+// ...existing code...
+import {
+  UnifiedAgentCommunicationInterface,
+  UnifiedMetadata,
+  UnifiedTimeService,
   UnifiedMetadataService,
-  UnifiedAgentContext,
-  UnifiedMemoryEntry,
-  UnifiedSystemHealth,
-  ALITAUnifiedContext,
   AgentType,
-  IdType,
+  UnifiedAgentContext,
+  ALITAUnifiedContext,
+  A2AMessage,
+  UnifiedSystemHealth,
   UnifiedIdConfig,
-  UnifiedIdResult
+  UnifiedIdResult,
+  UnifiedTimestamp,
+  AgentCardWithHealth,
+  IMemoryClient,
+  AgentMessage,
+  AgentCard,
+  SessionInfo
 } from '../types/oneagent-backbone-types';
+// import { OneAgentMemory } from '../memory/OneAgentMemory'; // Removed to prevent circular dependency
+// ...existing code...
+import type { UnifiedTimeContext, IdType } from '../types/oneagent-backbone-types';
+// ...existing code...
+
+
+// Canonical configuration import
+
+import { unifiedMonitoringService, UnifiedMonitoringService } from '../monitoring/UnifiedMonitoringService';
+import type { ServerConfig } from '../config/index';
+import { oneAgentConfig } from '../config/index';
+
+// =====================================
+// ...existing code...
+// UNIFIED BACKBONE SERVICE (CANONICAL CONFIG)
+// =====================================
+
+/**
+ * UnifiedBackboneService: Canonical entry point for all core systems.
+ * - Exposes config as UnifiedBackboneService.config (single source of truth)
+ * - All systems must import config from here, not directly from config/index.ts
+ */
+export class UnifiedBackboneService {
+  /**
+   * Canonical configuration for OneAgent (single source of truth)
+   * Usage: UnifiedBackboneService.config
+   */
+  static config: ServerConfig = oneAgentConfig; // Initialize with actual config
+  // All config access must use UnifiedBackboneService.config
+
+  // ...existing code...
+
+  /**
+   * Canonical Context7 integration (strictly typed, event-driven, memory-driven)
+   * Usage: UnifiedBackboneService.context7
+   */
+  // Context7 integration is now handled via canonical backbone. Legacy references removed.
+
+  // Note: Memory system removed from backbone to prevent circular dependency.
+  // Use OneAgentMemory.getInstance() directly where needed.
+
+  /**
+   * Canonical health/performance monitoring system (single source of truth)
+   * Usage: UnifiedBackboneService.monitoring
+   */
+  static monitoring: UnifiedMonitoringService = unifiedMonitoringService;
+// ...existing code...
+}
+
+/**
+ * Canonical Agent Communication Service (A2A + NLACS)
+ * Exposes all core and NLACS extension methods for agent-to-agent communication, discussions, insights, and coordination.
+ */
+export class UnifiedAgentCommunicationService {
+
+  private a2a: UnifiedAgentCommunicationInterface;
+  private memory: IMemoryClient;
+
+  constructor(a2a: UnifiedAgentCommunicationInterface, memory: IMemoryClient) {
+    this.a2a = a2a;
+    this.memory = memory;
+  }
+
+  // Core A2A methods
+  async registerAgent(agent: AgentCard): Promise<string> {
+    // Canonical expects AgentRegistration, adapt as needed
+    await this.a2a.registerAgent(agent);
+    
+    // Create proper UnifiedMetadata for memory storage
+    const metadata = unifiedMetadataService.create('memory', 'UnifiedBackboneService', {
+      system: {
+        source: 'UnifiedBackboneService',
+        component: 'agent-registry',
+        userId: 'system'
+      },
+      content: {
+        category: 'agent_card',
+        tags: [agent.name],
+        sensitivity: 'internal',
+        relevanceScore: 1.0,
+        contextDependency: 'global'
+      },
+      quality: {
+        score: 1.0,
+        confidence: 1.0,
+        constitutionalCompliant: true,
+        validationLevel: 'enhanced'
+      }
+    });
+    
+    await this.memory.store(agent.name, metadata);
+    return agent.name;
+  }
+
+  /**
+   * Discover agents with advanced filtering (capabilities, health, role, etc.)
+   */
+  async discoverAgents(filter?: { capabilities?: string[]; health?: 'healthy' | 'degraded' | 'critical' | 'offline'; role?: string; }): Promise<AgentCardWithHealth[]> {
+    return this.a2a.discoverAgents(filter || {});
+  }
+  /**
+   * Broadcast a message to all agents in a session
+   */
+  async broadcastMessage(message: AgentMessage): Promise<string> {
+    return this.a2a.broadcastMessage(message);
+  }
+
+  /**
+   * Get session info by sessionId
+   */
+  async getSessionInfo(sessionId: string): Promise<SessionInfo | null> {
+    return this.a2a.getSessionInfo(sessionId);
+  }
+
+  async sendMessage(message: AgentMessage): Promise<string> {
+    // Create proper UnifiedMetadata for message storage
+    const metadata = unifiedMetadataService.create('memory', 'UnifiedBackboneService', {
+      system: {
+        source: 'UnifiedBackboneService',
+        component: 'message-system',
+        userId: 'system'
+      },
+      content: {
+        category: 'agent_message',
+        tags: [message.fromAgent, message.toAgent].filter((t): t is string => typeof t === 'string'),
+        sensitivity: 'internal',
+        relevanceScore: 1.0,
+        contextDependency: 'session'
+      },
+      quality: {
+        score: 1.0,
+        confidence: 1.0,
+        constitutionalCompliant: true,
+        validationLevel: 'enhanced'
+      }
+    });
+    
+    await this.memory.store(message.content, metadata);
+    return await this.a2a.sendMessage(message);
+  }
+
+  async getMessageHistory(sessionId: string, limit = 50): Promise<AgentMessage[]> {
+    const result = await this.a2a.getMessageHistory(sessionId, limit);
+    // Map A2AMessage[] to AgentMessage[]
+    return result.map((msg: A2AMessage) => ({
+      id: msg.id,
+      content: msg.message, // Correct property from A2AMessage
+      fromAgent: msg.fromAgent,
+      toAgent: msg.toAgent,
+      sessionId: msg.sessionId,
+      messageType: msg.messageType,
+      timestamp: msg.timestamp
+    }));
+  }
+
+  // NLACS/A2A extension methods
+
+// All health/metrics access must use UnifiedBackboneService.monitoring
+  // All health/metrics access must use UnifiedBackboneService.monitoring
+}
 
 // =====================================
 // UNIFIED TIME SERVICE IMPLEMENTATION
@@ -78,15 +225,17 @@ export class OneAgentUnifiedTimeService implements UnifiedTimeService {
    * Get comprehensive time context with intelligence
    */
   public getContext(): UnifiedTimeContext {
-    // Use cache if still valid
-    if (this.contextCache && Date.now() < this.contextCache.expiry) {
+    // Use cache if still valid (avoid recursive call to now())
+    const currentTime = Date.now();
+    if (this.contextCache && currentTime < this.contextCache.expiry) {
       return this.contextCache.context;
     }
     
     const now = new Date();
     const hour = now.getHours();
     const day = now.getDay();
-    const month = now.getMonth();    const context: UnifiedTimeContext = {
+    const month = now.getMonth();
+    const context: UnifiedTimeContext = {
       context: {
         dayOfWeek: ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'][day] as 'sunday' | 'monday' | 'tuesday' | 'wednesday' | 'thursday' | 'friday' | 'saturday',
         timeOfDay: this.getTimeOfDay(hour),
@@ -116,10 +265,10 @@ export class OneAgentUnifiedTimeService implements UnifiedTimeService {
       }
     };
     
-    // Cache the context
+    // Cache the context (avoid recursive call)
     this.contextCache = {
       context,
-      expiry: Date.now() + this.CACHE_DURATION
+      expiry: currentTime + this.CACHE_DURATION
     };
     
     return context;
@@ -263,6 +412,27 @@ export class OneAgentUnifiedMetadataService implements UnifiedMetadataService {
   constructor() {
     this.timeService = OneAgentUnifiedTimeService.getInstance();
   }
+  /**
+   * Canonical: Update access tracking for metadata
+   */
+  public updateAccess(id: string, context: string): void {
+    const metadata = this.metadataStore.get(id);
+    if (!metadata) return;
+    const updated: UnifiedMetadata = {
+      ...metadata,
+      temporal: {
+        ...metadata.temporal,
+        accessed: this.timeService.now()
+      },
+      analytics: {
+        ...metadata.analytics,
+        accessCount: (metadata.analytics.accessCount ?? 0) + 1,
+        lastAccessPattern: context,
+        usageContext: [...(metadata.analytics.usageContext ?? []), context].slice(-10)
+      }
+    };
+    this.metadataStore.set(id, updated);
+  }
   
   /**
    * Create new unified metadata
@@ -286,7 +456,7 @@ export class OneAgentUnifiedMetadataService implements UnifiedMetadataService {
           energyContext: context.intelligence.energyLevel
         }
       },
-        system: {
+      system: {
         source,
         component: options.system?.component || 'unknown',
         ...(options.system?.sessionId && { sessionId: options.system.sessionId }),
@@ -309,6 +479,8 @@ export class OneAgentUnifiedMetadataService implements UnifiedMetadataService {
         contextDependency: options.content?.contextDependency || 'session'
       },
         relationships: {
+// ...existing code...
+// ...existing code...
         ...(options.relationships?.parent && { parent: options.relationships.parent }),
         children: options.relationships?.children || [],
         related: options.relationships?.related || [],
@@ -395,55 +567,12 @@ export class OneAgentUnifiedMetadataService implements UnifiedMetadataService {
     if (metadata.content.sensitivity === 'restricted' && !metadata.system.userId) {
       return false;
     }
-    
     if (metadata.quality.score < 60) {
       return false;
     }
-    
-    return metadata.quality.constitutionalCompliant;
+    return true;
   }
-  
-  /**
-   * Get analytics for metadata
-   */
-  public getAnalytics(id: string): Record<string, any> {
-    const metadata = this.retrieve(id);
-    if (!metadata) return {};
-    
-    return {
-      accessCount: metadata.analytics.accessCount,
-      lastAccessPattern: metadata.analytics.lastAccessPattern,
-      usageContext: metadata.analytics.usageContext,
-      qualityScore: metadata.quality.score,
-      age: this.timeService.now().unix - metadata.temporal.created.unix,
-      relevanceDecay: this.calculateRelevanceDecay(metadata)
-    };
-  }
-  
-  /**
-   * Update access tracking
-   */
-  public updateAccess(id: string, context: string): void {
-    const metadata = this.metadataStore.get(id);
-    if (!metadata) return;
-    
-    const updated = {
-      ...metadata,
-      temporal: {
-        ...metadata.temporal,
-        accessed: this.timeService.now()
-      },
-      analytics: {
-        ...metadata.analytics,
-        accessCount: metadata.analytics.accessCount + 1,
-        lastAccessPattern: context,
-        usageContext: [...metadata.analytics.usageContext, context].slice(-10) // Keep last 10
-      }
-    };
-    
-    this.metadataStore.set(id, updated);
-  }
-  
+
   /**
    * Create enhanced metadata for inter-agent communication
    * Ensures proper context, privacy isolation, and traceability
@@ -469,9 +598,38 @@ export class OneAgentUnifiedMetadataService implements UnifiedMetadataService {
     } = {}
   ): UnifiedMetadata {
     const timestamp = this.timeService.now();
-    
-    // Create enhanced metadata with inter-agent specific context
-    const metadata = this.create('inter_agent_communication', `agent_${sourceAgentId}`, {      content: {
+    const context = this.timeService.getContext();
+    const metadata: UnifiedMetadata = {
+      id: this.generateId(),
+      type: 'inter_agent_communication',
+      version: '1.0.0',
+      temporal: {
+        created: timestamp,
+        updated: timestamp,
+        contextSnapshot: {
+          timeOfDay: context.context.timeOfDay,
+          dayOfWeek: context.context.dayOfWeek,
+          businessContext: context.context.businessDay,
+          energyContext: context.intelligence.energyLevel
+        }
+      },
+      system: {
+        source: `agent_${sourceAgentId}`,
+        component: 'multi_agent_orchestrator',
+        sessionId,
+        userId,
+        agent: {
+          id: sourceAgentId,
+          type: 'specialized'
+        }
+      },
+      quality: {
+        score: options.qualityThreshold || 90,
+        constitutionalCompliant: true,
+        validationLevel: 'enhanced',
+        confidence: 0.95
+      },
+      content: {
         category: 'agent_communication',
         tags: [
           'inter_agent',
@@ -481,30 +639,11 @@ export class OneAgentUnifiedMetadataService implements UnifiedMetadataService {
           ...(options.topicContext ? [`topic_${options.topicContext}`] : [])
         ],
         sensitivity: options.privacyLevel || 'internal',
-        relevanceScore: 0.9, // High relevance for agent communications
+        relevanceScore: 0.9,
         contextDependency: options.userDataScope === 'restricted' ? 'session' : 
                           options.userDataScope === 'project' ? 'user' : 
                           options.userDataScope || 'session'
       },
-      
-      system: {
-        source: `agent_communication`,
-        component: 'multi_agent_orchestrator',
-        sessionId,
-        userId,
-        agent: {
-          id: sourceAgentId,
-          type: 'specialized'
-        }
-      },
-      
-      quality: {
-        score: options.qualityThreshold || 90, // Higher standard for agent communication
-        constitutionalCompliant: true, // Always require compliance for agent communication
-        validationLevel: 'enhanced',
-        confidence: 0.95
-      },
-      
       relationships: {
         ...(options.parentMessageId && { parent: options.parentMessageId }),
         children: [],
@@ -517,9 +656,13 @@ export class OneAgentUnifiedMetadataService implements UnifiedMetadataService {
           ...(options.projectContext ? [`project_${options.projectContext}`] : []),
           ...(options.workflowId ? [`workflow_${options.workflowId}`] : [])
         ]
+      },
+      analytics: {
+        accessCount: 0,
+        lastAccessPattern: 'created',
+        usageContext: []
       }
-    });
-    
+    };
     // Add inter-agent specific custom data
     const customData = {
       interAgentMetadata: {
@@ -543,32 +686,22 @@ export class OneAgentUnifiedMetadataService implements UnifiedMetadataService {
         requestId: options.requestId
       }
     };
-    
     // Store custom data in metadata
-    (metadata as any).customData = customData;
-    
+    (metadata as Record<string, unknown>).customData = customData;
     return metadata;
   }
   
   // Private helper methods
+  // Private helper methods
+
   private generateId(): string {
-    const timestamp = this.timeService.now().unix;
-    const randomSuffix = this.generateSecureRandomSuffix();
-    return `unified_${timestamp}_${randomSuffix}`;
-  }
-  
-  private generateSecureRandomSuffix(): string {
-    // Use crypto.randomUUID() for better randomness, fallback to Math.random()
-    if (typeof crypto !== 'undefined' && crypto.randomUUID) {
-      return crypto.randomUUID().split('-')[0]; // Use first segment
-    }
-    return Math.random().toString(36).substr(2, 9);
+    // Canonical ID generation: use exported generateUnifiedId
+    return generateUnifiedId('operation', 'unified');
   }
 
   private calculateRelevanceDecay(metadata: UnifiedMetadata): number {
     const age = this.timeService.now().unix - metadata.temporal.created.unix;
     const days = age / (1000 * 60 * 60 * 24);
-    
     // Simple decay model - can be enhanced
     switch (metadata.content.contextDependency) {
       case 'session': return Math.max(0, 1 - (days / 1));
@@ -640,7 +773,8 @@ export class OneAgentUnifiedBackbone {
   public getServices() {
     return {
       timeService: this.timeService,
-      metadataService: this.metadataService
+      metadataService: this.metadataService,
+      errorHandler: this.errorHandler
     };
   }
   
@@ -754,7 +888,7 @@ export class OneAgentUnifiedBackbone {
       case 'short':
         return `${prefix}_${randomSuffix}`;
       case 'long':
-        return `${prefix}_${timestamp}_${randomSuffix}_${Date.now()}`;
+        return `${prefix}_${timestamp}_${randomSuffix}_${this.getServices().timeService.now().unix}`;
       case 'medium':
       default:
         return `${prefix}_${timestamp}_${randomSuffix}`;

@@ -2,7 +2,6 @@
   "name": "oneagent-core",
   "version": "0.1.0",
   "description": "OneAgent CoreAgent - Modulær AI-agentplattform with UI",
-  "type": "module",
   "main": "dist/coreagent/main.js",
   "scripts": {
     "build": "tsc",

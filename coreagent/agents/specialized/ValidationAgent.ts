@@ -11,6 +11,8 @@
 
 import { BaseAgent, AgentConfig, AgentContext, AgentResponse, AgentAction } from '../base/BaseAgent';
 import { ISpecializedAgent, AgentHealthStatus } from '../base/ISpecializedAgent';
+import { OneAgentMemory } from '../../memory/OneAgentMemory';
+import { UnifiedMetadata } from '../../types/oneagent-backbone-types';
 
 export interface ValidationResult {
   isValid: boolean;
@@ -72,9 +74,11 @@ interface BMADPoint {
  * - Safety: Prevents harmful code patterns and vulnerabilities
  */
 export class ValidationAgent extends BaseAgent implements ISpecializedAgent {
+  private memory: OneAgentMemory;
   
   constructor(config: AgentConfig) {
     super(config);
+    this.memory = OneAgentMemory.getInstance();
   }
 
   /** ISpecializedAgent interface implementation */
@@ -180,14 +184,15 @@ export class ValidationAgent extends BaseAgent implements ISpecializedAgent {
   }
 
   async getHealthStatus(): Promise<AgentHealthStatus> {
+    // Use BaseAgent canonical time patterns
     const timestamp = this.unifiedBackbone.getServices().timeService.now();
     return {
       status: 'healthy',
-      uptime: timestamp.unix,
+      uptime: timestamp.unix * 1000, // Convert to milliseconds
       memoryUsage: 0,
       responseTime: 0,
       errorRate: 0,
-      lastActivity: new Date(timestamp.utc)
+      lastActivity: new Date(timestamp.utc) // BaseAgent pattern for Date conversion
     };
   }
 
@@ -249,31 +254,47 @@ export class ValidationAgent extends BaseAgent implements ISpecializedAgent {
 
   /**
    * Constitutional AI compliance check
-   * Validates against the 4 core principles
+   * Validates against the 4 core principles with comprehensive analysis
    */
-  private async performConstitutionalCheck(content: string, _checkContext?: string, _context?: AgentContext): Promise<ConstitutionalResult> {
+  private async performConstitutionalCheck(content: string, checkContext?: string, context?: AgentContext): Promise<ConstitutionalResult> {
+    // Enhanced Constitutional AI analysis with real scoring
     const principleChecks = {
-      accuracy: this.checkAccuracy(content),
-      transparency: this.checkTransparency(content),
-      helpfulness: this.checkHelpfulness(content),
-      safety: this.checkSafety(content)
+      accuracy: await this.checkAccuracyEnhanced(content, checkContext),
+      transparency: await this.checkTransparencyEnhanced(content, checkContext),
+      helpfulness: await this.checkHelpfulnessEnhanced(content, checkContext),
+      safety: await this.checkSafetyEnhanced(content, checkContext)
     };
 
     const principles: ConstitutionalPrincipleResult[] = Object.entries(principleChecks).map(([name, check]) => ({
       principle: name,
-      passed: check.compliant,
-      score: check.compliant ? 1.0 : 0.5,
-      feedback: check.issues.length > 0 ? check.issues.join('; ') : 'Compliant'
+      passed: check.score >= 0.7, // 70% threshold for compliance
+      score: check.score,
+      feedback: check.feedback
     }));
 
-    const overallCompliance = Object.values(principleChecks).every(p => p.compliant);
+    const overallCompliance = principles.every(p => p.passed);
     const overallScore = principles.reduce((sum, p) => sum + p.score, 0) / principles.length;
+
+    // Store validation result in memory for learning
+    if (this.config.memoryEnabled && context) {
+      await this.storeValidationResult({
+        content,
+        checkContext,
+        result: { 
+          compliant: overallCompliance, 
+          overallScore, 
+          principles,
+          recommendations: this.getConstitutionalRecommendationsEnhanced(principleChecks)
+        },
+        timestamp: new Date().toISOString()
+      }, context);
+    }
 
     return {
       compliant: overallCompliance,
       principles,
       overallScore,
-      recommendations: this.getConstitutionalRecommendations(principleChecks)
+      recommendations: this.getConstitutionalRecommendationsEnhanced(principleChecks)
     };
   }
 
@@ -469,6 +490,302 @@ export class ValidationAgent extends BaseAgent implements ISpecializedAgent {
 
   private calculateBMADConfidence(): number {
     return 0.85; // Simplified confidence calculation
+  }
+
+  // Enhanced Constitutional AI Methods with Real Analysis
+
+  private async checkAccuracyEnhanced(content: string, _context?: string): Promise<{ score: number; feedback: string }> {
+    let score = 1.0;
+    const issues: string[] = [];
+
+    // Check for speculation indicators
+    const speculationWords = ['probably', 'maybe', 'might', 'could be', 'perhaps', 'possibly'];
+    const speculationCount = speculationWords.filter(word => 
+      content.toLowerCase().includes(word)).length;
+    
+    if (speculationCount > 0) {
+      score -= speculationCount * 0.1;
+      issues.push(`Contains ${speculationCount} speculation indicators`);
+    }
+
+    // Check for uncertainty acknowledgment
+    const uncertaintyPhrases = ['i don\'t know', 'uncertain', 'not sure', 'unclear'];
+    const hasUncertaintyAck = uncertaintyPhrases.some(phrase => 
+      content.toLowerCase().includes(phrase));
+    
+    if (!hasUncertaintyAck && content.length > 100) {
+      // Long content without uncertainty acknowledgment might be overconfident
+      score -= 0.05;
+      issues.push('Consider acknowledging limitations or uncertainties');
+    }
+
+    // Check for factual claims without evidence
+    const factualIndicators = ['according to', 'research shows', 'studies indicate', 'evidence suggests'];
+    const hasFactualSupport = factualIndicators.some(phrase => 
+      content.toLowerCase().includes(phrase));
+    
+    if (content.includes('fact') || content.includes('proven') || content.includes('definitely')) {
+      if (!hasFactualSupport) {
+        score -= 0.15;
+        issues.push('Strong claims should be supported with evidence');
+      }
+    }
+
+    return {
+      score: Math.max(0, score),
+      feedback: issues.length > 0 ? issues.join('; ') : 'Content demonstrates good accuracy practices'
+    };
+  }
+
+  private async checkTransparencyEnhanced(content: string, _context?: string): Promise<{ score: number; feedback: string }> {
+    let score = 1.0;
+    const issues: string[] = [];
+
+    // Check for reasoning explanation
+    const reasoningIndicators = ['because', 'since', 'therefore', 'due to', 'as a result'];
+    const hasReasoning = reasoningIndicators.some(phrase => 
+      content.toLowerCase().includes(phrase));
+    
+    if (!hasReasoning && content.length > 50) {
+      score -= 0.2;
+      issues.push('Consider explaining reasoning behind statements');
+    }
+
+    // Check for limitations acknowledgment
+    const limitationPhrases = ['limitation', 'constraint', 'caveat', 'however', 'but'];
+    const hasLimitations = limitationPhrases.some(phrase => 
+      content.toLowerCase().includes(phrase));
+    
+    if (!hasLimitations && content.length > 150) {
+      score -= 0.1;
+      issues.push('Consider acknowledging limitations or constraints');
+    }
+
+    // Check for process transparency
+    const processIndicators = ['step', 'process', 'method', 'approach', 'analysis'];
+    const hasProcessInfo = processIndicators.some(phrase => 
+      content.toLowerCase().includes(phrase));
+    
+    if (_context === 'technical' && !hasProcessInfo) {
+      score -= 0.15;
+      issues.push('Technical content should explain methods or processes');
+    }
+
+    return {
+      score: Math.max(0, score),
+      feedback: issues.length > 0 ? issues.join('; ') : 'Content demonstrates good transparency'
+    };
+  }
+
+  private async checkHelpfulnessEnhanced(content: string, _context?: string): Promise<{ score: number; feedback: string }> {
+    let score = 1.0;
+    const issues: string[] = [];
+
+    // Check for actionable advice
+    const actionableWords = ['should', 'can', 'try', 'consider', 'recommend', 'suggest'];
+    const actionableCount = actionableWords.filter(word => 
+      content.toLowerCase().includes(word)).length;
+    
+    if (actionableCount === 0 && content.length > 100) {
+      score -= 0.2;
+      issues.push('Consider providing actionable recommendations');
+    }
+
+    // Check for specific examples
+    const exampleIndicators = ['example', 'for instance', 'such as', 'like'];
+    const hasExamples = exampleIndicators.some(phrase => 
+      content.toLowerCase().includes(phrase));
+    
+    if (!hasExamples && content.length > 200) {
+      score -= 0.1;
+      issues.push('Consider providing specific examples');
+    }
+
+    // Check for user-focused language
+    const userFocusedWords = ['you', 'your', 'help', 'assist', 'guide'];
+    const userFocusedCount = userFocusedWords.filter(word => 
+      content.toLowerCase().includes(word)).length;
+    
+    if (userFocusedCount === 0) {
+      score -= 0.15;
+      issues.push('Consider using more user-focused language');
+    }
+
+    // Check for next steps
+    const nextStepIndicators = ['next', 'then', 'follow', 'continue', 'proceed'];
+    const hasNextSteps = nextStepIndicators.some(phrase => 
+      content.toLowerCase().includes(phrase));
+    
+    if (_context === 'guidance' && !hasNextSteps) {
+      score -= 0.1;
+      issues.push('Consider providing clear next steps');
+    }
+
+    return {
+      score: Math.max(0, score),
+      feedback: issues.length > 0 ? issues.join('; ') : 'Content is helpful and actionable'
+    };
+  }
+
+  private async checkSafetyEnhanced(content: string, _context?: string): Promise<{ score: number; feedback: string }> {
+    let score = 1.0;
+    const issues: string[] = [];
+
+    // Check for harmful content indicators
+    const harmfulKeywords = ['hack', 'exploit', 'bypass', 'break', 'crack', 'illegal'];
+    const harmfulCount = harmfulKeywords.filter(word => 
+      content.toLowerCase().includes(word)).length;
+    
+    if (harmfulCount > 0) {
+      score -= harmfulCount * 0.3;
+      issues.push(`Contains ${harmfulCount} potentially harmful keywords`);
+    }
+
+    // Check for safety warnings
+    const warningPhrases = ['warning', 'caution', 'careful', 'risk', 'danger'];
+    const hasWarnings = warningPhrases.some(phrase => 
+      content.toLowerCase().includes(phrase));
+    
+    if (_context === 'technical' && content.includes('delete') || content.includes('remove')) {
+      if (!hasWarnings) {
+        score -= 0.2;
+        issues.push('Destructive operations should include safety warnings');
+      }
+    }
+
+    // Check for security considerations
+    const securityKeywords = ['password', 'token', 'key', 'secret', 'credential'];
+    const hasSecurityInfo = securityKeywords.some(word => 
+      content.toLowerCase().includes(word));
+    
+    if (hasSecurityInfo) {
+      const securityWarnings = ['secure', 'protect', 'encrypt', 'safe'];
+      const hasSecurityAdvice = securityWarnings.some(word => 
+        content.toLowerCase().includes(word));
+      
+      if (!hasSecurityAdvice) {
+        score -= 0.25;
+        issues.push('Security-related content should include protection advice');
+      }
+    }
+
+    return {
+      score: Math.max(0, score),
+      feedback: issues.length > 0 ? issues.join('; ') : 'Content follows safety guidelines'
+    };
+  }
+
+  private getConstitutionalRecommendationsEnhanced(principleChecks: Record<string, { score: number; feedback: string }>): string[] {
+    const recommendations: string[] = [];
+    
+    Object.entries(principleChecks).forEach(([principle, check]) => {
+      if (check.score < 0.8) {
+        recommendations.push(`${principle}: ${check.feedback}`);
+      }
+    });
+
+    if (recommendations.length === 0) {
+      recommendations.push('Content meets all Constitutional AI principles');
+    }
+
+    return recommendations;
+  }
+
+  private async storeValidationResult(validationData: {
+    content: string;
+    checkContext?: string;
+    result: ConstitutionalResult;
+    timestamp: string;
+  }, context: AgentContext): Promise<void> {
+    try {
+      const timestamp = this.unifiedBackbone.getServices().timeService.now();
+      const metadata: UnifiedMetadata = {
+        id: `validation-${timestamp.unix}`, // Use BaseAgent canonical time pattern
+        type: 'validation-result',
+        version: '1.0.0',
+        system: {
+          userId: context.user.id,
+          sessionId: context.sessionId,
+          source: 'ValidationAgent',
+          component: 'constitutional-ai'
+        },
+        content: {
+          category: 'validation',
+          tags: ['constitutional-ai', 'validation', 'quality'],
+          sensitivity: 'internal',
+          relevanceScore: 0.8,
+          contextDependency: 'session'
+        },
+        quality: {
+          score: validationData.result.overallScore,
+          constitutionalCompliant: validationData.result.compliant,
+          validationLevel: 'constitutional',
+          confidence: 0.9
+        },
+        temporal: {
+          created: {
+            iso: validationData.timestamp,
+            unix: timestamp.unix, // Use BaseAgent canonical time
+            timezone: 'UTC',
+            utc: validationData.timestamp,
+            local: validationData.timestamp,
+            context: 'validation-session',
+            contextual: {
+              timeOfDay: new Date(timestamp.utc).getHours() < 12 ? 'morning' : 'afternoon', // BaseAgent pattern
+              energyLevel: 'focused',
+              optimalFor: ['analysis', 'validation']
+            },
+            metadata: { 
+              source: 'ValidationAgent',
+              precision: 'second' as const,
+              timezone: 'UTC'
+            }
+          },
+          updated: {
+            iso: validationData.timestamp,
+            unix: timestamp.unix, // Use BaseAgent canonical time
+            timezone: 'UTC',
+            utc: validationData.timestamp,
+            local: validationData.timestamp,
+            context: 'validation-session',
+            contextual: {
+              timeOfDay: new Date(timestamp.utc).getHours() < 12 ? 'morning' : 'afternoon', // BaseAgent pattern
+              energyLevel: 'focused',
+              optimalFor: ['analysis', 'validation']
+            },
+            metadata: { 
+              source: 'ValidationAgent',
+              precision: 'second' as const,
+              timezone: 'UTC'
+            }
+          },
+          contextSnapshot: {
+            timeOfDay: new Date().getHours() < 12 ? 'morning' : 'afternoon',
+            dayOfWeek: new Date().toLocaleDateString('en-US', { weekday: 'long' }),
+            businessContext: true,
+            energyContext: 'focused'
+          }
+        },
+        analytics: {
+          accessCount: 0,
+          lastAccessPattern: 'created',
+          usageContext: ['validation', 'quality-assurance']
+        },
+        relationships: {
+          parent: context.sessionId,
+          children: [],
+          related: ['ValidationAgent', 'ConstitutionalAI'],
+          dependencies: ['memory-system', 'unified-backbone']
+        }
+      };
+
+      const memoryContent = `Constitutional AI Validation: ${validationData.result.compliant ? 'COMPLIANT' : 'NON-COMPLIANT'} (Score: ${(validationData.result.overallScore * 100).toFixed(1)}%)`;
+      
+      await this.memory.addMemoryCanonical(memoryContent, metadata);
+    } catch (error) {
+      console.error('Failed to store validation result:', error);
+      // Don't throw - validation should continue even if memory storage fails
+    }
   }
 
   /**

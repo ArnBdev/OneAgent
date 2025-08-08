@@ -340,6 +340,7 @@ export class OneAgentSystem extends EventEmitter {
 
       // Register all agents in a canonical, extensible loop
       for (const config of agentConfigs) {
+        // Use canonical config from UnifiedBackboneService
         const agent = await AgentFactory.createAgent(config);
         this.specialists.set(config.id, this.createAgentAdapter(agent, config.id));
       }

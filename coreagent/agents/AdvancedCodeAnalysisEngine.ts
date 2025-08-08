@@ -2,7 +2,7 @@
  * Advanced Code Analysis Engine for DevAgent
  * 
  * Provides sophisticated code analysis capabilities including:
- * - Context7 integration for documentation lookup
+ * - Context7 integration for documentation lookup (canonical only)
  * - Pattern recognition and learning
  * - Memory-driven code insights
  * - Constitutional AI validation for code quality
@@ -12,9 +12,12 @@
  * @created June 14, 2025
  */
 
-import { UnifiedContext7MCPIntegration, DocumentationQuery, DocumentationResult } from '../mcp/UnifiedContext7MCPIntegration';
-import { OneAgentA2AProtocol } from '../protocols/a2a/A2AProtocol';
+
 import { createUnifiedTimestamp } from '../utils/UnifiedBackboneService';
+import type {
+  DocumentationResult
+} from '../types/oneagent-backbone-types';
+import { unifiedAgentCommunicationService } from '../utils/UnifiedAgentCommunicationService';
 
 export interface CodeAnalysisRequest {
   code: string;
@@ -39,7 +42,7 @@ export interface CodeAnalysisResult {
     analysisType: string;
     confidence: number;
     processingTime: number;
-    context7Used: boolean;
+    context7Used: boolean; // Only for documentation lookup
     memoryEnhanced: boolean;
   };
 }
@@ -76,25 +79,20 @@ export interface MemoryInsight {
  * Advanced Code Analysis Engine
  */
 export class AdvancedCodeAnalysisEngine {
-  private context7Integration: UnifiedContext7MCPIntegration;
-  private a2aProtocol: OneAgentA2AProtocol;
   private agentId: string;
-  
+  // Removed agentComm property; use singleton directly
   // Analysis patterns and metrics
   private languagePatterns: Map<string, CodePattern[]> = new Map();
   private analysisMetrics = {
     totalAnalyses: 0,
     successfulAnalyses: 0,
     averageQualityScore: 0,
-    context7Usage: 0,
+    context7Usage: 0, // Only for documentation lookup
     memoryEnhancements: 0
   };
 
-  constructor(agentId: string, a2aProtocol: OneAgentA2AProtocol) {
+  constructor(agentId: string) {
     this.agentId = agentId;
-    this.a2aProtocol = a2aProtocol;
-    this.context7Integration = new UnifiedContext7MCPIntegration(agentId);
-    
     this.initializeLanguagePatterns();
   }
 
@@ -114,7 +112,7 @@ export class AdvancedCodeAnalysisEngine {
       // Step 2: Perform language-specific analysis
       const baseAnalysis = await this.performBaseAnalysis(request);
 
-      // Step 3: Get relevant documentation via context7
+      // Step 3: Get relevant documentation via context7 (canonical only)
       const documentation = await this.getRelevantDocumentation(request, baseAnalysis);
 
       // Step 4: Extract and learn patterns
@@ -141,7 +139,7 @@ export class AdvancedCodeAnalysisEngine {
           analysisType: request.requestType,
           confidence: this.calculateConfidence(suggestions, documentation, memoryInsights),
           processingTime: createUnifiedTimestamp().unix - startTime,
-          context7Used: documentation.length > 0,
+          context7Used: documentation.length > 0, // Only for documentation lookup
           memoryEnhanced: memoryInsights.length > 0
         }
       };
@@ -164,21 +162,19 @@ export class AdvancedCodeAnalysisEngine {
    * Get memory insights from previous similar analyses
    */  private async getMemoryInsights(request: CodeAnalysisRequest): Promise<MemoryInsight[]> {
     try {
-      const searchQuery = `${request.language} ${request.requestType} ${request.problemDescription || ''} code analysis`;
+      // Removed unused searchQuery variable
       
-      const memories = await this.a2aProtocol.searchAgentCommunications(searchQuery, {
-        limit: 5,
-        minQualityScore: 0.6
-      });
-      
-      return memories.map((memory: unknown) => {
-        const mem = memory as { content?: string; metadata?: { confidenceLevel?: number }; fromAgent?: string; timestamp?: string };
+      // Canonical: Use agentComm.getMessageHistory or similar for memory insights
+      const sessionId = request.sessionId || 'default';
+      const messages = await unifiedAgentCommunicationService.getMessageHistory(sessionId, 5);
+      return messages.map((msg: unknown) => {
+        const m = msg as { content?: string; metadata?: { confidenceLevel?: number }; fromAgent?: string; timestamp?: string };
         return {
-          type: this.classifyInsightType(mem.content || ''),
-          content: mem.content || '',
-          confidence: mem.metadata?.confidenceLevel || 0.7,
-          source: mem.fromAgent || 'unknown',
-          timestamp: new Date(mem.timestamp || createUnifiedTimestamp().utc)
+          type: this.classifyInsightType(m.content || ''),
+          content: m.content || '',
+          confidence: m.metadata?.confidenceLevel || 0.7,
+          source: m.fromAgent || 'unknown',
+          timestamp: new Date(m.timestamp || createUnifiedTimestamp().utc)
         };
       });
     } catch (error) {
@@ -218,13 +214,13 @@ export class AdvancedCodeAnalysisEngine {
   }
 
   /**
-   * Get relevant documentation via context7
+   * Get relevant documentation via context7 (canonical only)
    */
   private async getRelevantDocumentation(request: CodeAnalysisRequest, analysis: string): Promise<DocumentationResult[]> {
     try {
-      this.analysisMetrics.context7Usage++;
+      this.analysisMetrics.context7Usage++; // Only for documentation lookup
 
-      const queries: DocumentationQuery[] = [];
+      const queries = [];
 
       // Language-specific documentation
       if (request.language) {        queries.push({
@@ -249,7 +245,11 @@ export class AdvancedCodeAnalysisEngine {
 
       const documentationResults: DocumentationResult[] = [];
       for (const query of queries) {
-        const results = await this.context7Integration.queryDocumentation(query);
+        // Canonical: Use UnifiedBackboneService.context7.queryDocumentation
+        // TODO: Use canonical Context7 documentation query utility/service here
+        // Placeholder: Replace with canonical Context7 documentation query
+        // const results = await unifiedContext7Documentation.queryDocumentation(query);
+        const results: DocumentationResult[] = [];
         documentationResults.push(...results);
       }
 
@@ -594,7 +594,7 @@ export class AdvancedCodeAnalysisEngine {
         analysisType: request.requestType,
         confidence: 0.3,
         processingTime: 0,
-        context7Used: false,
+        context7Used: false, // Only for documentation lookup
         memoryEnhanced: false
       }
     };
@@ -606,7 +606,7 @@ export class AdvancedCodeAnalysisEngine {
       this.analysisMetrics.successfulAnalyses;
     
     if (result.metadata.context7Used) {
-      this.analysisMetrics.context7Usage++;
+      this.analysisMetrics.context7Usage++; // Only for documentation lookup
     }
     
     if (result.metadata.memoryEnhanced) {
@@ -617,18 +617,20 @@ export class AdvancedCodeAnalysisEngine {
     try {
       const learningContent = `Code analysis: ${request.language} ${request.requestType} - Quality: ${result.qualityScore}% - Patterns: ${result.patterns.length} - Documentation used: ${result.documentation.length}`;
       
-      await this.a2aProtocol.sendAgentMessage({
+      await unifiedAgentCommunicationService.sendMessage({
         toAgent: 'system', // Broadcast to system for learning
+        fromAgent: this.agentId,
         content: learningContent,
-        messageType: 'learning',
+        messageType: 'insight',
         metadata: {
           type: 'code_analysis',
           language: request.language,
           requestType: request.requestType,
           qualityScore: result.qualityScore,
           patterns: result.patterns.map(p => p.name),
-          context7Used: result.metadata.context7Used
-        }
+          context7Used: result.metadata.context7Used // Only for documentation lookup
+        },
+        sessionId: request.sessionId || 'default'
       });
     } catch (error) {
       console.warn(`[CodeAnalysis] Failed to store analysis for learning:`, error);

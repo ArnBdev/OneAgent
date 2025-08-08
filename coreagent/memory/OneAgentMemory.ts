@@ -3,8 +3,9 @@
 // This module provides a production-grade, type-safe interface for memory actions.
 
 import fetch from 'node-fetch';
-import { OneAgentUnifiedBackbone } from '../utils/UnifiedBackboneService';
+import { OneAgentUnifiedBackbone, createUnifiedId, createUnifiedTimestamp, unifiedMetadataService } from '../utils/UnifiedBackboneService';
 import { BatchMemoryOperations } from './BatchMemoryOperations';
+import { UnifiedMetadata, UnifiedTimestamp } from '../types/oneagent-backbone-types';
 
 const MCP_PROTOCOL_VERSION = '2025-06-18';
 
@@ -18,11 +19,13 @@ export interface OneAgentMemoryConfig {
   batchSize?: number;
   batchTimeout?: number;
   requestTimeout?: number; // Add configurable request timeout
+  enableConstitutionalValidation?: boolean; // Add Constitutional AI validation
   [key: string]: any;
 }
 
 /**
  * Canonical OneAgent memory client with singleton pattern
+ * Enhanced with UnifiedMetadata and Constitutional AI integration
  */
 export class OneAgentMemory {
   private static instance: OneAgentMemory | null = null;
@@ -31,6 +34,7 @@ export class OneAgentMemory {
   private config: OneAgentMemoryConfig;
   private batchOperations: BatchMemoryOperations;
   private cachingEnabled: boolean;
+  private constitutionalValidationEnabled: boolean;
 
   /**
    * Initialize OneAgentMemory with configuration
@@ -39,12 +43,14 @@ export class OneAgentMemory {
     this.config = config;
     this.batchOperations = new BatchMemoryOperations(this);
     this.cachingEnabled = config.enableCaching !== false; // Default to enabled
+    this.constitutionalValidationEnabled = config.enableConstitutionalValidation !== false;
     
     // Only log initialization once to prevent spam
     if (!OneAgentMemory.initializationLogged) {
       console.log(`[OneAgentMemory] MCP Protocol Version: ${MCP_PROTOCOL_VERSION}`);
       console.log(`[OneAgentMemory] MEM0_API_KEY present:`, !!(config.apiKey || process.env.MEM0_API_KEY));
       console.log(`[OneAgentMemory] Caching enabled:`, this.cachingEnabled);
+      console.log(`[OneAgentMemory] Constitutional validation enabled:`, this.constitutionalValidationEnabled);
       OneAgentMemory.initializationLogged = true;
     }
   }
@@ -60,48 +66,156 @@ export class OneAgentMemory {
   }
 
   /**
-   * Add a memory item (optimized with caching and batching)
+   * Add a memory item (canonical OneAgent method)
+   * Uses UnifiedMetadata and UnifiedTimestamp for enhanced functionality
+   */
+  async addMemoryCanonical(content: string, metadata?: Partial<UnifiedMetadata>, userId?: string): Promise<string> {
+    // Generate canonical ID and timestamp
+    const memoryId = createUnifiedId('memory', userId || 'default-user');
+    const timestamp = createUnifiedTimestamp();
+    
+    // Create canonical metadata using UnifiedMetadataService
+    const canonicalMetadata = unifiedMetadataService.create('memory', 'OneAgentMemory', {
+      ...metadata,
+      temporal: {
+        created: timestamp,
+        updated: timestamp,
+        accessed: timestamp,
+        contextSnapshot: {
+          timeOfDay: new Date().getHours() < 12 ? 'morning' : new Date().getHours() < 18 ? 'afternoon' : 'evening',
+          dayOfWeek: ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'][new Date().getDay()],
+          businessContext: new Date().getDay() >= 1 && new Date().getDay() <= 5 && new Date().getHours() >= 9 && new Date().getHours() <= 17,
+          energyContext: 'standard'
+        },
+        ...metadata?.temporal
+      },
+      system: {
+        source: 'OneAgentMemory',
+        component: 'memory-system',
+        userId: userId || 'default-user',
+        ...metadata?.system
+      }
+    });
+    
+    // Send UnifiedMetadata directly to the updated Python server
+    const payload = {
+      content,
+      userId: userId || canonicalMetadata.system?.userId || 'default-user',
+      metadata: canonicalMetadata // Send full UnifiedMetadata structure
+    };
+
+    const result = await this.performAddMemoryCanonical(payload);
+    console.log(`[OneAgentMemory] [addMemoryCanonical] Memory stored with ID: ${memoryId}`);
+    
+    // Cache the canonical metadata for future retrieval
+    if (this.cachingEnabled) {
+      const cacheKey = `metadata:${memoryId}`;
+      await OneAgentUnifiedBackbone.getInstance().cache.set(cacheKey, canonicalMetadata, 3600); // 1 hour cache
+    }
+    
+    return result?.id || memoryId;
+  }
+
+  /**
+   * Perform memory add operation with canonical UnifiedMetadata
+   */
+  private async performAddMemoryCanonical(data: any): Promise<any> {
+    const baseUrl = process.env.ONEAGENT_MEMORY_URL || this.config.apiUrl || 'http://localhost:8010';
+    const endpoint = baseUrl.replace(/\/$/, '') + '/v1/memories';
+    
+    const timeoutMs = this.config.requestTimeout || 15000;
+    console.log(`[OneAgentMemory] [addMemoryCanonical] POST ${endpoint}`);
+    console.log(`[OneAgentMemory] [addMemoryCanonical] Payload:`, JSON.stringify(data, null, 2));
+    
+    try {
+      const controller = typeof AbortController !== 'undefined' ? new AbortController() : undefined;
+      const timeout = setTimeout(() => controller && controller.abort(), timeoutMs);
+      const authHeader = `Bearer ${this.config.apiKey || process.env.MEM0_API_KEY}`;
+      console.log(`[OneAgentMemory] [addMemoryCanonical] Authorization header: '${authHeader}'`);
+      
+      const fetchOptions: any = {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': authHeader,
+          'MCP-Protocol-Version': MCP_PROTOCOL_VERSION,
+        },
+        body: JSON.stringify(data),
+      };
+      
+      if (controller && controller.signal) fetchOptions.signal = controller.signal as any;
+      
+      const res = await fetch(endpoint, fetchOptions);
+      clearTimeout(timeout);
+      
+      if (!res.ok) {
+        const text = await res.text();
+        console.error(`[OneAgentMemory] addMemoryCanonical failed - HTTP ${res.status}: ${text}`);
+        throw new Error(`HTTP ${res.status}: ${text}`);
+      }
+      
+      const json = await res.json();
+      console.log(`[OneAgentMemory] [addMemoryCanonical] HTTP result:`, json);
+      return json;
+    } catch (httpError) {
+      this.handleError('addMemoryCanonical', httpError);
+    }
+  }
+
+  /**
+   * Convert UnifiedMetadata to legacy MemoryMetadata format for Python server
+   */
+  private convertUnifiedToLegacyMetadata(unifiedMetadata: UnifiedMetadata): Record<string, unknown> {
+    return {
+      userId: unifiedMetadata.system.userId || 'default-user',
+      sessionId: unifiedMetadata.system.sessionId,
+      timestamp: unifiedMetadata.temporal.created.unix,
+      category: unifiedMetadata.content.category,
+      tags: unifiedMetadata.content.tags,
+      importance: 'medium', // Map from unifiedMetadata if needed
+      conversationContext: unifiedMetadata.system.sessionId,
+      constitutionallyValidated: unifiedMetadata.quality.constitutionalCompliant,
+      sensitivityLevel: unifiedMetadata.content.sensitivity,
+      relevanceScore: unifiedMetadata.content.relevanceScore,
+      confidenceScore: unifiedMetadata.quality.confidence,
+      sourceReliability: 0.95, // Default high reliability for OneAgent memories
+      // Additional fields for enhanced functionality
+      memoryId: unifiedMetadata.id,
+      source: unifiedMetadata.system.source,
+      component: unifiedMetadata.system.component,
+      qualityScore: unifiedMetadata.quality.score
+    };
+  }
+
+  /**
+   * DEPRECATED: Legacy method - Use addMemoryCanonical() instead
+   * Converts legacy calls to canonical UnifiedMetadata format
    */
   async addMemory(data: any): Promise<any> {
+    console.warn('[OneAgentMemory] addMemory() is DEPRECATED. Use addMemoryCanonical() with UnifiedMetadata instead.');
+    
+    // Extract content and basic metadata
     const content = data.content || data.text || data;
+    const userId = data.user_id || data.userId || 'default-user';
     
-    // Check cache for duplicate content
-    if (this.cachingEnabled && typeof content === 'string') {
-      const cacheKey = `embedding:${content.slice(0, 100)}`;
-      const cachedEmbedding = await OneAgentUnifiedBackbone.getInstance().cache.get(cacheKey);
-      if (cachedEmbedding) {
-        console.log(`[OneAgentMemory] Cache hit for content length: ${content.length}`);
-        // Skip if exact content already exists (optional optimization)
+    // Create minimal UnifiedMetadata from legacy data
+    const basicMetadata = unifiedMetadataService.create('legacy-conversion', 'OneAgentMemory', {
+      system: {
+        userId,
+        source: 'legacy-addMemory',
+        component: 'memory-system'
+      },
+      content: {
+        category: data.metadata?.category || 'general',
+        tags: Array.isArray(data.metadata?.tags) ? data.metadata.tags : ['legacy'],
+        sensitivity: 'internal',
+        relevanceScore: 0.5,
+        contextDependency: 'session'
       }
-    }
+    });
     
-    // Try with retries for timeout/abort errors
-    let lastError: Error | null = null;
-    const maxRetries = 2;
-    
-    for (let attempt = 1; attempt <= maxRetries; attempt++) {
-      try {
-        return await this.performAddMemory(data);
-      } catch (error) {
-        lastError = error as Error;
-        
-        // Only retry on abort/timeout errors
-        if (lastError.message.includes('aborted') || lastError.message.includes('timeout')) {
-          console.warn(`[OneAgentMemory] addMemory attempt ${attempt} failed: ${lastError.message}`);
-          if (attempt < maxRetries) {
-            console.log(`[OneAgentMemory] Retrying in ${attempt * 1000}ms...`);
-            await new Promise(resolve => setTimeout(resolve, attempt * 1000));
-            continue;
-          }
-        }
-        
-        // For other errors, don't retry
-        throw error;
-      }
-    }
-    
-    // If we get here, all retries failed
-    throw lastError || new Error('Unexpected error during memory add');
+    // Forward to canonical method
+    return await this.addMemoryCanonical(content, basicMetadata, userId);
   }
 
   /**
@@ -406,7 +520,7 @@ export class OneAgentMemory {
     await this.batchOperations.queueOperation({
       type: 'add',
       data,
-      id: Math.random().toString(36).substr(2, 9)
+      id: createUnifiedId('memory', 'batch')
     });
   }
 

@@ -13,7 +13,7 @@
 
 import { OneAgentMemory, OneAgentMemoryConfig } from '../memory/OneAgentMemory';
 import { ConversationData, ConversationMetadata, MemorySearchResult, MemoryRecord, IntelligenceInsight } from '../types/oneagent-backbone-types';
-import { createUnifiedTimestamp, createUnifiedId } from '../utils/UnifiedBackboneService';
+import { createUnifiedTimestamp, createUnifiedId, unifiedMetadataService } from '../utils/UnifiedBackboneService';
 import { OneAgentUnifiedBackbone } from '../utils/UnifiedBackboneService';
 import { ConstitutionalAI } from '../agents/base/ConstitutionalAI';
 import { PromptEngine } from '../agents/base/PromptEngine';
@@ -87,18 +87,26 @@ export class MemoryIntelligence {
       const results: MemoryRecord[] = conversations.map(conv => ({
         id: conv.conversationId || 'unknown',
         content: JSON.stringify(conv),
-        metadata: {
-          userId,
-          timestamp: conv.startTime || new Date(),
-          tags: conv.topics || [],
-          category: 'conversation',
-          importance: 'medium' as const,
-          constitutionallyValidated: typeof conv.constitutionalCompliance === 'boolean' ? conv.constitutionalCompliance : true,
-          sensitivityLevel: 'internal' as const,
-          relevanceScore: typeof conv.overallQuality === 'number' ? conv.overallQuality : 1.0,
-          confidenceScore: 0.8,
-          sourceReliability: 0.9
-        },
+        metadata: unifiedMetadataService.create('memory', 'memoryIntelligence', {
+          system: {
+            source: 'memoryIntelligence',
+            component: 'conversation-analysis',
+            userId: userId
+          },
+          content: {
+            category: 'conversation',
+            tags: conv.topics || [],
+            sensitivity: 'internal',
+            relevanceScore: typeof conv.overallQuality === 'number' ? conv.overallQuality : 1.0,
+            contextDependency: 'session'
+          },
+          quality: {
+            score: typeof conv.overallQuality === 'number' ? conv.overallQuality : 1.0,
+            confidence: 0.8,
+            constitutionalCompliant: typeof conv.constitutionalCompliance === 'boolean' ? conv.constitutionalCompliance : true,
+            validationLevel: 'enhanced'
+          }
+        }),
         relatedMemories: [],
         accessCount: 1,
         lastAccessed: new Date(this.unifiedBackbone.getServices().timeService.now().utc),
@@ -109,7 +117,7 @@ export class MemoryIntelligence {
         lastValidation: new Date(createUnifiedTimestamp().utc)
       }));
       const totalQuality = results.reduce((sum, result) => sum + (result.qualityScore || 0), 0);
-      const totalRelevance = results.reduce((sum, result) => sum + (result.metadata.relevanceScore || 0), 0);
+      const totalRelevance = results.reduce((sum, result) => sum + (result.metadata.content?.relevanceScore || 0), 0);
       const avgQuality = results.length > 0 ? totalQuality / results.length : 0;
       const avgRelevance = results.length > 0 ? totalRelevance / results.length : 0;
       const endTime = createUnifiedTimestamp();

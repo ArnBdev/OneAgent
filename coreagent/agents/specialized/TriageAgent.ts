@@ -10,7 +10,8 @@
 
 import { BaseAgent, AgentConfig, AgentContext, AgentResponse, AgentAction } from '../base/BaseAgent';
 import { ISpecializedAgent, AgentHealthStatus } from '../base/ISpecializedAgent';
-import { PromptConfig, AgentPersona, ConstitutionalPrinciple } from '../base/PromptEngine';
+import { PromptConfig, AgentPersona } from '../base/PromptEngine';
+import type { ConstitutionalPrinciple } from '../../types/oneagent-backbone-types';
 import { MemoryRecord } from '../../types/oneagent-backbone-types';
 
 interface TaskAnalysis {
@@ -607,6 +608,10 @@ Be concise but comprehensive in your routing analysis.
         id: 'optimal_routing',
         name: 'Optimal Agent Routing',
         description: 'Route tasks to the most appropriate agent based on capabilities and availability',
+        category: 'helpfulness',
+        weight: 1,
+        isViolated: false,
+        confidence: 1,
         validationRule: 'Response includes clear routing rationale and agent capability matching',
         severityLevel: 'high'
       },
@@ -614,6 +619,10 @@ Be concise but comprehensive in your routing analysis.
         id: 'priority_awareness',
         name: 'Priority-Based Scheduling',
         description: 'Respect task priorities and urgency levels in routing decisions',
+        category: 'helpfulness',
+        weight: 1,
+        isViolated: false,
+        confidence: 1,
         validationRule: 'Response considers and respects stated or implied priority levels',
         severityLevel: 'high'
       },
@@ -621,6 +630,10 @@ Be concise but comprehensive in your routing analysis.
         id: 'fallback_options',
         name: 'Fallback Route Planning',
         description: 'Always provide alternative routing options for resilience',
+        category: 'safety',
+        weight: 1,
+        isViolated: false,
+        confidence: 1,
         validationRule: 'Response includes backup agents or escalation paths',
         severityLevel: 'medium'
       },
@@ -628,6 +641,10 @@ Be concise but comprehensive in your routing analysis.
         id: 'transparent_reasoning',
         name: 'Transparent Routing Logic',
         description: 'Clearly explain routing decisions and reasoning',
+        category: 'transparency',
+        weight: 1,
+        isViolated: false,
+        confidence: 1,
         validationRule: 'Response includes clear explanation of why specific agent was chosen',
         severityLevel: 'high'
       },
@@ -635,6 +652,10 @@ Be concise but comprehensive in your routing analysis.
         id: 'system_optimization',
         name: 'System-Wide Optimization',
         description: 'Consider overall system health and load balancing',
+        category: 'accuracy',
+        weight: 1,
+        isViolated: false,
+        confidence: 1,
         validationRule: 'Response considers system-wide impact and optimization',
         severityLevel: 'medium'
       }

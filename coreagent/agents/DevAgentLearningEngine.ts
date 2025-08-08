@@ -4,7 +4,7 @@
  * Core learning system that enables DevAgent to:
  * - Store and retrieve learned patterns from interactions
  * - Build a local knowledge base of successful solutions
- * - Learn from context7 documentation and store useful insights
+ * - Learn from context7 documentation and store useful insights (canonical only)
  * - Continuously improve through pattern recognition
  * - Maintain institutional memory across sessions
  * 
@@ -14,8 +14,8 @@
  * @created June 14, 2025
  */
 
-import { OneAgentA2AProtocol } from '../protocols/a2a/A2AProtocol';
-import { UnifiedContext7MCPIntegration, DocumentationResult } from '../mcp/UnifiedContext7MCPIntegration';
+import type { DocumentationResult, OneAgentA2AProtocol } from '../types/oneagent-backbone-types';
+// UnifiedContext7MCPIntegration import removed (deprecated)
 import { CodeAnalysisResult } from './AdvancedCodeAnalysisEngine';
 import { getEnhancedTimeContext } from '../utils/EnhancedTimeAwareness.js';
 import { OneAgentUnifiedBackbone } from '../utils/UnifiedBackboneService.js';
@@ -54,7 +54,7 @@ export interface LearnedPattern {
   lastUsed: Date;
   
   // Sources
-  learnedFrom: 'context7' | 'user-interaction' | 'analysis-engine' | 'cross-agent';
+  learnedFrom: 'context7' | 'user-interaction' | 'analysis-engine' | 'cross-agent'; // Only for documentation learning
   sourceDetails?: {
     documentationUrl?: string;
     sessionId?: string;
@@ -97,7 +97,7 @@ export interface LearningMetrics {
  */
 export class DevAgentLearningEngine {
   private a2aProtocol: OneAgentA2AProtocol;
-  private context7Integration: UnifiedContext7MCPIntegration;
+  // context7Integration removed (deprecated)
   private agentId: string;
   private unifiedBackbone: OneAgentUnifiedBackbone;
   private memoryBridge: OneAgentMemory;
@@ -121,7 +121,7 @@ export class DevAgentLearningEngine {
   constructor(agentId: string, a2aProtocol: OneAgentA2AProtocol) {
     this.agentId = agentId;
     this.a2aProtocol = a2aProtocol;
-    this.context7Integration = new UnifiedContext7MCPIntegration(agentId);
+    // context7Integration initialization removed (deprecated)
     this.unifiedBackbone = OneAgentUnifiedBackbone.getInstance();
     this.memoryBridge = OneAgentMemory.getInstance();
   }
@@ -185,7 +185,7 @@ export class DevAgentLearningEngine {
   }
 
   /**
-   * Learn from context7 documentation
+   * Learn from context7 documentation (canonical only)
    */
   async learnFromDocumentation(
     documentationResults: DocumentationResult[],
@@ -195,7 +195,7 @@ export class DevAgentLearningEngine {
     const learnedPatterns: LearnedPattern[] = [];
     
     try {
-      console.log('[LearningEngine] Learning from context7 documentation...');
+      console.log('[LearningEngine] Learning from context7 documentation...'); // Only for documentation learning
       
       for (const doc of documentationResults) {
         if (doc.relevanceScore > 0.7) { // Only learn from highly relevant docs
@@ -444,7 +444,7 @@ export class DevAgentLearningEngine {
   }
 
   /**
-   * Extract patterns from context7 documentation
+   * Extract patterns from context7 documentation (canonical only)
    */
   private async extractPatternsFromDocumentation(
     doc: DocumentationResult,
@@ -458,12 +458,12 @@ export class DevAgentLearningEngine {
     const bestPractices = this.extractBestPractices(doc.content);
       for (const codeBlock of codeBlocks) {
       const patternMetadata = this.unifiedBackbone.getServices().metadataService.create(
-        'context7-pattern',
+        'context7-pattern', // Only for documentation learning
         'DevAgentLearningEngine',
         { 
           content: { 
-            category: 'context7-learning',
-            tags: [language, 'context7', 'documentation'],
+            category: 'context7-learning', // Only for documentation learning
+            tags: [language, 'context7', 'documentation'], // Only for documentation learning
             sensitivity: 'internal',
             relevanceScore: 0.85,
             contextDependency: 'session'
@@ -496,7 +496,7 @@ export class DevAgentLearningEngine {
         constitutionallyValid: true,
         lastValidated: new Date(getEnhancedTimeContext().realTime.utc),
         lastUsed: new Date(0), // Never used yet
-          learnedFrom: 'context7',
+          learnedFrom: 'context7', // Only for documentation learning
         ...(doc.url && { sourceDetails: { documentationUrl: doc.url } }),
         
         relatedPatterns: [],
@@ -511,12 +511,12 @@ export class DevAgentLearningEngine {
       if (bestPractice.trim().length < 20) continue; // Skip short/incomplete practices
       
       const practiceMetadata = this.unifiedBackbone.getServices().metadataService.create(
-        'context7-best-practice',
+        'context7-best-practice', // Only for documentation learning
         'DevAgentLearningEngine',
         { 
           content: { 
-            category: 'context7-learning',
-            tags: [language, 'context7', 'documentation', 'best-practice'],
+            category: 'context7-learning', // Only for documentation learning
+            tags: [language, 'context7', 'documentation', 'best-practice'], // Only for documentation learning
             sensitivity: 'internal',
             relevanceScore: 0.9, // Best practices are highly relevant
             contextDependency: 'session'
@@ -551,7 +551,7 @@ export class DevAgentLearningEngine {
         lastValidated: new Date(getEnhancedTimeContext().realTime.utc),
         lastUsed: new Date(0),
         
-        learnedFrom: 'context7',
+        learnedFrom: 'context7', // Only for documentation learning
         ...(doc.url && { sourceDetails: { documentationUrl: doc.url } }),
         
         relatedPatterns: [],

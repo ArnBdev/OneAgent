@@ -20,8 +20,7 @@ console.log('DEBUG (import): MEM0_API_KEY from process.env:', process.env.MEM0_A
 console.log('DEBUG: MEM0_API_KEY from process.env:', process.env.MEM0_API_KEY);
 
 import { OneAgentEngine, OneAgentRequest, OneAgentResponse } from '../OneAgentEngine';
-import { createUnifiedTimestamp } from '../utils/UnifiedBackboneService';
-import { oneAgentConfig } from '../config/index';
+import { createUnifiedTimestamp, UnifiedBackboneService } from '../utils/UnifiedBackboneService';
 import { SimpleAuditLogger } from '../audit/auditLogger';
 import passport from 'passport';
 
@@ -51,23 +50,62 @@ app.use((req: Request, res: Response, next: NextFunction) => {
 
 // Initialize OneAgent Engine
 const oneAgent = OneAgentEngine.getInstance({
-  mode: 'mcp-http',
   constitutional: {
     enabled: true,
-    qualityThreshold: 80
-  },
-  multiAgent: {
-    enabled: true,
-    maxAgents: 5
+    qualityThreshold: 80,
+    principles: [
+      {
+        id: 'accuracy',
+        name: 'Accuracy',
+        description: 'Provide accurate information or acknowledge uncertainty',
+        category: 'accuracy' as const,
+        weight: 1.0,
+        isViolated: false,
+        confidence: 0.95,
+        validationRule: 'prefer_uncertainty_over_speculation',
+        severityLevel: 'high' as const
+      },
+      {
+        id: 'transparency',
+        name: 'Transparency', 
+        description: 'Explain reasoning and acknowledge limitations',
+        category: 'transparency' as const,
+        weight: 0.8,
+        isViolated: false,
+        confidence: 0.9,
+        validationRule: 'explain_reasoning_and_limitations',
+        severityLevel: 'medium' as const
+      },
+      {
+        id: 'helpfulness',
+        name: 'Helpfulness',
+        description: 'Provide actionable, relevant guidance',
+        category: 'helpfulness' as const,
+        weight: 0.9,
+        isViolated: false,
+        confidence: 0.85,
+        validationRule: 'actionable_relevant_guidance',
+        severityLevel: 'medium' as const
+      },
+      {
+        id: 'safety',
+        name: 'Safety',
+        description: 'Avoid harmful or misleading recommendations',
+        category: 'safety' as const,
+        weight: 1.0,
+        isViolated: false,
+        confidence: 0.95,
+        validationRule: 'avoid_harmful_misleading_content',
+        severityLevel: 'critical' as const
+      }
+    ]
   },
   memory: {
     enabled: true,
-    retentionDays: 30
-  },
-  mcp: {
-    http: { port: oneAgentConfig.mcpPort, enabled: true },
-    stdio: { enabled: false },
-    websocket: { port: oneAgentConfig.mcpPort + 1, enabled: false }
+    provider: 'mem0',
+    config: {
+      retentionDays: 30
+    }
   }
 });
 
@@ -183,7 +221,7 @@ async function initializeServer(): Promise<void> {
     await oneAgent.initialize('mcp-http');
     
     await auditLogger.logInfo('MCP_SERVER', 'OneAgent Unified MCP Server ready', {
-      protocol: `http://localhost:${oneAgentConfig.mcpPort}/mcp`,
+      protocol: `http://localhost:${UnifiedBackboneService.config.mcpPort}/mcp`,
       constitutionalAI: 'ACTIVE',
       bmadFramework: 'ACTIVE',
       unifiedTools: 'ACTIVE'
@@ -499,7 +537,7 @@ async function handleResourceRead(mcpRequest: MCPRequest): Promise<MCPResponse> 
                 constitutionalValidated: true,
                 temporalContext: createUnifiedTimestamp().iso,
                 qualityScore: response.qualityScore || 'N/A',
-                processingTime: `${createUnifiedTimestamp().unix - parseInt(oneAgentRequest.timestamp)}ms`
+                processingTime: `${createUnifiedTimestamp().unix - parseInt(oneAgentRequest.timestamp || '0')}ms`
               }
             }, null, 2)
           }]
@@ -800,7 +838,7 @@ async function startServer(): Promise<void> {
   try {
     await initializeServer();
     
-    const port = oneAgentConfig.mcpPort;
+    const port = UnifiedBackboneService.config.mcpPort;
     
     const server = app.listen(port, () => {
       console.log('🌟 OneAgent Unified MCP Server Started Successfully!');

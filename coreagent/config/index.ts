@@ -1,14 +1,24 @@
+
 /**
- * OneAgent Centralized Configuration
- * 
- * Single source of truth for all server configurations.
- * Reads from .env file and provides type-safe access to configuration values.
- * 
- * This eliminates hardcoded ports and URLs throughout the codebase.
+ * OneAgent Canonical Configuration
+ *
+ * SINGLE SOURCE OF TRUTH for all server configuration values.
+ *
+ * IMPORTANT: All config access MUST go through UnifiedBackboneService.config.
+ * Do NOT import oneAgentConfig or ServerConfig directly from this file in any system code.
+ *
+ * Example (canonical):
+ *   import { UnifiedBackboneService } from '../utils/UnifiedBackboneService';
+ *   const config = UnifiedBackboneService.config;
+ *
+ * This file is ONLY to be imported by UnifiedBackboneService.
+ *
+ * Direct imports are non-canonical and will be removed in future.
  */
 
 import { config } from 'dotenv';
 import * as path from 'path';
+import type { ConstitutionalPrinciple } from '../types/oneagent-backbone-types';
 
 // Load environment variables from .env file
 // Use relative path from project root
@@ -26,6 +36,20 @@ export interface ServerConfig {
   // MCP Server  
   mcpPort: number;
   mcpUrl: string;
+  
+  // Constitutional AI Configuration
+  constitutional: {
+    enabled: boolean;
+    principles: ConstitutionalPrinciple[];
+    qualityThreshold: number;
+  };
+  
+  // Memory Configuration
+  memory: {
+    enabled: boolean;
+    provider: string;
+    config: Record<string, unknown>;
+  };
   
   // A2A Protocol Configuration
   a2aProtocolVersion: string;
@@ -82,6 +106,28 @@ export const oneAgentConfig: ServerConfig = {
   mcpPort: parseInt(process.env.ONEAGENT_MCP_PORT || '8083', 10),
   mcpUrl: process.env.ONEAGENT_MCP_URL || 'http://127.0.0.1:8083',
   
+  // Constitutional AI Configuration
+  constitutional: {
+    enabled: process.env.ONEAGENT_CONSTITUTIONAL_ENABLED !== 'false',
+    principles: [
+      { id: 'accuracy', name: 'Accuracy', description: 'Provide accurate and factual information', category: 'accuracy' as const, weight: 1.0, isViolated: false, confidence: 0.9, validationRule: 'no_speculation', severityLevel: 'high' as const },
+      { id: 'transparency', name: 'Transparency', description: 'Be transparent about limitations and reasoning', category: 'transparency' as const, weight: 0.8, isViolated: false, confidence: 0.9, validationRule: 'explain_reasoning', severityLevel: 'medium' as const },
+      { id: 'helpfulness', name: 'Helpfulness', description: 'Provide helpful and actionable guidance', category: 'helpfulness' as const, weight: 0.9, isViolated: false, confidence: 0.8, validationRule: 'actionable_response', severityLevel: 'medium' as const },
+      { id: 'safety', name: 'Safety', description: 'Avoid harmful or dangerous recommendations', category: 'safety' as const, weight: 1.0, isViolated: false, confidence: 0.95, validationRule: 'harm_prevention', severityLevel: 'critical' as const }
+    ],
+    qualityThreshold: parseFloat(process.env.ONEAGENT_QUALITY_THRESHOLD || '0.8')
+  },
+  
+  // Memory Configuration  
+  memory: {
+    enabled: process.env.ONEAGENT_MEMORY_ENABLED !== 'false',
+    provider: process.env.ONEAGENT_MEMORY_PROVIDER || 'mem0',
+    config: {
+      endpoint: process.env.ONEAGENT_MEMORY_URL || 'http://127.0.0.1:8001',
+      apiKey: process.env.ONEAGENT_MEMORY_API_KEY || ''
+    }
+  },
+  
   // A2A Protocol Configuration
   a2aProtocolVersion: process.env.ONEAGENT_A2A_PROTOCOL_VERSION || '0.2.5',
   a2aBaseUrl: process.env.ONEAGENT_A2A_BASE_URL || 'http://127.0.0.1:8083/a2a',
@@ -122,35 +168,34 @@ export const oneAgentConfig: ServerConfig = {
 
 /**
  * Legacy configuration for backward compatibility
- * @deprecated Use oneAgentConfig instead
+ * @deprecated Use UnifiedBackboneService.config instead. This function is for legacy code only.
  */
-export const DEFAULT_MEMORY_CONFIG = {
-  serverUrl: oneAgentConfig.memoryUrl,
-  port: oneAgentConfig.memoryPort,
-  host: oneAgentConfig.host,
-  maxRetries: 3,
-  retryDelay: 1000,
-  timeout: 10000,
-};
+export function getDefaultMemoryConfig(config: ServerConfig) {
+  return {
+    serverUrl: config.memoryUrl,
+    port: config.memoryPort,
+    host: config.host,
+    maxRetries: 3,
+    retryDelay: 1000,
+    timeout: 10000,
+  };
+}
 
 /**
  * Validate that required configuration values are present
+ * @param config The canonical config object (pass UnifiedBackboneService.config)
  */
-export function validateConfig(): { isValid: boolean; errors: string[] } {
+export function validateConfig(config: ServerConfig): { isValid: boolean; errors: string[] } {
   const errors: string[] = [];
-  
-  if (!oneAgentConfig.geminiApiKey) {
+  if (!config.geminiApiKey) {
     errors.push('GEMINI_API_KEY is required but not set');
   }
-  
-  if (oneAgentConfig.memoryPort < 1 || oneAgentConfig.memoryPort > 65535) {
+  if (config.memoryPort < 1 || config.memoryPort > 65535) {
     errors.push('ONEAGENT_MEMORY_PORT must be a valid port number');
   }
-  
-  if (oneAgentConfig.mcpPort < 1 || oneAgentConfig.mcpPort > 65535) {
+  if (config.mcpPort < 1 || config.mcpPort > 65535) {
     errors.push('ONEAGENT_MCP_PORT must be a valid port number');
   }
-  
   return {
     isValid: errors.length === 0,
     errors
@@ -159,15 +204,30 @@ export function validateConfig(): { isValid: boolean; errors: string[] } {
 
 /**
  * Get configuration summary for debugging
+ * @param config The canonical config object (pass UnifiedBackboneService.config)
  */
-export function getConfigSummary(): string {
+export function getConfigSummary(config: ServerConfig): string {
   return `OneAgent Configuration:
-  Environment: ${oneAgentConfig.environment}
-  Memory Server: ${oneAgentConfig.memoryUrl}
-  MCP Server: ${oneAgentConfig.mcpUrl}
-  UI Server: ${oneAgentConfig.uiUrl}
-  Memory Storage: ${oneAgentConfig.memoryStoragePath}
-  API Keys: ${oneAgentConfig.geminiApiKey ? 'Gemini ✓' : 'Gemini ✗'} ${oneAgentConfig.braveApiKey ? 'Brave ✓' : 'Brave ✗'}`;
+  Environment: ${config.environment}
+  Memory Server: ${config.memoryUrl}
+  MCP Server: ${config.mcpUrl}
+  UI Server: ${config.uiUrl}
+  Memory Storage: ${config.memoryStoragePath}
+  API Keys: ${config.geminiApiKey ? 'Gemini ✓' : 'Gemini ✗'} ${config.braveApiKey ? 'Brave ✓' : 'Brave ✗'}`;
 }
 
-export default oneAgentConfig;
+/**
+ * @deprecated DO NOT import config directly. Use UnifiedBackboneService.config instead.
+ *
+ * Canonical usage:
+ *   import { UnifiedBackboneService } from '../utils/UnifiedBackboneService';
+ *   const config = UnifiedBackboneService.config;
+ *
+ * Direct import of this file is forbidden and will throw at runtime in future.
+ */
+
+if (typeof require !== 'undefined' && require.main !== module && module && module.parent && module.parent.filename && /config[\\]index\.ts$/.test(module.parent.filename)) {
+  throw new Error('[OneAgent] Non-canonical config import detected! All config access must go through UnifiedBackboneService.config.');
+}
+
+// No default export: all config access must be via UnifiedBackboneService.config

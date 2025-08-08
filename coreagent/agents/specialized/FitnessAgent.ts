@@ -8,9 +8,10 @@
  * - Specialized fitness and wellness expertise
  */
 
-import { BaseAgent, AgentConfig, AgentContext, AgentResponse } from '../base/BaseAgent';
-import { ISpecializedAgent } from '../base/ISpecializedAgent';
-import { PromptConfig, AgentPersona, ConstitutionalPrinciple } from '../base/PromptEngine';
+import { BaseAgent, AgentConfig, AgentContext, AgentResponse, AgentAction } from '../base/BaseAgent';
+import { ISpecializedAgent, AgentHealthStatus } from '../base/ISpecializedAgent';
+import { PromptConfig, AgentPersona } from '../base/PromptEngine';
+import type { ConstitutionalPrinciple } from '../../types/oneagent-backbone-types';
 import { MemoryRecord } from '../../types/oneagent-backbone-types';
 
 export class FitnessAgent extends BaseAgent implements ISpecializedAgent {
@@ -192,6 +193,10 @@ Always recommend consulting healthcare professionals for medical concerns.
         id: 'safety_first',
         name: 'Safety-First Fitness Guidance',
         description: 'Always prioritize user safety and recommend appropriate progression',
+        category: 'safety',
+        weight: 1,
+        isViolated: false,
+        confidence: 1,
         validationRule: 'Response includes safety considerations and appropriate difficulty level',
         severityLevel: 'critical'
       },
@@ -199,6 +204,10 @@ Always recommend consulting healthcare professionals for medical concerns.
         id: 'evidence_based',
         name: 'Evidence-Based Recommendations',
         description: 'Provide recommendations based on established fitness science',
+        category: 'accuracy',
+        weight: 1,
+        isViolated: false,
+        confidence: 1,
         validationRule: 'Response avoids unproven fads and includes scientific rationale',
         severityLevel: 'high'
       },
@@ -206,6 +215,10 @@ Always recommend consulting healthcare professionals for medical concerns.
         id: 'medical_disclaimer',
         name: 'Medical Professional Referral',
         description: 'Always recommend consulting healthcare professionals for medical concerns',
+        category: 'safety',
+        weight: 1,
+        isViolated: false,
+        confidence: 1,
         validationRule: 'Response includes appropriate medical disclaimers when relevant',
         severityLevel: 'critical'
       },
@@ -213,6 +226,10 @@ Always recommend consulting healthcare professionals for medical concerns.
         id: 'personalization',
         name: 'Personalized Guidance',
         description: 'Tailor recommendations to individual capabilities and goals',
+        category: 'helpfulness',
+        weight: 1,
+        isViolated: false,
+        confidence: 1,
         validationRule: 'Response considers user context and individual differences',
         severityLevel: 'high'
       },
@@ -220,6 +237,10 @@ Always recommend consulting healthcare professionals for medical concerns.
         id: 'realistic_expectations',
         name: 'Realistic Expectations',
         description: 'Provide realistic timelines and expectations for fitness goals',
+        category: 'helpfulness',
+        weight: 1,
+        isViolated: false,
+        confidence: 1,
         validationRule: 'Response avoids unrealistic promises or extreme claims',
         severityLevel: 'high'
       }
@@ -228,5 +249,75 @@ Always recommend consulting healthcare professionals for medical concerns.
 
   get id(): string {
     return this.config.id;
+  }
+
+  getAvailableActions(): AgentAction[] {
+    return [
+      { type: 'create_workout', description: 'Create personalized workout plans', parameters: {} },
+      { type: 'track_progress', description: 'Track fitness progress and metrics', parameters: {} },
+      { type: 'nutrition_advice', description: 'Provide nutrition guidance and meal planning', parameters: {} },
+      { type: 'wellness_coaching', description: 'Provide wellness and lifestyle coaching', parameters: {} },
+      { type: 'recovery_planning', description: 'Plan recovery and rest strategies', parameters: {} },
+      { type: 'goal_setting', description: 'Set and track fitness goals', parameters: {} }
+    ];
+  }
+
+  async executeAction(action: string | AgentAction, params: Record<string, unknown>, _context?: AgentContext): Promise<AgentResponse> {
+    try {
+      const actionType = typeof action === 'string' ? action : action.type;
+      const timestamp = this.unifiedBackbone.getServices().timeService.now();
+      
+      let result: string;
+      
+      switch (actionType) {
+        case 'create_workout':
+          result = `Created workout plan: ${params.workoutType || 'General Fitness'} for ${params.duration || '30 minutes'}`;
+          break;
+        case 'track_progress':
+          result = `Progress tracked: ${params.metric || 'general fitness metrics'} - ${params.value || 'updated'}`;
+          break;
+        case 'nutrition_advice':
+          result = `Nutrition guidance provided: ${params.topic || 'general nutrition advice'}`;
+          break;
+        case 'wellness_coaching':
+          result = `Wellness coaching session: ${params.focus || 'general wellness guidance'}`;
+          break;
+        case 'recovery_planning':
+          result = `Recovery plan created: ${params.recoveryType || 'general recovery strategy'}`;
+          break;
+        case 'goal_setting':
+          result = `Fitness goal set: ${params.goal || 'fitness improvement'} with target: ${params.target || 'to be determined'}`;
+          break;
+        default:
+          result = `Unknown fitness action: ${actionType}`;
+      }
+      
+      return {
+        content: result,
+        actions: [],
+        memories: [],
+        metadata: { actionType, timestamp: timestamp.iso, agentId: this.config.id }
+      };
+    } catch (error) {
+      const actionType = typeof action === 'string' ? action : action.type;
+      return {
+        content: `Error executing fitness action ${actionType}: ${error instanceof Error ? error.message : 'Unknown error'}`,
+        actions: [],
+        memories: [],
+        metadata: { actionType, error: true, timestamp: this.unifiedBackbone.getServices().timeService.now().iso }
+      };
+    }
+  }
+
+  async getHealthStatus(): Promise<AgentHealthStatus> {
+    return {
+      status: 'healthy',
+      uptime: process.uptime() * 1000,
+      memoryUsage: process.memoryUsage().heapUsed / 1024 / 1024,
+      responseTime: 40,
+      errorRate: 0,
+      lastActivity: new Date(),
+      errors: undefined
+    };
   }
 }

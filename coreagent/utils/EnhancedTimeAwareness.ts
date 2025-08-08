@@ -150,14 +150,15 @@ export class OneAgentTimeAwareness {
    */
   public getEnhancedTimeContext(): EnhancedTimeContext {
     const basicTime = OneAgentUnifiedBackbone.getInstance().getServices().timeService.getContext();
-    const now = new Date();
+    const unifiedTime = createUnifiedTimestamp();
+    const now = new Date(unifiedTime.unix * 1000); // Convert from canonical timestamp
     
     return {
       ...basicTime,
       
       // Real-time awareness
       realTime: {
-        unix: now.getTime(),
+        unix: unifiedTime.unix * 1000, // Use canonical time
         utc: now.toISOString(),
         local: now.toLocaleString(),
         timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
@@ -187,12 +188,12 @@ export class OneAgentTimeAwareness {
     requiresRealTime?: boolean;
   } = {}): TemporalMetadata {
     const timeContext = this.getEnhancedTimeContext();
-    const now = new Date();
+    const unifiedTime = createUnifiedTimestamp();
     
     return {
       realTime: {
-        createdAtUnix: now.getTime(),
-        updatedAtUnix: now.getTime(),
+        createdAtUnix: unifiedTime.unix * 1000, // Use canonical time
+        updatedAtUnix: unifiedTime.unix * 1000,
         timezoneCaptured: timeContext.realTime.timezone,
         utcOffset: timeContext.realTime.offset
       },
@@ -289,7 +290,7 @@ export class OneAgentTimeAwareness {
     const month = now.getMonth();
     const quarter = Math.floor(month / 3) + 1;
     
-    // Calculate quarter boundaries
+    // Calculate quarter boundaries using canonical time
     const quarterStart = new Date(now.getFullYear(), (quarter - 1) * 3, 1);
     const quarterEnd = new Date(now.getFullYear(), quarter * 3, 0);
     const daysIntoQuarter = Math.floor((now.getTime() - quarterStart.getTime()) / (1000 * 60 * 60 * 24));

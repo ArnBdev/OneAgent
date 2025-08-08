@@ -285,7 +285,7 @@ export class GeminiClient {
         return result;
       }
 
-      const embeddingModel = options?.model || 'gemini-embedding-exp-03-07';
+      const embeddingModel = options?.model || 'gemini-embedding-001';
       console.log(`🔢 Generating embedding with ${embeddingModel} for text: "${text.substring(0, 50)}..."`);
 
       const request: EmbeddingRequest = {
@@ -368,7 +368,7 @@ export class GeminiClient {
         return results;
       }
 
-      const embeddingModel = options?.model || 'gemini-embedding-exp-03-07';
+      const embeddingModel = options?.model || 'gemini-embedding-001';
       console.log(`🔢 Generating batch embeddings with ${embeddingModel} for ${texts.length} texts`);      const requests: EmbeddingRequest[] = texts.map(text => {
         const request: EmbeddingRequest = {
           model: `models/${embeddingModel}`,

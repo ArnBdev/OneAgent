@@ -7,6 +7,7 @@
 
 import { OneAgentMemory } from '../memory/OneAgentMemory';
 import { createUnifiedTimestamp } from '../utils/UnifiedBackboneService';
+import type { IMemoryClient } from '../types/oneagent-backbone-types';
 
 export interface ConversationPattern {
   id: string;

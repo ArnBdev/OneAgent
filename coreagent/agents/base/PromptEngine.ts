@@ -12,14 +12,7 @@
  */
 
 import { AgentContext } from './BaseAgent';
-
-export interface ConstitutionalPrinciple {
-  id: string;
-  name: string;
-  description: string;
-  validationRule: string;
-  severityLevel: 'low' | 'medium' | 'high' | 'critical';
-}
+import type { ConstitutionalPrinciple } from '../../types/oneagent-backbone-types';
 
 export interface PromptFramework {
   id: string;
@@ -77,6 +70,10 @@ export class PromptEngine {
       id: 'accuracy',
       name: 'Accuracy Over Speculation',
       description: 'Prefer "I don\'t know" to guessing or speculation',
+      category: 'accuracy',
+      weight: 1,
+      isViolated: false,
+      confidence: 1,
       validationRule: 'Response includes source attribution or uncertainty acknowledgment',
       severityLevel: 'critical'
     },
@@ -84,6 +81,10 @@ export class PromptEngine {
       id: 'transparency',
       name: 'Transparency in Reasoning',
       description: 'Explain reasoning process and acknowledge limitations',
+      category: 'transparency',
+      weight: 1,
+      isViolated: false,
+      confidence: 1,
       validationRule: 'Response includes reasoning explanation or limitation acknowledgment',
       severityLevel: 'high'
     },
@@ -91,6 +92,10 @@ export class PromptEngine {
       id: 'helpfulness',
       name: 'Actionable Helpfulness',
       description: 'Provide actionable, relevant guidance that serves user goals',
+      category: 'helpfulness',
+      weight: 1,
+      isViolated: false,
+      confidence: 1,
       validationRule: 'Response contains specific, actionable recommendations',
       severityLevel: 'high'
     },
@@ -98,6 +103,10 @@ export class PromptEngine {
       id: 'safety',
       name: 'Safety-First Approach',
       description: 'Avoid harmful or misleading recommendations',
+      category: 'safety',
+      weight: 1,
+      isViolated: false,
+      confidence: 1,
       validationRule: 'Response avoids potentially harmful suggestions',
       severityLevel: 'critical'
     }

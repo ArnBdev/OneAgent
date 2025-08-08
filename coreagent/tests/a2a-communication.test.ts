@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Integration Test for Unified Agent-to-Agent (A2A) Communication
  * 
  * This test verifies the complete A2A workflow through the OneAgentEngine:
@@ -54,7 +54,7 @@ async function runTest() {
     try {
         // 1. Register Agent 1
         await processAndAssert({
-            id: createUnifiedId('test_request'),
+            id: createUnifiedId('mcp'),
             type: 'tool_call',
             method: 'oneagent_a2a_register_agent',
             params: { id: agent1Id, name: 'Test Agent 1', capabilities: ['testing', 'logging'] },
@@ -63,7 +63,7 @@ async function runTest() {
 
         // 2. Register Agent 2
         await processAndAssert({
-            id: createUnifiedId('test_request'),
+            id: createUnifiedId('mcp'),
             type: 'tool_call',
             method: 'oneagent_a2a_register_agent',
             params: { id: agent2Id, name: 'Test Agent 2', capabilities: ['testing', 'reporting'] },
@@ -72,7 +72,7 @@ async function runTest() {
 
         // 3. Discover Agents with 'testing' capability
         const discoveredAgents = await processAndAssert({
-            id: createUnifiedId('test_request'),
+            id: createUnifiedId('mcp'),
             type: 'tool_call',
             method: 'oneagent_a2a_discover_agents',
             params: { capabilities: ['testing'] },
@@ -82,7 +82,7 @@ async function runTest() {
 
         // 4. Create a session
         const sessionData = await processAndAssert({
-            id: createUnifiedId('test_request'),
+            id: createUnifiedId('mcp'),
             type: 'tool_call',
             method: 'oneagent_a2a_create_session',
             params: { name: 'Test Collaboration Session', participants: [agent1Id, agent2Id], topic: 'Integration Test' },
@@ -93,7 +93,7 @@ async function runTest() {
 
         // 5. Send a message from Agent 1 to Agent 2
         await processAndAssert({
-            id: createUnifiedId('test_request'),
+            id: createUnifiedId('mcp'),
             type: 'tool_call',
             method: 'oneagent_a2a_send_message',
             params: { sessionId, fromAgent: agent1Id, toAgent: agent2Id, message: 'Hello Agent 2, this is a test message.', messageType: 'question' },
@@ -102,7 +102,7 @@ async function runTest() {
 
         // 6. Get message history
         const history = await processAndAssert({
-            id: createUnifiedId('test_request'),
+            id: createUnifiedId('mcp'),
             type: 'tool_call',
             method: 'oneagent_a2a_get_message_history',
             params: { sessionId },

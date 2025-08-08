@@ -2,25 +2,32 @@
  * Unified MCP Tool Registry
  * Central registry for all unified MCP tools with categorized organization
  * NLACS Integration: Modern agent coordination via NLACS orchestrator
+ * 
+ * Constitutional AI Implementation:
+ * - Accuracy: Canonical tool registration and execution patterns
+ * - Transparency: Clear tool categorization and performance metrics
+ * - Helpfulness: Unified tool discovery and validation
+ * - Safety: Comprehensive error handling and quality validation
  */
 
-import { UnifiedMCPTool } from './UnifiedMCPTool';
+import { UnifiedMCPTool, ToolExecutionResult } from './UnifiedMCPTool';
+import { createUnifiedTimestamp, createUnifiedId, OneAgentUnifiedBackbone } from '../utils/UnifiedBackboneService';
+import { OneAgentMemory } from '../memory/OneAgentMemory';
+
 import { EnhancedSearchTool } from './EnhancedSearchTool';
 import { SystemHealthTool } from './SystemHealthTool';
 import { UnifiedWebSearchTool } from './UnifiedWebSearchTool';
 import { UnifiedWebFetchTool } from './UnifiedWebFetchTool';
-import { UnifiedContext7QueryTool } from './UnifiedContext7QueryTool';
 
 // REMOVED: EnhancedAIAssistantTool - maintaining clear separation of concerns
 import { CodeAnalysisTool } from './CodeAnalysisTool';
-import { Context7MCPIntegration } from '../mcp/Context7MCPIntegration';
+// Context7MCPIntegration import removed (deprecated)
 import { ConversationRetrievalTool } from './ConversationRetrievalTool';
 import { ConversationSearchTool } from './ConversationSearchTool';
 import { OneAgentMemorySearchTool } from './OneAgentMemorySearchTool';
 import { OneAgentMemoryAddTool } from './OneAgentMemoryAddTool';
 import { OneAgentMemoryEditTool } from './OneAgentMemoryEditTool';
 import { OneAgentMemoryDeleteTool } from './OneAgentMemoryDeleteTool';
-import { OneAgentMemory } from '../memory/OneAgentMemory';
 
 export enum ToolCategory {
   CORE_SYSTEM = 'core_system',
@@ -45,9 +52,37 @@ export interface ToolRegistration {
   usageCount: number;
 }
 
+/**
+ * Canonical Tool Performance Metrics
+ */
+export interface ToolPerformanceMetrics {
+  toolName: string;
+  totalExecutions: number;
+  successfulExecutions: number;
+  failedExecutions: number;
+  averageExecutionTime: number;
+  lastExecutionTime: number;
+  successRate: number;
+  qualityScore: number;
+}
+
+/**
+ * Canonical Tool Execution Context
+ */
+export interface ToolExecutionContext {
+  executionId: string;
+  toolName: string;
+  timestamp: string;
+  category: ToolCategory;
+  constitutionalLevel: 'basic' | 'enhanced' | 'critical';
+  userId?: string;
+  sessionId?: string;
+}
+
 export class ToolRegistry {
   private tools: Map<string, ToolRegistration> = new Map();
   private categories: Map<ToolCategory, string[]> = new Map();
+  private performanceMetrics: Map<string, ToolPerformanceMetrics> = new Map();
   private initialized = false;
   private memorySystem: OneAgentMemory | null = null;
 
@@ -116,13 +151,9 @@ export class ToolRegistry {
     });
 
     // Context7 documentation tools (now with real integration)
-    const context7Integration = new Context7MCPIntegration();
+    // Context7 integration now handled via canonical backbone. Legacy instance removed.
     
-    this.registerTool(new UnifiedContext7QueryTool(context7Integration), {
-      category: ToolCategory.MEMORY_CONTEXT,
-      constitutionalLevel: 'enhanced',
-      priority: 8
-    });
+    // Context7 documentation query tool registration removed; use canonical backbone integration only.
 
     // TODO: Fix UnifiedContext7StoreTool - currently has broken imports/stubs causing undefined registration
     // this.registerTool(new UnifiedContext7StoreTool(), {
@@ -202,7 +233,6 @@ export class ToolRegistry {
     const categoryTools = this.categories.get(fullMetadata.category) || [];
     categoryTools.push(tool.name);
     this.categories.set(fullMetadata.category, categoryTools);
-    
     console.log(`[ToolRegistry] Registered ${tool.name} in ${fullMetadata.category} (priority: ${fullMetadata.priority})`);
   }
 
@@ -246,27 +276,132 @@ export class ToolRegistry {
   /**
    * Get tool schema for MCP registration
    */
-  public getToolSchemas(): Array<{name: string, description: string, inputSchema: unknown}> {
+  public getToolSchemas(): Array<{name: string, description: string, inputSchema: Record<string, unknown>}> {
     return Array.from(this.tools.values()).map(registration => ({
       name: registration.tool.name,
       description: registration.tool.description,
-      inputSchema: registration.tool.schema
+      inputSchema: registration.tool.schema.properties || {}
     }));
   }
 
   /**
-   * Execute a tool by name with usage tracking
+   * Execute a tool by name with usage tracking and Constitutional AI compliance
    */
-  public async executeTool(name: string, args: unknown): Promise<unknown> {
+  public async executeTool(name: string, args: unknown): Promise<ToolExecutionResult> {
     const registration = this.tools.get(name);
-    if (!registration) throw new Error(`Tool not found: ${name}`);
+    if (!registration) {
+      const error = new Error(`Tool not found: ${name}`);
+      const backbone = OneAgentUnifiedBackbone.getInstance();
+      const errorSystem = backbone.getServices().errorHandler;
+      await errorSystem.handleError(error, { toolName: name, available: this.getToolNames() });
+      return {
+        success: false,
+        data: { error: error.message, available: this.getToolNames() }
+      };
+    }
 
-    // Update usage tracking
-    registration.usageCount++;
-    registration.lastUsed = new Date();
+    // Create execution context with canonical metadata
+    const executionContext: ToolExecutionContext = {
+      executionId: createUnifiedId('operation', name),
+      toolName: name,
+      timestamp: createUnifiedTimestamp().iso,
+      category: registration.metadata.category,
+      constitutionalLevel: registration.metadata.constitutionalLevel
+    };
 
-    console.log(`[ToolRegistry] Executing ${name} (category: ${registration.metadata.category}, usage: ${registration.usageCount})`);
-    return await registration.tool.execute(args); // Only pass one argument as required
+    const startTime = performance.now();
+    
+    try {
+      // Update usage tracking
+      registration.usageCount++;
+      registration.lastUsed = new Date();
+
+      console.log(`[ToolRegistry] Executing ${name} (category: ${registration.metadata.category}, usage: ${registration.usageCount})`);
+      
+      // Execute tool with Constitutional AI monitoring
+      const result = await registration.tool.execute(args);
+      const executionTime = performance.now() - startTime;
+      
+      // Update performance metrics
+      this.updatePerformanceMetrics(name, true, executionTime, result.qualityScore || 0);
+      
+      return result;
+      
+    } catch (error) {
+      const executionTime = performance.now() - startTime;
+      
+      // Update performance metrics for failure
+      this.updatePerformanceMetrics(name, false, executionTime, 0);
+      
+      // Use canonical error handling
+      const backbone = OneAgentUnifiedBackbone.getInstance();
+      const errorSystem = backbone.getServices().errorHandler;
+      await errorSystem.handleError(error instanceof Error ? error : new Error(String(error)), {
+        executionContext,
+        args: typeof args === 'object' ? JSON.stringify(args) : String(args)
+      });
+      
+      return {
+        success: false,
+        data: { error: error instanceof Error ? error.message : String(error) }
+      };
+    }
+  }
+
+  /**
+   * Update tool performance metrics with Constitutional AI quality tracking
+   */
+  private updatePerformanceMetrics(
+    toolName: string, 
+    success: boolean, 
+    executionTime: number, 
+    qualityScore: number
+  ): void {
+    let metrics = this.performanceMetrics.get(toolName);
+    
+    if (!metrics) {
+      metrics = {
+        toolName,
+        totalExecutions: 0,
+        successfulExecutions: 0,
+        failedExecutions: 0,
+        averageExecutionTime: 0,
+        lastExecutionTime: 0,
+        successRate: 0,
+        qualityScore: 0
+      };
+      this.performanceMetrics.set(toolName, metrics);
+    }
+    
+    // Update metrics
+    metrics.totalExecutions++;
+    metrics.lastExecutionTime = executionTime;
+    
+    if (success) {
+      metrics.successfulExecutions++;
+      // Update rolling average for quality score
+      metrics.qualityScore = (metrics.qualityScore + qualityScore) / 2;
+    } else {
+      metrics.failedExecutions++;
+    }
+    
+    // Update success rate and average execution time
+    metrics.successRate = (metrics.successfulExecutions / metrics.totalExecutions) * 100;
+    metrics.averageExecutionTime = (metrics.averageExecutionTime + executionTime) / 2;
+  }
+
+  /**
+   * Get tool performance metrics
+   */
+  public getToolMetrics(toolName: string): ToolPerformanceMetrics | undefined {
+    return this.performanceMetrics.get(toolName);
+  }
+
+  /**
+   * Get all tool performance metrics
+   */
+  public getAllMetrics(): ToolPerformanceMetrics[] {
+    return Array.from(this.performanceMetrics.values());
   }
 
   /**

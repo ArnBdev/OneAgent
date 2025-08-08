@@ -10,11 +10,11 @@
  */
 
 import { EventEmitter } from 'events';
-import { v4 as uuidv4 } from 'uuid';
+import { generateUnifiedId } from '../../utils/UnifiedBackboneService';
 import { OneAgentMemory } from '../../memory/OneAgentMemory';
 import { OneAgentUnifiedBackbone } from '../../utils/UnifiedBackboneService';
-import { oneAgentConfig } from '../../config/index';
-import { AgentCard as CanonicalAgentCard } from '../../types/AgentCard';
+import { UnifiedBackboneService } from '../../utils/UnifiedBackboneService';
+
 
 // =============================================================================
 // A2A PROTOCOL TYPES (v0.2.5 Specification)
@@ -305,7 +305,7 @@ export class OneAgentA2AProtocol extends EventEmitter {
   constructor(agentCard: AgentCard) {
     super();
     this.unifiedBackbone = OneAgentUnifiedBackbone.getInstance();
-    this.memory = OneAgentMemory.getInstance();
+    this.memory = require('../../utils/UnifiedBackboneService').UnifiedBackboneService.memory;
     this.agentCard = agentCard;
     
     console.log('🚀 OneAgent A2A Protocol initialized');
@@ -550,7 +550,7 @@ export class OneAgentA2AProtocol extends EventEmitter {
             blocking: true
           }
         },
-        id: uuidv4()
+        id: generateUnifiedId('task')
       };
       
       const response = await fetch(agentUrl, {
@@ -661,8 +661,8 @@ export class OneAgentA2AProtocol extends EventEmitter {
       task.history.push(message);
     } else {
       // Create new task
-      const taskId = uuidv4();
-      const contextId = message.contextId || uuidv4();
+      const taskId = generateUnifiedId('task');
+      const contextId = message.contextId || generateUnifiedId('context');
       
       task = {
         id: taskId,
@@ -712,14 +712,14 @@ export class OneAgentA2AProtocol extends EventEmitter {
     
     // Create response message
     const responseMessage: Message = {
-      id: uuidv4(),
+      id: generateUnifiedId('message'),
       role: "agent",
       parts: [{
         kind: "text",
         text: `Processed: ${textContent}`,
         metadata: { processingTime: this.unifiedBackbone.getServices().timeService.now().unix }
       }],
-      messageId: uuidv4(),
+      messageId: generateUnifiedId('message'),
       taskId: task.id,
       contextId: task.contextId || '',
       kind: "message",
@@ -774,12 +774,12 @@ export class OneAgentA2AProtocol extends EventEmitter {
     replyToMessageId?: string;
     metadata?: Record<string, unknown>;
   }): Promise<string> {
-    const messageId = uuidv4();
+    const messageId = generateUnifiedId('message');
     const timestamp = this.unifiedBackbone.getServices().timeService.now();
     
     // Create A2A compliant message
     const message: Message = {
-      id: uuidv4(),
+      id: generateUnifiedId('message'),
       messageId,
       role: 'agent',
       parts: [{
@@ -860,8 +860,12 @@ ${params.replyToMessageId ? `Reply to: ${params.replyToMessageId}` : ''}`,
       if (options?.messageTypes && res.metadata?.messageType && !options.messageTypes.includes(res.metadata.messageType)) {
         return false;
       }
-      if (options?.since && res.metadata?.timestamp && new Date(res.metadata.timestamp) < options.since) {
-        return false;
+      if (options?.since && res.metadata?.timestamp) {
+        // Constitutional AI: Use canonical timestamp comparison
+        const messageTime = new Date(res.metadata.timestamp);
+        if (messageTime < options.since) {
+          return false;
+        }
       }
       return true;
     });
@@ -1118,7 +1122,7 @@ Response Required: ${params.requiresResponse ? 'Yes' : 'No'}
     participants: string[],
     context?: string
   ): Promise<string> {
-    const discussionId = uuidv4();
+    const discussionId = generateUnifiedId('discussion');
     const services = this.unifiedBackbone.getServices();
     const timestamp = services.timeService.now();
     
@@ -1257,7 +1261,7 @@ Response Required: ${params.requiresResponse ? 'Yes' : 'No'}
     context?: string
   ): Promise<Message> {
     const timestamp = this.unifiedBackbone.getServices().timeService.now();
-    const messageId = uuidv4();
+    const messageId = generateUnifiedId('message');
     
     const message: Message = {
       id: messageId,
@@ -1338,7 +1342,7 @@ Response Required: ${params.requiresResponse ? 'Yes' : 'No'}
       // Generate insights from patterns
       for (const pattern of patterns) {
         const insight: AgentInsight = {
-          id: uuidv4(),
+          id: generateUnifiedId('message'),
           type: 'pattern',
           content: `Pattern detected: ${pattern.description}`,
           confidence: pattern.confidence || 0.8,
@@ -1391,7 +1395,7 @@ Response Required: ${params.requiresResponse ? 'Yes' : 'No'}
   ): Promise<SynthesizedKnowledge | null> {
     try {
       const timestamp = this.unifiedBackbone.getServices().timeService.now();
-      const knowledgeId = uuidv4();
+      const knowledgeId = generateUnifiedId('knowledge');
       
       // Extract key insights from all threads
       const allInsights = conversationThreads.flatMap(thread => thread.insights);
@@ -1472,7 +1476,7 @@ Response Required: ${params.requiresResponse ? 'Yes' : 'No'}
       // Create pattern objects from contribution types
       for (const [type, contributions] of Object.entries(contributionsByType)) {
         const pattern: CommunicationPattern = {
-          id: uuidv4(),
+          id: generateUnifiedId('message'),
           type: type as CommunicationPattern['type'],
           description: `${type} pattern detected among agents`,
           frequency: contributions.length,
@@ -1518,7 +1522,7 @@ Response Required: ${params.requiresResponse ? 'Yes' : 'No'}
     for (const [topic, frequency] of topicFrequency) {
       if (frequency >= 2) { // Pattern threshold
         patterns.push({
-          id: uuidv4(),
+          id: generateUnifiedId('message'),
           type: 'recurring_topic',
           description: `Recurring topic: ${topic}`,
           frequency,
@@ -1643,19 +1647,19 @@ export function createA2AProtocol(agentConfig: {
   capabilities?: Partial<AgentCapabilities>;
   customUrl?: string; // Override for testing
 }): OneAgentA2AProtocol {
-  const agentUrl = agentConfig.customUrl || oneAgentConfig.a2aBaseUrl;
+  const agentUrl = agentConfig.customUrl || UnifiedBackboneService.config.a2aBaseUrl;
   
   const agentCard: AgentCard = {
-    protocolVersion: oneAgentConfig.a2aProtocolVersion,
+    protocolVersion: UnifiedBackboneService.config.a2aProtocolVersion,
     name: agentConfig.name,
     description: agentConfig.description,
     url: agentUrl,
-    preferredTransport: oneAgentConfig.a2aTransport,
+    preferredTransport: UnifiedBackboneService.config.a2aTransport,
     version: agentConfig.version,
     capabilities: {
-      streaming: oneAgentConfig.a2aStreamingEnabled,
-      pushNotifications: oneAgentConfig.a2aPushNotifications,
-      stateTransitionHistory: oneAgentConfig.a2aStateHistory,
+      streaming: UnifiedBackboneService.config.a2aStreamingEnabled,
+      pushNotifications: UnifiedBackboneService.config.a2aPushNotifications,
+      stateTransitionHistory: UnifiedBackboneService.config.a2aStateHistory,
       extensions: [],
       ...agentConfig.capabilities
     },
@@ -1668,7 +1672,7 @@ export function createA2AProtocol(agentConfig: {
     },
     iconUrl: `${agentUrl}/icon.png`,
     documentationUrl: `${agentUrl}/docs`,
-    supportsAuthenticatedExtendedCard: oneAgentConfig.a2aSecurityEnabled
+    supportsAuthenticatedExtendedCard: UnifiedBackboneService.config.a2aSecurityEnabled
   };
   
   return new OneAgentA2AProtocol(agentCard);

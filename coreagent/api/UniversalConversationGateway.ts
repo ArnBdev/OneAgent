@@ -7,11 +7,12 @@
  */
 
 import { Request, Response } from 'express';
-import { IMemoryClient, AgentType } from '../types/oneagent-backbone-types';
+import type { IMemoryClient } from '../types/oneagent-backbone-types';
+import { AgentType } from '../types/oneagent-backbone-types';
 import { AgentFactory } from '../agents/base/AgentFactory';
 import { ISpecializedAgent } from '../agents/base/ISpecializedAgent';
 import { AgentContext, AgentResponse } from '../agents/base/BaseAgent';
-import { createUnifiedTimestamp } from '../utils/UnifiedBackboneService';
+import { createUnifiedTimestamp, unifiedMetadataService } from '../utils/UnifiedBackboneService';
 
 export interface ConversationParticipant {
   id: string;
@@ -362,18 +363,26 @@ export class EnhancedChatAPI {
 
     await this.unifiedMemoryClient.store(
       conversationText,
-      {
-        userId: userId,
-        timestamp: message.timestamp,
-        category: 'universal_conversation',
-        tags: [message.fromParticipant.type, 'agent'],
-        importance: 'medium',
-        constitutionallyValidated: true,
-        sensitivityLevel: 'internal',
-        relevanceScore: 1.0,
-        confidenceScore: 1.0,
-        sourceReliability: 1.0
-      }
+      unifiedMetadataService.create('memory', 'UniversalConversationGateway', {
+        system: {
+          source: 'UniversalConversationGateway',
+          component: 'conversation-system',
+          userId: userId
+        },
+        content: {
+          category: 'universal_conversation',
+          tags: [message.fromParticipant.type, 'agent'],
+          sensitivity: 'internal',
+          relevanceScore: 1.0,
+          contextDependency: 'session'
+        },
+        quality: {
+          score: 1.0,
+          confidence: 1.0,
+          constitutionalCompliant: true,
+          validationLevel: 'enhanced'
+        }
+      })
     );
   }
 
