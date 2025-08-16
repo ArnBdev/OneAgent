@@ -41,6 +41,12 @@ jobs:
           ONEAGENT_MCP_PORT: '8083'
         run: npm run smoke:runtime
 
+      - name: A2A canonical tests
+        env:
+          ONEAGENT_FAST_TEST_MODE: '1'
+          ONEAGENT_DISABLE_AUTO_MONITORING: '1'
+        run: npm run test:a2a
+
   build-and-smoke-windows:
     runs-on: windows-latest
     timeout-minutes: 30
@@ -78,3 +84,10 @@ jobs:
           ONEAGENT_MEMORY_PORT: '8010'
           ONEAGENT_MCP_PORT: '8083'
         run: npm run smoke:runtime
+
+      - name: A2A canonical tests (Windows)
+        shell: pwsh
+        env:
+          ONEAGENT_FAST_TEST_MODE: '1'
+          ONEAGENT_DISABLE_AUTO_MONITORING: '1'
+        run: npm run test:a2a
