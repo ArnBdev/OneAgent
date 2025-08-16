@@ -53,6 +53,6 @@ describe('A2A + NLACS Integration', () => {
       messageType: 'coordination',
     });
     const messages = await a2a.getAgentMessages({ messageTypes: ['coordination'], limit: 2 });
-    expect(messages.some(m => m.metadata?.messageType === 'coordination')).toBe(true);
+    expect(messages.some((m) => m.metadata?.messageType === 'coordination')).toBe(true);
   });
 });

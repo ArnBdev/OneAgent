@@ -1,17 +1,13 @@
 /**
  * ProfileManager.ts - Agent Profile Management System
- * 
+ *
  * Handles loading, saving, versioning, and validation of agent profiles.
  * Integrates with OneAgent memory system for profile evolution tracking.
  */
 
 import * as fs from 'fs/promises';
 import * as path from 'path';
-import { 
-  AgentProfile, 
-  ProfileValidationResult, 
-  EvolutionRecord
-} from './AgentProfile';
+import { AgentProfile, ProfileValidationResult, EvolutionRecord } from './AgentProfile';
 import { createUnifiedTimestamp } from '../../utils/UnifiedBackboneService';
 
 export class ProfileManager {
@@ -40,18 +36,18 @@ export class ProfileManager {
       const profilePath = path.join(this.profilesPath, `${profileName}.json`);
       const profileData = await fs.readFile(profilePath, 'utf8');
       const profile: AgentProfile = JSON.parse(profileData);
-      
+
       // Validate profile
       const validation = await this.validateProfile(profile);
       if (!validation.isValid) {
         throw new Error(`Profile validation failed: ${validation.errors.join(', ')}`);
       }
-      
+
       this.currentProfile = profile;
       return profile;
     } catch (error) {
       console.error(`Failed to load profile ${profileName}:`, error);
-      
+
       // Try to load backup or create default
       return await this.loadBackupOrDefault(profileName);
     }
@@ -60,22 +56,27 @@ export class ProfileManager {
   /**
    * Save agent profile to file with versioning
    */
-  async saveProfile(profile: AgentProfile, profileName: string = 'oneagent-profile'): Promise<void> {
+  async saveProfile(
+    profile: AgentProfile,
+    profileName: string = 'oneagent-profile',
+  ): Promise<void> {
     try {
       // Archive current version if it exists
       await this.archiveCurrentVersion(profileName);
-      
+
       // Update metadata
-  profile.metadata.lastEvolved = createUnifiedTimestamp().iso;
+      profile.metadata.lastEvolved = createUnifiedTimestamp().iso;
       profile.metadata.evolutionCount = (profile.metadata.evolutionCount || 0) + 1;
-      
+
       // Save new profile
       const profilePath = path.join(this.profilesPath, `${profileName}.json`);
       await fs.writeFile(profilePath, JSON.stringify(profile, null, 2), 'utf8');
-      
+
       this.currentProfile = profile;
-      
-      console.log(`Profile ${profileName} saved successfully. Version: ${profile.metadata.version}`);
+
+      console.log(
+        `Profile ${profileName} saved successfully. Version: ${profile.metadata.version}`,
+      );
     } catch (error) {
       console.error(`Failed to save profile ${profileName}:`, error);
       throw error;
@@ -88,27 +89,29 @@ export class ProfileManager {
   private async archiveCurrentVersion(profileName: string): Promise<void> {
     try {
       const currentPath = path.join(this.profilesPath, `${profileName}.json`);
-      
+
       // Check if current profile exists
       try {
         await fs.access(currentPath);
       } catch {
         return; // No current profile to archive
       }
-      
+
       // Read current profile to get version
       const currentData = await fs.readFile(currentPath, 'utf8');
       const currentProfile: AgentProfile = JSON.parse(currentData);
-      
+
       // Create archive filename with timestamp and version
-  const timestamp = createUnifiedTimestamp().iso.replace(/[:.]/g, '-');
+      const timestamp = createUnifiedTimestamp().iso.replace(/[:.]/g, '-');
       const archiveFilename = `${profileName}-v${currentProfile.metadata.version}-${timestamp}.json`;
       const archivePath = path.join(this.archivePath, archiveFilename);
-      
+
       // Copy to archive
       await fs.writeFile(archivePath, currentData, 'utf8');
-      
-      console.log(`Archived profile version ${currentProfile.metadata.version} to ${archiveFilename}`);
+
+      console.log(
+        `Archived profile version ${currentProfile.metadata.version} to ${archiveFilename}`,
+      );
     } catch (error) {
       console.error('Failed to archive current profile:', error);
       // Don't throw - archiving failure shouldn't prevent saving
@@ -125,7 +128,7 @@ export class ProfileManager {
       if (backups.length > 0) {
         const latestBackup = backups[0];
         console.log(`Loading backup profile: ${latestBackup.filename}`);
-        
+
         const backupPath = path.join(this.archivePath, latestBackup.filename);
         const backupData = await fs.readFile(backupPath, 'utf8');
         return JSON.parse(backupData);
@@ -133,7 +136,7 @@ export class ProfileManager {
     } catch (error) {
       console.error('Failed to load backup profile:', error);
     }
-    
+
     // Create default profile
     console.log('Creating default agent profile...');
     return await this.createDefaultProfile(profileName);
@@ -148,59 +151,64 @@ export class ProfileManager {
         name: 'OneAgent',
         description: 'AI Development Assistant with Self-Evolution Capabilities',
         version: '1.0.0',
-  created: createUnifiedTimestamp().iso,
-  lastEvolved: createUnifiedTimestamp().iso,
-        evolutionCount: 0
+        created: createUnifiedTimestamp().iso,
+        lastEvolved: createUnifiedTimestamp().iso,
+        evolutionCount: 0,
       },
       personality: {
         role: 'AI development agent for high-quality TypeScript development',
-        mission: 'Deliver practical, systematic solutions through effective prompt engineering and quality development practices',
+        mission:
+          'Deliver practical, systematic solutions through effective prompt engineering and quality development practices',
         communicationStyle: 'Professional, systematic, quality-focused',
         expertise: ['TypeScript', 'Node.js', 'AI Development', 'Prompt Engineering'],
         behaviorTraits: ['Analytical', 'Quality-focused', 'Systematic', 'Transparent'],
         responsePatterns: {
           greeting: 'Ready to assist with your development needs.',
           taskApproach: 'Let me analyze this systematically using our quality frameworks.',
-          errorHandling: 'I encountered an issue. Let me provide transparent details and alternatives.',
-          completion: 'Task completed. Here\'s a summary and suggested next steps.'
-        }
+          errorHandling:
+            'I encountered an issue. Let me provide transparent details and alternatives.',
+          completion: "Task completed. Here's a summary and suggested next steps.",
+        },
       },
       instructions: {
         coreCapabilities: [
           'Constitutional AI Framework - Self-correction and principle validation',
           'BMAD 10-Point Elicitation - Systematic reasoning framework',
           'Chain-of-Verification - Generate → Verify → Refine → Finalize patterns',
-          'Quality Validation - Automatic refinement with configurable thresholds'
+          'Quality Validation - Automatic refinement with configurable thresholds',
         ],
         developmentRules: [
           'Follow TypeScript best practices with proper typings',
           'Use relative imports and organize files based on project structure',
           'Apply Constitutional AI principles to all code',
-          'Target 95%+ quality through systematic validation'
+          'Target 95%+ quality through systematic validation',
         ],
         workflowPatterns: [
           'Always validate with Constitutional AI before responding',
           'Use BMAD framework for complex analysis',
           'Apply Chain-of-Verification for critical responses',
-          'Document quality scores and learning patterns'
+          'Document quality scores and learning patterns',
         ],
         qualityStandards: [
           'Minimum 85% quality score required',
           '100% Constitutional AI compliance',
           'Systematic framework application',
-          'Transparent reasoning and limitations'
+          'Transparent reasoning and limitations',
         ],
         prohibitions: [
           'Skip documentation or roadmap updates',
           'Auto-continue without approval',
           'Modify unrelated files',
-          'Use excessive marketing language'
+          'Use excessive marketing language',
         ],
         specialInstructions: {
           development: ['Use systematic frameworks', 'Apply constitutional validation'],
           memory: ['Store learnings in structured format', 'Update existing entries'],
-          multiAgent: ['Use Constitutional AI for all communications', 'Maintain quality standards']
-        }
+          multiAgent: [
+            'Use Constitutional AI for all communications',
+            'Maintain quality standards',
+          ],
+        },
       },
       capabilities: [
         {
@@ -208,15 +216,15 @@ export class ProfileManager {
           description: 'Self-correction and principle validation system',
           enabled: true,
           qualityThreshold: 85,
-          usage: { frequency: 0, successRate: 100, averageQuality: 90 }
+          usage: { frequency: 0, successRate: 100, averageQuality: 90 },
         },
         {
           name: 'BMAD Analysis',
           description: 'Systematic reasoning framework for complex tasks',
           enabled: true,
           qualityThreshold: 85,
-          usage: { frequency: 0, successRate: 95, averageQuality: 88 }
-        }
+          usage: { frequency: 0, successRate: 95, averageQuality: 88 },
+        },
       ],
       frameworks: {
         systematicPrompting: ['R-T-F', 'T-A-G', 'R-I-S-E', 'R-G-C', 'C-A-R-E'],
@@ -224,7 +232,7 @@ export class ProfileManager {
         analysisFramework: 'BMAD 10-Point',
         preferredFramework: 'R-I-S-E',
         frameworkUsage: {},
-        frameworkSuccess: {}
+        frameworkSuccess: {},
       },
       qualityThresholds: {
         minimumScore: 85,
@@ -236,22 +244,22 @@ export class ProfileManager {
           accuracy: 90,
           transparency: 85,
           helpfulness: 88,
-          safety: 100
-        }
+          safety: 100,
+        },
       },
       evolutionHistory: [],
       memoryConfig: {
         userId: 'oneagent_evolution',
         contextRetention: 100,
         learningEnabled: true,
-        memoryTypes: ['conversation', 'pattern', 'improvement']
+        memoryTypes: ['conversation', 'pattern', 'improvement'],
       },
       multiAgentConfig: {
         networkParticipation: true,
         collaborationPreferences: ['development', 'analysis', 'quality_assurance'],
         communicationStyle: 'professional',
-        trustLevel: 95
-      }
+        trustLevel: 95,
+      },
     };
 
     // Save default profile
@@ -271,7 +279,8 @@ export class ProfileManager {
     if (!profile.metadata?.name) errors.push('Profile name is required');
     if (!profile.metadata?.version) errors.push('Profile version is required');
     if (!profile.personality?.role) errors.push('Agent role is required');
-    if (!profile.instructions?.coreCapabilities?.length) errors.push('Core capabilities are required');
+    if (!profile.instructions?.coreCapabilities?.length)
+      errors.push('Core capabilities are required');
 
     // Quality thresholds validation
     if (profile.qualityThresholds?.minimumScore < 50) {
@@ -280,7 +289,7 @@ export class ProfileManager {
     }
 
     // Capabilities validation
-    const enabledCapabilities = profile.capabilities?.filter(cap => cap.enabled) || [];
+    const enabledCapabilities = profile.capabilities?.filter((cap) => cap.enabled) || [];
     if (enabledCapabilities.length === 0) {
       warnings.push('No capabilities are enabled');
       qualityScore -= 20;
@@ -291,7 +300,7 @@ export class ProfileManager {
       accuracy: true,
       transparency: profile.personality?.communicationStyle?.includes('transparent') || false,
       helpfulness: profile.personality?.mission?.length > 0 || false,
-      safety: profile.instructions?.prohibitions?.length > 0 || false
+      safety: profile.instructions?.prohibitions?.length > 0 || false,
     };
 
     return {
@@ -299,30 +308,34 @@ export class ProfileManager {
       errors,
       warnings,
       qualityScore: Math.max(0, qualityScore),
-      constitutionalCompliance
+      constitutionalCompliance,
     };
   }
 
   /**
    * Get profile evolution history
    */
-  async getProfileHistory(profileName: string): Promise<{filename: string, version: string, timestamp: string}[]> {
+  async getProfileHistory(
+    profileName: string,
+  ): Promise<{ filename: string; version: string; timestamp: string }[]> {
     try {
       const files = await fs.readdir(this.archivePath);
       const profileFiles = files
-        .filter(file => file.startsWith(`${profileName}-v`) && file.endsWith('.json'))
-        .map(file => {
+        .filter((file) => file.startsWith(`${profileName}-v`) && file.endsWith('.json'))
+        .map((file) => {
           const match = file.match(/^(.+)-v(.+)-(.+)\.json$/);
-          return match ? {
-            filename: file,
-            version: match[2],
-            timestamp: match[3]
-          } : null;
+          return match
+            ? {
+                filename: file,
+                version: match[2],
+                timestamp: match[3],
+              }
+            : null;
         })
         .filter(Boolean)
         .sort((a, b) => b!.timestamp.localeCompare(a!.timestamp));
 
-      return profileFiles as {filename: string, version: string, timestamp: string}[];
+      return profileFiles as { filename: string; version: string; timestamp: string }[];
     } catch (error) {
       console.error('Failed to get profile history:', error);
       return [];
@@ -335,13 +348,13 @@ export class ProfileManager {
   async rollbackProfile(profileName: string, targetVersion?: string): Promise<AgentProfile> {
     try {
       const history = await this.getProfileHistory(profileName);
-      
+
       if (history.length === 0) {
         throw new Error('No previous versions available for rollback');
       }
 
-      const targetProfile = targetVersion 
-        ? history.find(h => h.version === targetVersion)
+      const targetProfile = targetVersion
+        ? history.find((h) => h.version === targetVersion)
         : history[0]; // Most recent
 
       if (!targetProfile) {
@@ -355,34 +368,36 @@ export class ProfileManager {
       // Update metadata for rollback
       restoredProfile.metadata.version = `${restoredProfile.metadata.version}-rollback`;
       restoredProfile.metadata.lastEvolved = new Date().toISOString();
-      
+
       // Add rollback record
       const rollbackRecord: EvolutionRecord = {
         timestamp: new Date().toISOString(),
         version: restoredProfile.metadata.version,
         trigger: 'manual',
-        changes: [{
-          category: 'instructions',
-          field: 'rollback',
-          oldValue: 'current',
-          newValue: targetProfile.version,
-          reasoning: 'Profile rollback requested',
-          expectedImprovement: 'Restore previous stable configuration',
-          confidence: 100
-        }],
+        changes: [
+          {
+            category: 'instructions',
+            field: 'rollback',
+            oldValue: 'current',
+            newValue: targetProfile.version,
+            reasoning: 'Profile rollback requested',
+            expectedImprovement: 'Restore previous stable configuration',
+            confidence: 100,
+          },
+        ],
         performanceImpact: {
           qualityScoreBefore: 0,
           qualityScoreAfter: 0,
           userSatisfactionBefore: 0,
           userSatisfactionAfter: 0,
-          successMetrics: {}
+          successMetrics: {},
         },
         validationResults: {
           constitutionalCompliance: true,
           bmadAnalysis: 'Rollback to previous stable version',
           riskAssessment: 'low',
-          approvalStatus: 'approved'
-        }
+          approvalStatus: 'approved',
+        },
       };
 
       restoredProfile.evolutionHistory.push(rollbackRecord);
@@ -408,26 +423,33 @@ export class ProfileManager {
   /**
    * Update profile capability usage statistics
    */
-  async updateCapabilityUsage(capabilityName: string, success: boolean, qualityScore: number): Promise<void> {
+  async updateCapabilityUsage(
+    capabilityName: string,
+    success: boolean,
+    qualityScore: number,
+  ): Promise<void> {
     if (!this.currentProfile) return;
 
-    const capability = this.currentProfile.capabilities.find(cap => cap.name === capabilityName);
+    const capability = this.currentProfile.capabilities.find((cap) => cap.name === capabilityName);
     if (!capability) return;
 
     // Update usage statistics
     capability.usage.frequency++;
     capability.usage.lastUsed = new Date().toISOString();
-    
+
     if (success) {
-      capability.usage.successRate = 
-        (capability.usage.successRate * (capability.usage.frequency - 1) + 100) / capability.usage.frequency;
+      capability.usage.successRate =
+        (capability.usage.successRate * (capability.usage.frequency - 1) + 100) /
+        capability.usage.frequency;
     } else {
-      capability.usage.successRate = 
-        (capability.usage.successRate * (capability.usage.frequency - 1)) / capability.usage.frequency;
+      capability.usage.successRate =
+        (capability.usage.successRate * (capability.usage.frequency - 1)) /
+        capability.usage.frequency;
     }
 
-    capability.usage.averageQuality = 
-      (capability.usage.averageQuality * (capability.usage.frequency - 1) + qualityScore) / capability.usage.frequency;
+    capability.usage.averageQuality =
+      (capability.usage.averageQuality * (capability.usage.frequency - 1) + qualityScore) /
+      capability.usage.frequency;
 
     // Save updated profile
     await this.saveProfile(this.currentProfile);
@@ -448,7 +470,7 @@ export class ProfileManager {
 
       // Save backup
       await fs.writeFile(backupPath, JSON.stringify(profile, null, 2), 'utf8');
-      
+
       console.log(`Profile backup created: ${backupFilename}`);
       return backupPath;
     } catch (error) {

@@ -1,6 +1,6 @@
 /**
  * RealTriageAgent - REAL Task Routing & System Health AI Agent
- * 
+ *
  * A fully functional BaseAgent implementation with:
  * - Real memory integration for tracking routing decisions
  * - Gemini AI for intelligent task routing and system analysis
@@ -8,7 +8,13 @@
  * - Specialized triage and orchestration expertise
  */
 
-import { BaseAgent, AgentConfig, AgentContext, AgentResponse, AgentAction } from '../base/BaseAgent';
+import {
+  BaseAgent,
+  AgentConfig,
+  AgentContext,
+  AgentResponse,
+  AgentAction,
+} from '../base/BaseAgent';
 import { ISpecializedAgent, AgentHealthStatus } from '../base/ISpecializedAgent';
 import { PromptConfig, AgentPersona } from '../base/PromptEngine';
 import type { ConstitutionalPrinciple } from '../../types/oneagent-backbone-types';
@@ -81,7 +87,7 @@ export class TriageAgent extends BaseAgent implements ISpecializedAgent {
   async initialize(): Promise<void> {
     // Call parent initialize first (includes auto-registration)
     await super.initialize();
-    
+
     console.log(`TriageAgent ${this.id} initialized`);
   }
 
@@ -96,36 +102,52 @@ export class TriageAgent extends BaseAgent implements ISpecializedAgent {
         description: 'Route a task to the most appropriate agent',
         parameters: {
           task: { type: 'string', required: true, description: 'Task description' },
-          priority: { type: 'string', required: false, description: 'Task priority: low, medium, high, urgent' },
-          requiredSkills: { type: 'array', required: false, description: 'Required skills or capabilities' }
-        }
+          priority: {
+            type: 'string',
+            required: false,
+            description: 'Task priority: low, medium, high, urgent',
+          },
+          requiredSkills: {
+            type: 'array',
+            required: false,
+            description: 'Required skills or capabilities',
+          },
+        },
       },
       {
         type: 'assess_agent_health',
         description: 'Assess the health and availability of system agents',
         parameters: {
-          agentId: { type: 'string', required: false, description: 'Specific agent ID to check' }
-        }
+          agentId: { type: 'string', required: false, description: 'Specific agent ID to check' },
+        },
       },
       {
         type: 'load_balance',
         description: 'Balance load across available agents',
         parameters: {
-          currentLoad: { type: 'object', required: true, description: 'Current system load metrics' }
-        }
-      }
+          currentLoad: {
+            type: 'object',
+            required: true,
+            description: 'Current system load metrics',
+          },
+        },
+      },
     ];
   }
 
-  async executeAction(action: string | AgentAction, params: Record<string, unknown>, _context?: AgentContext): Promise<AgentResponse> {
+  async executeAction(
+    action: string | AgentAction,
+    params: Record<string, unknown>,
+    _context?: AgentContext,
+  ): Promise<AgentResponse> {
     const actionType = typeof action === 'string' ? action : action.type;
-    
+
     switch (actionType) {
       case 'route_task': {
         const routingResult = await this.routeTask(
-          params.task as string, 
-          params.priority as string | undefined, 
-          params.requiredSkills as string[] | undefined
+          params.task as string,
+          params.priority as string | undefined,
+          params.requiredSkills as string[] | undefined,
         );
         return {
           content: 'Task routing completed',
@@ -133,8 +155,8 @@ export class TriageAgent extends BaseAgent implements ISpecializedAgent {
             type: 'routing_result',
             routing: routingResult.routing,
             alternatives: routingResult.alternatives,
-            taskMetadata: routingResult.metadata
-          }
+            taskMetadata: routingResult.metadata,
+          },
         };
       }
       case 'assess_agent_health': {
@@ -146,8 +168,8 @@ export class TriageAgent extends BaseAgent implements ISpecializedAgent {
             overall: healthAssessment.overall,
             agents: healthAssessment.agents,
             recommendations: healthAssessment.recommendations,
-            alerts: healthAssessment.alerts
-          }
+            alerts: healthAssessment.alerts,
+          },
         };
       }
       case 'load_balance': {
@@ -159,8 +181,8 @@ export class TriageAgent extends BaseAgent implements ISpecializedAgent {
             currentStatus: loadBalanceResult.currentStatus,
             recommendations: loadBalanceResult.recommendations,
             actions: loadBalanceResult.actions,
-            projectedImprovement: loadBalanceResult.projectedImprovement
-          }
+            projectedImprovement: loadBalanceResult.projectedImprovement,
+          },
         };
       }
       default:
@@ -176,7 +198,7 @@ export class TriageAgent extends BaseAgent implements ISpecializedAgent {
       memoryUsage: 0,
       responseTime: 0,
       errorRate: 0,
-      lastActivity: new Date(timestamp.utc)
+      lastActivity: new Date(timestamp.utc),
     };
   }
 
@@ -185,25 +207,29 @@ export class TriageAgent extends BaseAgent implements ISpecializedAgent {
   }
 
   // TriageAgent-specific action implementations
-  private async routeTask(task: string, priority?: string, requiredSkills?: string[]): Promise<RoutingResult> {
+  private async routeTask(
+    task: string,
+    priority?: string,
+    requiredSkills?: string[],
+  ): Promise<RoutingResult> {
     // Analyze task and determine best agent
     const analysis = this.analyzeTask(task, requiredSkills);
     const selectedAgent = this.selectBestAgent(analysis, priority);
-    
+
     return {
       routing: {
         selectedAgent,
         confidence: analysis.confidence,
         reasoning: analysis.reasoning,
         priority: priority || 'medium',
-        estimatedDuration: this.estimateDuration(task)
+        estimatedDuration: this.estimateDuration(task),
       },
       alternatives: this.getAlternativeAgents(selectedAgent),
       metadata: {
         timestamp: new Date().toISOString(),
         taskType: this.categorizeTask(task),
-        complexity: this.assessComplexity(task)
-      }
+        complexity: this.assessComplexity(task),
+      },
     };
   }
 
@@ -211,17 +237,21 @@ export class TriageAgent extends BaseAgent implements ISpecializedAgent {
     // Simple duration estimation based on task complexity
     const complexity = this.assessComplexity(task);
     switch (complexity) {
-      case 'low': return '5-15 minutes';
-      case 'medium': return '15-60 minutes';
-      case 'high': return '1-4 hours';
-      default: return '30 minutes';
+      case 'low':
+        return '5-15 minutes';
+      case 'medium':
+        return '15-60 minutes';
+      case 'high':
+        return '1-4 hours';
+      default:
+        return '30 minutes';
     }
   }
 
   private getAlternativeAgents(selectedAgent: string): string[] {
     // Return list of alternative agents
     const allAgents = ['CoreAgent', 'DevAgent', 'FitnessAgent', 'OfficeAgent', 'ValidationAgent'];
-    return allAgents.filter(agent => agent !== selectedAgent).slice(0, 2);
+    return allAgents.filter((agent) => agent !== selectedAgent).slice(0, 2);
   }
 
   private categorizeTask(task: string): string {
@@ -236,10 +266,10 @@ export class TriageAgent extends BaseAgent implements ISpecializedAgent {
   private assessComplexity(task: string): string {
     const taskLength = task.length;
     const complexityKeywords = ['complex', 'advanced', 'comprehensive', 'detailed'];
-    const hasComplexKeywords = complexityKeywords.some(keyword => 
-      task.toLowerCase().includes(keyword)
+    const hasComplexKeywords = complexityKeywords.some((keyword) =>
+      task.toLowerCase().includes(keyword),
     );
-    
+
     if (hasComplexKeywords || taskLength > 200) return 'high';
     if (taskLength > 100) return 'medium';
     return 'low';
@@ -255,41 +285,62 @@ export class TriageAgent extends BaseAgent implements ISpecializedAgent {
         memoryUsage: 45,
         responseTime: 120,
         errorRate: 0.01,
-        lastActivity: new Date(timestamp.utc)
+        lastActivity: new Date(timestamp.utc),
       };
-      
+
       return {
         overall: 'healthy',
         agents: { [agentId]: agentHealth },
         recommendations: ['Monitor response times'],
-        alerts: []
+        alerts: [],
       };
     } else {
       // Check all agents
       const timestamp = this.unifiedBackbone.getServices().timeService.now();
       const mockAgents: Record<string, AgentHealthStatus> = {
-        'CoreAgent': { status: 'healthy', uptime: timestamp.unix, memoryUsage: 30, responseTime: 100, errorRate: 0.005, lastActivity: new Date(timestamp.utc) },
-        'DevAgent': { status: 'healthy', uptime: timestamp.unix, memoryUsage: 25, responseTime: 90, errorRate: 0.002, lastActivity: new Date(timestamp.utc) },
-        'FitnessAgent': { status: 'healthy', uptime: timestamp.unix, memoryUsage: 20, responseTime: 110, errorRate: 0.001, lastActivity: new Date(timestamp.utc) }
+        CoreAgent: {
+          status: 'healthy',
+          uptime: timestamp.unix,
+          memoryUsage: 30,
+          responseTime: 100,
+          errorRate: 0.005,
+          lastActivity: new Date(timestamp.utc),
+        },
+        DevAgent: {
+          status: 'healthy',
+          uptime: timestamp.unix,
+          memoryUsage: 25,
+          responseTime: 90,
+          errorRate: 0.002,
+          lastActivity: new Date(timestamp.utc),
+        },
+        FitnessAgent: {
+          status: 'healthy',
+          uptime: timestamp.unix,
+          memoryUsage: 20,
+          responseTime: 110,
+          errorRate: 0.001,
+          lastActivity: new Date(timestamp.utc),
+        },
       };
-      
+
       return {
         overall: 'healthy',
         agents: mockAgents,
         recommendations: ['System performing well', 'Consider scaling if load increases'],
-        alerts: []
+        alerts: [],
       };
     }
   }
 
   private async balanceLoad(currentLoad: LoadMetrics): Promise<LoadBalanceResult> {
     const recommendations = this.generateLoadBalanceRecommendations(currentLoad);
-    
+
     return {
       currentStatus: this.assessLoadStatus(currentLoad),
       recommendations,
       actions: this.generateLoadBalanceActions(currentLoad),
-      projectedImprovement: 'Expected 15-20% improvement in response times'
+      projectedImprovement: 'Expected 15-20% improvement in response times',
     };
   }
 
@@ -297,7 +348,7 @@ export class TriageAgent extends BaseAgent implements ISpecializedAgent {
     const cpu = currentLoad.cpuUsage || 0;
     const memory = currentLoad.memoryUsage || 0;
     const queue = currentLoad.queueSize || 0;
-    
+
     if (cpu > 80 || memory > 80 || queue > 50) return 'High Load';
     if (cpu > 60 || memory > 60 || queue > 20) return 'Medium Load';
     return 'Normal Load';
@@ -308,42 +359,54 @@ export class TriageAgent extends BaseAgent implements ISpecializedAgent {
     const cpu = currentLoad.cpuUsage || 0;
     const memory = currentLoad.memoryUsage || 0;
     const queue = currentLoad.queueSize || 0;
-    
+
     if (cpu > 70) actions.push('Scale CPU resources');
     if (memory > 70) actions.push('Increase memory allocation');
     if (queue > 30) actions.push('Add additional processing agents');
     if (actions.length === 0) actions.push('Maintain current configuration');
-    
+
     return actions;
   }
   private analyzeTask(task: string, _requiredSkills?: string[]): TaskAnalysis {
     // Simple task analysis logic
     const taskLower = task.toLowerCase();
-    
-    if (taskLower.includes('code') || taskLower.includes('program') || taskLower.includes('debug')) {
+
+    if (
+      taskLower.includes('code') ||
+      taskLower.includes('program') ||
+      taskLower.includes('debug')
+    ) {
       return {
         confidence: 85,
         reasoning: 'Task involves programming/development work',
-        suggestedAgent: 'DevAgent'
+        suggestedAgent: 'DevAgent',
       };
-    } else if (taskLower.includes('document') || taskLower.includes('office') || taskLower.includes('meeting')) {
+    } else if (
+      taskLower.includes('document') ||
+      taskLower.includes('office') ||
+      taskLower.includes('meeting')
+    ) {
       return {
         confidence: 80,
         reasoning: 'Task involves office productivity',
-        suggestedAgent: 'OfficeAgent'
+        suggestedAgent: 'OfficeAgent',
       };
-    } else if (taskLower.includes('fitness') || taskLower.includes('workout') || taskLower.includes('health')) {
+    } else if (
+      taskLower.includes('fitness') ||
+      taskLower.includes('workout') ||
+      taskLower.includes('health')
+    ) {
       return {
         confidence: 90,
         reasoning: 'Task involves fitness and wellness',
-        suggestedAgent: 'FitnessAgent'
+        suggestedAgent: 'FitnessAgent',
       };
     }
-    
+
     return {
       confidence: 60,
       reasoning: 'General task - routing to core agent',
-      suggestedAgent: 'CoreAgent'
+      suggestedAgent: 'CoreAgent',
     };
   }
 
@@ -354,11 +417,11 @@ export class TriageAgent extends BaseAgent implements ISpecializedAgent {
 
   private generateLoadBalanceRecommendations(currentLoad: LoadMetrics): string[] {
     const recommendations = ['Monitor agent response times', 'Scale up high-load agents'];
-    
+
     if (currentLoad.highLoad) {
       recommendations.push('Distribute tasks to underutilized agents');
     }
-    
+
     return recommendations;
   }
 
@@ -370,11 +433,7 @@ export class TriageAgent extends BaseAgent implements ISpecializedAgent {
       this.validateContext(context);
 
       // Search for relevant routing patterns in memory
-      const relevantMemories = await this.searchMemories(
-        context.user.id, 
-        message, 
-        5
-      );
+      const relevantMemories = await this.searchMemories(context.user.id, message, 5);
 
       // Analyze the task/query for routing decisions
       const triageAnalysis = await this.analyzeTaskForTriage(message, relevantMemories);
@@ -392,18 +451,17 @@ export class TriageAgent extends BaseAgent implements ISpecializedAgent {
           recommendedAgent: triageAnalysis.recommendedAgent,
           category: triageAnalysis.category,
           timestamp: new Date().toISOString(),
-          sessionId: context.sessionId
-        }
+          sessionId: context.sessionId,
+        },
       );
 
       return this.createResponse(response, [], relevantMemories);
-
     } catch (error) {
       console.error('RealTriageAgent: Error processing message:', error);
       return this.createResponse(
         'I apologize, but I encountered an error while analyzing your request for routing. Please try again.',
         [],
-        []
+        [],
       );
     }
   }
@@ -412,7 +470,7 @@ export class TriageAgent extends BaseAgent implements ISpecializedAgent {
    */
   private async analyzeTaskForTriage(
     message: string,
-    memories: MemoryRecord[]
+    memories: MemoryRecord[],
   ): Promise<TriageAnalysis> {
     const prompt = `
 Analyze this user request for optimal task routing:
@@ -442,7 +500,7 @@ Respond in JSON format:
 `;
 
     const aiResponse = await this.generateResponse(prompt, memories);
-    
+
     try {
       // Extract JSON from response
       const jsonMatch = aiResponse.match(/\{[\s\S]*\}/);
@@ -462,10 +520,10 @@ Respond in JSON format:
   private async generateTriageResponse(
     message: string,
     triageAnalysis: TriageAnalysis,
-    memories: MemoryRecord[]
+    memories: MemoryRecord[],
   ): Promise<string> {
     const routingContext = this.buildRoutingContext(memories);
-    
+
     const prompt = `
 You are a professional task routing and system orchestration specialist with expertise in:
 - Intelligent task analysis and categorization
@@ -498,23 +556,24 @@ Be concise but comprehensive in your routing analysis.
    */
   private buildRoutingContext(memories: MemoryRecord[]): string {
     if (!memories || memories.length === 0) {
-      return "No previous routing history available.";
+      return 'No previous routing history available.';
     }
 
     const routingMemories = memories
-      .filter(memory => 
-        memory.metadata?.category === 'triage_decision' ||
-        memory.content?.toLowerCase().includes('routing') ||
-        memory.content?.toLowerCase().includes('agent')
+      .filter(
+        (memory) =>
+          memory.metadata?.category === 'triage_decision' ||
+          memory.content?.toLowerCase().includes('routing') ||
+          memory.content?.toLowerCase().includes('agent'),
       )
       .slice(0, 3);
 
     if (routingMemories.length === 0) {
-      return "No relevant routing history found.";
+      return 'No relevant routing history found.';
     }
 
     return routingMemories
-      .map(memory => {
+      .map((memory) => {
         // Parse routing information from content since it's stored as structured data
         try {
           const routingInfo = JSON.parse(memory.content);
@@ -531,23 +590,35 @@ Be concise but comprehensive in your routing analysis.
    */
   private performFallbackTriage(message: string): TriageAnalysis {
     const messageLower = message.toLowerCase();
-    
+
     // Simple keyword-based analysis
     let category = 'general';
     let recommendedAgent = 'CoreAgent';
     let priority = 'medium';
-    
-    if (messageLower.includes('code') || messageLower.includes('dev') || messageLower.includes('program')) {
+
+    if (
+      messageLower.includes('code') ||
+      messageLower.includes('dev') ||
+      messageLower.includes('program')
+    ) {
       category = 'dev';
       recommendedAgent = 'DevAgent';
-    } else if (messageLower.includes('document') || messageLower.includes('office') || messageLower.includes('productivity')) {
+    } else if (
+      messageLower.includes('document') ||
+      messageLower.includes('office') ||
+      messageLower.includes('productivity')
+    ) {
       category = 'office';
       recommendedAgent = 'OfficeAgent';
-    } else if (messageLower.includes('fitness') || messageLower.includes('workout') || messageLower.includes('health')) {
+    } else if (
+      messageLower.includes('fitness') ||
+      messageLower.includes('workout') ||
+      messageLower.includes('health')
+    ) {
       category = 'fitness';
       recommendedAgent = 'FitnessAgent';
     }
-    
+
     if (messageLower.includes('urgent') || messageLower.includes('critical')) {
       priority = 'urgent';
     } else if (messageLower.includes('important') || messageLower.includes('priority')) {
@@ -562,7 +633,7 @@ Be concise but comprehensive in your routing analysis.
       alternativeAgents: ['CoreAgent'],
       confidence: 6,
       reasoning: 'Fallback keyword-based analysis used due to AI parsing failure',
-      estimatedDuration: '30 minutes'
+      estimatedDuration: '30 minutes',
     };
   }
 
@@ -570,12 +641,13 @@ Be concise but comprehensive in your routing analysis.
    * Create enhanced prompt configuration for triage expertise
    */
   private static createTriagePromptConfig(): PromptConfig {
-    return {      agentPersona: TriageAgent.createTriagePersona(),
+    return {
+      agentPersona: TriageAgent.createTriagePersona(),
       constitutionalPrinciples: TriageAgent.createTriageConstitutionalPrinciples(),
       enabledFrameworks: ['RTF', 'TAG', 'RGC'], // Reasoning, Task, Goals + Resources, Goals, Constraints
-      enableCoVe: true,   // Enable verification for routing decisions
-      enableRAG: true,    // Use relevant memory context
-      qualityThreshold: 85 // High standard for routing accuracy
+      enableCoVe: true, // Enable verification for routing decisions
+      enableRAG: true, // Use relevant memory context
+      qualityThreshold: 85, // High standard for routing accuracy
     };
   }
 
@@ -593,9 +665,9 @@ Be concise but comprehensive in your routing analysis.
         'System health monitoring and proactive optimization',
         'Clear routing rationale with fallback options',
         'Continuous learning from routing patterns and outcomes',
-        'Efficient load balancing across agent network'
+        'Efficient load balancing across agent network',
       ],
-      frameworks: ['RTF', 'TAG', 'RGC']
+      frameworks: ['RTF', 'TAG', 'RGC'],
     };
   }
 
@@ -607,13 +679,14 @@ Be concise but comprehensive in your routing analysis.
       {
         id: 'optimal_routing',
         name: 'Optimal Agent Routing',
-        description: 'Route tasks to the most appropriate agent based on capabilities and availability',
+        description:
+          'Route tasks to the most appropriate agent based on capabilities and availability',
         category: 'helpfulness',
         weight: 1,
         isViolated: false,
         confidence: 1,
         validationRule: 'Response includes clear routing rationale and agent capability matching',
-        severityLevel: 'high'
+        severityLevel: 'high',
       },
       {
         id: 'priority_awareness',
@@ -624,7 +697,7 @@ Be concise but comprehensive in your routing analysis.
         isViolated: false,
         confidence: 1,
         validationRule: 'Response considers and respects stated or implied priority levels',
-        severityLevel: 'high'
+        severityLevel: 'high',
       },
       {
         id: 'fallback_options',
@@ -635,7 +708,7 @@ Be concise but comprehensive in your routing analysis.
         isViolated: false,
         confidence: 1,
         validationRule: 'Response includes backup agents or escalation paths',
-        severityLevel: 'medium'
+        severityLevel: 'medium',
       },
       {
         id: 'transparent_reasoning',
@@ -646,7 +719,7 @@ Be concise but comprehensive in your routing analysis.
         isViolated: false,
         confidence: 1,
         validationRule: 'Response includes clear explanation of why specific agent was chosen',
-        severityLevel: 'high'
+        severityLevel: 'high',
       },
       {
         id: 'system_optimization',
@@ -657,8 +730,8 @@ Be concise but comprehensive in your routing analysis.
         isViolated: false,
         confidence: 1,
         validationRule: 'Response considers system-wide impact and optimization',
-        severityLevel: 'medium'
-      }
+        severityLevel: 'medium',
+      },
     ];
   }
 }

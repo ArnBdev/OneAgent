@@ -1,6 +1,6 @@
 /**
  * OneAgent Types Export Index
- * 
+ *
  * Central export point for all OneAgent type definitions
  * Includes BMAD-generated Constitutional AI validation types
  */

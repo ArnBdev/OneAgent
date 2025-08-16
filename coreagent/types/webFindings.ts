@@ -38,7 +38,8 @@ export interface WebFetchFinding {
     size: number;
     contentType: string;
     encoding?: string;
-  };  metadata: {
+  };
+  metadata: {
     title?: string;
     description?: string;
     keywords?: string[];

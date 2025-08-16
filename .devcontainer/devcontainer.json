@@ -35,9 +35,7 @@
         "servers": {
           "oneagent": {
             "command": "node",
-            "args": [
-              "dist/coreagent/server/unified-mcp-server.js"
-            ],
+            "args": ["dist/coreagent/server/unified-mcp-server.js"],
             "env": {
               "NODE_ENV": "development",
               "ONEAGENT_LOG_LEVEL": "debug"
@@ -47,12 +45,7 @@
       }
     }
   },
-  "forwardPorts": [
-    8083,
-    8080,
-    8010,
-    3000
-  ],
+  "forwardPorts": [8083, 8080, 8010, 3000],
   "portsAttributes": {
     "8083": {
       "label": "OneAgent MCP Server (Production)",

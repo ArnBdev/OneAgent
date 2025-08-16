@@ -7,6 +7,7 @@ This document has been **consolidated** into a comprehensive plan:
 📋 **[ONEAGENT_UNIFIED_ARCHITECTURE_PLAN.md](./ONEAGENT_UNIFIED_ARCHITECTURE_PLAN.md)**
 
 The unified document includes:
+
 - Complete parallel systems inventory (9 systems)
 - Canonical architecture design
 - Agent communication failure analysis
@@ -23,6 +24,7 @@ The unified document includes:
 ## 🏗️ **UNIFIED BACKBONE SERVICE: The Single Source of Truth**
 
 ### **Current Architecture Analysis**
+
 - **UnifiedBackboneService**: Exists but has its own Date.now() violations
 - **Time System**: `createUnifiedTimestamp()` is the canonical method
 - **Metadata System**: `createUnifiedMetadata()` is the canonical method
@@ -33,46 +35,47 @@ The unified document includes:
 ```typescript
 /**
  * UnifiedBackboneService - The ONLY source of truth for ALL OneAgent systems
- * 
- * ARCHITECTURAL PRINCIPLE: Every operation that needs time, IDs, memory, caching, 
+ *
+ * ARCHITECTURAL PRINCIPLE: Every operation that needs time, IDs, memory, caching,
  * error handling, or MCP integration MUST use this service
  */
 export class UnifiedBackboneService {
   // =====================================
   // TIME SYSTEM (90% Complete)
   // =====================================
-  static createUnifiedTimestamp(): UnifiedTimestamp
-  
+  static createUnifiedTimestamp(): UnifiedTimestamp;
+
   // =====================================
   // ID GENERATION SYSTEM (Needs Fix)
   // =====================================
-  static generateUnifiedId(type: IdType, context?: string): string
-  
+  static generateUnifiedId(type: IdType, context?: string): string;
+
   // =====================================
   // MEMORY SYSTEM (To Be Designed)
   // =====================================
-  static readonly memory: UnifiedMemoryInterface
-  
+  static readonly memory: UnifiedMemoryInterface;
+
   // =====================================
   // CACHING SYSTEM (To Be Designed)
   // =====================================
-  static readonly cache: UnifiedCacheInterface
-  
+  static readonly cache: UnifiedCacheInterface;
+
   // =====================================
   // ERROR HANDLING SYSTEM (To Be Designed)
   // =====================================
-  static readonly errorHandler: UnifiedErrorInterface
-  
+  static readonly errorHandler: UnifiedErrorInterface;
+
   // =====================================
   // MCP INTEGRATION SYSTEM (To Be Designed)
   // =====================================
-  static readonly mcp: UnifiedMCPInterface
+  static readonly mcp: UnifiedMCPInterface;
 }
 ```
 
 ## 🎯 **SYSTEM-BY-SYSTEM CANONICAL DESIGN**
 
 ### **1. TIME SYSTEM** ✅ **CANONICAL METHOD EXISTS**
+
 ```typescript
 // CANONICAL: Use this everywhere
 const timestamp = createUnifiedTimestamp();
@@ -84,6 +87,7 @@ const time = new Date().getTime(); // ❌ PARALLEL SYSTEM
 ```
 
 ### **2. ID GENERATION SYSTEM** ✅ **CANONICAL SYSTEM OPERATIONAL**
+
 ```typescript
 // CANONICAL: Use this everywhere (WORKING)
 const id = createUnifiedId('operation', 'gemini_embedding');
@@ -97,6 +101,7 @@ const id = `doc_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`; // �
 ```
 
 **✅ Implemented ID System:**
+
 ```typescript
 // Available functions from UnifiedBackboneService:
 createUnifiedId(type: IdType, context?: string, config?: Partial<UnifiedIdConfig>): string
@@ -115,6 +120,7 @@ const result = createUnifiedIdWithResult('test', 'system_verification', { format
 **🎯 USER'S VISION**: "All agents work and save their conversations and thoughts in memory, and learnings from one agent is a learning for all agents. Life domains get separated with rich metadata, like WORKPLACE or PRIVATE so to prevent leakage. And prevent leaking between users in case we add support for multiuser later."
 
 **🏗️ ARCHITECTURAL REQUIREMENTS**:
+
 - ✅ **Domain Separation**: WORKPLACE/PRIVATE with zero leakage
 - ✅ **Cross-Agent Learning**: Shared intelligence across all agents
 - ✅ **Multi-User Support**: Complete user isolation
@@ -143,6 +149,7 @@ await fetch('/memory/learnings', {...}); // ❌ Direct MCP calls
 ```
 
 **🔧 UNIFIED MEMORY INTERFACE DESIGN**:
+
 ```typescript
 interface UnifiedMemoryInterface {
   // =====================================
@@ -152,54 +159,69 @@ interface UnifiedMemoryInterface {
   search(query: UnifiedMemoryQuery): Promise<UnifiedMemoryResult[]>;
   update(id: string, data: Partial<UnifiedMemoryEntry>): Promise<boolean>;
   delete(id: string): Promise<boolean>;
-  
+
   // =====================================
   // DOMAIN SEPARATION (CRITICAL)
   // =====================================
-  searchDomain(domain: ContextCategory, query: string, userId: string): Promise<UnifiedMemoryResult[]>;
-  crossDomainSearch(query: string, userId: string, allowedDomains: ContextCategory[]): Promise<UnifiedMemoryResult[]>;
+  searchDomain(
+    domain: ContextCategory,
+    query: string,
+    userId: string,
+  ): Promise<UnifiedMemoryResult[]>;
+  crossDomainSearch(
+    query: string,
+    userId: string,
+    allowedDomains: ContextCategory[],
+  ): Promise<UnifiedMemoryResult[]>;
   preventDomainLeakage(entry: UnifiedMemoryEntry): boolean;
-  
+
   // =====================================
   // USER ISOLATION (MULTI-USER READY)
   // =====================================
   getUserMemories(userId: string, domain?: ContextCategory): Promise<UnifiedMemoryResult[]>;
   shareMemoryBetweenUsers(memoryId: string, fromUserId: string, toUserId: string): Promise<boolean>;
   enforceUserBoundaries(query: UnifiedMemoryQuery): Promise<UnifiedMemoryQuery>;
-  
+
   // =====================================
   // CROSS-AGENT LEARNING (INTELLIGENCE)
   // =====================================
   shareAgentLearning(learning: AgentLearning): Promise<string>;
   getAgentLearnings(agentType: AgentType, domain?: ContextCategory): Promise<AgentLearning[]>;
   crossAgentInsights(context: string, userId: string): Promise<CrossAgentInsight[]>;
-  
+
   // =====================================
   // MEMGRAPH INTEGRATION (FUTURE)
   // =====================================
   createRelationship(fromId: string, toId: string, type: RelationshipType): Promise<boolean>;
   getRelatedMemories(memoryId: string, depth?: number): Promise<UnifiedMemoryResult[]>;
   findPatterns(domain: ContextCategory, userId: string): Promise<MemoryPattern[]>;
-  
+
   // =====================================
   // STRUCTURED METADATA (NO SERIALIZATION)
   // =====================================
   addStructuredMetadata(memoryId: string, metadata: StructuredMetadata): Promise<boolean>;
-  queryByMetadata(metadata: Partial<StructuredMetadata>, userId: string): Promise<UnifiedMemoryResult[]>;
+  queryByMetadata(
+    metadata: Partial<StructuredMetadata>,
+    userId: string,
+  ): Promise<UnifiedMemoryResult[]>;
   preserveMetadataStructure(metadata: any): StructuredMetadata;
-  
+
   // =====================================
   // BATCH OPERATIONS (PERFORMANCE)
   // =====================================
   storeBatch(entries: UnifiedMemoryEntry[]): Promise<string[]>;
   searchBatch(queries: UnifiedMemoryQuery[]): Promise<UnifiedMemoryResult[][]>;
-  
+
   // =====================================
   // INTELLIGENCE OPERATIONS
   // =====================================
   analyze(query: string, userId: string, domain?: ContextCategory): Promise<UnifiedMemoryAnalysis>;
-  suggest(context: string, userId: string, domain?: ContextCategory): Promise<UnifiedMemorySuggestion[]>;
-  
+  suggest(
+    context: string,
+    userId: string,
+    domain?: ContextCategory,
+  ): Promise<UnifiedMemorySuggestion[]>;
+
   // =====================================
   // HEALTH AND METRICS
   // =====================================
@@ -211,6 +233,7 @@ interface UnifiedMemoryInterface {
 ```
 
 **🔧 CORE MEMORY TYPES**:
+
 ```typescript
 interface UnifiedMemoryEntry {
   // Core identification
@@ -218,29 +241,29 @@ interface UnifiedMemoryEntry {
   content: string;
   userId: string;
   agentId: string;
-  
+
   // Domain separation (CRITICAL)
   domain: ContextCategory; // WORKPLACE | PRIVATE | PROJECT | etc.
   contextCategory: ContextCategory;
   privacyLevel: PrivacyLevel;
-  
+
   // Cross-agent learning
   crossAgentShare: boolean;
   agentType: AgentType;
   learningType: 'pattern' | 'solution' | 'insight' | 'error' | 'optimization';
-  
+
   // Structured metadata (NO JSON serialization)
   metadata: StructuredMetadata;
-  
+
   // Temporal context
   timestamp: UnifiedTimestamp;
-  
+
   // Memory classification
   memoryType: 'short_term' | 'long_term' | 'session' | 'workflow' | 'learning';
-  
+
   // Relationships (Memgraph ready)
   relationships: MemoryRelationship[];
-  
+
   // Quality assurance
   qualityScore: number;
   constitutionalCompliant: boolean;
@@ -250,13 +273,13 @@ interface UnifiedMemoryEntry {
 interface StructuredMetadata {
   // Project context
   projectContext?: ProjectContext;
-  
+
   // Conversation analysis
   conversationMetadata?: ConversationMetadata;
-  
+
   // Learning patterns
   learningPatterns?: LearningPattern[];
-  
+
   // Technical context
   technicalContext?: {
     technology: string;
@@ -264,7 +287,7 @@ interface StructuredMetadata {
     framework: string;
     language: string;
   };
-  
+
   // Business context
   businessContext?: {
     priority: 'low' | 'medium' | 'high' | 'critical';
@@ -272,7 +295,7 @@ interface StructuredMetadata {
     deadline?: Date;
     budget?: number;
   };
-  
+
   // Personal context (for PRIVATE domain)
   personalContext?: {
     mood: MoodIndicator;
@@ -285,62 +308,70 @@ interface UnifiedMemoryQuery {
   // Core query
   query: string;
   userId: string;
-  
+
   // Domain filtering (CRITICAL)
   domain?: ContextCategory;
   allowedDomains?: ContextCategory[];
   respectDomainBoundaries: boolean;
-  
+
   // Agent context
   agentType?: AgentType;
   crossAgentSearch?: boolean;
-  
+
   // Search parameters
   maxResults?: number;
   qualityThreshold?: number;
   timeRange?: { start: Date; end: Date };
-  
+
   // Metadata filtering
   metadataFilters?: Partial<StructuredMetadata>;
-  
+
   // Learning context
   learningTypes?: ('pattern' | 'solution' | 'insight' | 'error' | 'optimization')[];
 }
 ```
 
 **🔧 DOMAIN SEPARATION LOGIC**:
+
 ```typescript
 class DomainSeparationEngine {
   // Prevent cross-domain leakage
-  static preventDomainLeakage(entry: UnifiedMemoryEntry, requestingDomain: ContextCategory): boolean {
+  static preventDomainLeakage(
+    entry: UnifiedMemoryEntry,
+    requestingDomain: ContextCategory,
+  ): boolean {
     // WORKPLACE memories never leak to PRIVATE
     if (entry.domain === 'WORKPLACE' && requestingDomain === 'PRIVATE') return false;
-    
+
     // PRIVATE memories never leak to WORKPLACE
     if (entry.domain === 'PRIVATE' && requestingDomain === 'WORKPLACE') return false;
-    
+
     // PROJECT memories only accessible within project context
     if (entry.domain === 'PROJECT' && requestingDomain !== 'PROJECT') return false;
-    
+
     // CONFIDENTIAL privacy level has additional restrictions
     if (entry.privacyLevel === 'confidential' && requestingDomain !== entry.domain) return false;
-    
+
     return true;
   }
-  
+
   // Enforce user boundaries
-  static enforceUserBoundaries(query: UnifiedMemoryQuery, requestingUserId: string): UnifiedMemoryQuery {
+  static enforceUserBoundaries(
+    query: UnifiedMemoryQuery,
+    requestingUserId: string,
+  ): UnifiedMemoryQuery {
     // Users can only access their own memories
     if (query.userId !== requestingUserId) {
       throw new Error('Cross-user memory access denied');
     }
-    
+
     return query;
   }
 }
 ```
 
 **🔧 CROSS-AGENT LEARNING SYSTEM**:
+
 ```typescript
 interface AgentLearning {
   id: string;
@@ -359,7 +390,11 @@ interface AgentLearning {
 interface CrossAgentInsight {
   sourceAgentType: AgentType;
   targetAgentType: AgentType;
-  insightType: 'pattern_transfer' | 'solution_reuse' | 'error_prevention' | 'optimization_opportunity';
+  insightType:
+    | 'pattern_transfer'
+    | 'solution_reuse'
+    | 'error_prevention'
+    | 'optimization_opportunity';
   content: string;
   confidence: number;
   applicabilityScore: number;
@@ -368,6 +403,7 @@ interface CrossAgentInsight {
 ```
 
 **🔧 MEMGRAPH INTEGRATION (FUTURE-READY)**:
+
 ```typescript
 interface MemoryRelationship {
   id: string;
@@ -378,7 +414,7 @@ interface MemoryRelationship {
   timestamp: UnifiedTimestamp;
 }
 
-type RelationshipType = 
+type RelationshipType =
   | 'follows_from'
   | 'builds_on'
   | 'contradicts'
@@ -403,26 +439,31 @@ interface MemoryPattern {
 ## 🚨 **CRITICAL IMPLEMENTATION PRINCIPLES**
 
 ### **1. Single Source of Truth**
+
 - **NEVER create parallel implementations**
 - **ALWAYS use UnifiedBackboneService**
 - **NEVER use direct Date.now(), Math.random(), or manual ID generation**
 
 ### **2. Backward Compatibility**
+
 - **Gradual migration**: Don't break existing systems
 - **Wrapper functions**: Allow old code to work during transition
 - **Deprecation warnings**: Guide developers to canonical methods
 
 ### **3. Performance Requirements**
+
 - **Canonical systems must be FASTER than parallel systems**
 - **Caching at canonical level prevents duplicate work**
 - **Batch operations for efficiency**
 
 ### **4. Error Handling**
+
 - **Canonical error handling prevents silent failures**
 - **Consistent error reporting across all systems**
 - **Automatic recovery where possible**
 
 ### **5. Testing Strategy**
+
 - **Test canonical implementations thoroughly**
 - **Test parallel system elimination**
 - **Performance benchmarks**
@@ -431,24 +472,28 @@ interface MemoryPattern {
 ## 📋 **UPDATED IMPLEMENTATION ROADMAP**
 
 ### **Phase 1: Fix Time System Violations** ✅ **COMPLETED**
+
 1. ✅ Fix UnifiedBackboneService Date.now() violations
 2. ✅ Complete VS Code extension fixes
 3. ✅ Fix remaining EnhancedContext7MCPIntegration.ts
 4. ✅ Verify NO Date.now() calls exist anywhere
 
 ### **Phase 2: Foundation Systems (Unrelated to Memory)** 🔧 **CURRENT**
+
 1. ✅ **ID Generation System** - COMPLETED (migration successful, all parallel patterns eliminated)
 2. 🔧 **Caching System** - NEXT PRIORITY (independent of memory)
 3. 🔧 **Error Handling System** - Fix third (foundational)
 4. 🔧 **MCP Integration System** - Fix fourth (protocol layer)
 
 ### **Phase 3: Memory Architecture (Domain Separation)** 🔧 **AFTER FOUNDATION**
+
 1. 🔧 **Expand OneAgentMemory.ts** - Add domain separation methods
 2. 🔧 **Expand MemoryIntelligence.ts** - Add cross-agent learning
 3. 🔧 **Expand MCP Tools** - Add domain parameters
 4. 🔧 **Expand Type System** - Add domain types
 
 ### **Phase 4: Intelligence Systems (Memory-Dependent)** 🔧 **FINAL**
+
 1. 🔧 Agent communication unification
 2. 🔧 Intelligence system consolidation
 3. 🔧 Final integration testing
@@ -460,17 +505,20 @@ interface MemoryPattern {
 ### **🎯 PARALLEL SYSTEMS PRIORITY MATRIX**
 
 **⚡ HIGH PRIORITY (Fix First - Most Unrelated to Memory)**
+
 1. **ID Generation System** - Simple, isolated, no memory dependencies
 2. **Caching System** - Independent of memory architecture
 3. **Error Handling System** - Foundational, affects all systems
 4. **MCP Integration System** - Protocol layer, isolated
 
 **🔄 MEDIUM PRIORITY (Fix After Architecture)**
+
 1. **Memory System** - Core architecture redesign needed
 2. **Agent Communication** - Depends on memory architecture
 3. **Intelligence Systems** - Depends on memory and caching
 
 **⭐ STRATEGIC APPROACH: Fix Unrelated Systems First**
+
 - **WHY**: Build foundation without touching complex memory architecture
 - **BENEFIT**: Eliminates 60% of parallel systems before memory redesign
 - **RESULT**: Clean foundation for memory system implementation
@@ -478,6 +526,7 @@ interface MemoryPattern {
 ### **🔧 SYSTEM-BY-SYSTEM CONSOLIDATION PLAN**
 
 #### **1. ID GENERATION SYSTEM** ✅ **COMPLETED - MIGRATION SUCCESSFUL**
+
 ```typescript
 // ✅ CANONICAL: Now used everywhere
 const id = createUnifiedId('operation', 'gemini_embedding');
@@ -496,6 +545,7 @@ const id = createUnifiedId('error', 'system_validation');
 ```
 
 **✅ Migration Results:**
+
 - **Files Migrated**: 8 files with 11 ID generation patterns
 - **Zero Parallel Systems**: All manual ID generation eliminated
 - **New ID Types**: Added 'message' to IdType union
@@ -503,6 +553,7 @@ const id = createUnifiedId('error', 'system_validation');
 - **Testing**: All ID types verified working correctly
 
 #### **2. CACHING SYSTEM** ✅ **COMPLETED - INTEGRATION SUCCESSFUL**
+
 ```typescript
 // ✅ CANONICAL: OneAgent Unified Cache System operational
 const cache = OneAgentUnifiedBackbone.getInstance().cache;
@@ -519,6 +570,7 @@ await cache.clear();
 ```
 
 **✅ Migration Results:**
+
 - **Files Migrated**: 3 cache systems consolidated into OneAgentUnifiedCacheSystem
 - **Zero Parallel Systems**: All cache implementations unified
 - **Multi-tier Architecture**: Memory → Disk → Network with intelligent promotion
@@ -526,6 +578,7 @@ await cache.clear();
 - **Testing**: Cache system verified working with full metrics/health monitoring
 
 #### **3. ERROR HANDLING SYSTEM** ⚡ **FIX THIRD**
+
 ```typescript
 // Current parallel patterns to eliminate:
 const cache = new UnifiedCacheSystem(); // ❌ Multiple instances
@@ -539,12 +592,14 @@ const value = await UnifiedBackboneService.cache.get(key);
 ```
 
 **🔍 Caching Audit Results:**
+
 - **Files to fix**: ~8 files with different caching patterns
 - **Complexity**: MEDIUM - Need to unify different cache types
 - **Dependencies**: None - independent of memory system
 - **Impact**: HIGH - significant performance improvement
 
 #### **3. ERROR HANDLING SYSTEM** ⚡ **FIX THIRD**
+
 ```typescript
 // Current parallel patterns to eliminate:
 console.error('Error:', error); // ❌ Scattered throughout codebase
@@ -557,12 +612,14 @@ const handled = await UnifiedBackboneService.errorHandler.handle(error, recovery
 ```
 
 **🔍 Error Handling Audit Results:**
+
 - **Files to fix**: ~50+ files with different error patterns
 - **Complexity**: HIGH - Needs consistent error taxonomy
 - **Dependencies**: None - foundational system
 - **Impact**: CRITICAL - prevents silent failures
 
 #### **4. MCP INTEGRATION SYSTEM** ⚡ **FIX FOURTH**
+
 ```typescript
 // Current parallel patterns to eliminate:
 const response = await fetch('/mcp', {...}); // ❌ Direct fetch calls
@@ -574,12 +631,14 @@ const result = await UnifiedBackboneService.mcp.call(toolName, params);
 ```
 
 **🔍 MCP Integration Audit Results:**
+
 - **Files to fix**: ~20 files with MCP operations
 - **Complexity**: MEDIUM - Protocol standardization
 - **Dependencies**: None - protocol layer
 - **Impact**: HIGH - unified tool integration
 
 #### **5. MEMORY SYSTEM** 🔄 **REDESIGN AFTER FOUNDATION**
+
 ```typescript
 // SKIP FOR NOW - Major architectural redesign needed
 // Will be handled as separate architecture implementation
@@ -588,6 +647,7 @@ const result = await UnifiedBackboneService.mcp.call(toolName, params);
 ### **📋 EXECUTION ROADMAP**
 
 **Phase 1: Foundation Systems (Weeks 1-2)**
+
 1. ✅ Time System (COMPLETED)
 2. ✅ ID Generation System (COMPLETED)
 3. 🔧 Caching System (NEXT PRIORITY)
@@ -595,12 +655,14 @@ const result = await UnifiedBackboneService.mcp.call(toolName, params);
 5. 🔧 MCP Integration System
 
 **Phase 2: Memory Architecture (Weeks 3-4)**
+
 1. 🔧 Design UnifiedMemoryInterface
 2. 🔧 Implement domain separation
 3. 🔧 Build cross-agent learning
 4. 🔧 Migrate existing memory operations
 
 **Phase 3: Intelligence Systems (Weeks 5-6)**
+
 1. 🔧 Agent communication unification
 2. 🔧 Intelligence system consolidation
 3. 🔧 Final integration testing
@@ -608,7 +670,7 @@ const result = await UnifiedBackboneService.mcp.call(toolName, params);
 ## 🚀 **NEXT IMMEDIATE ACTIONS**
 
 1. ✅ **Fix UnifiedBackboneService Date.now() violations** - COMPLETED
-2. ✅ **Complete remaining Date.now() fixes** - COMPLETED  
+2. ✅ **Complete remaining Date.now() fixes** - COMPLETED
 3. ✅ **Implement ID Generation System** - COMPLETED (migration successful)
 4. 🔧 **Implement Caching System** - NEXT PRIORITY
 5. 🔧 **Implement Error Handling System** - Critical foundation
@@ -624,6 +686,7 @@ const result = await UnifiedBackboneService.mcp.call(toolName, params);
 ### **🏗️ EXPAND vs REBUILD DECISION**
 
 **Current Memory System Assets:**
+
 - ✅ **OneAgentMemory.ts** - Solid canonical client pattern
 - ✅ **MemoryIntelligence.ts** - Good intelligence layer
 - ✅ **MCP Tools** - Production-ready tool suite
@@ -636,6 +699,7 @@ const result = await UnifiedBackboneService.mcp.call(toolName, params);
 ### **🔧 MEMORY SYSTEM EXPANSION PLAN**
 
 #### **1. EXPAND OneAgentMemory.ts** ⭐ **CORE FOUNDATION**
+
 ```typescript
 // Current capabilities (KEEP):
 - singleton pattern ✅
@@ -654,12 +718,14 @@ const result = await UnifiedBackboneService.mcp.call(toolName, params);
 ```
 
 **Expansion Strategy:**
+
 - **Keep**: All existing methods and patterns
 - **Add**: New domain-aware methods
 - **Enhance**: Metadata handling without breaking existing
 - **Integrate**: UnifiedBackboneService time/ID systems
 
 #### **2. EXPAND MemoryIntelligence.ts** ⭐ **INTELLIGENCE LAYER**
+
 ```typescript
 // Current capabilities (KEEP):
 - Constitutional AI integration ✅
@@ -676,6 +742,7 @@ const result = await UnifiedBackboneService.mcp.call(toolName, params);
 ```
 
 #### **3. EXPAND MCP Tools** ⭐ **TOOL LAYER**
+
 ```typescript
 // Current tools (ENHANCE):
 - OneAgentMemoryAddTool → Add domain parameters
@@ -691,6 +758,7 @@ const result = await UnifiedBackboneService.mcp.call(toolName, params);
 ```
 
 #### **4. EXPAND Type System** ⭐ **TYPE FOUNDATION**
+
 ```typescript
 // Current types (ENHANCE):
 - UnifiedMemoryEntry → Add domain fields
@@ -708,48 +776,61 @@ const result = await UnifiedBackboneService.mcp.call(toolName, params);
 ### **🎯 IMPLEMENTATION STRATEGY: EVOLUTIONARY EXPANSION**
 
 **Phase 1: Foundation Enhancement (Week 1)**
+
 ```typescript
 // 1. Add domain awareness to OneAgentMemory
 class OneAgentMemory {
   // ...existing methods...
-  
+
   // NEW: Domain-aware methods
-  async addMemoryWithDomain(entry: UnifiedMemoryEntry): Promise<string>
-  async searchMemoryByDomain(domain: ContextCategory, query: string, userId: string): Promise<UnifiedMemoryResult[]>
-  async preventDomainLeakage(entry: UnifiedMemoryEntry, requestingDomain: ContextCategory): Promise<boolean>
+  async addMemoryWithDomain(entry: UnifiedMemoryEntry): Promise<string>;
+  async searchMemoryByDomain(
+    domain: ContextCategory,
+    query: string,
+    userId: string,
+  ): Promise<UnifiedMemoryResult[]>;
+  async preventDomainLeakage(
+    entry: UnifiedMemoryEntry,
+    requestingDomain: ContextCategory,
+  ): Promise<boolean>;
 }
 ```
 
 **Phase 2: Intelligence Enhancement (Week 2)**
+
 ```typescript
 // 2. Add cross-agent learning to MemoryIntelligence
 class MemoryIntelligence {
   // ...existing methods...
-  
+
   // NEW: Cross-agent methods
-  async generateCrossAgentInsights(context: string, userId: string): Promise<CrossAgentInsight[]>
-  async shareAgentLearning(learning: AgentLearning): Promise<string>
-  async getAgentLearnings(agentType: AgentType, domain?: ContextCategory): Promise<AgentLearning[]>
+  async generateCrossAgentInsights(context: string, userId: string): Promise<CrossAgentInsight[]>;
+  async shareAgentLearning(learning: AgentLearning): Promise<string>;
+  async getAgentLearnings(agentType: AgentType, domain?: ContextCategory): Promise<AgentLearning[]>;
 }
 ```
 
 **Phase 3: Tool Enhancement (Week 3)**
+
 ```typescript
 // 3. Enhance MCP tools with domain support
 class OneAgentMemoryAddTool extends UnifiedMCPTool {
   // ...existing implementation...
-  
+
   // ENHANCED: Add domain validation
-  async executeCore(args: MemoryAddArgs & { domain?: ContextCategory }): Promise<ToolExecutionResult>
+  async executeCore(
+    args: MemoryAddArgs & { domain?: ContextCategory },
+  ): Promise<ToolExecutionResult>;
 }
 ```
 
 **Phase 4: Type Enhancement (Week 4)**
+
 ```typescript
 // 4. Expand type system with domain support
 interface UnifiedMemoryEntry {
   // ...existing fields...
-  
+
   // NEW: Domain fields
   domain: ContextCategory;
   contextCategory: ContextCategory;
@@ -771,17 +852,20 @@ interface UnifiedMemoryEntry {
 ### **📋 FILES TO MODIFY (EXPANSION)**
 
 **Primary Files (EXPAND):**
+
 - `coreagent/memory/OneAgentMemory.ts` - Add domain methods
 - `coreagent/intelligence/memoryIntelligence.ts` - Add cross-agent methods
 - `coreagent/tools/OneAgentMemory*Tool.ts` - Add domain parameters
 - `coreagent/types/oneagent-backbone-types.ts` - Add domain types
 
 **Secondary Files (ENHANCE):**
+
 - `coreagent/memory/BatchMemoryOperations.ts` - Add domain batching
 - `coreagent/memory/EmbeddingCache.ts` - Add domain caching
 - `coreagent/validation/MemorySystemValidator.ts` - Add domain validation
 
 **New Files (CREATE):**
+
 - `coreagent/memory/DomainSeparationEngine.ts` - Domain isolation logic
 - `coreagent/memory/CrossAgentLearningEngine.ts` - Agent learning system
 - `coreagent/memory/MemoryRelationshipManager.ts` - Graph relationships
@@ -790,6 +874,7 @@ interface UnifiedMemoryEntry {
 ### **🎯 DECISION: EXPAND EXISTING SYSTEM**
 
 **Recommendation**: Expand the existing memory system rather than rebuild because:
+
 - ✅ Solid foundation already exists
 - ✅ Production-tested code
 - ✅ Zero breaking changes

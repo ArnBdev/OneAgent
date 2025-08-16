@@ -1,9 +1,9 @@
 /**
  * OneAgent Backbone Production Types
- * 
+ *
  * PRODUCTION ONLY: Critical types required by UnifiedBackboneService and core systems
  * NO DOCUMENTATION: Clean interfaces for TypeScript compilation
- * 
+ *
  * Required by:
  * - UnifiedBackboneService.ts (CRITICAL BACKBONE)
  * - EnhancedTimeAwareness.ts
@@ -14,7 +14,7 @@
  * - memoryBridge.ts
  * - oneagent-mcp-copilot.ts
  * - ConstitutionalAIValidator.ts (BMAD-GENERATED)
- * 
+ *
  * @version 1.0.0 - PRODUCTION TYPES ONLY
  * @date 2025-06-19
  */
@@ -37,7 +37,15 @@ export interface UnifiedTimeContext {
     energyLevel: 'low' | 'medium' | 'high' | 'peak';
     optimalFocusTime: boolean;
     suggestionContext: 'planning' | 'execution' | 'review' | 'rest' | 'none';
-    motivationalTiming: 'morning-boost' | 'afternoon-focus' | 'evening-wind-down' | 'night-rest' | 'start-strong' | 'mid-momentum' | 'end-sprint' | 'reflection';
+    motivationalTiming:
+      | 'morning-boost'
+      | 'afternoon-focus'
+      | 'evening-wind-down'
+      | 'night-rest'
+      | 'start-strong'
+      | 'mid-momentum'
+      | 'end-sprint'
+      | 'reflection';
   };
   metadata?: {
     timezone: string;
@@ -105,10 +113,12 @@ export interface UnifiedMetadata {
     component: string;
     sessionId?: string;
     userId?: string;
-    agent?: {
-      id: string;
-      type: string;
-    } | string; // Allow both object and string to match implementation
+    agent?:
+      | {
+          id: string;
+          type: string;
+        }
+      | string; // Allow both object and string to match implementation
   };
   quality: {
     score: number;
@@ -134,7 +144,7 @@ export interface UnifiedMetadata {
     lastAccessPattern: string;
     usageContext: string[];
   };
-  
+
   // Allow additional properties for flexibility
   [key: string]: unknown;
 }
@@ -145,11 +155,16 @@ export interface UnifiedMetadataService {
   retrieve(id: string): UnifiedMetadata | null;
   validateQuality(metadata: UnifiedMetadata): { valid: boolean; score: number; issues: string[] };
   createInterAgentMetadata(
-    communicationType: 'direct_message' | 'multi_agent' | 'broadcast' | 'coordination' | 'delegation',
+    communicationType:
+      | 'direct_message'
+      | 'multi_agent'
+      | 'broadcast'
+      | 'coordination'
+      | 'delegation',
     sourceAgentId: string,
     userId: string,
     sessionId: string,
-    options?: Record<string, unknown>
+    options?: Record<string, unknown>,
   ): UnifiedMetadata; // Updated to match actual implementation
 }
 
@@ -157,7 +172,7 @@ export interface UnifiedMetadataService {
 // AGENT CONTEXT
 // ========================================
 
-export type AgentType = 
+export type AgentType =
   | 'general'
   | 'coding'
   | 'research'
@@ -237,7 +252,13 @@ export interface UnifiedSystemHealth {
     errorRate: number;
     performanceScore: number;
   };
-  timeService?: { status: string; responseTime: number; operational: boolean; accuracy?: number; performance?: number }; // Added to match implementation
+  timeService?: {
+    status: string;
+    responseTime: number;
+    operational: boolean;
+    accuracy?: number;
+    performance?: number;
+  }; // Added to match implementation
 }
 
 // ========================================
@@ -273,7 +294,7 @@ export type PrivacyLevel = 'public' | 'internal' | 'confidential' | 'restricted'
 // NLACS TYPES
 // ========================================
 
-export type ContextCategory = 
+export type ContextCategory =
   | 'WORKPLACE'
   | 'PRIVATE'
   | 'PROJECT'
@@ -285,7 +306,7 @@ export type ContextCategory =
   | 'ADMINISTRATIVE'
   | 'GENERAL';
 
-export type ProjectScope = 
+export type ProjectScope =
   | 'PERSONAL'
   | 'TEAM'
   | 'DEPARTMENT'
@@ -472,12 +493,14 @@ export interface DocumentationResult {
   category?: string;
   version?: string;
   lastUpdated?: Date;
-  metadata: Record<string, unknown> | {
-    wordCount?: number;
-    readingTime?: number;
-    complexity?: 'beginner' | 'intermediate' | 'advanced';
-    tags?: string[];
-  };
+  metadata:
+    | Record<string, unknown>
+    | {
+        wordCount?: number;
+        readingTime?: number;
+        complexity?: 'beginner' | 'intermediate' | 'advanced';
+        tags?: string[];
+      };
   timestamp?: Date;
 }
 
@@ -731,156 +754,168 @@ export interface OneAgentA2AProtocol {
 }
 
 export interface UnifiedAgentCommunicationInterface {
-    /**
-     * Register an agent with health/availability and metadata
-     */
-    registerAgent(agent: AgentRegistration & { health?: AgentHealthStatus; status?: 'online' | 'offline' | 'busy'; }): Promise<AgentId>;
+  /**
+   * Register an agent with health/availability and metadata
+   */
+  registerAgent(
+    agent: AgentRegistration & {
+      health?: AgentHealthStatus;
+      status?: 'online' | 'offline' | 'busy';
+    },
+  ): Promise<AgentId>;
 
-    /**
-     * Discover agents with advanced filtering (role, health, capabilities, etc.)
-     */
-    discoverAgents(filter: AgentFilter & { health?: 'healthy' | 'degraded' | 'critical' | 'offline'; role?: string; }): Promise<AgentCardWithHealth[]>;
+  /**
+   * Discover agents with advanced filtering (role, health, capabilities, etc.)
+   */
+  discoverAgents(
+    filter: AgentFilter & {
+      health?: 'healthy' | 'degraded' | 'critical' | 'offline';
+      role?: string;
+    },
+  ): Promise<AgentCardWithHealth[]>;
 
-    /**
-     * Create a multiagent session (NLACS-enabled)
-     */
-    createSession(sessionConfig: SessionConfig & { context?: Record<string, unknown>; nlacs?: boolean }): Promise<SessionId>;
+  /**
+   * Create a multiagent session (NLACS-enabled)
+   */
+  createSession(
+    sessionConfig: SessionConfig & { context?: Record<string, unknown>; nlacs?: boolean },
+  ): Promise<SessionId>;
 
-    joinSession(sessionId: SessionId, agentId: AgentId): Promise<boolean>;
-    leaveSession(sessionId: SessionId, agentId: AgentId): Promise<boolean>;
+  joinSession(sessionId: SessionId, agentId: AgentId): Promise<boolean>;
+  leaveSession(sessionId: SessionId, agentId: AgentId): Promise<boolean>;
 
-    /**
-     * Send a message (A2A/NLACS-compatible)
-     */
-    sendMessage(message: AgentMessage & { nlacs?: boolean }): Promise<MessageId>;
+  /**
+   * Send a message (A2A/NLACS-compatible)
+   */
+  sendMessage(message: AgentMessage & { nlacs?: boolean }): Promise<MessageId>;
 
-    broadcastMessage(message: AgentMessage & { nlacs?: boolean }): Promise<MessageId>;
+  broadcastMessage(message: AgentMessage & { nlacs?: boolean }): Promise<MessageId>;
 
-    getMessageHistory(sessionId: SessionId, limit?: number): Promise<A2AMessage[]>;
-    getSessionInfo(sessionId: SessionId): Promise<SessionInfo | null>;
+  getMessageHistory(sessionId: SessionId, limit?: number): Promise<A2AMessage[]>;
+  getSessionInfo(sessionId: SessionId): Promise<SessionInfo | null>;
 
-    /**
-     * Event-driven coordination: subscribe to agent lifecycle and communication events
-     */
-    on(event: AgentCommunicationEvent, handler: (payload: unknown) => void): void;
+  /**
+   * Event-driven coordination: subscribe to agent lifecycle and communication events
+   */
+  on(event: AgentCommunicationEvent, handler: (payload: unknown) => void): void;
   off(event: AgentCommunicationEvent, handler: (payload: unknown) => void): void;
 
-    /**
-     * Extensibility: register new orchestration logic, protocols, or agent types
-     */
-    registerExtension(extension: AgentCommunicationExtension): void;
+  /**
+   * Extensibility: register new orchestration logic, protocols, or agent types
+   */
+  registerExtension(extension: AgentCommunicationExtension): void;
 }
 
 export type AgentCommunicationEvent =
-    | 'agent_registered'
-    | 'agent_deregistered'
-    | 'agent_status_changed'
-    | 'session_created'
-    | 'session_joined'
-    | 'session_left'
-    | 'message_sent'
-    | 'message_received'
-    | 'broadcast'
-    | 'health_changed'
-    | 'nlacs_event';
+  | 'agent_registered'
+  | 'agent_deregistered'
+  | 'agent_status_changed'
+  | 'session_created'
+  | 'session_joined'
+  | 'session_left'
+  | 'message_sent'
+  | 'message_received'
+  | 'broadcast'
+  | 'health_changed'
+  | 'nlacs_event';
 
 export interface AgentCommunicationExtension {
-    name: string;
-    description?: string;
-    apply: (service: UnifiedAgentCommunicationInterface) => void;
+  name: string;
+  description?: string;
+  apply: (service: UnifiedAgentCommunicationInterface) => void;
 }
 
 // CANONICAL AGENT REPRESENTATION - Single source of truth
 export type AgentId = string;
 
 export interface AgentRegistration {
-    id?: string;
-    name: string;
-    capabilities: string[];
-    metadata?: Record<string, unknown>;
+  id?: string;
+  name: string;
+  capabilities: string[];
+  metadata?: Record<string, unknown>;
 }
 
 export interface AgentFilter {
-    capabilities?: string[];
-    status?: 'online' | 'offline' | 'busy';
-    limit?: number;
+  capabilities?: string[];
+  status?: 'online' | 'offline' | 'busy';
+  limit?: number;
 }
 
 export interface AgentCard {
-    id: AgentId;
-    name: string;
-    capabilities: string[];
-    status: 'online' | 'offline' | 'busy';
-    health?: AgentHealthStatus; // Optional to resolve forward reference
-    role?: string;
-    lastActive?: Date;
-    metadata?: Record<string, unknown>;
+  id: AgentId;
+  name: string;
+  capabilities: string[];
+  status: 'online' | 'offline' | 'busy';
+  health?: AgentHealthStatus; // Optional to resolve forward reference
+  role?: string;
+  lastActive?: Date;
+  metadata?: Record<string, unknown>;
 }
 
 // DEPRECATED: AgentCardWithHealth is now just AgentCard (health included by default)
 export type AgentCardWithHealth = AgentCard;
 
 export interface AgentMessage {
-    sessionId: SessionId;
-    fromAgent: AgentId;
-    toAgent?: AgentId; // Optional for broadcast
-    content: string;
-    messageType?: 'update' | 'question' | 'decision' | 'action' | 'insight';
-    metadata?: Record<string, unknown>;
+  sessionId: SessionId;
+  fromAgent: AgentId;
+  toAgent?: AgentId; // Optional for broadcast
+  content: string;
+  messageType?: 'update' | 'question' | 'decision' | 'action' | 'insight';
+  metadata?: Record<string, unknown>;
 }
 
 export type MessageId = string;
 
 export interface SessionConfig {
-    name: string;
-    participants: AgentId[];
-    mode?: 'collaborative' | 'competitive' | 'hierarchical';
-    topic: string;
-    metadata?: Record<string, unknown>;
+  name: string;
+  participants: AgentId[];
+  mode?: 'collaborative' | 'competitive' | 'hierarchical';
+  topic: string;
+  metadata?: Record<string, unknown>;
 }
 
 export type SessionId = string;
 
 export interface SessionInfo {
-    id: SessionId;
-    name: string;
-    participants: AgentId[];
-    mode: 'collaborative' | 'competitive' | 'hierarchical';
-    topic: string;
-    status: 'active' | 'inactive' | 'concluded';
-    createdAt: UnifiedTimestamp;
+  id: SessionId;
+  name: string;
+  participants: AgentId[];
+  mode: 'collaborative' | 'competitive' | 'hierarchical';
+  topic: string;
+  status: 'active' | 'inactive' | 'concluded';
+  createdAt: UnifiedTimestamp;
 }
 
 export interface A2AAgent {
-    id: AgentId;
-    name: string;
-    capabilities: string[];
-    lastActive: UnifiedTimestamp;
-    status: 'online' | 'offline' | 'busy';
-    metadata: Record<string, unknown>;
+  id: AgentId;
+  name: string;
+  capabilities: string[];
+  lastActive: UnifiedTimestamp;
+  status: 'online' | 'offline' | 'busy';
+  metadata: Record<string, unknown>;
 }
 
 export interface A2AGroupSession {
-    id: SessionId;
-    name: string;
-    participants: AgentId[];
-    mode: 'collaborative' | 'competitive' | 'hierarchical';
-    topic: string;
-    messages: A2AMessage[];
-    createdAt: UnifiedTimestamp;
-    status: 'active' | 'inactive' | 'concluded';
-    metadata: Record<string, unknown>;
+  id: SessionId;
+  name: string;
+  participants: AgentId[];
+  mode: 'collaborative' | 'competitive' | 'hierarchical';
+  topic: string;
+  messages: A2AMessage[];
+  createdAt: UnifiedTimestamp;
+  status: 'active' | 'inactive' | 'concluded';
+  metadata: Record<string, unknown>;
 }
 
 export interface A2AMessage {
-    id: MessageId;
-    sessionId: SessionId;
-    fromAgent: AgentId;
-    toAgent?: AgentId;
-    message: string;
-    messageType: 'update' | 'question' | 'decision' | 'action' | 'insight';
-    timestamp: UnifiedTimestamp;
-    metadata?: Record<string, unknown>;
+  id: MessageId;
+  sessionId: SessionId;
+  fromAgent: AgentId;
+  toAgent?: AgentId;
+  message: string;
+  messageType: 'update' | 'question' | 'decision' | 'action' | 'insight';
+  timestamp: UnifiedTimestamp;
+  metadata?: Record<string, unknown>;
 }
 
 export interface AgentResponse {
@@ -1098,7 +1133,12 @@ export interface SessionCoherence {
 }
 
 export interface CoherenceIssue {
-  type: 'topic_drift' | 'uneven_participation' | 'circular_discussion' | 'low_quality' | 'conflict_escalation';
+  type:
+    | 'topic_drift'
+    | 'uneven_participation'
+    | 'circular_discussion'
+    | 'low_quality'
+    | 'conflict_escalation';
   severity: 'minor' | 'moderate' | 'major';
   description: string;
   affectedAgents: AgentId[];
@@ -1271,7 +1311,7 @@ export interface OneAgentRequestParams {
   metadata?: UnifiedMetadata;
   agentId?: string;
   sessionId?: string;
-  
+
   // Tool-specific parameters
   userMessage?: string;
   input?: string;
@@ -1283,7 +1323,7 @@ export interface OneAgentRequestParams {
   id?: string;
   name?: string;
   capabilities?: string[];
-  
+
   // Additional flexible parameters
   [key: string]: unknown;
 }
@@ -1296,7 +1336,7 @@ export interface OneAgentResponseData {
   conversation?: ConversationData;
   constitutional?: ConstitutionalValidation;
   qualityScore?: number;
-  
+
   // Allow additional properties for flexibility
   [key: string]: unknown;
 }
@@ -1320,7 +1360,7 @@ export interface RequestContext {
   agentId?: string;
   timestamp: UnifiedTimestamp;
   metadata?: UnifiedMetadata;
-  
+
   // Allow additional properties for flexibility
   [key: string]: unknown;
 }
@@ -1377,14 +1417,14 @@ export interface AgentCapability {
 // ID GENERATION SYSTEM
 // ========================================
 
-export type IdType = 
-  | 'operation' 
-  | 'analysis' 
-  | 'document' 
-  | 'learning' 
-  | 'memory' 
-  | 'cache' 
-  | 'error' 
+export type IdType =
+  | 'operation'
+  | 'analysis'
+  | 'document'
+  | 'learning'
+  | 'memory'
+  | 'cache'
+  | 'error'
   | 'mcp'
   | 'agent'
   | 'session'

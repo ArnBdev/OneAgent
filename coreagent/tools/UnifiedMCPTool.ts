@@ -19,7 +19,13 @@ export abstract class UnifiedMCPTool {
   public readonly category: string;
   public readonly constitutionalLevel: 'basic' | 'enhanced' | 'critical';
 
-  constructor(name: string, description: string, schema: InputSchema, category: string, constitutionalLevel: 'basic' | 'enhanced' | 'critical' = 'enhanced') {
+  constructor(
+    name: string,
+    description: string,
+    schema: InputSchema,
+    category: string,
+    constitutionalLevel: 'basic' | 'enhanced' | 'critical' = 'enhanced',
+  ) {
     this.name = name;
     this.description = description;
     this.schema = schema;

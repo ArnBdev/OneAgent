@@ -1,9 +1,9 @@
 /**
  * Performance Monitor Implementation - ALITA Phase 1
- * 
+ *
  * Purpose: Monitor and track performance metrics for ALITA components
  * Why: <50ms target enforcement and system health monitoring
- * 
+ *
  * @version 1.0.0
  * @date 2025-06-15
  */
@@ -20,12 +20,15 @@ export interface OperationMetrics {
  * WHY: Continuous monitoring ensures performance targets are met
  */
 export class PerformanceMonitor {
-  private metrics: Map<string, {
-    latencies: number[];
-    errors: number;
-    successes: number;
-    total: number;
-  }> = new Map();
+  private metrics: Map<
+    string,
+    {
+      latencies: number[];
+      errors: number;
+      successes: number;
+      total: number;
+    }
+  > = new Map();
 
   private maxSampleSize = 1000; // Keep last 1000 operations for rolling averages
 
@@ -35,11 +38,11 @@ export class PerformanceMonitor {
    */
   async recordLatency(operation: string, timeMs: number): Promise<void> {
     const operationMetrics = this.getOrCreateOperationMetrics(operation);
-    
+
     operationMetrics.latencies.push(timeMs);
     operationMetrics.successes++;
     operationMetrics.total++;
-    
+
     // Keep rolling window of samples
     if (operationMetrics.latencies.length > this.maxSampleSize) {
       operationMetrics.latencies.shift();
@@ -57,10 +60,10 @@ export class PerformanceMonitor {
    */
   async recordError(operation: string, error: Error): Promise<void> {
     const operationMetrics = this.getOrCreateOperationMetrics(operation);
-    
+
     operationMetrics.errors++;
     operationMetrics.total++;
-    
+
     console.error(`Operation error in ${operation}:`, error.message);
   }
 
@@ -70,20 +73,21 @@ export class PerformanceMonitor {
    */
   async getMetrics(operation: string): Promise<OperationMetrics> {
     const operationMetrics = this.getOrCreateOperationMetrics(operation);
-    
-    const averageLatency = operationMetrics.latencies.length > 0
-      ? operationMetrics.latencies.reduce((sum, latency) => sum + latency, 0) / operationMetrics.latencies.length
-      : 0;
-    
-    const errorRate = operationMetrics.total > 0
-      ? operationMetrics.errors / operationMetrics.total
-      : 0;
+
+    const averageLatency =
+      operationMetrics.latencies.length > 0
+        ? operationMetrics.latencies.reduce((sum, latency) => sum + latency, 0) /
+          operationMetrics.latencies.length
+        : 0;
+
+    const errorRate =
+      operationMetrics.total > 0 ? operationMetrics.errors / operationMetrics.total : 0;
 
     return {
       averageLatency,
       errorRate,
       successCount: operationMetrics.successes,
-      totalOperations: operationMetrics.total
+      totalOperations: operationMetrics.total,
     };
   }
 
@@ -105,9 +109,16 @@ export class PerformanceMonitor {
     this.metrics.forEach((_v, operation) => {
       // We'll accumulate synchronously using existing stored samples (avoid awaiting inside forEach)
       const m = this.metrics.get(operation)!;
-      const avg = m.latencies.length ? m.latencies.reduce((s,l)=>s+l,0)/m.latencies.length : 0;
+      const avg = m.latencies.length
+        ? m.latencies.reduce((s, l) => s + l, 0) / m.latencies.length
+        : 0;
       const errRate = m.total ? m.errors / m.total : 0;
-      const metrics: OperationMetrics = { averageLatency: avg, errorRate: errRate, successCount: m.successes, totalOperations: m.total };
+      const metrics: OperationMetrics = {
+        averageLatency: avg,
+        errorRate: errRate,
+        successCount: m.successes,
+        totalOperations: m.total,
+      };
       operations[operation] = metrics;
       totalLatency += metrics.averageLatency * metrics.totalOperations;
       totalErrors += metrics.totalOperations * metrics.errorRate;
@@ -119,7 +130,7 @@ export class PerformanceMonitor {
       averageLatency: totalOperations > 0 ? totalLatency / totalOperations : 0,
       errorRate: totalOperations > 0 ? totalErrors / totalOperations : 0,
       successCount: totalSuccesses,
-      totalOperations
+      totalOperations,
     };
 
     // Determine health status
@@ -133,7 +144,7 @@ export class PerformanceMonitor {
     return {
       overall,
       operations,
-      healthStatus
+      healthStatus,
     };
   }
 
@@ -155,16 +166,20 @@ export class PerformanceMonitor {
    * Get operations that exceed performance targets
    * WHY: Identify performance bottlenecks
    */
-  async getSlowOperations(latencyThreshold: number = 50): Promise<{
-    operation: string;
-    averageLatency: number;
-    exceededBy: number;
-  }[]> {
-  const slowOperations: { operation: string; averageLatency: number; exceededBy: number }[] = [];
-    
+  async getSlowOperations(latencyThreshold: number = 50): Promise<
+    {
+      operation: string;
+      averageLatency: number;
+      exceededBy: number;
+    }[]
+  > {
+    const slowOperations: { operation: string; averageLatency: number; exceededBy: number }[] = [];
+
     this.metrics.forEach((_v, operation) => {
       const m = this.metrics.get(operation)!;
-      const avg = m.latencies.length ? m.latencies.reduce((s,l)=>s+l,0)/m.latencies.length : 0;
+      const avg = m.latencies.length
+        ? m.latencies.reduce((s, l) => s + l, 0) / m.latencies.length
+        : 0;
       if (avg > latencyThreshold) {
         slowOperations.push({ operation, averageLatency: avg, exceededBy: avg - latencyThreshold });
       }
@@ -189,46 +204,107 @@ export class PerformanceMonitor {
     return sorted[idx];
   }
 
-  async getDetailedMetrics(operation: string): Promise<{ operation: string; count: number; avgLatency: number; p95: number; p99: number; errorRate: number; recentErrors: number; recommendations: string[]; }> {
+  async getDetailedMetrics(operation: string): Promise<{
+    operation: string;
+    count: number;
+    avgLatency: number;
+    p95: number;
+    p99: number;
+    errorRate: number;
+    recentErrors: number;
+    recommendations: string[];
+  }> {
     const op = this.getOrCreateOperationMetrics(operation);
-    const sorted = [...op.latencies].sort((a,b)=>a-b);
-    const avgLatency = sorted.length ? sorted.reduce((s,v)=>s+v,0)/sorted.length : 0;
-    const p95 = this.computePercentile(sorted,95);
-    const p99 = this.computePercentile(sorted,99);
+    const sorted = [...op.latencies].sort((a, b) => a - b);
+    const avgLatency = sorted.length ? sorted.reduce((s, v) => s + v, 0) / sorted.length : 0;
+    const p95 = this.computePercentile(sorted, 95);
+    const p99 = this.computePercentile(sorted, 99);
     const errorRate = op.total ? op.errors / op.total : 0;
     const recommendations: string[] = [];
-    if (p95 > 3000) recommendations.push(`High p95 latency (${p95.toFixed(0)}ms) - investigate batching or dependency latency.`);
-    if (errorRate > 0.1) recommendations.push(`Elevated error rate ${(errorRate*100).toFixed(1)}% - improve error handling/retries.`);
+    if (p95 > 3000)
+      recommendations.push(
+        `High p95 latency (${p95.toFixed(0)}ms) - investigate batching or dependency latency.`,
+      );
+    if (errorRate > 0.1)
+      recommendations.push(
+        `Elevated error rate ${(errorRate * 100).toFixed(1)}% - improve error handling/retries.`,
+      );
     if (!recommendations.length) recommendations.push('Operation performance within targets.');
-    return { operation, count: op.total, avgLatency, p95, p99, errorRate, recentErrors: op.errors, recommendations };
+    return {
+      operation,
+      count: op.total,
+      avgLatency,
+      p95,
+      p99,
+      errorRate,
+      recentErrors: op.errors,
+      recommendations,
+    };
   }
 
-  async getGlobalReport(): Promise<{ totalOperations: number; averageLatency: number; p95Latency: number; p99Latency: number; errorRate: number; operationBreakdown: Record<string, { count: number; avgDuration: number; errorCount: number; p95: number; p99: number }>; recommendations: string[]; }> {
-    type InternalMetrics = { latencies: number[]; errors: number; successes: number; total: number };
-    const operationBreakdown: Record<string, { count: number; avgDuration: number; errorCount: number; p95: number; p99: number }> = {};
+  async getGlobalReport(): Promise<{
+    totalOperations: number;
+    averageLatency: number;
+    p95Latency: number;
+    p99Latency: number;
+    errorRate: number;
+    operationBreakdown: Record<
+      string,
+      { count: number; avgDuration: number; errorCount: number; p95: number; p99: number }
+    >;
+    recommendations: string[];
+  }> {
+    type InternalMetrics = {
+      latencies: number[];
+      errors: number;
+      successes: number;
+      total: number;
+    };
+    const operationBreakdown: Record<
+      string,
+      { count: number; avgDuration: number; errorCount: number; p95: number; p99: number }
+    > = {};
     const all: number[] = [];
-    let totalErrors = 0; let total = 0;
+    let totalErrors = 0;
+    let total = 0;
     this.metrics.forEach((data, operation) => {
       const d = data as InternalMetrics;
-      const sorted = d.latencies.slice().sort((a,b)=>a-b);
-      const avg = sorted.length ? sorted.reduce((s,v)=>s+v,0)/sorted.length : 0;
-      const p95 = this.computePercentile(sorted,95);
-      const p99 = this.computePercentile(sorted,99);
-      operationBreakdown[operation] = { count: d.total, avgDuration: avg, errorCount: d.errors, p95, p99 };
-      sorted.forEach(v=>all.push(v));
+      const sorted = d.latencies.slice().sort((a, b) => a - b);
+      const avg = sorted.length ? sorted.reduce((s, v) => s + v, 0) / sorted.length : 0;
+      const p95 = this.computePercentile(sorted, 95);
+      const p99 = this.computePercentile(sorted, 99);
+      operationBreakdown[operation] = {
+        count: d.total,
+        avgDuration: avg,
+        errorCount: d.errors,
+        p95,
+        p99,
+      };
+      sorted.forEach((v) => all.push(v));
       totalErrors += d.errors;
       total += d.total;
     });
-    const sortedAll = all.sort((a,b)=>a-b);
-    const averageLatency = sortedAll.length ? sortedAll.reduce((s,v)=>s+v,0)/sortedAll.length : 0;
-    const p95Latency = this.computePercentile(sortedAll,95);
-    const p99Latency = this.computePercentile(sortedAll,99);
+    const sortedAll = all.sort((a, b) => a - b);
+    const averageLatency = sortedAll.length
+      ? sortedAll.reduce((s, v) => s + v, 0) / sortedAll.length
+      : 0;
+    const p95Latency = this.computePercentile(sortedAll, 95);
+    const p99Latency = this.computePercentile(sortedAll, 99);
     const errorRate = total ? totalErrors / total : 0;
     const recommendations: string[] = [];
     if (p95Latency > 3000) recommendations.push('System-wide high p95 latency - profile hotspots.');
-    if (errorRate > 0.1) recommendations.push('High overall error rate - audit failing operations.');
+    if (errorRate > 0.1)
+      recommendations.push('High overall error rate - audit failing operations.');
     if (!recommendations.length) recommendations.push('Overall performance within targets.');
-    return { totalOperations: total, averageLatency, p95Latency, p99Latency, errorRate, operationBreakdown, recommendations };
+    return {
+      totalOperations: total,
+      averageLatency,
+      p95Latency,
+      p99Latency,
+      errorRate,
+      operationBreakdown,
+      recommendations,
+    };
   }
   // <<< Canonical Extensions End <<<
   // Private helper methods
@@ -238,7 +314,7 @@ export class PerformanceMonitor {
         latencies: [],
         errors: 0,
         successes: 0,
-        total: 0
+        total: 0,
       });
     }
     return this.metrics.get(operation)!;

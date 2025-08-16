@@ -1,7 +1,7 @@
 /**
  * Performance Analyzer for ALITA Evolution Engine
  * Analyzes conversation performance patterns to drive evolution decisions
- * 
+ *
  * @version 1.0.0
  * @date 2025-06-15
  */
@@ -50,33 +50,30 @@ export class PerformanceAnalyzer {
       }
 
       // Calculate satisfaction rate
-      const satisfactionRate = conversations
-        .filter(c => c.userSatisfaction >= 0.8)
-        .length / conversations.length;
+      const satisfactionRate =
+        conversations.filter((c) => c.userSatisfaction >= 0.8).length / conversations.length;
 
       // Calculate completion rate
-      const completionRate = conversations
-        .filter(c => c.taskCompleted)
-        .length / conversations.length;      // Calculate average response time
-      const averageResponseTime = conversations
-        .reduce((sum, c) => sum + (c.responseTime || 0), 0) / conversations.length;
+      const completionRate =
+        conversations.filter((c) => c.taskCompleted).length / conversations.length; // Calculate average response time
+      const averageResponseTime =
+        conversations.reduce((sum, c) => sum + (c.responseTime || 0), 0) / conversations.length;
 
       // Calculate constitutional compliance rate
-      const complianceRate = conversations
-        .filter(c => c.constitutionalCompliant)
-        .length / conversations.length;      // Calculate engagement score (based on message count)
-      const averageEngagement = conversations
-        .reduce((sum, c) => sum + (c.messageCount || c.conversationLength || 1), 0) / conversations.length;
+      const complianceRate =
+        conversations.filter((c) => c.constitutionalCompliant).length / conversations.length; // Calculate engagement score (based on message count)
+      const averageEngagement =
+        conversations.reduce((sum, c) => sum + (c.messageCount || c.conversationLength || 1), 0) /
+        conversations.length;
       const engagementScore = Math.min(averageEngagement / 10, 1.0); // Normalize to 0-1
 
       // Calculate overall score (weighted average)
-      const overallScore = (
+      const overallScore =
         satisfactionRate * 0.3 +
         completionRate * 0.25 +
         (1 - Math.min(averageResponseTime / 5000, 1)) * 0.2 + // Faster = better
         complianceRate * 0.15 +
-        engagementScore * 0.1
-      );
+        engagementScore * 0.1;
 
       const metrics: SuccessMetrics = {
         overallScore,
@@ -84,12 +81,14 @@ export class PerformanceAnalyzer {
         completionRate,
         responseTime: averageResponseTime,
         constitutionalCompliance: complianceRate,
-        userEngagement: engagementScore
+        userEngagement: engagementScore,
       };
 
-      await this.performanceMonitor.recordLatency('calculate_success_metrics', createUnifiedTimestamp().unix - startTime);
+      await this.performanceMonitor.recordLatency(
+        'calculate_success_metrics',
+        createUnifiedTimestamp().unix - startTime,
+      );
       return metrics;
-
     } catch (error) {
       await this.performanceMonitor.recordError('calculate_success_metrics', error as Error);
       throw error;
@@ -122,9 +121,11 @@ export class PerformanceAnalyzer {
       const temporalPatterns = this.analyzeTemporalPatterns(data);
       patterns.push(...temporalPatterns);
 
-      await this.performanceMonitor.recordLatency('identify_performance_patterns', createUnifiedTimestamp().unix - startTime);
+      await this.performanceMonitor.recordLatency(
+        'identify_performance_patterns',
+        createUnifiedTimestamp().unix - startTime,
+      );
       return patterns;
-
     } catch (error) {
       await this.performanceMonitor.recordError('identify_performance_patterns', error as Error);
       throw error;
@@ -147,17 +148,20 @@ export class PerformanceAnalyzer {
         completion: 0.78,
         responseTime: 2500,
         compliance: 0.85,
-        engagement: 0.65
-      }
+        engagement: 0.65,
+      },
     };
   }
 
   /**
    * Analyze performance patterns by a specific dimension
    */
-  private analyzeByDimension(data: ConversationData[], dimension: keyof ConversationData): PerformancePattern[] {
+  private analyzeByDimension(
+    data: ConversationData[],
+    dimension: keyof ConversationData,
+  ): PerformancePattern[] {
     const groups = new Map<string, ConversationData[]>();
-    
+
     // Group conversations by dimension value
     for (const conversation of data) {
       const key = String(conversation[dimension]);
@@ -172,15 +176,17 @@ export class PerformanceAnalyzer {
     for (const [value, conversations] of groups) {
       if (conversations.length < 5) continue; // Need minimum sample size
 
-      const successRate = conversations.filter(c => c.userSatisfaction >= 0.8).length / conversations.length;
-      const completionRate = conversations.filter(c => c.taskCompleted).length / conversations.length;
-      
+      const successRate =
+        conversations.filter((c) => c.userSatisfaction >= 0.8).length / conversations.length;
+      const completionRate =
+        conversations.filter((c) => c.taskCompleted).length / conversations.length;
+
       patterns.push({
         patternType: `${dimension}_${value}`,
         frequency: conversations.length / data.length,
         impact: (successRate + completionRate) / 2,
         contexts: this.extractContexts(conversations),
-        successIndicators: this.identifySuccessIndicators(conversations)
+        successIndicators: this.identifySuccessIndicators(conversations),
       });
     }
 
@@ -192,7 +198,7 @@ export class PerformanceAnalyzer {
    */
   private analyzeTemporalPatterns(data: ConversationData[]): PerformancePattern[] {
     const patterns: PerformancePattern[] = [];
-    
+
     // Group by hour of day
     const hourGroups: Map<number, ConversationData[]> = new Map();
     for (const conversation of data) {
@@ -207,14 +213,16 @@ export class PerformanceAnalyzer {
     // Analyze performance by hour
     for (const [hour, conversations] of hourGroups) {
       if (conversations.length < 3) continue;
-  const avgSatisfaction = conversations.reduce((sum: number, c: ConversationData) => sum + c.userSatisfaction, 0) / conversations.length;
-      
+      const avgSatisfaction =
+        conversations.reduce((sum: number, c: ConversationData) => sum + c.userSatisfaction, 0) /
+        conversations.length;
+
       patterns.push({
         patternType: `time_hour_${hour}`,
         frequency: conversations.length / data.length,
         impact: avgSatisfaction,
         contexts: [`hour_${hour}`],
-        successIndicators: avgSatisfaction > 0.8 ? ['high_satisfaction'] : ['low_satisfaction']
+        successIndicators: avgSatisfaction > 0.8 ? ['high_satisfaction'] : ['low_satisfaction'],
       });
     }
 
@@ -225,15 +233,15 @@ export class PerformanceAnalyzer {
    * Extract context information from conversations
    */
   private extractContexts(conversations: ConversationData[]): string[] {
-    const contexts = new Set<string>();    
+    const contexts = new Set<string>();
     for (const conversation of conversations) {
       if (conversation.domain) {
         contexts.add(conversation.domain);
       }
-      conversation.contextTags?.forEach(tag => contexts.add(tag));
-      conversation.topicTags?.forEach(tag => contexts.add(tag));
+      conversation.contextTags?.forEach((tag) => contexts.add(tag));
+      conversation.topicTags?.forEach((tag) => contexts.add(tag));
     }
-    
+
     return Array.from(contexts);
   }
 
@@ -242,24 +250,25 @@ export class PerformanceAnalyzer {
    */
   private identifySuccessIndicators(conversations: ConversationData[]): string[] {
     const indicators: string[] = [];
-    
-    const highPerformers = conversations.filter(c => c.userSatisfaction >= 0.9);
-      if (highPerformers.length > 0) {
-      const avgResponseTime = highPerformers.reduce((sum, c) => sum + (c.responseTime || 0), 0) / highPerformers.length;
-      
+
+    const highPerformers = conversations.filter((c) => c.userSatisfaction >= 0.9);
+    if (highPerformers.length > 0) {
+      const avgResponseTime =
+        highPerformers.reduce((sum, c) => sum + (c.responseTime || 0), 0) / highPerformers.length;
+
       if (avgResponseTime < 2000) {
         indicators.push('fast_response');
       }
-      
-      if (highPerformers.every(c => c.taskCompleted)) {
+
+      if (highPerformers.every((c) => c.taskCompleted)) {
         indicators.push('high_completion');
       }
-      
-      if (highPerformers.every(c => c.constitutionalCompliant)) {
+
+      if (highPerformers.every((c) => c.constitutionalCompliant)) {
         indicators.push('constitutional_compliant');
       }
     }
-    
+
     return indicators;
   }
 }

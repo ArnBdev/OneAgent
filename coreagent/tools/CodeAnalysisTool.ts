@@ -1,13 +1,17 @@
 /**
  * Code Analysis Tool - Professional Development Implementation
- * 
+ *
  * Constitutional AI-compliant tool that provides comprehensive code quality analysis,
  * pattern detection, security scanning, and optimization suggestions.
  */
 
 import { UnifiedMCPTool, ToolExecutionResult, InputSchema } from './UnifiedMCPTool';
 import { OneAgentMemory, OneAgentMemoryConfig } from '../memory/OneAgentMemory';
-import { createUnifiedTimestamp, createUnifiedId, OneAgentUnifiedMetadataService } from '../utils/UnifiedBackboneService';
+import {
+  createUnifiedTimestamp,
+  createUnifiedId,
+  OneAgentUnifiedMetadataService,
+} from '../utils/UnifiedBackboneService';
 import * as fs from 'fs/promises';
 import * as path from 'path';
 
@@ -48,7 +52,7 @@ export interface AnalysisResult {
     antiPatterns: string[];
     bestPractices: string[];
   };
-  issues: Array<{type: string; severity: string; message: string}>;
+  issues: Array<{ type: string; severity: string; message: string }>;
   metrics?: {
     cyclomaticComplexity: number;
     codeSmells: string[];
@@ -69,48 +73,48 @@ export class CodeAnalysisTool extends UnifiedMCPTool {
     const schema: InputSchema = {
       type: 'object',
       properties: {
-        filePath: { 
-          type: 'string', 
-          description: 'Path to code file to analyze (optional if codeContent provided)' 
+        filePath: {
+          type: 'string',
+          description: 'Path to code file to analyze (optional if codeContent provided)',
         },
-        codeContent: { 
-          type: 'string', 
-          description: 'Code content to analyze directly (optional if filePath provided)' 
+        codeContent: {
+          type: 'string',
+          description: 'Code content to analyze directly (optional if filePath provided)',
         },
-        language: { 
-          type: 'string', 
-          description: 'Programming language (auto-detected if not provided)' 
+        language: {
+          type: 'string',
+          description: 'Programming language (auto-detected if not provided)',
         },
-        analysisType: { 
-          type: 'string', 
+        analysisType: {
+          type: 'string',
           enum: ['full', 'security', 'performance', 'quality', 'patterns'],
-          description: 'Type of analysis to perform (default: full)' 
+          description: 'Type of analysis to perform (default: full)',
         },
         includeRecommendations: {
           type: 'boolean',
-          description: 'Include actionable recommendations (default: true)'
+          description: 'Include actionable recommendations (default: true)',
         },
         storeResults: {
           type: 'boolean',
-          description: 'Store analysis results in memory for future reference (default: true)'
-        }
+          description: 'Store analysis results in memory for future reference (default: true)',
+        },
       },
-      required: []
+      required: [],
     };
 
     super(
       'oneagent_code_analyze',
       'Analyze code quality, patterns, security, and performance with Constitutional AI validation',
       schema,
-      'enhanced'
+      'enhanced',
     );
     // Initialize canonical memory system
     const memoryConfig: OneAgentMemoryConfig = {
       apiKey: process.env.MEM0_API_KEY || 'demo-key',
-      apiUrl: process.env.MEM0_API_URL
+      apiUrl: process.env.MEM0_API_URL,
     };
-  this.memorySystem = OneAgentMemory.getInstance(memoryConfig);
-  this.metadataService = OneAgentUnifiedMetadataService.getInstance();
+    this.memorySystem = OneAgentMemory.getInstance(memoryConfig);
+    this.metadataService = OneAgentUnifiedMetadataService.getInstance();
   }
 
   /**
@@ -120,13 +124,13 @@ export class CodeAnalysisTool extends UnifiedMCPTool {
     const startTime = createUnifiedTimestamp().unix;
 
     try {
-      const { 
-        filePath, 
-        codeContent, 
+      const {
+        filePath,
+        codeContent,
         language,
         analysisType = 'full',
         includeRecommendations = true,
-        storeResults = true
+        storeResults = true,
       } = args;
 
       // 1. Get code content from file or direct input
@@ -143,7 +147,7 @@ export class CodeAnalysisTool extends UnifiedMCPTool {
           return {
             success: false,
             data: null,
-            qualityScore: 0
+            qualityScore: 0,
           };
         }
       } else if (codeContent) {
@@ -153,7 +157,7 @@ export class CodeAnalysisTool extends UnifiedMCPTool {
         return {
           success: false,
           data: null,
-          qualityScore: 0
+          qualityScore: 0,
         };
       }
 
@@ -189,17 +193,16 @@ export class CodeAnalysisTool extends UnifiedMCPTool {
           issues: analysis.issues,
           recommendations: analysis.recommendations,
           metrics: analysis.metrics,
-          duration
+          duration,
         },
-        qualityScore: analysis.quality.overallScore
+        qualityScore: analysis.quality.overallScore,
       };
-
     } catch (error) {
       console.error('[CodeAnalysis] Analysis failed:', error);
       return {
         success: false,
         data: null,
-        qualityScore: 0
+        qualityScore: 0,
       };
     }
   }
@@ -207,7 +210,11 @@ export class CodeAnalysisTool extends UnifiedMCPTool {
   /**
    * Perform comprehensive code analysis
    */
-  private async performCodeAnalysis(code: string, language: string, analysisType: string): Promise<AnalysisResult> {
+  private async performCodeAnalysis(
+    code: string,
+    language: string,
+    analysisType: string,
+  ): Promise<AnalysisResult> {
     const analysisId = createUnifiedId('analysis', 'code_analysis');
 
     // Simulate analysis processing
@@ -217,7 +224,7 @@ export class CodeAnalysisTool extends UnifiedMCPTool {
       id: analysisId,
       timestamp: new Date().toISOString(),
       codeLength: code.length,
-      lineCount: code.split('\n').length
+      lineCount: code.split('\n').length,
     };
 
     switch (analysisType) {
@@ -237,13 +244,18 @@ export class CodeAnalysisTool extends UnifiedMCPTool {
   /**
    * Perform full comprehensive analysis
    */
-  private performFullAnalysis(code: string, language: string, baseAnalysis: Partial<AnalysisResult>): AnalysisResult {
+  private performFullAnalysis(
+    code: string,
+    language: string,
+    baseAnalysis: Partial<AnalysisResult>,
+  ): AnalysisResult {
     const complexityScore = this.calculateComplexity(code);
     const maintainabilityScore = this.calculateMaintainability(code);
     const securityScore = this.calculateSecurityScore(code, language);
     const performanceScore = this.calculatePerformanceScore(code, language);
 
-    const overallScore = (complexityScore + maintainabilityScore + securityScore + performanceScore) / 4;
+    const overallScore =
+      (complexityScore + maintainabilityScore + securityScore + performanceScore) / 4;
 
     return {
       ...baseAnalysis,
@@ -257,42 +269,47 @@ export class CodeAnalysisTool extends UnifiedMCPTool {
         complexity: complexityScore,
         maintainability: maintainabilityScore,
         readability: this.calculateReadability(code),
-        testCoverage: this.estimateTestCoverage(code)
+        testCoverage: this.estimateTestCoverage(code),
       },
       security: {
         score: securityScore,
         vulnerabilities: this.findSecurityIssues(code, language),
-        recommendations: this.getSecurityRecommendations(language)
+        recommendations: this.getSecurityRecommendations(language),
       },
       performance: {
         score: performanceScore,
         bottlenecks: this.findPerformanceBottlenecks(code, language),
-        optimizations: this.getPerformanceOptimizations(language)
+        optimizations: this.getPerformanceOptimizations(language),
       },
       patterns: {
         designPatterns: this.detectDesignPatterns(code, language),
         antiPatterns: this.detectAntiPatterns(code, language),
-        bestPractices: this.checkBestPractices(code, language)
+        bestPractices: this.checkBestPractices(code, language),
       },
       issues: this.findCodeIssues(code, language),
       metrics: {
         cyclomaticComplexity: this.calculateCyclomaticComplexity(code),
         codeSmells: this.detectCodeSmells(code),
         duplications: this.detectDuplications(code),
-        technicalDebt: this.estimateTechnicalDebt(code)
-      }
+        technicalDebt: this.estimateTechnicalDebt(code),
+      },
     };
   }
 
   /**
    * Generate actionable recommendations
    */
-  private async generateRecommendations(analysis: AnalysisResult, language: string): Promise<string[]> {
+  private async generateRecommendations(
+    analysis: AnalysisResult,
+    language: string,
+  ): Promise<string[]> {
     const recommendations: string[] = [];
 
     // Quality recommendations
     if (analysis.quality.overallScore < 70) {
-      recommendations.push(`Improve overall code quality (current: ${analysis.quality.overallScore}%)`);
+      recommendations.push(
+        `Improve overall code quality (current: ${analysis.quality.overallScore}%)`,
+      );
     }
 
     if (analysis.quality.complexity < 60) {
@@ -305,7 +322,9 @@ export class CodeAnalysisTool extends UnifiedMCPTool {
 
     // Security recommendations
     if (analysis.security && analysis.security.score < 80) {
-      recommendations.push('Address security vulnerabilities and implement security best practices');
+      recommendations.push(
+        'Address security vulnerabilities and implement security best practices',
+      );
     }
 
     // Performance recommendations
@@ -336,7 +355,11 @@ export class CodeAnalysisTool extends UnifiedMCPTool {
   /**
    * Store analysis results in memory
    */
-  private async storeAnalysisInMemory(analysis: AnalysisResult, sourceFile: string | undefined, language: string): Promise<void> {
+  private async storeAnalysisInMemory(
+    analysis: AnalysisResult,
+    sourceFile: string | undefined,
+    language: string,
+  ): Promise<void> {
     try {
       const memoryData = {
         type: 'code_analysis',
@@ -347,7 +370,7 @@ export class CodeAnalysisTool extends UnifiedMCPTool {
         qualityScore: analysis.quality.overallScore,
         issues: analysis.issues,
         recommendations: analysis.recommendations,
-        timestamp: analysis.timestamp
+        timestamp: analysis.timestamp,
       };
       // Use canonical memory system for storage with unified metadata
       await this.memorySystem.addMemoryCanonical(
@@ -356,22 +379,22 @@ export class CodeAnalysisTool extends UnifiedMCPTool {
           system: {
             source: 'code_analysis_tool',
             component: 'analysis',
-            userId: 'system'
+            userId: 'system',
           },
-            content: {
-              category: 'code_intelligence',
-              tags: ['code', 'analysis', language],
-              sensitivity: 'internal',
-              relevanceScore: 0.8,
-              contextDependency: 'global'
-            },
-            contextual: {
-              analysisId: analysis.id,
-              language,
-              sourceFile: sourceFile || 'direct_input'
-            }
+          content: {
+            category: 'code_intelligence',
+            tags: ['code', 'analysis', language],
+            sensitivity: 'internal',
+            relevanceScore: 0.8,
+            contextDependency: 'global',
+          },
+          contextual: {
+            analysisId: analysis.id,
+            language,
+            sourceFile: sourceFile || 'direct_input',
+          },
         }),
-        'system'
+        'system',
       );
 
       console.log(`[CodeAnalysis] Stored analysis ${analysis.id} in memory`);
@@ -393,7 +416,7 @@ export class CodeAnalysisTool extends UnifiedMCPTool {
       '.c': 'c',
       '.go': 'go',
       '.rs': 'rust',
-      '.php': 'php'
+      '.php': 'php',
     };
     return langMap[ext] || 'unknown';
   }
@@ -431,7 +454,9 @@ export class CodeAnalysisTool extends UnifiedMCPTool {
 
   private calculateReadability(code: string): number {
     const lines = code.split('\n');
-    const commentLines = lines.filter(line => line.trim().startsWith('//') || line.trim().startsWith('#')).length;
+    const commentLines = lines.filter(
+      (line) => line.trim().startsWith('//') || line.trim().startsWith('#'),
+    ).length;
     const commentRatio = commentLines / lines.length;
     return Math.round(Math.min(100, commentRatio * 200 + 60));
   }
@@ -442,7 +467,8 @@ export class CodeAnalysisTool extends UnifiedMCPTool {
   }
 
   private calculateCyclomaticComplexity(code: string): number {
-    const controlStructures = (code.match(/\b(if|else|while|for|switch|case|catch)\b/g) || []).length;
+    const controlStructures = (code.match(/\b(if|else|while|for|switch|case|catch)\b/g) || [])
+      .length;
     return Math.max(1, controlStructures);
   }
 
@@ -451,7 +477,8 @@ export class CodeAnalysisTool extends UnifiedMCPTool {
     const issues: string[] = [];
     if (code.includes('eval(')) issues.push('Use of eval() function');
     if (code.includes('innerHTML')) issues.push('Potential XSS vulnerability with innerHTML');
-    if (code.includes('process.env') && !code.includes('validate')) issues.push('Unvalidated environment variable usage');
+    if (code.includes('process.env') && !code.includes('validate'))
+      issues.push('Unvalidated environment variable usage');
     return issues;
   }
 
@@ -459,30 +486,46 @@ export class CodeAnalysisTool extends UnifiedMCPTool {
     const bottlenecks: string[] = [];
     if (code.includes('for') && code.includes('for')) bottlenecks.push('Nested loops detected');
     if (code.includes('while(true)')) bottlenecks.push('Infinite loop pattern');
-    if (code.includes('sync') && code.includes('readFileSync')) bottlenecks.push('Synchronous file operations');
+    if (code.includes('sync') && code.includes('readFileSync'))
+      bottlenecks.push('Synchronous file operations');
     return bottlenecks;
   }
 
-  private findCodeIssues(code: string, _language: string): Array<{type: string; severity: string; message: string}> {
-    const issues: Array<{type: string; severity: string; message: string}> = [];
-    
+  private findCodeIssues(
+    code: string,
+    _language: string,
+  ): Array<{ type: string; severity: string; message: string }> {
+    const issues: Array<{ type: string; severity: string; message: string }> = [];
+
     // Generic code issues
     if (code.includes('TODO')) {
-      issues.push({type: 'maintenance', severity: 'low', message: 'TODO comments found'});
-    }
-    
-    if (code.includes('console.log')) {
-      issues.push({type: 'quality', severity: 'medium', message: 'Debug statements should be removed'});
+      issues.push({ type: 'maintenance', severity: 'low', message: 'TODO comments found' });
     }
 
-    if (code.split('\n').some(line => line.length > 120)) {
-      issues.push({type: 'readability', severity: 'low', message: 'Long lines detected (>120 characters)'});
+    if (code.includes('console.log')) {
+      issues.push({
+        type: 'quality',
+        severity: 'medium',
+        message: 'Debug statements should be removed',
+      });
+    }
+
+    if (code.split('\n').some((line) => line.length > 120)) {
+      issues.push({
+        type: 'readability',
+        severity: 'low',
+        message: 'Long lines detected (>120 characters)',
+      });
     }
 
     return issues;
   }
   // Stub methods for comprehensive analysis
-  private performSecurityAnalysis(code: string, language: string, baseAnalysis: Partial<AnalysisResult>): AnalysisResult {
+  private performSecurityAnalysis(
+    code: string,
+    language: string,
+    baseAnalysis: Partial<AnalysisResult>,
+  ): AnalysisResult {
     return {
       ...baseAnalysis,
       id: baseAnalysis.id!,
@@ -495,18 +538,22 @@ export class CodeAnalysisTool extends UnifiedMCPTool {
         complexity: 80,
         maintainability: 85,
         readability: 80,
-        testCoverage: 70
+        testCoverage: 70,
       },
       security: {
         score: this.calculateSecurityScore(code, language),
         vulnerabilities: this.findSecurityIssues(code, language),
-        recommendations: this.getSecurityRecommendations(language)
+        recommendations: this.getSecurityRecommendations(language),
       },
-      issues: this.findCodeIssues(code, language)
+      issues: this.findCodeIssues(code, language),
     };
   }
 
-  private performPerformanceAnalysis(code: string, language: string, baseAnalysis: Partial<AnalysisResult>): AnalysisResult {
+  private performPerformanceAnalysis(
+    code: string,
+    language: string,
+    baseAnalysis: Partial<AnalysisResult>,
+  ): AnalysisResult {
     return {
       ...baseAnalysis,
       id: baseAnalysis.id!,
@@ -519,18 +566,22 @@ export class CodeAnalysisTool extends UnifiedMCPTool {
         complexity: 75,
         maintainability: 80,
         readability: 80,
-        testCoverage: 70
+        testCoverage: 70,
       },
       performance: {
         score: this.calculatePerformanceScore(code, language),
         bottlenecks: this.findPerformanceBottlenecks(code, language),
-        optimizations: this.getPerformanceOptimizations(language)
+        optimizations: this.getPerformanceOptimizations(language),
       },
-      issues: this.findCodeIssues(code, language)
+      issues: this.findCodeIssues(code, language),
     };
   }
 
-  private performQualityAnalysis(code: string, language: string, baseAnalysis: Partial<AnalysisResult>): AnalysisResult {
+  private performQualityAnalysis(
+    code: string,
+    language: string,
+    baseAnalysis: Partial<AnalysisResult>,
+  ): AnalysisResult {
     return {
       ...baseAnalysis,
       id: baseAnalysis.id!,
@@ -543,13 +594,17 @@ export class CodeAnalysisTool extends UnifiedMCPTool {
         complexity: this.calculateComplexity(code),
         maintainability: this.calculateMaintainability(code),
         readability: this.calculateReadability(code),
-        testCoverage: this.estimateTestCoverage(code)
+        testCoverage: this.estimateTestCoverage(code),
       },
-      issues: this.findCodeIssues(code, language)
+      issues: this.findCodeIssues(code, language),
     };
   }
 
-  private performPatternAnalysis(code: string, language: string, baseAnalysis: Partial<AnalysisResult>): AnalysisResult {
+  private performPatternAnalysis(
+    code: string,
+    language: string,
+    baseAnalysis: Partial<AnalysisResult>,
+  ): AnalysisResult {
     return {
       ...baseAnalysis,
       id: baseAnalysis.id!,
@@ -562,14 +617,14 @@ export class CodeAnalysisTool extends UnifiedMCPTool {
         complexity: 80,
         maintainability: 85,
         readability: 85,
-        testCoverage: 75
+        testCoverage: 75,
       },
       patterns: {
         designPatterns: this.detectDesignPatterns(code, language),
         antiPatterns: this.detectAntiPatterns(code, language),
-        bestPractices: this.checkBestPractices(code, language)
+        bestPractices: this.checkBestPractices(code, language),
       },
-      issues: this.findCodeIssues(code, language)
+      issues: this.findCodeIssues(code, language),
     };
   }
 
@@ -578,7 +633,7 @@ export class CodeAnalysisTool extends UnifiedMCPTool {
       'Validate all user inputs',
       'Use parameterized queries to prevent SQL injection',
       'Implement proper authentication and authorization',
-      'Use HTTPS for all communications'
+      'Use HTTPS for all communications',
     ];
 
     switch (language.toLowerCase()) {
@@ -586,7 +641,11 @@ export class CodeAnalysisTool extends UnifiedMCPTool {
       case 'javascript':
         return [...commonRecommendations, 'Avoid eval() functions', 'Sanitize DOM inputs'];
       case 'python':
-        return [...commonRecommendations, 'Use secure random generators', 'Validate pickle operations'];
+        return [
+          ...commonRecommendations,
+          'Use secure random generators',
+          'Validate pickle operations',
+        ];
       default:
         return commonRecommendations;
     }
@@ -597,7 +656,7 @@ export class CodeAnalysisTool extends UnifiedMCPTool {
       'Optimize algorithm complexity',
       'Use appropriate data structures',
       'Implement caching where beneficial',
-      'Minimize memory allocations'
+      'Minimize memory allocations',
     ];
 
     switch (language.toLowerCase()) {
@@ -605,7 +664,11 @@ export class CodeAnalysisTool extends UnifiedMCPTool {
       case 'javascript':
         return [...commonOptimizations, 'Use async/await properly', 'Optimize DOM operations'];
       case 'python':
-        return [...commonOptimizations, 'Use list comprehensions', 'Consider numpy for numerical operations'];
+        return [
+          ...commonOptimizations,
+          'Use list comprehensions',
+          'Consider numpy for numerical operations',
+        ];
       default:
         return commonOptimizations;
     }
@@ -621,7 +684,10 @@ export class CodeAnalysisTool extends UnifiedMCPTool {
     if (lowerCode.includes('interface') || lowerCode.includes('implements')) {
       patterns.push('Interface Pattern');
     }
-    if (lowerCode.includes('singleton') || (lowerCode.includes('static') && lowerCode.includes('instance'))) {
+    if (
+      lowerCode.includes('singleton') ||
+      (lowerCode.includes('static') && lowerCode.includes('instance'))
+    ) {
       patterns.push('Singleton Pattern');
     }
     if (lowerCode.includes('factory') && lowerCode.includes('create')) {
@@ -714,7 +780,7 @@ export class CodeAnalysisTool extends UnifiedMCPTool {
         lineMap.set(trimmed, (lineMap.get(trimmed) || 0) + 1);
       }
     }
-    if (Array.from(lineMap.values()).some(count => count > 3)) {
+    if (Array.from(lineMap.values()).some((count) => count > 3)) {
       smells.push('Duplicate Code');
     }
 
@@ -723,7 +789,10 @@ export class CodeAnalysisTool extends UnifiedMCPTool {
 
   private detectDuplications(code: string): string[] {
     const duplications: string[] = [];
-    const lines = code.split('\n').map(line => line.trim()).filter(line => line.length > 5);
+    const lines = code
+      .split('\n')
+      .map((line) => line.trim())
+      .filter((line) => line.length > 5);
     const lineOccurrences = new Map<string, number>();
 
     for (const line of lines) {
@@ -748,7 +817,7 @@ export class CodeAnalysisTool extends UnifiedMCPTool {
     debtScore += todoCount * 5;
 
     // Long lines add to debt
-    const longLineCount = lines.filter(line => line.length > 120).length;
+    const longLineCount = lines.filter((line) => line.length > 120).length;
     debtScore += longLineCount * 2;
 
     // Excessive complexity adds to debt
@@ -761,6 +830,6 @@ export class CodeAnalysisTool extends UnifiedMCPTool {
   }
 
   private delay(ms: number): Promise<void> {
-    return new Promise(resolve => setTimeout(resolve, ms));
+    return new Promise((resolve) => setTimeout(resolve, ms));
   }
 }

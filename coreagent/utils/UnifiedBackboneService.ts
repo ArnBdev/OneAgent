@@ -16,7 +16,7 @@ import {
   IMemoryClient,
   AgentMessage,
   AgentCard,
-  SessionInfo
+  SessionInfo,
 } from '../types/oneagent-backbone-types';
 // import { OneAgentMemory } from '../memory/OneAgentMemory'; // Removed to prevent circular dependency
 // ...existing code...
@@ -26,19 +26,26 @@ import type { UnifiedTimeContext, IdType } from '../types/oneagent-backbone-type
 import pkg from '../../package.json';
 // ...existing code...
 
-
 // Canonical configuration import
 
-import { unifiedMonitoringService, UnifiedMonitoringService } from '../monitoring/UnifiedMonitoringService';
+import {
+  unifiedMonitoringService,
+  UnifiedMonitoringService,
+} from '../monitoring/UnifiedMonitoringService';
 import type { ServerConfig } from '../config/index';
 import { oneAgentConfig } from '../config/index';
 // NOTE: Avoid early import of UnifiedConfigProvider (it imports UnifiedBackboneService utils for timestamps/ids indirectly)
 // We'll resolve it lazily to prevent undefined during initialization order.
-interface MinimalConfigProvider { getConfig?: () => ServerConfig }
+interface MinimalConfigProvider {
+  getConfig?: () => ServerConfig;
+}
 function getConfigProviderSafe(): MinimalConfigProvider | null {
   // Provider registers itself globally to avoid circular import
   // (set in UnifiedConfigProvider.ts)
-  return (globalThis as unknown as { __unifiedConfigProvider?: MinimalConfigProvider }).__unifiedConfigProvider || null;
+  return (
+    (globalThis as unknown as { __unifiedConfigProvider?: MinimalConfigProvider })
+      .__unifiedConfigProvider || null
+  );
 }
 
 // =====================================
@@ -65,15 +72,15 @@ export class UnifiedBackboneService {
    * Canonical accessor to updated resolved config (in case overrides applied after initial load)
    */
   static getResolvedConfig(): ServerConfig {
-  const prov = getConfigProviderSafe();
-  return prov?.getConfig ? prov.getConfig() : oneAgentConfig;
+    const prov = getConfigProviderSafe();
+    return prov?.getConfig ? prov.getConfig() : oneAgentConfig;
   }
   /**
    * Backward compatibility: refresh static config snapshot (avoid long-lived stale copies)
    */
   static refreshConfigSnapshot(): void {
-  const prov = getConfigProviderSafe();
-  UnifiedBackboneService.config = prov?.getConfig ? prov.getConfig() : oneAgentConfig;
+    const prov = getConfigProviderSafe();
+    UnifiedBackboneService.config = prov?.getConfig ? prov.getConfig() : oneAgentConfig;
   }
 
   /**
@@ -82,9 +89,12 @@ export class UnifiedBackboneService {
   static getEndpoint(name: 'memory' | 'mcp' | 'ui'): { url: string; port: number; path?: string } {
     const cfg = UnifiedBackboneService.getResolvedConfig();
     switch (name) {
-      case 'memory': return { url: cfg.memoryUrl, port: cfg.memoryPort };
-      case 'mcp': return { url: cfg.mcpUrl, port: cfg.mcpPort, path: '/mcp' };
-      case 'ui': return { url: cfg.uiUrl, port: cfg.uiPort };
+      case 'memory':
+        return { url: cfg.memoryUrl, port: cfg.memoryPort };
+      case 'mcp':
+        return { url: cfg.mcpUrl, port: cfg.mcpPort, path: '/mcp' };
+      case 'ui':
+        return { url: cfg.uiUrl, port: cfg.uiPort };
       default: {
         // Exhaustive check
         const _never: never = name; // eslint-disable-line @typescript-eslint/no-unused-vars
@@ -100,7 +110,7 @@ export class UnifiedBackboneService {
     return {
       memory: this.getEndpoint('memory'),
       mcp: this.getEndpoint('mcp'),
-      ui: this.getEndpoint('ui')
+      ui: this.getEndpoint('ui'),
     };
   }
   // All config access must use UnifiedBackboneService.config
@@ -120,8 +130,9 @@ export class UnifiedBackboneService {
    * Canonical health/performance monitoring system (single source of truth)
    * Usage: UnifiedBackboneService.monitoring
    */
-  static monitoring: UnifiedMonitoringService = (unifiedMonitoringService as unknown as UnifiedMonitoringService);
-// ...existing code...
+  static monitoring: UnifiedMonitoringService =
+    unifiedMonitoringService as unknown as UnifiedMonitoringService;
+  // ...existing code...
 }
 
 /**
@@ -129,7 +140,6 @@ export class UnifiedBackboneService {
  * Exposes all core and NLACS extension methods for agent-to-agent communication, discussions, insights, and coordination.
  */
 export class UnifiedAgentCommunicationService {
-
   private a2a: UnifiedAgentCommunicationInterface;
   private memory: IMemoryClient;
 
@@ -142,29 +152,29 @@ export class UnifiedAgentCommunicationService {
   async registerAgent(agent: AgentCard): Promise<string> {
     // Canonical expects AgentRegistration, adapt as needed
     await this.a2a.registerAgent(agent);
-    
+
     // Create proper UnifiedMetadata for memory storage
     const metadata = unifiedMetadataService.create('memory', 'UnifiedBackboneService', {
       system: {
         source: 'UnifiedBackboneService',
         component: 'agent-registry',
-        userId: 'system'
+        userId: 'system',
       },
       content: {
         category: 'agent_card',
         tags: [agent.name],
         sensitivity: 'internal',
         relevanceScore: 1.0,
-        contextDependency: 'global'
+        contextDependency: 'global',
       },
       quality: {
         score: 1.0,
         confidence: 1.0,
         constitutionalCompliant: true,
-        validationLevel: 'enhanced'
-      }
+        validationLevel: 'enhanced',
+      },
     });
-    
+
     await this.memory.store(agent.name, metadata);
     return agent.name;
   }
@@ -172,7 +182,11 @@ export class UnifiedAgentCommunicationService {
   /**
    * Discover agents with advanced filtering (capabilities, health, role, etc.)
    */
-  async discoverAgents(filter?: { capabilities?: string[]; health?: 'healthy' | 'degraded' | 'critical' | 'offline'; role?: string; }): Promise<AgentCardWithHealth[]> {
+  async discoverAgents(filter?: {
+    capabilities?: string[];
+    health?: 'healthy' | 'degraded' | 'critical' | 'offline';
+    role?: string;
+  }): Promise<AgentCardWithHealth[]> {
     return this.a2a.discoverAgents(filter || {});
   }
   /**
@@ -195,23 +209,25 @@ export class UnifiedAgentCommunicationService {
       system: {
         source: 'UnifiedBackboneService',
         component: 'message-system',
-        userId: 'system'
+        userId: 'system',
       },
       content: {
         category: 'agent_message',
-        tags: [message.fromAgent, message.toAgent].filter((t): t is string => typeof t === 'string'),
+        tags: [message.fromAgent, message.toAgent].filter(
+          (t): t is string => typeof t === 'string',
+        ),
         sensitivity: 'internal',
         relevanceScore: 1.0,
-        contextDependency: 'session'
+        contextDependency: 'session',
       },
       quality: {
         score: 1.0,
         confidence: 1.0,
         constitutionalCompliant: true,
-        validationLevel: 'enhanced'
-      }
+        validationLevel: 'enhanced',
+      },
     });
-    
+
     await this.memory.store(message.content, metadata);
     return await this.a2a.sendMessage(message);
   }
@@ -226,13 +242,13 @@ export class UnifiedAgentCommunicationService {
       toAgent: msg.toAgent,
       sessionId: msg.sessionId,
       messageType: msg.messageType,
-      timestamp: msg.timestamp
+      timestamp: msg.timestamp,
     }));
   }
 
   // NLACS/A2A extension methods
 
-// All health/metrics access must use UnifiedBackboneService.monitoring
+  // All health/metrics access must use UnifiedBackboneService.monitoring
   // All health/metrics access must use UnifiedBackboneService.monitoring
 }
 
@@ -244,20 +260,20 @@ export class OneAgentUnifiedTimeService implements UnifiedTimeService {
   private static instance: OneAgentUnifiedTimeService;
   private contextCache: { context: UnifiedTimeContext; expiry: number } | null = null;
   private readonly CACHE_DURATION = 60000; // 1 minute cache
-  
+
   public static getInstance(): OneAgentUnifiedTimeService {
     if (!OneAgentUnifiedTimeService.instance) {
       OneAgentUnifiedTimeService.instance = new OneAgentUnifiedTimeService();
     }
     return OneAgentUnifiedTimeService.instance;
   }
-  
+
   /**
    * Get current timestamp with unified format
-   */  public now(): UnifiedTimestamp {
+   */ public now(): UnifiedTimestamp {
     const jsDate = new Date();
     const context = this.getContext();
-    
+
     return {
       iso: jsDate.toISOString(),
       unix: jsDate.getTime(),
@@ -268,16 +284,16 @@ export class OneAgentUnifiedTimeService implements UnifiedTimeService {
       contextual: {
         timeOfDay: context.context.timeOfDay,
         energyLevel: context.intelligence.energyLevel,
-        optimalFor: context.intelligence.optimalFocusTime ? ['focus', 'productivity'] : ['general']
+        optimalFor: context.intelligence.optimalFocusTime ? ['focus', 'productivity'] : ['general'],
       },
       metadata: {
         source: 'UnifiedTimeService',
         precision: 'second',
-        timezone: Intl.DateTimeFormat().resolvedOptions().timeZone
-      }
+        timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+      },
     };
   }
-  
+
   /**
    * Get comprehensive time context with intelligence
    */
@@ -287,62 +303,64 @@ export class OneAgentUnifiedTimeService implements UnifiedTimeService {
     if (this.contextCache && currentTime < this.contextCache.expiry) {
       return this.contextCache.context;
     }
-    
+
     const now = new Date();
     const hour = now.getHours();
     const day = now.getDay();
     const month = now.getMonth();
     const context: UnifiedTimeContext = {
       context: {
-        dayOfWeek: ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'][day] as 'sunday' | 'monday' | 'tuesday' | 'wednesday' | 'thursday' | 'friday' | 'saturday',
+        dayOfWeek: ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'][
+          day
+        ] as 'sunday' | 'monday' | 'tuesday' | 'wednesday' | 'thursday' | 'friday' | 'saturday',
         timeOfDay: this.getTimeOfDay(hour),
         workingHours: this.isWorkingHours(hour, day),
         weekendMode: day === 0 || day === 6,
         businessDay: day >= 1 && day <= 5,
         peakHours: (hour >= 9 && hour <= 11) || (hour >= 14 && hour <= 16),
-        seasonalContext: this.getSeasonalContext(month)
+        seasonalContext: this.getSeasonalContext(month),
       },
       intelligence: {
         optimalFocusTime: this.isOptimalFocusTime(hour, day),
         energyLevel: this.getEnergyLevelInternal(hour, day),
         suggestionContext: this.getSuggestionContextInternal(hour, day),
-        motivationalTiming: this.getMotivationalTiming(hour, day)
+        motivationalTiming: this.getMotivationalTiming(hour, day),
       },
       metadata: {
         timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
         timestamp: now,
-        contextUpdated: now
+        contextUpdated: now,
       },
       realTime: {
         unix: now.getTime(),
         utc: now.toISOString(),
         local: now.toString(),
         timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
-        offset: now.getTimezoneOffset()
-      }
+        offset: now.getTimezoneOffset(),
+      },
     };
-    
+
     // Cache the context (avoid recursive call)
     this.contextCache = {
       context,
-      expiry: currentTime + this.CACHE_DURATION
+      expiry: currentTime + this.CACHE_DURATION,
     };
-    
+
     return context;
   }
-  
+
   /**
    * Check if current time is optimal for specific activities
    */
   public isOptimalTime(type: 'focus' | 'creative' | 'social' | 'rest'): boolean {
     const context = this.getContext();
     const hour = new Date().getHours();
-    
+
     switch (type) {
       case 'focus':
         return context.intelligence.optimalFocusTime && context.context.peakHours;
       case 'creative':
-        return hour >= 10 && hour <= 12 || hour >= 15 && hour <= 17;
+        return (hour >= 10 && hour <= 12) || (hour >= 15 && hour <= 17);
       case 'social':
         return context.context.workingHours && !context.context.weekendMode;
       case 'rest':
@@ -351,32 +369,32 @@ export class OneAgentUnifiedTimeService implements UnifiedTimeService {
         return false;
     }
   }
-    /**
+  /**
    * Get current energy level
    */
   public getEnergyLevel(): 'low' | 'medium' | 'high' | 'peak' {
     return this.getContext().intelligence.energyLevel;
   }
-    /**
+  /**
    * Get suggestion context
    */
   public getSuggestionContext(): 'planning' | 'execution' | 'review' | 'rest' | 'none' {
     return this.getContext().intelligence.suggestionContext;
   }
-  
+
   /**
    * Create timestamp with full context
    */
   public createTimestamp(): UnifiedTimestamp {
     return this.now();
   }
-  
+
   /**
    * Enhance basic Date with unified context
-   */  public enhanceWithContext(basicTime: Date): UnifiedTimestamp {
+   */ public enhanceWithContext(basicTime: Date): UnifiedTimestamp {
     const context = this.getContext();
     const hour = basicTime.getHours();
-    
+
     return {
       iso: basicTime.toISOString(),
       unix: basicTime.getTime(),
@@ -387,16 +405,16 @@ export class OneAgentUnifiedTimeService implements UnifiedTimeService {
       contextual: {
         timeOfDay: this.getTimeOfDay(hour),
         energyLevel: context.intelligence.energyLevel,
-        optimalFor: this.getOptimalActivities(hour)
+        optimalFor: this.getOptimalActivities(hour),
       },
       metadata: {
         source: 'UnifiedTimeService',
         precision: 'second',
-        timezone: Intl.DateTimeFormat().resolvedOptions().timeZone
-      }
+        timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+      },
     };
   }
-  
+
   // Private helper methods
   private getTimeOfDay(hour: number): 'morning' | 'afternoon' | 'evening' | 'night' {
     if (hour >= 5 && hour < 12) return 'morning';
@@ -404,42 +422,48 @@ export class OneAgentUnifiedTimeService implements UnifiedTimeService {
     if (hour >= 18 && hour < 22) return 'evening';
     return 'night';
   }
-  
+
   private isWorkingHours(hour: number, day: number): boolean {
     return day >= 1 && day <= 5 && hour >= 9 && hour <= 17;
   }
-  
+
   private getSeasonalContext(month: number): 'spring' | 'summer' | 'fall' | 'winter' {
     if (month >= 2 && month <= 4) return 'spring';
     if (month >= 5 && month <= 7) return 'summer';
     if (month >= 8 && month <= 10) return 'fall';
     return 'winter';
   }
-  
+
   private isOptimalFocusTime(hour: number, day: number): boolean {
     // Peak focus: 9-11 AM and 2-4 PM on business days
     return day >= 1 && day <= 5 && ((hour >= 9 && hour <= 11) || (hour >= 14 && hour <= 16));
   }
-    private getEnergyLevelInternal(hour: number, day: number): 'low' | 'medium' | 'high' | 'peak' {
+  private getEnergyLevelInternal(hour: number, day: number): 'low' | 'medium' | 'high' | 'peak' {
     if (hour >= 10 && hour <= 11 && day >= 1 && day <= 5) return 'peak';
     if (hour >= 9 && hour <= 17 && day >= 1 && day <= 5) return 'high';
     if (hour >= 8 && hour <= 20) return 'medium';
     return 'low';
   }
-  
-  private getSuggestionContextInternal(hour: number, day: number): 'planning' | 'execution' | 'review' | 'rest' {
+
+  private getSuggestionContextInternal(
+    hour: number,
+    day: number,
+  ): 'planning' | 'execution' | 'review' | 'rest' {
     if (hour >= 8 && hour <= 9) return 'planning';
     if (hour >= 10 && hour <= 16 && day >= 1 && day <= 5) return 'execution';
     if (hour >= 17 && hour <= 19) return 'review';
     return 'rest';
   }
-  private getMotivationalTiming(hour: number, _day: number): 'morning-boost' | 'afternoon-focus' | 'evening-wind-down' | 'night-rest' {
+  private getMotivationalTiming(
+    hour: number,
+    _day: number,
+  ): 'morning-boost' | 'afternoon-focus' | 'evening-wind-down' | 'night-rest' {
     if (hour >= 6 && hour <= 11) return 'morning-boost';
     if (hour >= 12 && hour <= 17) return 'afternoon-focus';
     if (hour >= 18 && hour <= 21) return 'evening-wind-down';
     return 'night-rest';
   }
-  
+
   private getOptimalActivities(hour: number): string[] {
     if (hour >= 6 && hour <= 9) return ['planning', 'exercise', 'learning'];
     if (hour >= 10 && hour <= 12) return ['focus-work', 'analysis', 'problem-solving'];
@@ -458,14 +482,14 @@ export class OneAgentUnifiedMetadataService implements UnifiedMetadataService {
   private static instance: OneAgentUnifiedMetadataService;
   private timeService: UnifiedTimeService;
   private metadataStore: Map<string, UnifiedMetadata> = new Map();
-  
+
   public static getInstance(): OneAgentUnifiedMetadataService {
     if (!OneAgentUnifiedMetadataService.instance) {
       OneAgentUnifiedMetadataService.instance = new OneAgentUnifiedMetadataService();
     }
     return OneAgentUnifiedMetadataService.instance;
   }
-  
+
   constructor() {
     this.timeService = OneAgentUnifiedTimeService.getInstance();
   }
@@ -479,30 +503,34 @@ export class OneAgentUnifiedMetadataService implements UnifiedMetadataService {
       ...metadata,
       temporal: {
         ...metadata.temporal,
-        accessed: this.timeService.now()
+        accessed: this.timeService.now(),
       },
       analytics: {
         ...metadata.analytics,
         accessCount: (metadata.analytics.accessCount ?? 0) + 1,
         lastAccessPattern: context,
-        usageContext: [...(metadata.analytics.usageContext ?? []), context].slice(-10)
-      }
+        usageContext: [...(metadata.analytics.usageContext ?? []), context].slice(-10),
+      },
     };
     this.metadataStore.set(id, updated);
   }
-  
+
   /**
    * Create new unified metadata
    */
-  public create(type: string, source: string, options: Partial<UnifiedMetadata> = {}): UnifiedMetadata {
+  public create(
+    type: string,
+    source: string,
+    options: Partial<UnifiedMetadata> = {},
+  ): UnifiedMetadata {
     const timestamp = this.timeService.now();
     const context = this.timeService.getContext();
-    
+
     const metadata: UnifiedMetadata = {
       id: options.id || this.generateId(),
       type,
       version: options.version || '1.0.0',
-      
+
       temporal: {
         created: timestamp,
         updated: timestamp,
@@ -510,49 +538,49 @@ export class OneAgentUnifiedMetadataService implements UnifiedMetadataService {
           timeOfDay: context.context.timeOfDay,
           dayOfWeek: context.context.dayOfWeek,
           businessContext: context.context.businessDay,
-          energyContext: context.intelligence.energyLevel
-        }
+          energyContext: context.intelligence.energyLevel,
+        },
       },
       system: {
         source,
         component: options.system?.component || 'unknown',
         ...(options.system?.sessionId && { sessionId: options.system.sessionId }),
         ...(options.system?.userId && { userId: options.system.userId }),
-        ...(options.system?.agent && { agent: options.system.agent })
+        ...(options.system?.agent && { agent: options.system.agent }),
       },
-      
+
       quality: {
         score: options.quality?.score || 85,
         constitutionalCompliant: options.quality?.constitutionalCompliant || true,
         validationLevel: options.quality?.validationLevel || 'basic',
-        confidence: options.quality?.confidence || 0.85
+        confidence: options.quality?.confidence || 0.85,
       },
-      
+
       content: {
         category: options.content?.category || 'general',
         tags: options.content?.tags || [],
         sensitivity: options.content?.sensitivity || 'internal',
         relevanceScore: options.content?.relevanceScore || 0.8,
-        contextDependency: options.content?.contextDependency || 'session'
+        contextDependency: options.content?.contextDependency || 'session',
       },
-        relationships: {
+      relationships: {
         ...(options.relationships?.parent && { parent: options.relationships.parent }),
         children: options.relationships?.children || [],
         related: options.relationships?.related || [],
-        dependencies: options.relationships?.dependencies || []
+        dependencies: options.relationships?.dependencies || [],
       },
-      
+
       analytics: {
         accessCount: 0,
         lastAccessPattern: 'created',
-        usageContext: []
-      }
+        usageContext: [],
+      },
     };
-    
+
     this.metadataStore.set(metadata.id, metadata);
     return metadata;
   }
-  
+
   /**
    * Update existing metadata
    */
@@ -561,20 +589,20 @@ export class OneAgentUnifiedMetadataService implements UnifiedMetadataService {
     if (!existing) {
       throw new Error(`Metadata not found: ${id}`);
     }
-      const updated: UnifiedMetadata = {
+    const updated: UnifiedMetadata = {
       ...existing,
       ...changes,
       temporal: {
         ...existing.temporal,
         updated: this.timeService.now(),
-        ...(changes.temporal?.accessed && { accessed: changes.temporal.accessed })
-      }
+        ...(changes.temporal?.accessed && { accessed: changes.temporal.accessed }),
+      },
     };
-    
+
     this.metadataStore.set(id, updated);
     return updated;
   }
-  
+
   /**
    * Retrieve metadata by ID
    */
@@ -586,34 +614,59 @@ export class OneAgentUnifiedMetadataService implements UnifiedMetadataService {
     }
     return metadata || null;
   }
-  
+
   /**
    * Validate metadata quality
    */
-  public validateQuality(metadata: UnifiedMetadata): { valid: boolean; score: number; issues: string[] } {
+  public validateQuality(metadata: UnifiedMetadata): {
+    valid: boolean;
+    score: number;
+    issues: string[];
+  } {
     const issues: string[] = [];
     let score = 100;
-    
+
     // Check required fields
-    if (!metadata.id) { issues.push('Missing ID'); score -= 20; }
-    if (!metadata.type) { issues.push('Missing type'); score -= 15; }
-    if (!metadata.temporal.created) { issues.push('Missing creation timestamp'); score -= 25; }
-    
+    if (!metadata.id) {
+      issues.push('Missing ID');
+      score -= 20;
+    }
+    if (!metadata.type) {
+      issues.push('Missing type');
+      score -= 15;
+    }
+    if (!metadata.temporal.created) {
+      issues.push('Missing creation timestamp');
+      score -= 25;
+    }
+
     // Check quality metrics
-    if (metadata.quality.score < 70) { issues.push('Low quality score'); score -= 10; }
-    if (!metadata.quality.constitutionalCompliant) { issues.push('Constitutional non-compliance'); score -= 30; }
-    
+    if (metadata.quality.score < 70) {
+      issues.push('Low quality score');
+      score -= 10;
+    }
+    if (!metadata.quality.constitutionalCompliant) {
+      issues.push('Constitutional non-compliance');
+      score -= 30;
+    }
+
     // Check content completeness
-    if (metadata.content.tags.length === 0) { issues.push('No content tags'); score -= 5; }
-    if (metadata.content.relevanceScore < 0.5) { issues.push('Low relevance score'); score -= 10; }
-    
+    if (metadata.content.tags.length === 0) {
+      issues.push('No content tags');
+      score -= 5;
+    }
+    if (metadata.content.relevanceScore < 0.5) {
+      issues.push('Low relevance score');
+      score -= 10;
+    }
+
     return {
       valid: issues.length === 0,
       score: Math.max(0, score),
-      issues
+      issues,
     };
   }
-  
+
   /**
    * Ensure constitutional compliance
    */
@@ -633,7 +686,12 @@ export class OneAgentUnifiedMetadataService implements UnifiedMetadataService {
    * Ensures proper context, privacy isolation, and traceability
    */
   public createInterAgentMetadata(
-    communicationType: 'direct_message' | 'multi_agent' | 'broadcast' | 'coordination' | 'delegation',
+    communicationType:
+      | 'direct_message'
+      | 'multi_agent'
+      | 'broadcast'
+      | 'coordination'
+      | 'delegation',
     sourceAgentId: string,
     userId: string,
     sessionId: string,
@@ -650,7 +708,7 @@ export class OneAgentUnifiedMetadataService implements UnifiedMetadataService {
       priorityLevel?: 'low' | 'medium' | 'high' | 'urgent';
       correlationId?: string;
       requestId?: string;
-    } = {}
+    } = {},
   ): UnifiedMetadata {
     const timestamp = this.timeService.now();
     const context = this.timeService.getContext();
@@ -665,8 +723,8 @@ export class OneAgentUnifiedMetadataService implements UnifiedMetadataService {
           timeOfDay: context.context.timeOfDay,
           dayOfWeek: context.context.dayOfWeek,
           businessContext: context.context.businessDay,
-          energyContext: context.intelligence.energyLevel
-        }
+          energyContext: context.intelligence.energyLevel,
+        },
       },
       system: {
         source: `agent_${sourceAgentId}`,
@@ -675,14 +733,14 @@ export class OneAgentUnifiedMetadataService implements UnifiedMetadataService {
         userId,
         agent: {
           id: sourceAgentId,
-          type: 'specialized'
-        }
+          type: 'specialized',
+        },
       },
       quality: {
         score: options.qualityThreshold || 90,
         constitutionalCompliant: true,
         validationLevel: 'enhanced',
-        confidence: 0.95
+        confidence: 0.95,
       },
       content: {
         category: 'agent_communication',
@@ -691,13 +749,16 @@ export class OneAgentUnifiedMetadataService implements UnifiedMetadataService {
           communicationType,
           options.messageType || 'notification',
           ...(options.projectContext ? [`project_${options.projectContext}`] : []),
-          ...(options.topicContext ? [`topic_${options.topicContext}`] : [])
+          ...(options.topicContext ? [`topic_${options.topicContext}`] : []),
         ],
         sensitivity: options.privacyLevel || 'internal',
         relevanceScore: 0.9,
-        contextDependency: options.userDataScope === 'restricted' ? 'session' : 
-                          options.userDataScope === 'project' ? 'user' : 
-                          options.userDataScope || 'session'
+        contextDependency:
+          options.userDataScope === 'restricted'
+            ? 'session'
+            : options.userDataScope === 'project'
+              ? 'user'
+              : options.userDataScope || 'session',
       },
       relationships: {
         ...(options.parentMessageId && { parent: options.parentMessageId }),
@@ -709,14 +770,14 @@ export class OneAgentUnifiedMetadataService implements UnifiedMetadataService {
           `source_agent_${sourceAgentId}`,
           ...(options.targetAgentId ? [`target_agent_${options.targetAgentId}`] : []),
           ...(options.projectContext ? [`project_${options.projectContext}`] : []),
-          ...(options.workflowId ? [`workflow_${options.workflowId}`] : [])
-        ]
+          ...(options.workflowId ? [`workflow_${options.workflowId}`] : []),
+        ],
       },
       analytics: {
         accessCount: 0,
         lastAccessPattern: 'created',
-        usageContext: []
-      }
+        usageContext: [],
+      },
     };
     // Add inter-agent specific custom data
     const customData = {
@@ -738,14 +799,14 @@ export class OneAgentUnifiedMetadataService implements UnifiedMetadataService {
         priorityLevel: options.priorityLevel || 'medium',
         timestamp: timestamp.iso,
         correlationId: options.correlationId,
-        requestId: options.requestId
-      }
+        requestId: options.requestId,
+      },
     };
     // Store custom data in metadata
     (metadata as Record<string, unknown>).customData = customData;
     return metadata;
   }
-  
+
   // Private helper methods
   // Private helper methods
 
@@ -759,10 +820,14 @@ export class OneAgentUnifiedMetadataService implements UnifiedMetadataService {
     const days = age / (1000 * 60 * 60 * 24);
     // Simple decay model - can be enhanced
     switch (metadata.content.contextDependency) {
-      case 'session': return Math.max(0, 1 - (days / 1));
-      case 'user': return Math.max(0, 1 - (days / 30));
-      case 'global': return Math.max(0, 1 - (days / 365));
-      default: return Math.max(0, 1 - (days / 7));
+      case 'session':
+        return Math.max(0, 1 - days / 1);
+      case 'user':
+        return Math.max(0, 1 - days / 30);
+      case 'global':
+        return Math.max(0, 1 - days / 365);
+      default:
+        return Math.max(0, 1 - days / 7);
     }
   }
 }
@@ -778,30 +843,36 @@ export class OneAgentUnifiedBackbone {
   private cacheSystem: OneAgentUnifiedCacheSystem<unknown>;
   private errorSystem: OneAgentUnifiedErrorSystem;
   private mcpSystem: OneAgentUnifiedMCPSystem;
-  
+
   public static getInstance(): OneAgentUnifiedBackbone {
     if (!OneAgentUnifiedBackbone.instance) {
       OneAgentUnifiedBackbone.instance = new OneAgentUnifiedBackbone();
     }
     return OneAgentUnifiedBackbone.instance;
   }
-  
+
   constructor() {
     this.timeService = OneAgentUnifiedTimeService.getInstance();
     this.metadataService = OneAgentUnifiedMetadataService.getInstance();
-    this.cacheSystem = new OneAgentUnifiedCacheSystem(undefined, this.timeService as OneAgentUnifiedTimeService);
+    this.cacheSystem = new OneAgentUnifiedCacheSystem(
+      undefined,
+      this.timeService as OneAgentUnifiedTimeService,
+    );
     this.errorSystem = new OneAgentUnifiedErrorSystem();
     this.mcpSystem = new OneAgentUnifiedMCPSystem(
-      new OneAgentUnifiedCacheSystem<OneAgentMCPResponse>(undefined, this.timeService as OneAgentUnifiedTimeService),
+      new OneAgentUnifiedCacheSystem<OneAgentMCPResponse>(
+        undefined,
+        this.timeService as OneAgentUnifiedTimeService,
+      ),
       this.errorSystem,
-      this.timeService
+      this.timeService,
     );
   }
 
   // =====================================
   // CACHE SYSTEM ACCESS
   // =====================================
-  
+
   get cache(): OneAgentUnifiedCacheSystem {
     return this.cacheSystem;
   }
@@ -809,7 +880,7 @@ export class OneAgentUnifiedBackbone {
   // =====================================
   // ERROR SYSTEM ACCESS
   // =====================================
-  
+
   get errorHandler(): OneAgentUnifiedErrorSystem {
     return this.errorSystem;
   }
@@ -817,11 +888,11 @@ export class OneAgentUnifiedBackbone {
   // =====================================
   // MCP SYSTEM ACCESS
   // =====================================
-  
+
   get mcpClient(): OneAgentUnifiedMCPSystem {
     return this.mcpSystem;
   }
-  
+
   /**
    * Get unified services for dependency injection
    */
@@ -829,81 +900,100 @@ export class OneAgentUnifiedBackbone {
     return {
       timeService: this.timeService,
       metadataService: this.metadataService,
-      errorHandler: this.errorHandler
+      errorHandler: this.errorHandler,
     };
   }
-  
+
   /**
    * Create agent context with unified services
    */
-  public createAgentContext(agentId: string, agentType: AgentType, options: {
-    sessionId: string;
-    userId?: string;
-    capabilities: string[];
-    memoryEnabled: boolean;
-    aiEnabled: boolean;  }): UnifiedAgentContext {
+  public createAgentContext(
+    agentId: string,
+    agentType: AgentType,
+    options: {
+      sessionId: string;
+      userId?: string;
+      capabilities: string[];
+      memoryEnabled: boolean;
+      aiEnabled: boolean;
+    },
+  ): UnifiedAgentContext {
     return {
       agentId,
       agentType,
       capabilities: options.capabilities,
-      timeContext: this.timeService.getContext(),      metadata: this.metadataService.create('agent_context', 'agent_system', {
+      timeContext: this.timeService.getContext(),
+      metadata: this.metadataService.create('agent_context', 'agent_system', {
         content: {
           category: 'agent',
           tags: [`agent:${agentId}`, `type:${agentType}`],
           sensitivity: 'internal' as const,
           relevanceScore: 0.9,
-          contextDependency: 'session' as const
-        }
+          contextDependency: 'session' as const,
+        },
       }),
       session: {
         sessionId: options.sessionId,
         ...(options.userId && { userId: options.userId }),
-        startTime: this.timeService.now()
-      }
+        startTime: this.timeService.now(),
+      },
     };
   }
-  
+
   /**
    * Create ALITA context with unified tracking
-   */  public createALITAContext(trigger: string, impact: 'minor' | 'moderate' | 'significant' | 'major'): ALITAUnifiedContext {
+   */ public createALITAContext(
+    trigger: string,
+    impact: 'minor' | 'moderate' | 'significant' | 'major',
+  ): ALITAUnifiedContext {
     // Convert impact to proper enum values
-    const impactLevel = impact === 'minor' ? 'low' : impact === 'moderate' ? 'medium' : impact === 'significant' ? 'high' : 'critical';
-    
+    const impactLevel =
+      impact === 'minor'
+        ? 'low'
+        : impact === 'moderate'
+          ? 'medium'
+          : impact === 'significant'
+            ? 'high'
+            : 'critical';
+
     return {
-      systemContext: this.timeService.getContext(),      agentContext: this.createAgentContext('alita-evolution', 'specialist', {
+      systemContext: this.timeService.getContext(),
+      agentContext: this.createAgentContext('alita-evolution', 'specialist', {
         sessionId: 'alita-context',
         capabilities: ['evolution', 'learning', 'adaptation'],
         memoryEnabled: true,
-        aiEnabled: true
+        aiEnabled: true,
       }),
       memoryContext: [], // Empty for now, would be populated by memory service
       evolutionTrigger: trigger,
       impactLevel,
-      timestamp: this.timeService.now()
+      timestamp: this.timeService.now(),
     };
   }
-  
+
   /**
    * Get system health with unified monitoring
-   */  public getSystemHealth(): UnifiedSystemHealth {
+   */ public getSystemHealth(): UnifiedSystemHealth {
     return {
       overall: {
         status: 'healthy',
         score: 0.95,
-        timestamp: this.timeService.now()
-      },      components: {
+        timestamp: this.timeService.now(),
+      },
+      components: {
         timeService: { status: 'operational', responseTime: 1.5, operational: true },
         metadataService: { status: 'operational', operationsPerSecond: 100, operational: true },
         memoryService: { status: 'operational', storageHealth: 0.95, operational: true },
-        constitutionalAI: { status: 'operational', complianceRate: 0.85, operational: true }
-      },metrics: {
+        constitutionalAI: { status: 'operational', complianceRate: 0.85, operational: true },
+      },
+      metrics: {
         uptime: 0.999, // 99.9% uptime
         errorRate: 0.001, // 0.1% error rate
-        performanceScore: 0.95 // 95% performance score
-      }
+        performanceScore: 0.95, // 95% performance score
+      },
     };
   }
-  
+
   /**
    * CRITICAL: Replace all new Date() usage - for testing and validation
    */
@@ -915,25 +1005,32 @@ export class OneAgentUnifiedBackbone {
         'new Date() → timeService.now()',
         'new Date().toISOString() → timeService.now().utc',
         'Date.now() → timeService.now().unix',
-        'timestamp: new Date() → timestamp: metadataService.create(...)'
-      ]
+        'timestamp: new Date() → timestamp: metadataService.create(...)',
+      ],
     };
   }
-  
+
   /**
    * Generate secure random suffix for IDs
    */
   private generateSecureRandomSuffix(): string {
     try {
       // Prefer UUID v4 when available
-      const anyCrypto: unknown = (globalThis as unknown as { crypto?: { randomUUID?: () => string } }).crypto;
-      if (anyCrypto && typeof (anyCrypto as { randomUUID?: () => string }).randomUUID === 'function') {
+      const anyCrypto: unknown = (
+        globalThis as unknown as { crypto?: { randomUUID?: () => string } }
+      ).crypto;
+      if (
+        anyCrypto &&
+        typeof (anyCrypto as { randomUUID?: () => string }).randomUUID === 'function'
+      ) {
         return (anyCrypto as { randomUUID: () => string }).randomUUID().split('-')[0];
       }
       // Fallback: attempt Node.js crypto via eval-free import
       try {
         const req = eval('require') as (m: string) => unknown;
-        const nodeCrypto = req('crypto') as { randomBytes: (n: number) => { toString: (enc: string) => string } };
+        const nodeCrypto = req('crypto') as {
+          randomBytes: (n: number) => { toString: (enc: string) => string };
+        };
         return nodeCrypto.randomBytes(6).toString('hex');
       } catch {
         // ignore
@@ -950,11 +1047,15 @@ export class OneAgentUnifiedBackbone {
    * Generate unified ID with canonical pattern
    * CANONICAL: This replaces all manual ID generation patterns
    */
-  public generateUnifiedId(type: IdType, context?: string, config?: Partial<UnifiedIdConfig>): string {
+  public generateUnifiedId(
+    type: IdType,
+    context?: string,
+    config?: Partial<UnifiedIdConfig>,
+  ): string {
     const timestamp = this.timeService.now().unix;
-  const randomSuffix = this.generateSecureRandomSuffix();
+    const randomSuffix = this.generateSecureRandomSuffix();
     const prefix = context ? `${type}_${context}` : type;
-    
+
     switch (config?.format) {
       case 'short':
         return `${prefix}_${randomSuffix}`;
@@ -969,10 +1070,14 @@ export class OneAgentUnifiedBackbone {
   /**
    * Generate unified ID with detailed result metadata
    */
-  public generateUnifiedIdWithResult(type: IdType, context?: string, config?: Partial<UnifiedIdConfig>): UnifiedIdResult {
+  public generateUnifiedIdWithResult(
+    type: IdType,
+    context?: string,
+    config?: Partial<UnifiedIdConfig>,
+  ): UnifiedIdResult {
     const id = this.generateUnifiedId(type, context, config);
     const timestamp = this.timeService.now().unix;
-    
+
     return {
       id,
       type,
@@ -982,8 +1087,8 @@ export class OneAgentUnifiedBackbone {
         generated: new Date(),
         source: 'UnifiedBackboneService',
         format: config?.format || 'medium',
-        secure: config?.secure || false
-      }
+        secure: config?.secure || false,
+      },
     };
   }
 }
@@ -1015,29 +1120,29 @@ export interface OneAgentCacheMetrics {
 }
 
 export interface OneAgentCacheConfig {
-  memoryCacheSize: number;    // In-memory cache (1ms target)
-  diskCacheSize: number;      // Disk cache (50ms target)
-  networkCacheSize: number;   // Network cache (200ms target)
-  defaultTTL: number;         // Default time-to-live in ms
-  cleanupInterval: number;    // Cleanup frequency
-  enableMetrics: boolean;     // Performance tracking
+  memoryCacheSize: number; // In-memory cache (1ms target)
+  diskCacheSize: number; // Disk cache (50ms target)
+  networkCacheSize: number; // Network cache (200ms target)
+  defaultTTL: number; // Default time-to-live in ms
+  cleanupInterval: number; // Cleanup frequency
+  enableMetrics: boolean; // Performance tracking
 }
 
 /**
  * OneAgent Unified Cache System
- * 
+ *
  * Multi-tier caching with OneAgent ecosystem integration:
  * - Memory Cache: 1ms target (embeddings, frequent data)
  * - Disk Cache: 50ms target (analysis results, documents)
  * - Network Cache: 200ms target (external API responses)
- * 
+ *
  * Replaces: UnifiedCacheSystem, EmbeddingCache, embeddingCache
  */
 export class OneAgentUnifiedCacheSystem<T = unknown> {
   private memoryCache: Map<string, OneAgentCacheEntry<T>> = new Map();
   private diskCache: Map<string, OneAgentCacheEntry<T>> = new Map();
   private networkCache: Map<string, OneAgentCacheEntry<T>> = new Map();
-  
+
   private metrics: OneAgentCacheMetrics = {
     memoryHits: 0,
     diskHits: 0,
@@ -1047,9 +1152,9 @@ export class OneAgentUnifiedCacheSystem<T = unknown> {
     averageResponseTime: 0,
     memoryUsage: 0,
     hitRate: 0,
-    estimatedSavingsMs: 0
+    estimatedSavingsMs: 0,
   };
-  
+
   private config: OneAgentCacheConfig;
   private cleanupTimer?: NodeJS.Timeout;
   private timeService: OneAgentUnifiedTimeService;
@@ -1060,14 +1165,14 @@ export class OneAgentUnifiedCacheSystem<T = unknown> {
       diskCacheSize: 10000,
       networkCacheSize: 50000,
       defaultTTL: 24 * 60 * 60 * 1000, // 24 hours
-      cleanupInterval: 60 * 60 * 1000,  // 1 hour
+      cleanupInterval: 60 * 60 * 1000, // 1 hour
       enableMetrics: true,
-      ...config
+      ...config,
     };
-    
+
     // Initialize time service (use provided or create default)
     this.timeService = timeService || new OneAgentUnifiedTimeService();
-    
+
     this.startCleanupTimer();
   }
 
@@ -1121,13 +1226,13 @@ export class OneAgentUnifiedCacheSystem<T = unknown> {
    */
   async set(key: string, value: T, ttl?: number): Promise<void> {
     const actualTTL = ttl || this.config.defaultTTL;
-    
+
     // Always set in memory cache for fastest access
     this.setMemoryCache(key, value, actualTTL);
-    
+
     // Set in disk cache for persistence
     this.setDiskCache(key, value, actualTTL);
-    
+
     // Set in network cache for distributed access
     this.setNetworkCache(key, value, actualTTL);
   }
@@ -1139,7 +1244,7 @@ export class OneAgentUnifiedCacheSystem<T = unknown> {
     const memoryDeleted = this.memoryCache.delete(key);
     const diskDeleted = this.diskCache.delete(key);
     const networkDeleted = this.networkCache.delete(key);
-    
+
     return memoryDeleted || diskDeleted || networkDeleted;
   }
 
@@ -1183,8 +1288,8 @@ export class OneAgentUnifiedCacheSystem<T = unknown> {
         memoryUsage: this.metrics.memoryUsage,
         hitRate,
         averageResponseTime: avgResponseTime,
-        cacheSize: this.memoryCache.size + this.diskCache.size + this.networkCache.size
-      }
+        cacheSize: this.memoryCache.size + this.diskCache.size + this.networkCache.size,
+      },
     };
   }
 
@@ -1193,14 +1298,14 @@ export class OneAgentUnifiedCacheSystem<T = unknown> {
     if (this.memoryCache.size >= this.config.memoryCacheSize) {
       this.evictLRU(this.memoryCache);
     }
-    
+
     this.memoryCache.set(key, {
       key,
       value,
       timestamp: this.timeService.now().unix,
       accessCount: 1,
       size: this.estimateSize(value),
-      ttl
+      ttl,
     });
   }
 
@@ -1208,14 +1313,14 @@ export class OneAgentUnifiedCacheSystem<T = unknown> {
     if (this.diskCache.size >= this.config.diskCacheSize) {
       this.evictLRU(this.diskCache);
     }
-    
+
     this.diskCache.set(key, {
       key,
       value,
       timestamp: this.timeService.now().unix,
       accessCount: 1,
       size: this.estimateSize(value),
-      ttl
+      ttl,
     });
   }
 
@@ -1223,14 +1328,14 @@ export class OneAgentUnifiedCacheSystem<T = unknown> {
     if (this.networkCache.size >= this.config.networkCacheSize) {
       this.evictLRU(this.networkCache);
     }
-    
+
     this.networkCache.set(key, {
       key,
       value,
       timestamp: this.timeService.now().unix,
       accessCount: 1,
       size: this.estimateSize(value),
-      ttl
+      ttl,
     });
   }
 
@@ -1247,14 +1352,14 @@ export class OneAgentUnifiedCacheSystem<T = unknown> {
   private evictLRU(cache: Map<string, OneAgentCacheEntry<T>>): void {
     let oldestKey: string | null = null;
     let oldestTime = Infinity;
-    
+
     cache.forEach((entry, key) => {
       if (entry.timestamp < oldestTime) {
         oldestTime = entry.timestamp;
         oldestKey = key;
       }
     });
-    
+
     if (oldestKey) {
       cache.delete(oldestKey);
     }
@@ -1271,8 +1376,9 @@ export class OneAgentUnifiedCacheSystem<T = unknown> {
   private updateMetrics(responseTime: number): void {
     const totalHits = this.metrics.memoryHits + this.metrics.diskHits + this.metrics.networkHits;
     this.metrics.hitRate = totalHits / this.metrics.totalQueries;
-    this.metrics.averageResponseTime = 
-      (this.metrics.averageResponseTime * (this.metrics.totalQueries - 1) + responseTime) / this.metrics.totalQueries;
+    this.metrics.averageResponseTime =
+      (this.metrics.averageResponseTime * (this.metrics.totalQueries - 1) + responseTime) /
+      this.metrics.totalQueries;
     this.metrics.memoryUsage = this.memoryCache.size + this.diskCache.size + this.networkCache.size;
     this.metrics.estimatedSavingsMs = totalHits * 100; // Estimate 100ms saved per hit
   }
@@ -1288,7 +1394,7 @@ export class OneAgentUnifiedCacheSystem<T = unknown> {
 
   private cleanup(): void {
     // Cleanup expired entries from all tiers
-    [this.memoryCache, this.diskCache, this.networkCache].forEach(cache => {
+    [this.memoryCache, this.diskCache, this.networkCache].forEach((cache) => {
       cache.forEach((entry, key) => {
         if (this.isExpired(entry)) {
           cache.delete(key);
@@ -1324,7 +1430,7 @@ enum OneAgentErrorType {
   RESOURCE = 'resource',
   CONFIGURATION = 'configuration',
   EXTERNAL = 'external',
-  USER = 'user'
+  USER = 'user',
 }
 
 /**
@@ -1335,7 +1441,7 @@ enum OneAgentErrorSeverity {
   MEDIUM = 'medium',
   HIGH = 'high',
   CRITICAL = 'critical',
-  FATAL = 'fatal'
+  FATAL = 'fatal',
 }
 
 /**
@@ -1424,24 +1530,24 @@ export class OneAgentUnifiedErrorSystem {
       storageEnabled: true,
       maxStoredErrors: 1000,
       constitutionalValidation: true,
-      ...config
+      ...config,
     };
 
     this.metrics = {
       totalErrors: 0,
       errorsByType: Object.fromEntries(
-        Object.values(OneAgentErrorType).map(type => [type, 0])
+        Object.values(OneAgentErrorType).map((type) => [type, 0]),
       ) as Record<OneAgentErrorType, number>,
       errorsBySeverity: Object.fromEntries(
-        Object.values(OneAgentErrorSeverity).map(severity => [severity, 0])
+        Object.values(OneAgentErrorSeverity).map((severity) => [severity, 0]),
       ) as Record<OneAgentErrorSeverity, number>,
       recoverySuccessRate: 0,
       averageResolutionTime: 0,
       errorTrends: {
         lastHour: 0,
         lastDay: 0,
-        lastWeek: 0
-      }
+        lastWeek: 0,
+      },
     };
 
     this.startCleanupTimer();
@@ -1453,10 +1559,10 @@ export class OneAgentUnifiedErrorSystem {
   async handleError(
     error: Error | string,
     context: Record<string, unknown> = {},
-    recovery?: OneAgentErrorRecovery
+    recovery?: OneAgentErrorRecovery,
   ): Promise<OneAgentErrorEntry> {
     const errorEntry = this.createErrorEntry(error, context);
-    
+
     // Store error
     if (this.config.storageEnabled) {
       this.errorStorage.set(errorEntry.id, errorEntry);
@@ -1486,7 +1592,7 @@ export class OneAgentUnifiedErrorSystem {
       severity: errorEntry.severity,
       component: errorEntry.metadata.component,
       operation: errorEntry.metadata.operation,
-      timestamp: errorEntry.timestamp.iso
+      timestamp: errorEntry.timestamp.iso,
     };
 
     switch (errorEntry.severity) {
@@ -1511,20 +1617,20 @@ export class OneAgentUnifiedErrorSystem {
    */
   async attemptRecovery(
     errorEntry: OneAgentErrorEntry,
-    recovery: OneAgentErrorRecovery
+    recovery: OneAgentErrorRecovery,
   ): Promise<boolean> {
     const maxAttempts = Math.min(recovery.maxAttempts, this.config.maxRetries);
-    
+
     for (let attempt = 1; attempt <= maxAttempts; attempt++) {
       try {
         errorEntry.metadata.attemptCount = attempt;
-        
+
         switch (recovery.strategy) {
           case 'retry':
             await this.delay(this.config.retryDelay * attempt);
             // Retry logic would be handled by calling code
             break;
-            
+
           case 'fallback':
             if (recovery.fallbackAction) {
               await recovery.fallbackAction();
@@ -1532,7 +1638,7 @@ export class OneAgentUnifiedErrorSystem {
               return true;
             }
             break;
-            
+
           case 'graceful_degradation':
             if (recovery.gracefulDegradation) {
               await recovery.gracefulDegradation();
@@ -1540,23 +1646,22 @@ export class OneAgentUnifiedErrorSystem {
               return true;
             }
             break;
-            
+
           case 'user_prompt':
             // User prompt handling would be implemented by UI layer
             console.warn(`User intervention needed: ${recovery.userPrompt}`);
             break;
-            
+
           case 'system_reset':
             // System reset would be handled by system layer
             console.error('System reset required for error recovery');
             break;
         }
-        
       } catch (recoveryError) {
         console.error(`Recovery attempt ${attempt} failed:`, recoveryError);
       }
     }
-    
+
     return false;
   }
 
@@ -1565,19 +1670,19 @@ export class OneAgentUnifiedErrorSystem {
    */
   private createErrorEntry(
     error: Error | string,
-    context: Record<string, unknown>
+    context: Record<string, unknown>,
   ): OneAgentErrorEntry {
     const timestamp = this.timeService.now();
-  const errorId = generateUnifiedId('operation', 'error');
-    
+    const errorId = generateUnifiedId('operation', 'error');
+
     const message = typeof error === 'string' ? error : error.message;
     const originalError = typeof error === 'string' ? undefined : error;
     const stackTrace = originalError?.stack;
-    
+
     // Classify error type and severity
     const type = this.classifyErrorType(message, context);
     const severity = this.determineSeverity(type, message, context);
-    
+
     const errorEntry: OneAgentErrorEntry = {
       id: errorId,
       type,
@@ -1590,26 +1695,26 @@ export class OneAgentUnifiedErrorSystem {
         operation: (context.operation as string) || 'unknown',
         attemptCount: 0,
         recoverable: this.isRecoverable(type, severity),
-        handled: false
-      }
+        handled: false,
+      },
     };
-    
+
     if (originalError) {
       errorEntry.originalError = originalError;
     }
-    
+
     if (stackTrace) {
       errorEntry.stackTrace = stackTrace;
     }
-    
+
     if (context.agentId) {
       errorEntry.agentId = context.agentId as string;
     }
-    
+
     if (context.userId) {
       errorEntry.userId = context.userId as string;
     }
-    
+
     return errorEntry;
   }
 
@@ -1618,7 +1723,7 @@ export class OneAgentUnifiedErrorSystem {
    */
   private classifyErrorType(message: string, context: Record<string, unknown>): OneAgentErrorType {
     const lowerMessage = message.toLowerCase();
-    
+
     if (lowerMessage.includes('network') || lowerMessage.includes('connection')) {
       return OneAgentErrorType.NETWORK;
     }
@@ -1637,7 +1742,11 @@ export class OneAgentUnifiedErrorSystem {
     if (lowerMessage.includes('config') || lowerMessage.includes('setting')) {
       return OneAgentErrorType.CONFIGURATION;
     }
-    if (lowerMessage.includes('resource') || lowerMessage.includes('memory') || lowerMessage.includes('disk')) {
+    if (
+      lowerMessage.includes('resource') ||
+      lowerMessage.includes('memory') ||
+      lowerMessage.includes('disk')
+    ) {
       return OneAgentErrorType.RESOURCE;
     }
     if (context.external || lowerMessage.includes('external') || lowerMessage.includes('api')) {
@@ -1646,7 +1755,7 @@ export class OneAgentUnifiedErrorSystem {
     if (context.userInput || lowerMessage.includes('user')) {
       return OneAgentErrorType.USER;
     }
-    
+
     return OneAgentErrorType.SYSTEM;
   }
 
@@ -1656,35 +1765,35 @@ export class OneAgentUnifiedErrorSystem {
   private determineSeverity(
     type: OneAgentErrorType,
     message: string,
-    _context: Record<string, unknown>
+    _context: Record<string, unknown>,
   ): OneAgentErrorSeverity {
     const lowerMessage = message.toLowerCase();
-    
+
     // Fatal conditions
     if (lowerMessage.includes('fatal') || lowerMessage.includes('crash')) {
       return OneAgentErrorSeverity.FATAL;
     }
-    
+
     // Critical conditions
     if (type === OneAgentErrorType.SYSTEM && lowerMessage.includes('critical')) {
       return OneAgentErrorSeverity.CRITICAL;
     }
-    
+
     // High severity
     if (type === OneAgentErrorType.AUTHENTICATION || type === OneAgentErrorType.PERMISSION) {
       return OneAgentErrorSeverity.HIGH;
     }
-    
+
     // Medium severity
     if (type === OneAgentErrorType.NETWORK || type === OneAgentErrorType.TIMEOUT) {
       return OneAgentErrorSeverity.MEDIUM;
     }
-    
+
     // Low severity for user and validation errors
     if (type === OneAgentErrorType.USER || type === OneAgentErrorType.VALIDATION) {
       return OneAgentErrorSeverity.LOW;
     }
-    
+
     return OneAgentErrorSeverity.MEDIUM;
   }
 
@@ -1693,7 +1802,7 @@ export class OneAgentUnifiedErrorSystem {
    */
   private isRecoverable(type: OneAgentErrorType, severity: OneAgentErrorSeverity): boolean {
     if (severity === OneAgentErrorSeverity.FATAL) return false;
-    
+
     switch (type) {
       case OneAgentErrorType.NETWORK:
       case OneAgentErrorType.TIMEOUT:
@@ -1715,7 +1824,7 @@ export class OneAgentUnifiedErrorSystem {
     this.metrics.totalErrors++;
     this.metrics.errorsByType[errorEntry.type]++;
     this.metrics.errorsBySeverity[errorEntry.severity]++;
-    
+
     // Update trends (simplified)
     this.metrics.errorTrends.lastHour++;
     this.metrics.errorTrends.lastDay++;
@@ -1740,7 +1849,7 @@ export class OneAgentUnifiedErrorSystem {
     userId?: string;
     timeRange?: { start: Date; end: Date };
   }): OneAgentErrorEntry[] {
-    return Array.from(this.errorStorage.values()).filter(error => {
+    return Array.from(this.errorStorage.values()).filter((error) => {
       if (criteria.type && error.type !== criteria.type) return false;
       if (criteria.severity && error.severity !== criteria.severity) return false;
       if (criteria.component && error.metadata.component !== criteria.component) return false;
@@ -1748,7 +1857,8 @@ export class OneAgentUnifiedErrorSystem {
       if (criteria.userId && error.userId !== criteria.userId) return false;
       if (criteria.timeRange) {
         const errorTime = new Date(error.timestamp.iso);
-        if (errorTime < criteria.timeRange.start || errorTime > criteria.timeRange.end) return false;
+        if (errorTime < criteria.timeRange.start || errorTime > criteria.timeRange.end)
+          return false;
       }
       return true;
     });
@@ -1773,22 +1883,23 @@ export class OneAgentUnifiedErrorSystem {
       storageUsage: number;
     };
   } {
-    const criticalErrors = this.metrics.errorsBySeverity[OneAgentErrorSeverity.CRITICAL] + 
-                          this.metrics.errorsBySeverity[OneAgentErrorSeverity.FATAL];
-    
+    const criticalErrors =
+      this.metrics.errorsBySeverity[OneAgentErrorSeverity.CRITICAL] +
+      this.metrics.errorsBySeverity[OneAgentErrorSeverity.FATAL];
+
     let status: 'healthy' | 'degraded' | 'unhealthy' = 'healthy';
-    
+
     if (criticalErrors > 0) status = 'unhealthy';
     else if (this.metrics.errorTrends.lastHour > 10) status = 'degraded';
-    
+
     return {
       status,
       details: {
         totalErrors: this.metrics.totalErrors,
         criticalErrors,
         recoveryRate: this.metrics.recoverySuccessRate,
-        storageUsage: this.errorStorage.size
-      }
+        storageUsage: this.errorStorage.size,
+      },
     };
   }
 
@@ -1799,7 +1910,7 @@ export class OneAgentUnifiedErrorSystem {
     if (this.errorStorage.size > this.config.maxStoredErrors) {
       const entries = Array.from(this.errorStorage.entries());
       entries.sort((a, b) => a[1].timestamp.unix - b[1].timestamp.unix);
-      
+
       const toDelete = entries.slice(0, entries.length - this.config.maxStoredErrors);
       toDelete.forEach(([id]) => this.errorStorage.delete(id));
     }
@@ -1812,8 +1923,8 @@ export class OneAgentUnifiedErrorSystem {
     this.cleanupTimer = setInterval(() => {
       this.cleanup();
     }, 60000); // Cleanup every minute
-  // Allow process to exit naturally in short-lived scripts/tests
-  (this.cleanupTimer as unknown as NodeJS.Timer).unref?.();
+    // Allow process to exit naturally in short-lived scripts/tests
+    (this.cleanupTimer as unknown as NodeJS.Timer).unref?.();
   }
 
   /**
@@ -1829,7 +1940,7 @@ export class OneAgentUnifiedErrorSystem {
    * Utility delay function
    */
   private delay(ms: number): Promise<void> {
-    return new Promise(resolve => setTimeout(resolve, ms));
+    return new Promise((resolve) => setTimeout(resolve, ms));
   }
 }
 
@@ -1937,13 +2048,16 @@ export interface OneAgentMCPMetrics {
   successfulRequests: number;
   failedRequests: number;
   averageResponseTime: number;
-  serverMetrics: Record<string, {
-    requests: number;
-    successes: number;
-    failures: number;
-    averageResponseTime: number;
-    lastUsed: UnifiedTimestamp;
-  }>;
+  serverMetrics: Record<
+    string,
+    {
+      requests: number;
+      successes: number;
+      failures: number;
+      averageResponseTime: number;
+      lastUsed: UnifiedTimestamp;
+    }
+  >;
   connectionMetrics: {
     totalConnections: number;
     activeConnections: number;
@@ -1958,10 +2072,10 @@ export interface OneAgentMCPMetrics {
 
 /**
  * OneAgent Unified MCP System
- * 
+ *
  * Client-side consolidation layer for all MCP operations across OneAgent ecosystem.
  * Provides unified interface, intelligent routing, health monitoring, and caching.
- * 
+ *
  * Features:
  * - Multi-server management with intelligent routing
  * - Health monitoring and auto-recovery
@@ -1969,7 +2083,7 @@ export interface OneAgentMCPMetrics {
  * - Constitutional AI integration
  * - Quality scoring and metrics
  * - Load balancing and failover
- * 
+ *
  * Replaces: scattered MCP adapter usage, manual server management
  */
 export class OneAgentUnifiedMCPSystem {
@@ -1985,7 +2099,7 @@ export class OneAgentUnifiedMCPSystem {
   constructor(
     private cacheSystem: OneAgentUnifiedCacheSystem<OneAgentMCPResponse>,
     private errorSystem: OneAgentUnifiedErrorSystem,
-    private timeService: UnifiedTimeService
+    private timeService: UnifiedTimeService,
   ) {
     this.cache = cacheSystem;
     this.errorHandler = errorSystem;
@@ -1998,13 +2112,13 @@ export class OneAgentUnifiedMCPSystem {
       connectionMetrics: {
         totalConnections: 0,
         activeConnections: 0,
-        failedConnections: 0
+        failedConnections: 0,
       },
       cacheMetrics: {
         hits: 0,
         misses: 0,
-        hitRate: 0
-      }
+        hitRate: 0,
+      },
     };
 
     this.startHealthChecking();
@@ -2016,7 +2130,7 @@ export class OneAgentUnifiedMCPSystem {
    */
   async registerServer(config: OneAgentMCPServerConfig): Promise<void> {
     this.servers.set(config.id, config);
-    
+
     // Initialize connection tracking
     this.connections.set(config.id, {
       serverId: config.id,
@@ -2028,8 +2142,8 @@ export class OneAgentUnifiedMCPSystem {
         status: 'healthy',
         responseTime: 0,
         errorRate: 0,
-        lastHealthCheck: this.timeService.createTimestamp()
-      }
+        lastHealthCheck: this.timeService.createTimestamp(),
+      },
     });
 
     // Initialize server metrics
@@ -2038,7 +2152,7 @@ export class OneAgentUnifiedMCPSystem {
       successes: 0,
       failures: 0,
       averageResponseTime: 0,
-      lastUsed: this.timeService.createTimestamp()
+      lastUsed: this.timeService.createTimestamp(),
     };
 
     // Attempt initial connection
@@ -2051,7 +2165,7 @@ export class OneAgentUnifiedMCPSystem {
   async connectToServer(serverId: string): Promise<boolean> {
     const server = this.servers.get(serverId);
     const connection = this.connections.get(serverId);
-    
+
     if (!server || !connection) {
       throw new Error(`Server ${serverId} not found`);
     }
@@ -2081,7 +2195,6 @@ export class OneAgentUnifiedMCPSystem {
       this.metrics.connectionMetrics.activeConnections++;
 
       return true;
-
     } catch (error) {
       connection.status = 'error';
       connection.lastError = error instanceof Error ? error.message : 'Unknown error';
@@ -2091,7 +2204,7 @@ export class OneAgentUnifiedMCPSystem {
         component: 'OneAgentUnifiedMCPSystem',
         operation: 'connectToServer',
         serverId,
-        serverType: server.type
+        serverType: server.type,
       });
 
       return false;
@@ -2117,10 +2230,10 @@ export class OneAgentUnifiedMCPSystem {
         backoffMs: number;
         exponential: boolean;
       };
-    } = {}
+    } = {},
   ): Promise<OneAgentMCPResponse> {
     const timestamp = this.timeService.now();
-  const requestId = generateUnifiedId('operation', 'mcp_request');
+    const requestId = generateUnifiedId('operation', 'mcp_request');
     const startTime = timestamp.unix;
 
     const request: OneAgentMCPRequest = {
@@ -2136,8 +2249,8 @@ export class OneAgentUnifiedMCPSystem {
       retryConfig: options.retryConfig || {
         maxAttempts: 3,
         backoffMs: 1000,
-        exponential: true
-      }
+        exponential: true,
+      },
     };
 
     this.pendingRequests.set(requestId, request);
@@ -2148,20 +2261,21 @@ export class OneAgentUnifiedMCPSystem {
       if (options.cacheable) {
         const cacheKey = this.generateCacheKey(method, params);
         const cachedResponse = await this.cache.get(cacheKey);
-        
+
         if (cachedResponse) {
           this.metrics.cacheMetrics.hits++;
           this.updateCacheHitRate();
           return cachedResponse;
         }
-        
+
         this.metrics.cacheMetrics.misses++;
       }
 
       // Select server (intelligent routing)
-      const serverId = options.serverId || await this.selectOptimalServer(method, request.priority);
+      const serverId =
+        options.serverId || (await this.selectOptimalServer(method, request.priority));
       const server = this.servers.get(serverId);
-      
+
       if (!server) {
         throw new Error(`Server ${serverId} not found`);
       }
@@ -2177,7 +2291,7 @@ export class OneAgentUnifiedMCPSystem {
 
       // Send request with retry logic
       const response = await this.sendRequestWithRetry(request, server);
-      
+
       // Update metrics
       const responseTime = this.timeService.now().unix - startTime;
       this.updateServerMetrics(serverId, true, responseTime);
@@ -2190,7 +2304,6 @@ export class OneAgentUnifiedMCPSystem {
       }
 
       return response;
-
     } catch (error) {
       const responseTime = this.timeService.now().unix - startTime;
       this.updateServerMetrics(options.serverId || 'unknown', false, responseTime);
@@ -2201,11 +2314,10 @@ export class OneAgentUnifiedMCPSystem {
         operation: 'sendRequest',
         method,
         requestId,
-        serverId: options.serverId
+        serverId: options.serverId,
       });
 
       throw error;
-
     } finally {
       this.pendingRequests.delete(requestId);
     }
@@ -2227,9 +2339,9 @@ export class OneAgentUnifiedMCPSystem {
     const totalRequests = this.metrics.totalRequests;
     const errorRate = totalRequests > 0 ? this.metrics.failedRequests / totalRequests : 0;
     const avgResponseTime = this.metrics.averageResponseTime;
-    
+
     let status: 'healthy' | 'degraded' | 'unhealthy' = 'healthy';
-    
+
     if (errorRate > 0.1 || avgResponseTime > 5000) {
       status = 'unhealthy';
     } else if (errorRate > 0.05 || avgResponseTime > 2000) {
@@ -2243,8 +2355,8 @@ export class OneAgentUnifiedMCPSystem {
         activeConnections: this.metrics.connectionMetrics.activeConnections,
         averageResponseTime: avgResponseTime,
         errorRate,
-        cacheHitRate: this.metrics.cacheMetrics.hitRate
-      }
+        cacheHitRate: this.metrics.cacheMetrics.hitRate,
+      },
     };
   }
 
@@ -2266,7 +2378,6 @@ export class OneAgentUnifiedMCPSystem {
    * Get all server statuses
    */
   getAllConnectionStatuses(): Record<string, OneAgentMCPConnection> {
-   
     const statuses: Record<string, OneAgentMCPConnection> = {};
     this.connections.forEach((connection, serverId) => {
       statuses[serverId] = connection;
@@ -2289,8 +2400,8 @@ export class OneAgentUnifiedMCPSystem {
    * Disconnect from all servers
    */
   async disconnectAll(): Promise<void> {
-    const disconnectPromises = Array.from(this.servers.keys()).map(serverId => 
-      this.disconnectFromServer(serverId)
+    const disconnectPromises = Array.from(this.servers.keys()).map((serverId) =>
+      this.disconnectFromServer(serverId),
     );
     await Promise.all(disconnectPromises);
   }
@@ -2312,25 +2423,25 @@ export class OneAgentUnifiedMCPSystem {
 
   private async connectHTTP(server: OneAgentMCPServerConfig): Promise<void> {
     // HTTP connection logic (canonical endpoint resolution)
-  const canonicalBase = UnifiedBackboneService.getResolvedConfig().mcpUrl.replace(/\/mcp$/, '');
+    const canonicalBase = UnifiedBackboneService.getResolvedConfig().mcpUrl.replace(/\/mcp$/, '');
     const endpoint = server.endpoint || canonicalBase;
-    
+
     // Test connection with initialize request
     const response = await fetch(`${endpoint}/mcp`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'MCP-Protocol-Version': server.protocolVersion
+        'MCP-Protocol-Version': server.protocolVersion,
       },
-    body: JSON.stringify({
+      body: JSON.stringify({
         jsonrpc: '2.0',
-  id: generateUnifiedId('operation', 'mcp_init'),
+        id: generateUnifiedId('operation', 'mcp_init'),
         method: 'initialize',
         params: {
           protocolVersion: server.protocolVersion,
-          capabilities: server.capabilities
-        }
-      })
+          capabilities: server.capabilities,
+        },
+      }),
     });
 
     if (!response.ok) {
@@ -2355,7 +2466,7 @@ export class OneAgentUnifiedMCPSystem {
 
   private async selectOptimalServer(_method: string, _priority: string): Promise<string> {
     // Select server based on method, priority, and health
-    const availableServers = Array.from(this.servers.values()).filter(server => {
+    const availableServers = Array.from(this.servers.values()).filter((server) => {
       const connection = this.connections.get(server.id);
       return connection?.status === 'connected' && connection.health.status !== 'unhealthy';
     });
@@ -2368,12 +2479,12 @@ export class OneAgentUnifiedMCPSystem {
     availableServers.sort((a, b) => {
       const aConnection = this.connections.get(a.id)!;
       const bConnection = this.connections.get(b.id)!;
-      
+
       // Higher priority first
       if (a.priority !== b.priority) {
         return b.priority - a.priority;
       }
-      
+
       // Lower response time first
       return aConnection.health.responseTime - bConnection.health.responseTime;
     });
@@ -2383,7 +2494,7 @@ export class OneAgentUnifiedMCPSystem {
 
   private async sendRequestWithRetry(
     request: OneAgentMCPRequest,
-    server: OneAgentMCPServerConfig
+    server: OneAgentMCPServerConfig,
   ): Promise<OneAgentMCPResponse> {
     const maxAttempts = request.retryConfig?.maxAttempts || 3;
     let lastError: Error | null = null;
@@ -2394,12 +2505,12 @@ export class OneAgentUnifiedMCPSystem {
         return response;
       } catch (error) {
         lastError = error as Error;
-        
+
         if (attempt < maxAttempts) {
-          const delay = request.retryConfig?.exponential 
+          const delay = request.retryConfig?.exponential
             ? (request.retryConfig.backoffMs || 1000) * Math.pow(2, attempt - 1)
-            : (request.retryConfig?.backoffMs || 1000);
-          
+            : request.retryConfig?.backoffMs || 1000;
+
           await this.delay(delay);
         }
       }
@@ -2410,7 +2521,7 @@ export class OneAgentUnifiedMCPSystem {
 
   private async sendSingleRequest(
     request: OneAgentMCPRequest,
-    server: OneAgentMCPServerConfig
+    server: OneAgentMCPServerConfig,
   ): Promise<OneAgentMCPResponse> {
     // Simulate request based on server type
     switch (server.type) {
@@ -2427,24 +2538,24 @@ export class OneAgentUnifiedMCPSystem {
 
   private async sendHTTPRequest(
     request: OneAgentMCPRequest,
-    server: OneAgentMCPServerConfig
+    server: OneAgentMCPServerConfig,
   ): Promise<OneAgentMCPResponse> {
-  const canonicalBase = UnifiedBackboneService.getResolvedConfig().mcpUrl.replace(/\/mcp$/, '');
-  const endpoint = server.endpoint || canonicalBase;
+    const canonicalBase = UnifiedBackboneService.getResolvedConfig().mcpUrl.replace(/\/mcp$/, '');
+    const endpoint = server.endpoint || canonicalBase;
     const startTime = this.timeService.now().unix;
-    
+
     const fetchResponse = await fetch(`${endpoint}/mcp`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'MCP-Protocol-Version': server.protocolVersion
+        'MCP-Protocol-Version': server.protocolVersion,
       },
       body: JSON.stringify({
         jsonrpc: '2.0',
         id: request.id,
         method: request.method,
-        params: request.params
-      })
+        params: request.params,
+      }),
     });
 
     if (!fetchResponse.ok) {
@@ -2452,7 +2563,7 @@ export class OneAgentUnifiedMCPSystem {
     }
 
     const data = await fetchResponse.json();
-    
+
     const response: OneAgentMCPResponse = {
       id: request.id,
       result: data.result,
@@ -2463,8 +2574,8 @@ export class OneAgentUnifiedMCPSystem {
         serverLoad: 0.5, // Placeholder
         qualityScore: 0.9, // Placeholder
         cached: false,
-        retryCount: 0
-      }
+        retryCount: 0,
+      },
     };
 
     if (data.error) {
@@ -2472,7 +2583,7 @@ export class OneAgentUnifiedMCPSystem {
         code: data.error.code,
         message: data.error.message,
         data: data.error.data,
-        recoverable: data.error.code !== -32603 // Not internal error
+        recoverable: data.error.code !== -32603, // Not internal error
       };
     }
 
@@ -2481,7 +2592,7 @@ export class OneAgentUnifiedMCPSystem {
 
   private async sendStdioRequest(
     _request: OneAgentMCPRequest,
-    _server: OneAgentMCPServerConfig
+    _server: OneAgentMCPServerConfig,
   ): Promise<OneAgentMCPResponse> {
     // Placeholder for stdio implementation
     throw new Error('Stdio MCP not yet implemented');
@@ -2489,7 +2600,7 @@ export class OneAgentUnifiedMCPSystem {
 
   private async sendWebSocketRequest(
     _request: OneAgentMCPRequest,
-    _server: OneAgentMCPServerConfig
+    _server: OneAgentMCPServerConfig,
   ): Promise<OneAgentMCPResponse> {
     // Placeholder for WebSocket implementation
     throw new Error('WebSocket MCP not yet implemented');
@@ -2504,7 +2615,7 @@ export class OneAgentUnifiedMCPSystem {
     let hash = 0;
     for (let i = 0; i < str.length; i++) {
       const char = str.charCodeAt(i);
-      hash = ((hash << 5) - hash) + char;
+      hash = (hash << 5) - hash + char;
       hash = hash & hash; // Convert to 32-bit integer
     }
     return hash.toString(36);
@@ -2519,14 +2630,16 @@ export class OneAgentUnifiedMCPSystem {
       } else {
         serverMetrics.failures++;
       }
-      serverMetrics.averageResponseTime = 
-        (serverMetrics.averageResponseTime * (serverMetrics.requests - 1) + responseTime) / serverMetrics.requests;
+      serverMetrics.averageResponseTime =
+        (serverMetrics.averageResponseTime * (serverMetrics.requests - 1) + responseTime) /
+        serverMetrics.requests;
       serverMetrics.lastUsed = this.timeService.now();
     }
 
     // Update global average
-    this.metrics.averageResponseTime = 
-      (this.metrics.averageResponseTime * ( this.metrics.totalRequests - 1) + responseTime) / this.metrics.totalRequests;
+    this.metrics.averageResponseTime =
+      (this.metrics.averageResponseTime * (this.metrics.totalRequests - 1) + responseTime) /
+      this.metrics.totalRequests;
   }
 
   private updateCacheHitRate(): void {
@@ -2558,7 +2671,8 @@ export class OneAgentUnifiedMCPSystem {
             await this.sendRequest('ping', {}, { serverId, timeout: 5000 });
             const responseTime = this.timeService.now().unix - startTime;
             connection.health.responseTime = responseTime;
-            connection.health.status = responseTime < 1000 ? 'healthy' : responseTime < 3000 ? 'degraded' : 'unhealthy';
+            connection.health.status =
+              responseTime < 1000 ? 'healthy' : responseTime < 3000 ? 'degraded' : 'unhealthy';
             connection.health.lastHealthCheck = this.timeService.now();
           } catch {
             connection.health.status = 'unhealthy';
@@ -2578,7 +2692,7 @@ export class OneAgentUnifiedMCPSystem {
   }
 
   private delay(ms: number): Promise<void> {
-    return new Promise(resolve => setTimeout(resolve, ms));
+    return new Promise((resolve) => setTimeout(resolve, ms));
   }
 }
 
@@ -2637,9 +2751,9 @@ export function now(): UnifiedTimestamp {
  * REPLACES: manual metadata object creation
  */
 export function createUnifiedMetadata(
-  type: string, 
-  source: string, 
-  options: Partial<UnifiedMetadata> = {}
+  type: string,
+  source: string,
+  options: Partial<UnifiedMetadata> = {},
 ): UnifiedMetadata {
   return unifiedMetadataService.create(type, source, options);
 }
@@ -2649,9 +2763,9 @@ export function createUnifiedMetadata(
  * REPLACES: manual ID generation patterns
  */
 export function generateUnifiedId(
-  type: IdType, 
-  context?: string, 
-  config?: Partial<UnifiedIdConfig>
+  type: IdType,
+  context?: string,
+  config?: Partial<UnifiedIdConfig>,
 ): string {
   return unifiedBackbone.generateUnifiedId(type, context, config);
 }
@@ -2661,9 +2775,9 @@ export function generateUnifiedId(
  * REPLACES: manual ID generation patterns
  */
 export function createUnifiedId(
-  type: IdType, 
-  context?: string, 
-  config?: Partial<UnifiedIdConfig>
+  type: IdType,
+  context?: string,
+  config?: Partial<UnifiedIdConfig>,
 ): string {
   return generateUnifiedId(type, context, config);
 }
@@ -2739,15 +2853,15 @@ export function validateUnifiedTimeUsage(): {
       'new Date().toISOString() → now().iso',
       'Date.now() → now().unix',
       'new Date(timestamp) → enhanceTimestamp(new Date(timestamp))',
-      'timestamp: new Date() → timestamp: createUnifiedTimestamp()'
+      'timestamp: new Date() → timestamp: createUnifiedTimestamp()',
     ],
     recommendations: [
       'Use createUnifiedTimestamp() for new timestamps',
       'Use now() for current time',
       'Use enhanceTimestamp() for existing Date objects',
       'Use unifiedTimeService for all time operations',
-      'Use unifiedMetadataService for all metadata operations'
-    ]
+      'Use unifiedMetadataService for all metadata operations',
+    ],
   };
 }
 
@@ -2767,28 +2881,28 @@ export function validateSystemIntegration(): {
   issues: string[];
 } {
   const issues: string[] = [];
-  
+
   // Check time service
   const timeHealthy = unifiedTimeService.now().unix > 0;
   if (!timeHealthy) issues.push('Time service not functioning');
-  
+
   // Check metadata service
   const testMetadata = unifiedMetadataService.create('test', 'validation');
   const metadataHealthy = !!(testMetadata.id && testMetadata.temporal?.created);
   if (!metadataHealthy) issues.push('Metadata service not functioning');
-  
+
   // Check cache system
   const cacheHealthy = unifiedBackbone.cache.getHealth().status !== 'unhealthy';
   if (!cacheHealthy) issues.push('Cache system unhealthy');
-  
+
   // Check error system
   const errorHealthy = unifiedBackbone.errorHandler.getHealth().status !== 'unhealthy';
   if (!errorHealthy) issues.push('Error system unhealthy');
-  
+
   // Check MCP system
   const mcpHealthy = unifiedBackbone.mcpClient.getHealth().status !== 'unhealthy';
   if (!mcpHealthy) issues.push('MCP system unhealthy');
-  
+
   return {
     status: issues.length === 0 ? 'healthy' : issues.length < 3 ? 'degraded' : 'unhealthy',
     details: {
@@ -2796,9 +2910,9 @@ export function validateSystemIntegration(): {
       metadataService: metadataHealthy,
       cacheSystem: cacheHealthy,
       errorSystem: errorHealthy,
-      mcpSystem: mcpHealthy
+      mcpSystem: mcpHealthy,
     },
-    issues
+    issues,
   };
 }
 
@@ -2811,7 +2925,9 @@ export function validateSystemIntegration(): {
  * This function is provided for backwards compatibility only
  */
 export function createTimestamp(): UnifiedTimestamp {
-  console.warn('DEPRECATED: createTimestamp() is deprecated. Use createUnifiedTimestamp() instead.');
+  console.warn(
+    'DEPRECATED: createTimestamp() is deprecated. Use createUnifiedTimestamp() instead.',
+  );
   return createUnifiedTimestamp();
 }
 
@@ -2828,7 +2944,11 @@ export function getCurrentTime(): UnifiedTimestamp {
  * @deprecated Use createUnifiedMetadata() instead
  * This function is provided for backwards compatibility only
  */
-export function createMetadata(type: string, source: string, options: Partial<UnifiedMetadata> = {}): UnifiedMetadata {
+export function createMetadata(
+  type: string,
+  source: string,
+  options: Partial<UnifiedMetadata> = {},
+): UnifiedMetadata {
   console.warn('DEPRECATED: createMetadata() is deprecated. Use createUnifiedMetadata() instead.');
   return createUnifiedMetadata(type, source, options);
 }

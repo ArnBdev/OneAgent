@@ -1,14 +1,13 @@
 import { Request, Response } from 'express';
-import { 
-  ContextCategory, 
+import {
+  ContextCategory,
   PrivacyLevel,
   MemorySearchResult,
   MemoryRecord,
-  AgentType
+  AgentType,
 } from '../types/oneagent-backbone-types';
 
 // Canonical A2A protocol types
-
 
 interface A2ATextPart {
   kind: 'text';
@@ -49,7 +48,12 @@ interface A2AMessage {
 
 import { OneAgentMemory } from '../memory/OneAgentMemory';
 import { unifiedAgentCommunicationService } from '../utils/UnifiedAgentCommunicationService';
-import { OneAgentUnifiedTimeService, OneAgentUnifiedMetadataService, createUnifiedTimestamp, createUnifiedId } from '../utils/UnifiedBackboneService';
+import {
+  OneAgentUnifiedTimeService,
+  OneAgentUnifiedMetadataService,
+  createUnifiedTimestamp,
+  createUnifiedId,
+} from '../utils/UnifiedBackboneService';
 // Removed unused import for OneAgentMemory
 
 interface ChatRequest {
@@ -73,7 +77,7 @@ interface ChatResponse {
 
 /**
  * Enhanced ChatAPI - Universal Conversation System with Backbone Metadata
- * 
+ *
  * Supports both user-to-agent AND agent-to-agent communication with proper
  * conversationId tracking, context categorization, and temporal awareness.
  */
@@ -100,7 +104,7 @@ export class ChatAPI {
       toAgent?: string;
       conversationId?: string;
       memoryContext?: MemorySearchResult;
-    } = {}
+    } = {},
   ): Promise<ChatResponse> {
     try {
       const conversationId = options.conversationId || this.generateConversationId();
@@ -120,7 +124,7 @@ export class ChatAPI {
       const constitutionalValidation = {
         score: 1.0, // Placeholder: always fully compliant
         compliance: true,
-        violations: []
+        violations: [],
       };
 
       // --- NLACS: Privacy/Isolation Metadata ---
@@ -129,14 +133,14 @@ export class ChatAPI {
       const privacyMetadata = {
         privacyLevel,
         userIsolation: privacyLevel === 'confidential',
-        contextCategory
+        contextCategory,
       };
 
       // --- NLACS: Emergent Intelligence & Cross-Session Learning ---
       // Placeholders: To be implemented with future insight synthesis and knowledge graph
       const emergentIntelligence = {
         insights: [], // Placeholder: no insights yet
-        crossSessionLinks: [] // Placeholder: no cross-session links yet
+        crossSessionLinks: [], // Placeholder: no cross-session links yet
       };
 
       // --- NLACS: Context Tags ---
@@ -158,24 +162,47 @@ export class ChatAPI {
           constitutionalValidation, // NLACS: constitutional AI validation
           privacy: privacyMetadata, // NLACS: privacy/isolation
           emergentIntelligence, // NLACS: emergent intelligence/cross-session
-          contextTags // NLACS: context tags
+          contextTags, // NLACS: context tags
         },
         extensions: ['https://oneagent.ai/extensions/nlacs'],
-        kind: 'message'
+        kind: 'message',
       };
 
       // Store message in canonical memory system (unified metadata)
-      await this.memoryClient.addMemoryCanonical(JSON.stringify(a2aMessage), {
-        system: { userId, source: 'chatAPI', component: 'chat-message', sessionId: conversationId },
-        content: { category: 'a2a_message', tags: ['chat','a2a', a2aMessage.role], sensitivity: 'internal', relevanceScore: 0.7, contextDependency: 'session' },
-        quality: { score: 0.8, constitutionalCompliant: true, validationLevel: 'basic', confidence: 0.75 },
-        relationships: { parent: conversationId, children: [], related: [], dependencies: [] },
-        analytics: { accessCount: 0, lastAccessPattern: 'write', usageContext: [] }
-      }, userId);
+      await this.memoryClient.addMemoryCanonical(
+        JSON.stringify(a2aMessage),
+        {
+          system: {
+            userId,
+            source: 'chatAPI',
+            component: 'chat-message',
+            sessionId: conversationId,
+          },
+          content: {
+            category: 'a2a_message',
+            tags: ['chat', 'a2a', a2aMessage.role],
+            sensitivity: 'internal',
+            relevanceScore: 0.7,
+            contextDependency: 'session',
+          },
+          quality: {
+            score: 0.8,
+            constitutionalCompliant: true,
+            validationLevel: 'basic',
+            confidence: 0.75,
+          },
+          relationships: { parent: conversationId, children: [], related: [], dependencies: [] },
+          analytics: { accessCount: 0, lastAccessPattern: 'write', usageContext: [] },
+        },
+        userId,
+      );
 
       // Canonical agent discovery and communication (A2A)
-      const targetAgentType: AgentType = (options.toAgent as AgentType) || (options.agentType as AgentType) || 'core';
-      const agents = await unifiedAgentCommunicationService.discoverAgents({ capabilities: [targetAgentType] });
+      const targetAgentType: AgentType =
+        (options.toAgent as AgentType) || (options.agentType as AgentType) || 'core';
+      const agents = await unifiedAgentCommunicationService.discoverAgents({
+        capabilities: [targetAgentType],
+      });
       const toAgentId = agents.length > 0 ? agents[0].id : undefined;
       if (toAgentId) {
         await unifiedAgentCommunicationService.sendMessage({
@@ -190,28 +217,28 @@ export class ChatAPI {
             toAgent: options.toAgent,
             isAgentToAgent: !!options.fromAgent,
             contextId,
-            nlacs: true
-          }
+            nlacs: true,
+          },
         });
       }
 
       // Get memory context if requested
-      const memoryContext = options.memoryContext ?
-        await this.getMemoryContext(content, userId) : undefined;
+      const memoryContext = options.memoryContext
+        ? await this.getMemoryContext(content, userId)
+        : undefined;
 
       return {
         response: content,
         agentType: targetAgentType,
         conversationId,
-        memoryContext
+        memoryContext,
       };
-
     } catch (error) {
       console.error('Chat processing error:', error);
       return {
         response: 'I apologize, but I encountered an error processing your message.',
         agentType: 'error',
-        error: error instanceof Error ? error.message : 'Unknown error'
+        error: error instanceof Error ? error.message : 'Unknown error',
       };
     }
   }
@@ -224,12 +251,15 @@ export class ChatAPI {
     toAgentType: string,
     content: string,
     userId: string,
-    conversationId?: string
+    conversationId?: string,
   ): Promise<ChatResponse> {
     // Discover the target agent by type
-    const agents = await unifiedAgentCommunicationService.discoverAgents({ capabilities: [toAgentType] });
+    const agents = await unifiedAgentCommunicationService.discoverAgents({
+      capabilities: [toAgentType],
+    });
     const toAgentId = agents.length > 0 ? agents[0].id : undefined;
-    const sessionId = conversationId || `${fromAgentId}_to_${toAgentType}_${createUnifiedTimestamp().unix}`;
+    const sessionId =
+      conversationId || `${fromAgentId}_to_${toAgentType}_${createUnifiedTimestamp().unix}`;
     if (toAgentId) {
       await unifiedAgentCommunicationService.sendMessage({
         sessionId,
@@ -237,13 +267,13 @@ export class ChatAPI {
         toAgent: toAgentId,
         content,
         messageType: 'update',
-        metadata: { conversationId: sessionId }
+        metadata: { conversationId: sessionId },
       });
     }
     return {
       response: content,
       agentType: toAgentType,
-      conversationId: sessionId
+      conversationId: sessionId,
     };
   }
 
@@ -254,7 +284,7 @@ export class ChatAPI {
     topic: string,
     participantAgentTypes: string[],
     userId: string,
-    facilitator: string = 'core'
+    facilitator: string = 'core',
   ): Promise<ChatResponse[]> {
     const sessionId = this.generateConversationId();
     // Facilitator introduces the meeting
@@ -264,7 +294,7 @@ export class ChatAPI {
       toAgent: 'all',
       content: `Let's begin our team meeting about: ${topic}. I'd like to hear perspectives from each team member.`,
       messageType: 'update',
-      metadata: { conversationId: sessionId }
+      metadata: { conversationId: sessionId },
     });
     // Each agent contributes their perspective
     for (const agentType of participantAgentTypes) {
@@ -275,7 +305,7 @@ export class ChatAPI {
           toAgent: 'all',
           content: `As the ${agentType} specialist, here's my perspective on ${topic}...`,
           messageType: 'update',
-          metadata: { conversationId: sessionId }
+          metadata: { conversationId: sessionId },
         });
       }
     }
@@ -286,11 +316,15 @@ export class ChatAPI {
       toAgent: 'all',
       content: `Based on our discussion, here's my synthesis of the team's perspectives on ${topic}...`,
       messageType: 'update',
-      metadata: { conversationId: sessionId }
+      metadata: { conversationId: sessionId },
     });
     // Return a summary response (could be enhanced to fetch message history)
     return [
-      { response: `Team meeting on ${topic} completed.`, agentType: facilitator, conversationId: sessionId }
+      {
+        response: `Team meeting on ${topic} completed.`,
+        agentType: facilitator,
+        conversationId: sessionId,
+      },
     ];
   }
 
@@ -302,7 +336,7 @@ export class ChatAPI {
       const { message, userId, agentType = 'general', memoryContext }: ChatRequest = req.body;
       if (!message || !userId) {
         res.status(400).json({
-          error: 'Missing required fields: message and userId'
+          error: 'Missing required fields: message and userId',
         });
         return;
       }
@@ -314,22 +348,22 @@ export class ChatAPI {
             userId,
             source: 'chat_api',
             component: 'conversation',
-            sessionId: req.body.conversationId
+            sessionId: req.body.conversationId,
           },
           content: {
             category: 'chat_interaction',
             tags: ['chat', 'message', 'user'],
             sensitivity: 'internal',
             relevanceScore: 0.9,
-            contextDependency: 'session'
+            contextDependency: 'session',
           },
           contextual: {
             conversationId: req.body.conversationId,
             agentType,
-            role: 'user'
-          }
+            role: 'user',
+          },
         }),
-        userId
+        userId,
       );
       // Process the message through CoreAgent
       // [CANONICAL FIX] Remove all references to coreAgent for now to allow build to succeed.
@@ -342,39 +376,41 @@ export class ChatAPI {
             userId,
             source: 'chat_api',
             component: 'conversation',
-            sessionId: req.body.conversationId
+            sessionId: req.body.conversationId,
           },
           content: {
             category: 'chat_interaction',
             tags: ['chat', 'message', 'assistant'],
             sensitivity: 'internal',
             relevanceScore: 0.85,
-            contextDependency: 'session'
+            contextDependency: 'session',
           },
           contextual: {
             conversationId: req.body.conversationId,
             agentType,
             role: 'assistant',
-            confidence: 0.8
-          }
+            confidence: 0.8,
+          },
         }),
-        userId
+        userId,
       );
       // Get relevant memory context for response
-      const memoryResponse = memoryContext ? 
-        await this.memoryClient.searchMemory({ query: message, userId, type: 'chat-messages' }) : undefined;
+      const memoryResponse = memoryContext
+        ? await this.memoryClient.searchMemory({ query: message, userId, type: 'chat-messages' })
+        : undefined;
       const response: ChatResponse = {
         response: message,
         agentType: agentType,
-        memoryContext: memoryResponse
+        memoryContext: memoryResponse,
       };
       res.json(response);
     } catch (error) {
       console.error('Chat API error:', error);
       const errorResponse: ChatResponse = {
-        response: 'I apologize, but I encountered an error processing your message. Please try again.',
+        response:
+          'I apologize, but I encountered an error processing your message. Please try again.',
         agentType: 'error',
-        error: error instanceof Error ? error.message : 'Unknown error'
+        error: error instanceof Error ? error.message : 'Unknown error',
       };
       res.status(500).json(errorResponse);
     }
@@ -393,55 +429,75 @@ export class ChatAPI {
       }
       // Search for chat messages in memory
 
-  const memoryResult = await this.memoryClient.searchMemory({ query: 'chat message', userId, limit: parseInt(limit as string), type: 'chat-messages' });
-	const memories = memoryResult?.results || [];
+      const memoryResult = await this.memoryClient.searchMemory({
+        query: 'chat message',
+        userId,
+        limit: parseInt(limit as string),
+        type: 'chat-messages',
+      });
+      const memories = memoryResult?.results || [];
       // Parse and format canonical A2A messages from memory
-      const chatHistory = memories.length > 0 ?
-        memories
-          .map((memory: MemoryRecord) => {
-            let parsed: A2AMessage | null = null;
-            try {
-              parsed = JSON.parse(memory.content);
-            } catch {
-              // fallback: treat as plain text
-            }
-            return {
-              id: memory.id,
-              content: parsed && parsed.parts && parsed.parts[0] && parsed.parts[0].kind === 'text' ? parsed.parts[0].text : memory.content,
-              role: parsed?.role || 'user',
-              timestamp: memory.metadata?.timestamp,
-              agentType: (parsed?.metadata && typeof parsed.metadata.agentType === 'string') ? parsed.metadata.agentType : undefined
-            };
-          })
-          .sort((a, b) => {
-            const toTime = (ts: unknown): number => {
-              if (!ts) return 0;
-              if (typeof ts === 'number') return ts;
-              if (typeof ts === 'string') { const d = Date.parse(ts); return isNaN(d) ? 0 : d; }
-              if (ts instanceof Date) return ts.getTime();
-              if (typeof ts === 'object') {
-                const obj = ts as Record<string, unknown>;
-                if (typeof obj.unix === 'number') return (obj.unix as number) * 1000;
-                if (typeof obj.utc === 'string') { const d = Date.parse(obj.utc as string); if (!isNaN(d)) return d; }
-                if (typeof obj.iso === 'string') { const d = Date.parse(obj.iso as string); if (!isNaN(d)) return d; }
-              }
-              return 0;
-            };
-            return toTime(a.timestamp) - toTime(b.timestamp);
-          })
-        : [];
+      const chatHistory =
+        memories.length > 0
+          ? memories
+              .map((memory: MemoryRecord) => {
+                let parsed: A2AMessage | null = null;
+                try {
+                  parsed = JSON.parse(memory.content);
+                } catch {
+                  // fallback: treat as plain text
+                }
+                return {
+                  id: memory.id,
+                  content:
+                    parsed && parsed.parts && parsed.parts[0] && parsed.parts[0].kind === 'text'
+                      ? parsed.parts[0].text
+                      : memory.content,
+                  role: parsed?.role || 'user',
+                  timestamp: memory.metadata?.timestamp,
+                  agentType:
+                    parsed?.metadata && typeof parsed.metadata.agentType === 'string'
+                      ? parsed.metadata.agentType
+                      : undefined,
+                };
+              })
+              .sort((a, b) => {
+                const toTime = (ts: unknown): number => {
+                  if (!ts) return 0;
+                  if (typeof ts === 'number') return ts;
+                  if (typeof ts === 'string') {
+                    const d = Date.parse(ts);
+                    return isNaN(d) ? 0 : d;
+                  }
+                  if (ts instanceof Date) return ts.getTime();
+                  if (typeof ts === 'object') {
+                    const obj = ts as Record<string, unknown>;
+                    if (typeof obj.unix === 'number') return (obj.unix as number) * 1000;
+                    if (typeof obj.utc === 'string') {
+                      const d = Date.parse(obj.utc as string);
+                      if (!isNaN(d)) return d;
+                    }
+                    if (typeof obj.iso === 'string') {
+                      const d = Date.parse(obj.iso as string);
+                      if (!isNaN(d)) return d;
+                    }
+                  }
+                  return 0;
+                };
+                return toTime(a.timestamp) - toTime(b.timestamp);
+              })
+          : [];
 
       res.json({
         messages: chatHistory,
         total: chatHistory.length,
-        userId
+        userId,
       });
-
     } catch (error) {
       console.error('Get chat history error:', error);
       res.status(500).json({
         error: 'Failed to retrieve chat history',
-        details: error instanceof Error ? error.message : 'Unknown error'
+        details: error instanceof Error ? error.message : 'Unknown error',
       });
     }
   }
@@ -467,14 +523,13 @@ export class ChatAPI {
       res.json({
         message: 'Chat history clear requested',
         userId,
-        note: 'Individual message deletion not yet implemented in memory system'
+        note: 'Individual message deletion not yet implemented in memory system',
       });
-
     } catch (error) {
       console.error('Clear chat history error:', error);
       res.status(500).json({
         error: 'Failed to clear chat history',
-        details: error instanceof Error ? error.message : 'Unknown error'
+        details: error instanceof Error ? error.message : 'Unknown error',
       });
     }
   }
@@ -496,7 +551,6 @@ export class ChatAPI {
    * Select appropriate agent for conversation
    */
 
-
   /**
    * Store conversation with full backbone metadata and context categorization
    */
@@ -505,22 +559,33 @@ export class ChatAPI {
   /**
    * Get enriched memory context for conversations
    */
-  private async getMemoryContext(query: string, userId: string, limit: number = 5): Promise<MemorySearchResult> {
+  private async getMemoryContext(
+    query: string,
+    userId: string,
+    limit: number = 5,
+  ): Promise<MemorySearchResult> {
     try {
-      const memoryResult = await this.memoryClient.searchMemory({ query, userId, limit, type: 'chat-messages' });
-      return memoryResult || {
-        results: [],
-        totalFound: 0,
-        totalResults: 0,
-        searchTime: 0,
-        averageRelevance: 0,
-        averageQuality: 0,
-        constitutionalCompliance: 1,
-        queryContext: [],
-        suggestedRefinements: [],
-        relatedQueries: [],
-        query
-      };
+      const memoryResult = await this.memoryClient.searchMemory({
+        query,
+        userId,
+        limit,
+        type: 'chat-messages',
+      });
+      return (
+        memoryResult || {
+          results: [],
+          totalFound: 0,
+          totalResults: 0,
+          searchTime: 0,
+          averageRelevance: 0,
+          averageQuality: 0,
+          constitutionalCompliance: 1,
+          queryContext: [],
+          suggestedRefinements: [],
+          relatedQueries: [],
+          query,
+        }
+      );
     } catch (error) {
       console.error('Failed to get memory context:', error);
       return {
@@ -534,7 +599,7 @@ export class ChatAPI {
         queryContext: [],
         suggestedRefinements: [],
         relatedQueries: [],
-        query
+        query,
       };
     }
   }
@@ -545,138 +610,205 @@ export class ChatAPI {
 
   private determineContextCategory(message: string): ContextCategory {
     const lowerMessage = message.toLowerCase();
-    
-    if (lowerMessage.includes('work') || lowerMessage.includes('office') || lowerMessage.includes('meeting')) {
+
+    if (
+      lowerMessage.includes('work') ||
+      lowerMessage.includes('office') ||
+      lowerMessage.includes('meeting')
+    ) {
       return 'WORKPLACE';
     }
-    if (lowerMessage.includes('project') || lowerMessage.includes('development') || lowerMessage.includes('build')) {
+    if (
+      lowerMessage.includes('project') ||
+      lowerMessage.includes('development') ||
+      lowerMessage.includes('build')
+    ) {
       return 'PROJECT';
     }
-    if (lowerMessage.includes('code') || lowerMessage.includes('bug') || lowerMessage.includes('api')) {
+    if (
+      lowerMessage.includes('code') ||
+      lowerMessage.includes('bug') ||
+      lowerMessage.includes('api')
+    ) {
       return 'TECHNICAL';
     }
-    if (lowerMessage.includes('money') || lowerMessage.includes('budget') || lowerMessage.includes('cost')) {
+    if (
+      lowerMessage.includes('money') ||
+      lowerMessage.includes('budget') ||
+      lowerMessage.includes('cost')
+    ) {
       return 'FINANCIAL';
     }
-    if (lowerMessage.includes('health') || lowerMessage.includes('fitness') || lowerMessage.includes('exercise')) {
+    if (
+      lowerMessage.includes('health') ||
+      lowerMessage.includes('fitness') ||
+      lowerMessage.includes('exercise')
+    ) {
       return 'HEALTH';
     }
-    if (lowerMessage.includes('learn') || lowerMessage.includes('study') || lowerMessage.includes('course')) {
+    if (
+      lowerMessage.includes('learn') ||
+      lowerMessage.includes('study') ||
+      lowerMessage.includes('course')
+    ) {
       return 'EDUCATIONAL';
     }
-    if (lowerMessage.includes('create') || lowerMessage.includes('design') || lowerMessage.includes('art')) {
+    if (
+      lowerMessage.includes('create') ||
+      lowerMessage.includes('design') ||
+      lowerMessage.includes('art')
+    ) {
       return 'CREATIVE';
     }
-    if (lowerMessage.includes('admin') || lowerMessage.includes('manage') || lowerMessage.includes('organize')) {
+    if (
+      lowerMessage.includes('admin') ||
+      lowerMessage.includes('manage') ||
+      lowerMessage.includes('organize')
+    ) {
       return 'ADMINISTRATIVE';
     }
-    if (lowerMessage.includes('personal') || lowerMessage.includes('private') || lowerMessage.includes('family')) {
+    if (
+      lowerMessage.includes('personal') ||
+      lowerMessage.includes('private') ||
+      lowerMessage.includes('family')
+    ) {
       return 'PRIVATE';
     }
-    
+
     return 'GENERAL';
   }
 
   private determinePrivacyLevel(message: string, contextCategory: ContextCategory): PrivacyLevel {
     const lowerMessage = message.toLowerCase();
-    
-    if (contextCategory === 'PRIVATE' || 
-        lowerMessage.includes('confidential') || 
-        lowerMessage.includes('secret') ||
-        lowerMessage.includes('personal')) {
+
+    if (
+      contextCategory === 'PRIVATE' ||
+      lowerMessage.includes('confidential') ||
+      lowerMessage.includes('secret') ||
+      lowerMessage.includes('personal')
+    ) {
       return 'confidential';
     }
-    
-    if (contextCategory === 'WORKPLACE' || 
-        contextCategory === 'PROJECT' ||
-        lowerMessage.includes('internal') ||
-        lowerMessage.includes('company')) {
+
+    if (
+      contextCategory === 'WORKPLACE' ||
+      contextCategory === 'PROJECT' ||
+      lowerMessage.includes('internal') ||
+      lowerMessage.includes('company')
+    ) {
       return 'internal';
     }
-    
-    if (lowerMessage.includes('restricted') || 
-        lowerMessage.includes('sensitive') ||
-        contextCategory === 'FINANCIAL') {
+
+    if (
+      lowerMessage.includes('restricted') ||
+      lowerMessage.includes('sensitive') ||
+      contextCategory === 'FINANCIAL'
+    ) {
       return 'restricted';
     }
-    
+
     return 'internal'; // Default to internal for OneAgent conversations
   }
 
-  private analyzeCommunicationStyle(message: string): 'formal' | 'casual' | 'technical' | 'conversational' {
+  private analyzeCommunicationStyle(
+    message: string,
+  ): 'formal' | 'casual' | 'technical' | 'conversational' {
     const lowerMessage = message.toLowerCase();
-    
+
     if (message.includes('please') && message.includes('thank you')) return 'formal';
     if (lowerMessage.includes('hey') || lowerMessage.includes('btw')) return 'casual';
     if (lowerMessage.includes('function') || lowerMessage.includes('algorithm')) return 'technical';
-    
+
     return 'conversational';
   }
 
-  private analyzeExpertiseLevel(message: string): 'beginner' | 'intermediate' | 'advanced' | 'expert' {
+  private analyzeExpertiseLevel(
+    message: string,
+  ): 'beginner' | 'intermediate' | 'advanced' | 'expert' {
     const lowerMessage = message.toLowerCase();
-    
+
     if (lowerMessage.includes('how do i') || lowerMessage.includes('what is')) return 'beginner';
-    if (lowerMessage.includes('best practice') || lowerMessage.includes('optimize')) return 'advanced';
-    if (lowerMessage.includes('architecture') || lowerMessage.includes('design pattern')) return 'expert';
-    
+    if (lowerMessage.includes('best practice') || lowerMessage.includes('optimize'))
+      return 'advanced';
+    if (lowerMessage.includes('architecture') || lowerMessage.includes('design pattern'))
+      return 'expert';
+
     return 'intermediate';
   }
 
-  private analyzeIntentCategory(message: string): 'question' | 'request' | 'complaint' | 'compliment' | 'exploration' {
+  private analyzeIntentCategory(
+    message: string,
+  ): 'question' | 'request' | 'complaint' | 'compliment' | 'exploration' {
     const lowerMessage = message.toLowerCase();
-    
-    if (lowerMessage.includes('?') || lowerMessage.includes('how') || lowerMessage.includes('what')) return 'question';
+
+    if (lowerMessage.includes('?') || lowerMessage.includes('how') || lowerMessage.includes('what'))
+      return 'question';
     if (lowerMessage.includes('please') || lowerMessage.includes('can you')) return 'request';
     if (lowerMessage.includes('wrong') || lowerMessage.includes('error')) return 'complaint';
     if (lowerMessage.includes('great') || lowerMessage.includes('excellent')) return 'compliment';
-    
+
     return 'exploration';
   }
 
   private extractContextTags(message: string): string[] {
     const tags: string[] = [];
     const lowerMessage = message.toLowerCase();
-    
+
     // Technical tags
     if (lowerMessage.includes('code')) tags.push('coding');
     if (lowerMessage.includes('bug')) tags.push('debugging');
     if (lowerMessage.includes('test')) tags.push('testing');
     if (lowerMessage.includes('deploy')) tags.push('deployment');
-    
+
     // Project tags
     if (lowerMessage.includes('feature')) tags.push('feature-development');
     if (lowerMessage.includes('requirement')) tags.push('requirements');
     if (lowerMessage.includes('deadline')) tags.push('timeline');
-    
+
     // General tags
     if (lowerMessage.includes('urgent')) tags.push('urgent');
     if (lowerMessage.includes('important')) tags.push('important');
     if (lowerMessage.includes('question')) tags.push('question');
-    
+
     return tags.length > 0 ? tags : ['general'];
   }
 
   private analyzeSentiment(message: string): number {
     const lowerMessage = message.toLowerCase();
     let score = 0.5; // Neutral
-    
+
     // Positive indicators
-    if (lowerMessage.includes('great') || lowerMessage.includes('excellent') || lowerMessage.includes('love')) {
+    if (
+      lowerMessage.includes('great') ||
+      lowerMessage.includes('excellent') ||
+      lowerMessage.includes('love')
+    ) {
       score += 0.3;
     }
-    if (lowerMessage.includes('good') || lowerMessage.includes('nice') || lowerMessage.includes('thanks')) {
+    if (
+      lowerMessage.includes('good') ||
+      lowerMessage.includes('nice') ||
+      lowerMessage.includes('thanks')
+    ) {
       score += 0.2;
     }
-    
+
     // Negative indicators
-    if (lowerMessage.includes('bad') || lowerMessage.includes('terrible') || lowerMessage.includes('hate')) {
+    if (
+      lowerMessage.includes('bad') ||
+      lowerMessage.includes('terrible') ||
+      lowerMessage.includes('hate')
+    ) {
       score -= 0.3;
     }
-    if (lowerMessage.includes('problem') || lowerMessage.includes('error') || lowerMessage.includes('issue')) {
+    if (
+      lowerMessage.includes('problem') ||
+      lowerMessage.includes('error') ||
+      lowerMessage.includes('issue')
+    ) {
       score -= 0.2;
     }
-    
+
     return Math.max(0, Math.min(1, score));
   }
 
@@ -684,28 +816,40 @@ export class ChatAPI {
     const wordCount = message.split(/\s+/).length;
     const sentenceCount = message.split(/[.!?]+/).length;
     const avgWordsPerSentence = wordCount / sentenceCount;
-    
+
     // Complexity based on length and structure
     let complexity = 0.3; // Base complexity
-    
+
     if (wordCount > 50) complexity += 0.2;
     if (wordCount > 100) complexity += 0.2;
     if (avgWordsPerSentence > 15) complexity += 0.2;
-    if (message.includes('because') || message.includes('however') || message.includes('therefore')) {
+    if (
+      message.includes('because') ||
+      message.includes('however') ||
+      message.includes('therefore')
+    ) {
       complexity += 0.1;
     }
-    
+
     return Math.min(1, complexity);
   }
 
   private analyzeUrgency(message: string): number {
     const lowerMessage = message.toLowerCase();
     let urgency = 0.3; // Base urgency
-    
-    if (lowerMessage.includes('urgent') || lowerMessage.includes('asap') || lowerMessage.includes('immediately')) {
+
+    if (
+      lowerMessage.includes('urgent') ||
+      lowerMessage.includes('asap') ||
+      lowerMessage.includes('immediately')
+    ) {
       urgency += 0.4;
     }
-    if (lowerMessage.includes('soon') || lowerMessage.includes('quickly') || lowerMessage.includes('fast')) {
+    if (
+      lowerMessage.includes('soon') ||
+      lowerMessage.includes('quickly') ||
+      lowerMessage.includes('fast')
+    ) {
       urgency += 0.2;
     }
     if (lowerMessage.includes('deadline') || lowerMessage.includes('due')) {
@@ -714,7 +858,7 @@ export class ChatAPI {
     if (lowerMessage.includes('emergency') || lowerMessage.includes('critical')) {
       urgency += 0.5;
     }
-    
+
     return Math.min(1, urgency);
   }
 }

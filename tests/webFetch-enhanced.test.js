@@ -8,10 +8,10 @@ async function runEnhancedTests() {
 
   // Test 1: Basic functionality with mock mode
   console.log('1️⃣ Testing mock mode functionality...');
-  const mockTool = new WebFetchTool({ 
-    defaultUserAgent: 'OneAgent-Mock-Test/1.0'
+  const mockTool = new WebFetchTool({
+    defaultUserAgent: 'OneAgent-Mock-Test/1.0',
   });
-  
+
   try {
     const mockResult = await mockTool.quickFetch('https://example.com/test');
     console.log(`✅ Mock fetch: ${mockResult.success ? 'SUCCESS' : 'FAILED'}`);
@@ -49,14 +49,14 @@ async function runEnhancedTests() {
   // Test 4: Error classification
   console.log('\n4️⃣ Testing error classification...');
   const testTool = new WebFetchTool();
-  
+
   try {
     // Test with invalid URL to trigger error classification
-    const result = await testTool.fetchContent({ 
+    const result = await testTool.fetchContent({
       url: 'https://invalid-domain-that-should-not-exist-12345.com',
-      validateUrl: true
+      validateUrl: true,
     });
-    
+
     if (!result.success && result.error) {
       console.log(`✅ Error classification working: ${result.statusText}`);
       console.log(`   Error message: ${result.error}`);
@@ -72,18 +72,17 @@ async function runEnhancedTests() {
     const jsonContent = await mockTool.extractContent(
       '{"test": "data", "nested": {"value": 123}}',
       'application/json',
-      { url: 'test://json' }
+      { url: 'test://json' },
     );
     console.log(`✅ JSON processing: ${jsonContent.wordCount} words extracted`);
 
-    // Test XML content processing  
+    // Test XML content processing
     const xmlContent = await mockTool.extractContent(
       '<root><item>Test data</item><item>More data</item></root>',
       'application/xml',
-      { url: 'test://xml' }
+      { url: 'test://xml' },
     );
     console.log(`✅ XML processing: ${xmlContent.wordCount} words extracted`);
-
   } catch (error) {
     console.log(`❌ Content type handling failed: ${error.message}`);
   }
@@ -96,16 +95,16 @@ async function runEnhancedTests() {
       text: 'javascript:alert("xss") Safe content here',
       contentType: 'text/html',
       encoding: 'utf-8',
-      size: 100
+      size: 100,
     };
-    
+
     const validated = testTool.validateContent(maliciousContent);
-    const isSanitized = !validated.text.includes('javascript:alert') && 
-                        validated.text.includes('javascript-blocked:');
-    
+    const isSanitized =
+      !validated.text.includes('javascript:alert') &&
+      validated.text.includes('javascript-blocked:');
+
     console.log(`✅ Content sanitization: ${isSanitized ? 'WORKING' : 'FAILED'}`);
     console.log(`   Sanitized text: "${validated.text.substring(0, 50)}..."`);
-    
   } catch (error) {
     console.log(`❌ Content validation failed: ${error.message}`);
   }
@@ -113,16 +112,16 @@ async function runEnhancedTests() {
   // Test 7: Summary extraction
   console.log('\n7️⃣ Testing summary extraction...');
   try {
-    const longText = 'This is a very long piece of text. '.repeat(50) + 
-                     'This should be truncated at a sentence boundary. ' +
-                     'This part should not appear in the summary.';
-    
+    const longText =
+      'This is a very long piece of text. '.repeat(50) +
+      'This should be truncated at a sentence boundary. ' +
+      'This part should not appear in the summary.';
+
     const summary = testTool.extractSummary(longText, 200);
     const isTruncated = summary.length < longText.length && summary.endsWith('.');
-    
+
     console.log(`✅ Summary extraction: ${isTruncated ? 'WORKING' : 'FAILED'}`);
     console.log(`   Original: ${longText.length} chars, Summary: ${summary.length} chars`);
-    
   } catch (error) {
     console.log(`❌ Summary extraction failed: ${error.message}`);
   }

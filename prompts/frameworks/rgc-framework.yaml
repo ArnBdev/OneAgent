@@ -1,47 +1,47 @@
 # R-G-C Framework (Route-Guard-Correct)
 # Systematic prompting framework for intelligent routing and error recovery
 
-name: "R-G-C Framework"
-type: "system_management"
-version: "1.0.0"
-description: "Intelligent routing, monitoring, and error recovery methodology"
+name: 'R-G-C Framework'
+type: 'system_management'
+version: '1.0.0'
+description: 'Intelligent routing, monitoring, and error recovery methodology'
 
 structure:
   R_route:
-    purpose: "Intelligent task analysis and optimal routing"
+    purpose: 'Intelligent task analysis and optimal routing'
     questions:
-      - "What type of task is this and what agent is optimal?"
-      - "What is the complexity level and resource requirements?"
-      - "What dependencies and constraints affect routing?"
-    validation: "Routing decision is optimal and justified"
-    
+      - 'What type of task is this and what agent is optimal?'
+      - 'What is the complexity level and resource requirements?'
+      - 'What dependencies and constraints affect routing?'
+    validation: 'Routing decision is optimal and justified'
+
   G_guard:
-    purpose: "Proactive monitoring and health management"
+    purpose: 'Proactive monitoring and health management'
     questions:
-      - "What are the current system health indicators?"
-      - "What potential issues or risks are present?"
-      - "What monitoring and alerting is in place?"
-    validation: "Comprehensive monitoring coverage established"
-    
+      - 'What are the current system health indicators?'
+      - 'What potential issues or risks are present?'
+      - 'What monitoring and alerting is in place?'
+    validation: 'Comprehensive monitoring coverage established'
+
   C_correct:
-    purpose: "Error recovery and flow restoration"
+    purpose: 'Error recovery and flow restoration'
     questions:
-      - "What recovery strategies are available for failures?"
-      - "How can system flow be restored efficiently?"
-      - "What learning can improve future resilience?"
-    validation: "Effective recovery mechanisms implemented"
+      - 'What recovery strategies are available for failures?'
+      - 'How can system flow be restored efficiently?'
+      - 'What learning can improve future resilience?'
+    validation: 'Effective recovery mechanisms implemented'
 
 application_contexts:
-  - "task_routing"
-  - "system_orchestration"
-  - "error_recovery"
-  - "health_monitoring"
+  - 'task_routing'
+  - 'system_orchestration'
+  - 'error_recovery'
+  - 'health_monitoring'
 
 quality_standards:
-  intelligence: "Routing decisions based on sophisticated analysis"
-  proactivity: "Issues prevented through monitoring and prediction"
-  resilience: "Robust recovery from errors and failures"
-  learning: "Continuous improvement through error analysis"
+  intelligence: 'Routing decisions based on sophisticated analysis'
+  proactivity: 'Issues prevented through monitoring and prediction'
+  resilience: 'Robust recovery from errors and failures'
+  learning: 'Continuous improvement through error analysis'
 
 integration:
   constitutional_ai: true

@@ -1,16 +1,16 @@
 /**
  * HealthMonitoringService - Professional Health Monitoring System
- * 
+ *
  * OURA v3.0 Phase 2: Professional Health Monitoring Implementation
  * Provides enterprise-grade health monitoring with Constitutional AI validation
- * 
+ *
  * Features:
  * - Real-time system health monitoring
  * - Performance metrics collection and analysis
  * - Compliance and data privacy monitoring
  * - Predictive issue detection
  * - Constitutional AI compliance tracking
- * 
+ *
  * @version 2.0.0 - Professional Health Monitoring
  * @author OneAgent Professional Development Platform
  */
@@ -189,7 +189,7 @@ export class HealthMonitoringService extends EventEmitter {
   private performanceHistory: PerformanceMetrics[] = [];
   private healthHistory: SystemHealthReport[] = [];
   private isMonitoring: boolean = false;
-  
+
   // Configuration
   private config = {
     monitoringInterval: 30000, // 30 seconds
@@ -200,13 +200,13 @@ export class HealthMonitoringService extends EventEmitter {
       errorRate: 0.05, // 5%
       memoryLatency: 100, // ms
       cpuUsage: 80, // %
-      memoryUsage: 85 // %
+      memoryUsage: 85, // %
     },
     constitutionalThresholds: {
       qualityScore: 80,
       complianceRate: 95,
-      safetyScore: 90
-    }
+      safetyScore: 90,
+    },
   };
 
   private static initLogged = false;
@@ -239,10 +239,10 @@ export class HealthMonitoringService extends EventEmitter {
     }
 
     this.isMonitoring = true;
-    
+
     // Initial health check
     await this.performHealthCheck();
-    
+
     // Start periodic monitoring
     this.monitoringInterval = setInterval(async () => {
       try {
@@ -252,9 +252,9 @@ export class HealthMonitoringService extends EventEmitter {
         this.emit('monitoring_error', error);
       }
     }, this.config.monitoringInterval);
-  // Allow process to exit naturally in short-lived scripts (does not keep event loop alive)
-  this.monitoringInterval?.unref?.();
-    
+    // Allow process to exit naturally in short-lived scripts (does not keep event loop alive)
+    this.monitoringInterval?.unref?.();
+
     console.log('✅ Health monitoring started - Professional observability active');
     this.emit('monitoring_started');
   }
@@ -269,32 +269,32 @@ export class HealthMonitoringService extends EventEmitter {
       clearInterval(this.monitoringInterval);
       this.monitoringInterval = undefined as unknown as NodeJS.Timeout;
     }
-    
+
     console.log('🛑 Health monitoring stopped');
     this.emit('monitoring_stopped');
   }
 
   async getSystemHealth(): Promise<SystemHealthReport> {
     const timestamp = createUnifiedTimestamp();
-    
+
     // Get component health
     const components = await this.getComponentHealthMap();
-    
+
     // Get performance metrics
     const performance = await this.trackPerformanceMetrics();
-    
+
     // Get compliance status
     const compliance = await this.validateCompliance();
-    
+
     // Get constitutional compliance
     const constitutional = await this.checkConstitutionalCompliance();
-    
+
     // Get predictive alerts
     const predictive = await this.generatePredictiveAlerts();
-    
+
     // Determine overall health status
     const overall = this.calculateOverallHealth(components, compliance, constitutional);
-    
+
     const healthReport: SystemHealthReport = {
       overall,
       timestamp: new Date(timestamp.utc),
@@ -302,21 +302,21 @@ export class HealthMonitoringService extends EventEmitter {
       performance,
       compliance,
       constitutional,
-      predictive
+      predictive,
     };
-    
+
     // Store in history
     this.healthHistory.push(healthReport);
     if (this.healthHistory.length > this.config.healthHistoryLimit) {
       this.healthHistory.shift();
     }
-    
+
     return healthReport;
   }
 
   async getComponentHealth(component: string): Promise<ComponentHealth> {
     const startTime = createUnifiedTimestamp().unix;
-    
+
     try {
       switch (component) {
         case 'registry':
@@ -342,50 +342,43 @@ export class HealthMonitoringService extends EventEmitter {
 
   async trackPerformanceMetrics(): Promise<PerformanceMetrics> {
     const startTime = createUnifiedTimestamp().unix;
-    
-    const [
-      agentResponseTimes,
-      systemLoad,
-      throughput,
-      resourceUsage
-    ] = await Promise.all([
+
+    const [agentResponseTimes, systemLoad, throughput, resourceUsage] = await Promise.all([
       this.measureAgentPerformance(),
       this.measureSystemLoad(),
       this.measureThroughput(),
-      this.measureResourceUsage()
+      this.measureResourceUsage(),
     ]);
-    
+
     const performance: PerformanceMetrics = {
       agentResponseTimes,
       systemLoad,
       throughput,
-      resourceUsage
+      resourceUsage,
     };
-    
+
     // Store in history
     this.performanceHistory.push(performance);
     if (this.performanceHistory.length > this.config.performanceHistoryLimit) {
       this.performanceHistory.shift();
     }
-    
+
     const responseTime = createUnifiedTimestamp().unix - startTime;
     console.log(`📊 Performance metrics collected: ${responseTime}ms`);
-    
+
     return performance;
   }
 
   async detectPerformanceDegradation(): Promise<PredictiveAlert[]> {
     const alerts: PredictiveAlert[] = [];
-    
+
     if (this.performanceHistory.length < 10) {
       return alerts; // Need more history for trend analysis
     }
-    
+
     // Analyze system load trends
-    const cpuTrend = this.analyzeMetricTrend(
-      this.performanceHistory.map(p => p.systemLoad.cpu)
-    );
-    
+    const cpuTrend = this.analyzeMetricTrend(this.performanceHistory.map((p) => p.systemLoad.cpu));
+
     if (cpuTrend.degrading && cpuTrend.rate > 0.15) {
       alerts.push({
         type: 'capacity_warning',
@@ -393,15 +386,11 @@ export class HealthMonitoringService extends EventEmitter {
         prediction: 'CPU usage approaching critical levels',
         confidence: cpuTrend.confidence,
         timeToImpact: 5 * 60 * 1000, // 5 minutes
-        recommendedActions: [
-          'Monitor CPU usage',
-          'Scale up resources',
-          'Optimize agent workloads'
-        ],
-        timestamp: new Date(createUnifiedTimestamp().utc)
+        recommendedActions: ['Monitor CPU usage', 'Scale up resources', 'Optimize agent workloads'],
+        timestamp: new Date(createUnifiedTimestamp().utc),
       });
     }
-    
+
     return alerts;
   }
 
@@ -410,23 +399,18 @@ export class HealthMonitoringService extends EventEmitter {
   // =====================================
 
   async validateCompliance(): Promise<ComplianceReport> {
-    const [
-      userIsolation,
-      dataPrivacy,
-      accessControl,
-      encryption
-    ] = await Promise.all([
+    const [userIsolation, dataPrivacy, accessControl, encryption] = await Promise.all([
       this.validateUserIsolation(),
       this.auditDataPrivacy(),
       this.auditAccessControl(),
-      this.validateEncryption()
+      this.validateEncryption(),
     ]);
-    
+
     return {
       userIsolation,
       dataPrivacy,
       accessControl,
-      encryption
+      encryption,
     };
   }
 
@@ -439,21 +423,23 @@ export class HealthMonitoringService extends EventEmitter {
         status: 'healthy',
         violations,
         lastAudit: new Date(createUnifiedTimestamp().utc),
-        isolationAccuracy
+        isolationAccuracy,
       };
     } catch (error) {
       console.error('User isolation validation failed:', error);
       return {
         status: 'unhealthy',
-        violations: [{
-          type: 'cross_user_access',
-          severity: 'critical',
-          description: `User isolation validation failed: ${error}`,
-          userId: 'system',
-          timestamp: new Date(createUnifiedTimestamp().utc)
-        }],
+        violations: [
+          {
+            type: 'cross_user_access',
+            severity: 'critical',
+            description: `User isolation validation failed: ${error}`,
+            userId: 'system',
+            timestamp: new Date(createUnifiedTimestamp().utc),
+          },
+        ],
         lastAudit: new Date(createUnifiedTimestamp().utc),
-        isolationAccuracy: 0
+        isolationAccuracy: 0,
       };
     }
   }
@@ -477,9 +463,9 @@ export class HealthMonitoringService extends EventEmitter {
           accuracy: overallCompliance,
           transparency: overallCompliance,
           helpfulness: overallCompliance,
-          safety: overallCompliance
+          safety: overallCompliance,
         },
-        lastConstitutionalAudit: new Date(createUnifiedTimestamp().utc)
+        lastConstitutionalAudit: new Date(createUnifiedTimestamp().utc),
       };
     } catch (error) {
       console.error('Constitutional compliance check failed:', error);
@@ -491,9 +477,9 @@ export class HealthMonitoringService extends EventEmitter {
           accuracy: 0,
           transparency: 0,
           helpfulness: 0,
-          safety: 0
+          safety: 0,
         },
-        lastConstitutionalAudit: new Date(createUnifiedTimestamp().utc)
+        lastConstitutionalAudit: new Date(createUnifiedTimestamp().utc),
       };
     }
   }
@@ -504,23 +490,23 @@ export class HealthMonitoringService extends EventEmitter {
 
   async generatePredictiveAlerts(): Promise<PredictiveAlert[]> {
     const alerts: PredictiveAlert[] = [];
-    
+
     // Get performance degradation alerts
     const performanceAlerts = await this.detectPerformanceDegradation();
     alerts.push(...performanceAlerts);
-    
+
     // Add other predictive analytics here
-    
+
     return alerts;
   }
 
   async generateOptimizationRecommendations(): Promise<OptimizationPlan> {
     const recommendations: OptimizationRecommendation[] = [];
-    
+
     // Analyze current performance metrics
     if (this.performanceHistory.length > 0) {
       const latest = this.performanceHistory[this.performanceHistory.length - 1];
-      
+
       // Resource optimization recommendations
       if (latest.resourceUsage.memoryUsage > this.config.alertThresholds.memoryUsage) {
         recommendations.push({
@@ -530,22 +516,22 @@ export class HealthMonitoringService extends EventEmitter {
           implementationSteps: [
             'Add automatic memory cleanup',
             'Implement agent memory limits',
-            'Optimize memory data structures'
+            'Optimize memory data structures',
           ],
-          estimatedEffort: 6
+          estimatedEffort: 6,
         });
       }
     }
-    
+
     return {
       recommendations,
       estimatedImpact: {
         performanceImprovement: 25,
         resourceSavings: 20,
-        reliabilityIncrease: 15
+        reliabilityIncrease: 15,
       },
       implementationComplexity: 'medium',
-      priority: 'medium'
+      priority: 'medium',
     };
   }
 
@@ -556,7 +542,7 @@ export class HealthMonitoringService extends EventEmitter {
   private async performHealthCheck(): Promise<void> {
     try {
       const healthReport = await this.getSystemHealth();
-      
+
       // Emit health events based on status
       if (healthReport.overall === 'critical') {
         this.emit('health_critical', healthReport);
@@ -565,12 +551,12 @@ export class HealthMonitoringService extends EventEmitter {
       } else if (healthReport.overall === 'degraded') {
         this.emit('health_degraded', healthReport);
       }
-      
+
       // Emit predictive alerts
       for (const alert of healthReport.predictive) {
         this.emit('predictive_alert', alert);
       }
-      
+
       console.log(`🏥 Health check complete - Status: ${healthReport.overall}`);
     } catch (error) {
       console.error('❌ Health check failed:', error);
@@ -583,9 +569,9 @@ export class HealthMonitoringService extends EventEmitter {
       this.getRegistryHealth(),
       this.getAgentsHealth(),
       this.getOrchestratorHealth(),
-      this.getApiHealth()
+      this.getApiHealth(),
     ]);
-    
+
     return { registry, agents, orchestrator, api };
   }
 
@@ -605,8 +591,8 @@ export class HealthMonitoringService extends EventEmitter {
       lastCheck: new Date(createUnifiedTimestamp().utc),
       details: {
         requestsProcessed: 100,
-        averageResponseTime: 150
-      }
+        averageResponseTime: 150,
+      },
     };
   }
 
@@ -620,8 +606,8 @@ export class HealthMonitoringService extends EventEmitter {
       lastCheck: new Date(createUnifiedTimestamp().utc),
       details: {
         endpointsAvailable: 15,
-        averageLatency: 75
-      }
+        averageLatency: 75,
+      },
     };
   }
 
@@ -632,41 +618,41 @@ export class HealthMonitoringService extends EventEmitter {
       responseTime: 0,
       errorRate: 1,
       lastCheck: new Date(createUnifiedTimestamp().utc),
-      details: { error: reason }
+      details: { error: reason },
     };
   }
   private calculateOverallHealth(
     components: ComponentHealthMap,
     _compliance: ComplianceReport,
-    constitutional: ConstitutionalReport
+    constitutional: ConstitutionalReport,
   ): HealthStatus {
-    const componentStatuses = Object.values(components).map(c => c.status);
-    
+    const componentStatuses = Object.values(components).map((c) => c.status);
+
     // If any component is critical
     if (componentStatuses.includes('critical')) {
       return 'critical';
     }
-    
+
     // If any component is unhealthy
     if (componentStatuses.includes('unhealthy')) {
       return 'unhealthy';
     }
-    
+
     // Check constitutional compliance
     if (constitutional.overallCompliance < this.config.constitutionalThresholds.complianceRate) {
       return 'degraded';
     }
-    
+
     // If any component is degraded
     if (componentStatuses.includes('degraded')) {
       return 'degraded';
     }
-    
+
     return 'healthy';
   }
 
   // Measurement methods (placeholder implementations)
-  
+
   private async measureAgentPerformance(): Promise<AgentPerformanceMap> {
     // Placeholder - would measure actual agent performance
     return {
@@ -674,8 +660,8 @@ export class HealthMonitoringService extends EventEmitter {
         avgResponseTime: 120,
         successRate: 0.98,
         errorCount: 2,
-        lastActivity: new Date(createUnifiedTimestamp().utc)
-      }
+        lastActivity: new Date(createUnifiedTimestamp().utc),
+      },
     };
   }
 
@@ -685,7 +671,7 @@ export class HealthMonitoringService extends EventEmitter {
       cpu: 45,
       memory: 60,
       activeConnections: 25,
-      queueDepth: 5
+      queueDepth: 5,
     };
   }
 
@@ -694,7 +680,7 @@ export class HealthMonitoringService extends EventEmitter {
     return {
       requestsPerSecond: 15,
       operationsPerSecond: 50,
-      memoryOpsPerSecond: 25
+      memoryOpsPerSecond: 25,
     };
   }
 
@@ -704,7 +690,7 @@ export class HealthMonitoringService extends EventEmitter {
       memoryUsage: 60,
       cpuUsage: 45,
       networkUsage: 30,
-      diskUsage: 25
+      diskUsage: 25,
     };
   }
 
@@ -715,7 +701,7 @@ export class HealthMonitoringService extends EventEmitter {
       encryptionStatus: true,
       dataRetentionCompliance: true,
       gdprCompliance: true,
-      lastPrivacyAudit: new Date(createUnifiedTimestamp().utc)
+      lastPrivacyAudit: new Date(createUnifiedTimestamp().utc),
     };
   }
 
@@ -725,7 +711,7 @@ export class HealthMonitoringService extends EventEmitter {
       status: 'healthy',
       unauthorizedAttempts: 0,
       accessViolations: [],
-      lastAccessAudit: new Date(createUnifiedTimestamp().utc)
+      lastAccessAudit: new Date(createUnifiedTimestamp().utc),
     };
   }
 
@@ -735,37 +721,44 @@ export class HealthMonitoringService extends EventEmitter {
       status: 'healthy',
       encryptionLevel: 'AES-256',
       keyRotationStatus: true,
-      lastEncryptionAudit: new Date(createUnifiedTimestamp().utc)
+      lastEncryptionAudit: new Date(createUnifiedTimestamp().utc),
     };
   }
 
-  private async testUserBoundaries(): Promise<{ accuracy: number; violations: IsolationViolation[] }> {
+  private async testUserBoundaries(): Promise<{
+    accuracy: number;
+    violations: IsolationViolation[];
+  }> {
     // Placeholder - would test actual user boundaries
     return {
       accuracy: 100,
-      violations: []
+      violations: [],
     };
   }
 
-  private analyzeMetricTrend(values: number[]): { degrading: boolean; rate: number; confidence: number } {
+  private analyzeMetricTrend(values: number[]): {
+    degrading: boolean;
+    rate: number;
+    confidence: number;
+  } {
     if (values.length < 5) {
       return { degrading: false, rate: 0, confidence: 0 };
     }
-    
+
     // Simple trend analysis
     const recent = values.slice(-5);
     const older = values.slice(-10, -5);
-    
+
     const recentAvg = recent.reduce((a, b) => a + b, 0) / recent.length;
     const olderAvg = older.reduce((a, b) => a + b, 0) / older.length;
-    
+
     const rate = (recentAvg - olderAvg) / olderAvg;
     const degrading = rate > 0.05; // 5% increase threshold
-    
+
     return {
       degrading,
       rate: Math.abs(rate),
-      confidence: Math.min(0.9, values.length / 20) // More samples = higher confidence
+      confidence: Math.min(0.9, values.length / 20), // More samples = higher confidence
     };
   }
 }

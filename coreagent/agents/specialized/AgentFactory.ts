@@ -1,6 +1,6 @@
 /**
  * AgentFactory - Factory for creating BaseAgent instances
- * 
+ *
  * This factory creates BaseAgent implementations that:
  * - Have memory integration
  * - Process messages with AI
@@ -26,16 +26,16 @@ function buildPromptConfig(agentType: string): PromptConfig | undefined {
   if (!personaConfig?.persona || !personaConfig?.quality) {
     return undefined;
   }
-  
+
   const persona = loadYamlFile(personaConfig.persona);
   const quality = loadYamlFile(personaConfig.quality);
-  
+
   // Return undefined if we can't construct a valid EnhancedPromptConfig
   // The agents will fall back to default prompt configuration
   if (!persona || !quality) {
     return undefined;
   }
-  
+
   // TODO: Properly construct EnhancedPromptConfig from loaded YAML files
   // For now, return undefined to use default configuration
   return undefined;
@@ -45,14 +45,18 @@ export class AgentFactory {
   private static instances: Map<string, BaseAgent> = new Map();
   private static backbone = OneAgentUnifiedBackbone.getInstance();
 
-  private static setUnifiedContext(agent: BaseAgent, config: AgentConfig, agentType: AgentType): void {
+  private static setUnifiedContext(
+    agent: BaseAgent,
+    config: AgentConfig,
+    agentType: AgentType,
+  ): void {
     // Create a canonical session and inject unified context prior to initialize()
     const sessionId = createUnifiedId('session', config.id);
     const context = this.backbone.createAgentContext(config.id, agentType, {
       sessionId,
       capabilities: config.capabilities,
       memoryEnabled: config.memoryEnabled,
-      aiEnabled: config.aiEnabled
+      aiEnabled: config.aiEnabled,
     });
     agent.setUnifiedContext(context);
   }
@@ -61,7 +65,7 @@ export class AgentFactory {
    */
   static async createCoreAgent(): Promise<BaseAgent> {
     const agentId = 'CoreAgent';
-    
+
     if (this.instances.has(agentId)) {
       return this.instances.get(agentId)!;
     }
@@ -70,20 +74,30 @@ export class AgentFactory {
       id: agentId,
       name: 'Core Agent',
       description: 'Agent specialized in core orchestration',
-      capabilities: ['system_coordination', 'agent_integration', 'service_management', 'health_monitoring'],
+      capabilities: [
+        'system_coordination',
+        'agent_integration',
+        'service_management',
+        'health_monitoring',
+      ],
       memoryEnabled: true,
-      aiEnabled: true
+      aiEnabled: true,
     };
     const promptConfig = buildPromptConfig('core');
-  const agent = new CoreAgent(config, promptConfig);
-  // Inject canonical unified context before initialization
-  this.setUnifiedContext(agent, config, 'core');
-  await agent.initialize();
-  await unifiedAgentCommunicationService.registerAgent({ id: agentId, name: config.name, capabilities: config.capabilities, metadata: { role: 'core' } });
-    
+    const agent = new CoreAgent(config, promptConfig);
+    // Inject canonical unified context before initialization
+    this.setUnifiedContext(agent, config, 'core');
+    await agent.initialize();
+    await unifiedAgentCommunicationService.registerAgent({
+      id: agentId,
+      name: config.name,
+      capabilities: config.capabilities,
+      metadata: { role: 'core' },
+    });
+
     this.instances.set(agentId, agent);
     console.log('✅ CoreAgent initialized with memory and AI capabilities');
-    
+
     return agent;
   }
 
@@ -92,7 +106,7 @@ export class AgentFactory {
    */
   static async createDevAgent(): Promise<BaseAgent> {
     const agentId = 'DevAgent';
-    
+
     if (this.instances.has(agentId)) {
       console.log(`🔄 Returning existing ${agentId} instance`);
       return this.instances.get(agentId)!;
@@ -104,18 +118,23 @@ export class AgentFactory {
       description: 'Agent specialized in development tasks',
       capabilities: ['code-review', 'debugging', 'architecture', 'testing'],
       memoryEnabled: true,
-      aiEnabled: true
+      aiEnabled: true,
     };
     const promptConfig = buildPromptConfig('development');
-  const agent = new DevAgent(config, promptConfig);
-  // Inject canonical unified context before initialization
-  this.setUnifiedContext(agent, config, 'development');
-  await agent.initialize();
-  await unifiedAgentCommunicationService.registerAgent({ id: agentId, name: config.name, capabilities: config.capabilities, metadata: { role: 'development' } });
-    
+    const agent = new DevAgent(config, promptConfig);
+    // Inject canonical unified context before initialization
+    this.setUnifiedContext(agent, config, 'development');
+    await agent.initialize();
+    await unifiedAgentCommunicationService.registerAgent({
+      id: agentId,
+      name: config.name,
+      capabilities: config.capabilities,
+      metadata: { role: 'development' },
+    });
+
     this.instances.set(agentId, agent);
     console.log('✅ DevAgent initialized with memory, AI capabilities, and auto-registration');
-    
+
     return agent;
   }
   /**
@@ -123,7 +142,7 @@ export class AgentFactory {
    */
   static async createOfficeAgent(): Promise<BaseAgent> {
     const agentId = 'OfficeAgent';
-    
+
     if (this.instances.has(agentId)) {
       console.log(`🔄 Returning existing ${agentId} instance`);
       return this.instances.get(agentId)!;
@@ -135,18 +154,23 @@ export class AgentFactory {
       description: 'Agent specialized in office productivity tasks',
       capabilities: ['email-management', 'scheduling', 'document-creation', 'communication'],
       memoryEnabled: true,
-      aiEnabled: true
+      aiEnabled: true,
     };
     const promptConfig = buildPromptConfig('office');
-  const agent = new OfficeAgent(config, promptConfig);
-  // Inject canonical unified context before initialization
-  this.setUnifiedContext(agent, config, 'office');
-  await agent.initialize();
-  await unifiedAgentCommunicationService.registerAgent({ id: agentId, name: config.name, capabilities: config.capabilities, metadata: { role: 'office' } });
-    
+    const agent = new OfficeAgent(config, promptConfig);
+    // Inject canonical unified context before initialization
+    this.setUnifiedContext(agent, config, 'office');
+    await agent.initialize();
+    await unifiedAgentCommunicationService.registerAgent({
+      id: agentId,
+      name: config.name,
+      capabilities: config.capabilities,
+      metadata: { role: 'office' },
+    });
+
     this.instances.set(agentId, agent);
     console.log('✅ OfficeAgent initialized with memory, AI capabilities, and auto-registration');
-    
+
     return agent;
   }
 
@@ -155,7 +179,7 @@ export class AgentFactory {
    */
   static async createFitnessAgent(): Promise<BaseAgent> {
     const agentId = 'FitnessAgent';
-    
+
     if (this.instances.has(agentId)) {
       console.log(`🔄 Returning existing ${agentId} instance`);
       return this.instances.get(agentId)!;
@@ -167,25 +191,30 @@ export class AgentFactory {
       description: 'Agent specialized in fitness and health guidance',
       capabilities: ['workout-planning', 'nutrition-advice', 'health-tracking', 'motivation'],
       memoryEnabled: true,
-      aiEnabled: true
+      aiEnabled: true,
     };
     const promptConfig = buildPromptConfig('fitness');
-  const agent = new FitnessAgent(config, promptConfig);
-  // Inject canonical unified context before initialization
-  this.setUnifiedContext(agent, config, 'fitness');
-  await agent.initialize();
-  await unifiedAgentCommunicationService.registerAgent({ id: agentId, name: config.name, capabilities: config.capabilities, metadata: { role: 'fitness' } });
-    
+    const agent = new FitnessAgent(config, promptConfig);
+    // Inject canonical unified context before initialization
+    this.setUnifiedContext(agent, config, 'fitness');
+    await agent.initialize();
+    await unifiedAgentCommunicationService.registerAgent({
+      id: agentId,
+      name: config.name,
+      capabilities: config.capabilities,
+      metadata: { role: 'fitness' },
+    });
+
     this.instances.set(agentId, agent);
     console.log('✅ FitnessAgent initialized with memory and AI capabilities');
-    
+
     return agent;
   }
   /**
    * Create or get existing TriageAgent instance
-   */  static async createTriageAgent(): Promise<BaseAgent> {
+   */ static async createTriageAgent(): Promise<BaseAgent> {
     const agentId = 'TriageAgent';
-    
+
     if (this.instances.has(agentId)) {
       return this.instances.get(agentId)!;
     }
@@ -196,18 +225,23 @@ export class AgentFactory {
       description: 'Agent specialized in task routing and prioritization',
       capabilities: ['task-routing', 'priority-assessment', 'delegation', 'coordination'],
       memoryEnabled: true,
-      aiEnabled: true
+      aiEnabled: true,
     };
     const promptConfig = buildPromptConfig('triage');
-  const agent = new TriageAgent(config, promptConfig);
-  // Inject canonical unified context before initialization
-  this.setUnifiedContext(agent, config, 'triage');
-  await agent.initialize();
-  await unifiedAgentCommunicationService.registerAgent({ id: agentId, name: config.name, capabilities: config.capabilities, metadata: { role: 'triage' } });
-    
+    const agent = new TriageAgent(config, promptConfig);
+    // Inject canonical unified context before initialization
+    this.setUnifiedContext(agent, config, 'triage');
+    await agent.initialize();
+    await unifiedAgentCommunicationService.registerAgent({
+      id: agentId,
+      name: config.name,
+      capabilities: config.capabilities,
+      metadata: { role: 'triage' },
+    });
+
     this.instances.set(agentId, agent);
     console.log('✅ TriageAgent initialized with memory and AI capabilities');
-    
+
     return agent;
   }
 
@@ -245,13 +279,13 @@ export class AgentFactory {
    */
   static async createAllCoreAgents(): Promise<BaseAgent[]> {
     console.log('🤖 Creating all 5 core REAL agents with memory and AI...');
-    
+
     const agents = await Promise.all([
       this.createCoreAgent(),
       this.createDevAgent(),
       this.createOfficeAgent(),
       this.createFitnessAgent(),
-      this.createTriageAgent()
+      this.createTriageAgent(),
     ]);
 
     console.log(`✅ All ${agents.length} core agents initialized and ready!`);
@@ -263,26 +297,24 @@ export class AgentFactory {
    */
   static async shutdownAllAgents(): Promise<void> {
     console.log('🛑 Shutting down all real agents...');
-    
-    const shutdownPromises = Array.from(this.instances.values()).map(agent => 
-      agent.cleanup()
-    );
+
+    const shutdownPromises = Array.from(this.instances.values()).map((agent) => agent.cleanup());
 
     await Promise.all(shutdownPromises);
     this.instances.clear();
-    
+
     console.log('✅ All real agents shut down gracefully');
   }
 
   /**
    * Get agent capabilities summary
-   */  static getAgentCapabilitiesSummary(): Record<string, string[]> {
+   */ static getAgentCapabilitiesSummary(): Record<string, string[]> {
     const summary: Record<string, string[]> = {};
-    
+
     Array.from(this.instances.entries()).forEach(([agentId, agent]) => {
       summary[agentId] = agent.getConfig().capabilities;
     });
-    
+
     return summary;
   }
 }

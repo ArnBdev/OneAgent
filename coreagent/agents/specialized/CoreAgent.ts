@@ -1,6 +1,6 @@
 /**
  * CoreAgent.ts - Core Orchestrator Agent Implementation
- * 
+ *
  * Core BaseAgent instance that:
  * - Inherits from BaseAgent with full functionality
  * - Orchestrates other agents
@@ -41,15 +41,15 @@ export class CoreAgent extends BaseAgent implements ISpecializedAgent {
       description: 'REAL orchestrator agent with memory, AI, and coordination capabilities',
       capabilities: [
         'task_orchestration',
-        'agent_coordination', 
+        'agent_coordination',
         'system_monitoring',
         'memory_management',
         'constitutional_validation',
         'bmad_analysis',
-        'multi_agent_communication'
+        'multi_agent_communication',
       ],
       memoryEnabled: true,
-      aiEnabled: true
+      aiEnabled: true,
     };
     super(config || defaultConfig, promptConfig);
   }
@@ -63,7 +63,7 @@ export class CoreAgent extends BaseAgent implements ISpecializedAgent {
 
     // Core agent processes orchestration and system coordination requests
     const response = await this.generateCoreResponse(message);
-    
+
     // Store interaction in memory for system coordination tracking
     await this.addMemory(
       context.user.id,
@@ -72,8 +72,8 @@ export class CoreAgent extends BaseAgent implements ISpecializedAgent {
         type: 'core_orchestration',
         category: 'system_coordination',
         timestamp: new Date().toISOString(),
-        sessionId: context.sessionId
-      }
+        sessionId: context.sessionId,
+      },
     );
 
     return {
@@ -84,8 +84,8 @@ export class CoreAgent extends BaseAgent implements ISpecializedAgent {
         agentId: this.config.id,
         timestamp: new Date().toISOString(),
         systemHealth: await this.getSystemHealth(),
-        isRealAgent: true
-      }
+        isRealAgent: true,
+      },
     };
   }
 

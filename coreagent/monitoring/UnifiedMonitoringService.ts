@@ -2,7 +2,7 @@
  * UnifiedMonitoringService - Canonical Health & Performance Monitoring
  *
  * Constitutional AI Implementation:
- * - Accuracy: Unified metrics collection from all monitoring sources  
+ * - Accuracy: Unified metrics collection from all monitoring sources
  * - Transparency: Clear monitoring event flow and metric provenance
  * - Helpfulness: Centralized health status with actionable insights
  * - Safety: Predictive alerts and Constitutional AI compliance tracking
@@ -17,16 +17,25 @@ import { PerformanceMonitor } from './PerformanceMonitor';
 import { HealthMonitoringService } from './HealthMonitoringService';
 import { TriageAgent } from '../agents/specialized/TriageAgent';
 import { UnifiedSystemHealth } from '../types/oneagent-backbone-types';
-import { createUnifiedTimestamp, createUnifiedId, OneAgentUnifiedBackbone } from '../utils/UnifiedBackboneService';
-
-
+import {
+  createUnifiedTimestamp,
+  createUnifiedId,
+  OneAgentUnifiedBackbone,
+} from '../utils/UnifiedBackboneService';
 
 /**
  * Monitoring Event Types for Constitutional AI compliance
  */
 export interface MonitoringEvent {
   id: string;
-    type: 'health_check' | 'performance_alert' | 'constitutional_violation' | 'predictive_alert' | 'system_recovery' | 'operation_metric' | 'diagnostic_log';
+  type:
+    | 'health_check'
+    | 'performance_alert'
+    | 'constitutional_violation'
+    | 'predictive_alert'
+    | 'system_recovery'
+    | 'operation_metric'
+    | 'diagnostic_log';
   severity: 'info' | 'warning' | 'error' | 'critical';
   component: string;
   // Explicit operation name when applicable (set for operation_metric; may be present for others)
@@ -77,31 +86,53 @@ export class UnifiedMonitoringService extends EventEmitter {
     constitutionalThresholds: {
       qualityScore: 80,
       complianceRate: 95,
-      safetyScore: 90
-    }
+      safetyScore: 90,
+    },
   };
 
-  constructor(performanceMonitor?: PerformanceMonitor, healthMonitoringService?: HealthMonitoringService, triageAgent?: TriageAgent) {
+  constructor(
+    performanceMonitor?: PerformanceMonitor,
+    healthMonitoringService?: HealthMonitoringService,
+    triageAgent?: TriageAgent,
+  ) {
     super();
     this.performanceMonitor = performanceMonitor || new PerformanceMonitor();
-  this.healthMonitoringService = healthMonitoringService || new HealthMonitoringService();
+    this.healthMonitoringService = healthMonitoringService || new HealthMonitoringService();
     if (triageAgent) this.triageAgent = triageAgent;
     this.setupEventForwarding();
   }
 
   private setupEventForwarding() {
     this.healthMonitoringService.on('health_critical', (data) => {
-      this.handleMonitoringEvent('health_check', 'critical', 'system', 'Critical system health detected', data);
+      this.handleMonitoringEvent(
+        'health_check',
+        'critical',
+        'system',
+        'Critical system health detected',
+        data,
+      );
       this.emit('health_critical', data);
     });
-    
+
     this.healthMonitoringService.on('health_degraded', (data) => {
-      this.handleMonitoringEvent('health_check', 'warning', 'system', 'System health degraded', data);
+      this.handleMonitoringEvent(
+        'health_check',
+        'warning',
+        'system',
+        'System health degraded',
+        data,
+      );
       this.emit('health_degraded', data);
     });
-    
+
     this.healthMonitoringService.on('predictive_alert', (data) => {
-      this.handleMonitoringEvent('predictive_alert', 'warning', 'system', 'Predictive alert triggered', data);
+      this.handleMonitoringEvent(
+        'predictive_alert',
+        'warning',
+        'system',
+        'Predictive alert triggered',
+        data,
+      );
       this.emit('predictive_alert', data);
     });
   }
@@ -111,10 +142,10 @@ export class UnifiedMonitoringService extends EventEmitter {
    */
   private handleMonitoringEvent(
     type: MonitoringEvent['type'],
-    severity: MonitoringEvent['severity'], 
+    severity: MonitoringEvent['severity'],
     component: string,
     message: string,
-    data: Record<string, unknown>
+    data: Record<string, unknown>,
   ): void {
     const event: MonitoringEvent = {
       id: createUnifiedId('operation', component),
@@ -124,7 +155,7 @@ export class UnifiedMonitoringService extends EventEmitter {
       operation: typeof data.operation === 'string' ? data.operation : undefined,
       message,
       data,
-      timestamp: createUnifiedTimestamp().iso
+      timestamp: createUnifiedTimestamp().iso,
     };
 
     // Store event with Constitutional AI validation
@@ -153,7 +184,9 @@ export class UnifiedMonitoringService extends EventEmitter {
       if (!process.env.ONEAGENT_DISABLE_MONITORING) {
         await this.healthMonitoringService.startMonitoring();
       } else {
-        console.log('[UnifiedMonitoringService] Monitoring disabled via ONEAGENT_DISABLE_MONITORING env flag');
+        console.log(
+          '[UnifiedMonitoringService] Monitoring disabled via ONEAGENT_DISABLE_MONITORING env flag',
+        );
       }
 
       // Start unified monitoring loop with Constitutional AI validation
@@ -161,24 +194,28 @@ export class UnifiedMonitoringService extends EventEmitter {
         try {
           await this.performConstitutionalHealthCheck();
         } catch (error) {
-          this.handleMonitoringEvent('health_check', 'error', 'unified-monitoring', 
-            'Constitutional health check failed', { 
-              error: error instanceof Error ? error.message : String(error) 
-            });
+          this.handleMonitoringEvent(
+            'health_check',
+            'error',
+            'unified-monitoring',
+            'Constitutional health check failed',
+            {
+              error: error instanceof Error ? error.message : String(error),
+            },
+          );
         }
-  }, this.config.monitoringInterval);
-  // Allow process exit in short-lived scripts/tests
-  this.monitoringInterval?.unref?.();
+      }, this.config.monitoringInterval);
+      // Allow process exit in short-lived scripts/tests
+      this.monitoringInterval?.unref?.();
 
       console.log('✅ UnifiedMonitoringService started - Constitutional AI monitoring active');
       this.emit('monitoring_started');
-
     } catch (error) {
       const backbone = OneAgentUnifiedBackbone.getInstance();
       const errorSystem = backbone.getServices().errorHandler;
       await errorSystem.handleError(error instanceof Error ? error : new Error(String(error)), {
         operation: 'start-monitoring',
-        component: 'unified-monitoring'
+        component: 'unified-monitoring',
       });
       throw error;
     }
@@ -213,30 +250,43 @@ export class UnifiedMonitoringService extends EventEmitter {
       const performanceMetrics = await this.getEnhancedPerformanceMetrics();
 
       // Check Constitutional AI compliance thresholds
-      if (performanceMetrics.constitutionalAI.qualityScore < this.config.constitutionalThresholds.qualityScore) {
-        this.handleMonitoringEvent('constitutional_violation', 'warning', 'constitutional-ai',
+      if (
+        performanceMetrics.constitutionalAI.qualityScore <
+        this.config.constitutionalThresholds.qualityScore
+      ) {
+        this.handleMonitoringEvent(
+          'constitutional_violation',
+          'warning',
+          'constitutional-ai',
           `Quality score below threshold: ${performanceMetrics.constitutionalAI.qualityScore}%`,
-          { 
-            threshold: this.config.constitutionalThresholds.qualityScore, 
-            actual: performanceMetrics.constitutionalAI.qualityScore 
-          });
+          {
+            threshold: this.config.constitutionalThresholds.qualityScore,
+            actual: performanceMetrics.constitutionalAI.qualityScore,
+          },
+        );
       }
 
-      if (performanceMetrics.constitutionalAI.complianceRate < this.config.constitutionalThresholds.complianceRate) {
-        this.handleMonitoringEvent('constitutional_violation', 'error', 'constitutional-ai',
+      if (
+        performanceMetrics.constitutionalAI.complianceRate <
+        this.config.constitutionalThresholds.complianceRate
+      ) {
+        this.handleMonitoringEvent(
+          'constitutional_violation',
+          'error',
+          'constitutional-ai',
           `Compliance rate below threshold: ${performanceMetrics.constitutionalAI.complianceRate}%`,
-          { 
-            threshold: this.config.constitutionalThresholds.complianceRate, 
-            actual: performanceMetrics.constitutionalAI.complianceRate 
-          });
+          {
+            threshold: this.config.constitutionalThresholds.complianceRate,
+            actual: performanceMetrics.constitutionalAI.complianceRate,
+          },
+        );
       }
-
     } catch (error) {
       const backbone = OneAgentUnifiedBackbone.getInstance();
       const errorSystem = backbone.getServices().errorHandler;
       await errorSystem.handleError(error instanceof Error ? error : new Error(String(error)), {
         operation: 'constitutional-health-check',
-        component: 'unified-monitoring'
+        component: 'unified-monitoring',
       });
     }
   }
@@ -246,31 +296,34 @@ export class UnifiedMonitoringService extends EventEmitter {
    */
   private async getEnhancedPerformanceMetrics(): Promise<UnifiedPerformanceMetrics> {
     const performanceSummary = await this.performanceMonitor.getPerformanceSummary();
-    
+
     return {
       responseTime: {
         average: performanceSummary.overall?.averageLatency || 75,
         p95: 150,
-        p99: 300
+        p99: 300,
       },
       throughput: {
         requestsPerSecond: 15, // Derived from operations metrics
-        operationsPerSecond: performanceSummary.overall?.totalOperations || 25
+        operationsPerSecond: performanceSummary.overall?.totalOperations || 25,
       },
       resources: {
         cpuUsage: 15,
         memoryUsage: 45,
-        diskUsage: 30
+        diskUsage: 30,
       },
       constitutionalAI: {
         qualityScore: 85, // From Constitutional AI validation
         complianceRate: 95,
-        safetyScore: 92
-      }
+        safetyScore: 92,
+      },
     };
   }
 
-  async getSystemHealth(_options?: { details?: boolean; components?: string[] }): Promise<UnifiedSystemHealth> {
+  async getSystemHealth(_options?: {
+    details?: boolean;
+    components?: string[];
+  }): Promise<UnifiedSystemHealth> {
     // Canonical: Use HealthMonitoringService for full report, fallback to PerformanceMonitor for metrics
     const healthReport = await this.healthMonitoringService.getSystemHealth();
     // Map to canonical UnifiedSystemHealth type
@@ -286,20 +339,27 @@ export class UnifiedMonitoringService extends EventEmitter {
           timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
           context: '',
           contextual: { timeOfDay: '', energyLevel: '', optimalFor: [] },
-          metadata: { source: 'UnifiedMonitoringService', precision: 'second', timezone: Intl.DateTimeFormat().resolvedOptions().timeZone }
-        }
+          metadata: {
+            source: 'UnifiedMonitoringService',
+            precision: 'second',
+            timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+          },
+        },
       },
       components: {
         timeService: { status: 'healthy', responseTime: 0, operational: true },
         metadataService: { status: 'healthy', operationsPerSecond: 100, operational: true },
         memoryService: { status: 'healthy', storageHealth: 95, operational: true },
-        constitutionalAI: { status: 'healthy', complianceRate: 100, operational: true }
+        constitutionalAI: { status: 'healthy', complianceRate: 100, operational: true },
       },
       metrics: {
-  uptime: createUnifiedTimestamp().unix - ((healthReport.performance as unknown as Record<string, unknown>)?.startTime as number || createUnifiedTimestamp().unix),
+        uptime:
+          createUnifiedTimestamp().unix -
+          (((healthReport.performance as unknown as Record<string, unknown>)
+            ?.startTime as number) || createUnifiedTimestamp().unix),
         errorRate: 0,
-        performanceScore: 95
-      }
+        performanceScore: 95,
+      },
     };
   }
 
@@ -321,7 +381,7 @@ export class UnifiedMonitoringService extends EventEmitter {
     component: string,
     operation: string,
     status: 'success' | 'error',
-    meta: Record<string, unknown> = {}
+    meta: Record<string, unknown> = {},
   ): void {
     // Severity heuristic: errors escalate for visibility
     const severity: MonitoringEvent['severity'] = status === 'error' ? 'warning' : 'info';
@@ -331,7 +391,7 @@ export class UnifiedMonitoringService extends EventEmitter {
       severity,
       component,
       `operation:${operation} status:${status}`,
-      data
+      data,
     );
     // Canonical latency ingestion: if durationMs provided, feed into PerformanceMonitor (no parallel store)
     const duration = meta?.durationMs;
@@ -340,11 +400,17 @@ export class UnifiedMonitoringService extends EventEmitter {
         this.performanceMonitor.recordDurationFromEvent(operation, duration);
       } catch (err) {
         // Fall back to monitoring event instead of throwing
-        this.handleMonitoringEvent('diagnostic_log', 'warning', 'unified-monitoring', 'Failed to ingest operation duration', {
-          operation,
-          duration,
-          error: err instanceof Error ? err.message : String(err)
-        });
+        this.handleMonitoringEvent(
+          'diagnostic_log',
+          'warning',
+          'unified-monitoring',
+          'Failed to ingest operation duration',
+          {
+            operation,
+            duration,
+            error: err instanceof Error ? err.message : String(err),
+          },
+        );
       }
     }
   }
@@ -357,29 +423,51 @@ export class UnifiedMonitoringService extends EventEmitter {
   summarizeOperationMetrics(options: { window?: number; componentFilter?: string } = {}): {
     generatedAt: string;
     totalOperations: number;
-    components: Record<string, {
-      operations: Record<string, { success: number; error: number; total: number; errorRate: number }>;
-      totals: { success: number; error: number; total: number; errorRate: number };
-    }>;
+    components: Record<
+      string,
+      {
+        operations: Record<
+          string,
+          { success: number; error: number; total: number; errorRate: number }
+        >;
+        totals: { success: number; error: number; total: number; errorRate: number };
+      }
+    >;
   } {
     const { window, componentFilter } = options;
     const now = Date.now();
     const cutoff = window ? now - window : 0;
 
-    const ops = this.eventHistory.filter(e => e.type === 'operation_metric' && (!componentFilter || e.component === componentFilter));
-    const filtered = window ? ops.filter(e => {
-      const ts = Date.parse(e.timestamp);
-      return isFinite(ts) ? ts >= cutoff : true;
-    }) : ops;
+    const ops = this.eventHistory.filter(
+      (e) => e.type === 'operation_metric' && (!componentFilter || e.component === componentFilter),
+    );
+    const filtered = window
+      ? ops.filter((e) => {
+          const ts = Date.parse(e.timestamp);
+          return isFinite(ts) ? ts >= cutoff : true;
+        })
+      : ops;
 
-    const components: Record<string, { operations: Record<string, { success: number; error: number; total: number; errorRate: number }>; totals: { success: number; error: number; total: number; errorRate: number } }> = {};
+    const components: Record<
+      string,
+      {
+        operations: Record<
+          string,
+          { success: number; error: number; total: number; errorRate: number }
+        >;
+        totals: { success: number; error: number; total: number; errorRate: number };
+      }
+    > = {};
 
     for (const ev of filtered) {
       const { component } = ev;
       const op = (ev.data.operation as string) || 'unknown';
       const status = (ev.data.status as string) === 'error' ? 'error' : 'success';
       if (!components[component]) {
-        components[component] = { operations: {}, totals: { success: 0, error: 0, total: 0, errorRate: 0 } };
+        components[component] = {
+          operations: {},
+          totals: { success: 0, error: 0, total: 0, errorRate: 0 },
+        };
       }
       const comp = components[component];
       if (!comp.operations[op]) {
@@ -393,8 +481,8 @@ export class UnifiedMonitoringService extends EventEmitter {
     }
 
     // finalize error rates
-    Object.values(components).forEach(c => {
-      Object.values(c.operations).forEach(r => {
+    Object.values(components).forEach((c) => {
+      Object.values(c.operations).forEach((r) => {
         r.errorRate = r.total ? r.error / r.total : 0;
       });
       c.totals.errorRate = c.totals.total ? c.totals.error / c.totals.total : 0;
@@ -405,7 +493,7 @@ export class UnifiedMonitoringService extends EventEmitter {
     return {
       generatedAt: createUnifiedTimestamp().iso,
       totalOperations,
-      components
+      components,
     };
   }
 
@@ -440,20 +528,22 @@ export class UnifiedMonitoringService extends EventEmitter {
     uptime: number;
     constitutionalCompliance: number;
   } {
-    const alertsGenerated = this.eventHistory.filter(e => 
-      e.severity === 'warning' || e.severity === 'error' || e.severity === 'critical'
+    const alertsGenerated = this.eventHistory.filter(
+      (e) => e.severity === 'warning' || e.severity === 'error' || e.severity === 'critical',
     ).length;
 
-    const constitutionalEvents = this.eventHistory.filter(e => e.type === 'constitutional_violation').length;
+    const constitutionalEvents = this.eventHistory.filter(
+      (e) => e.type === 'constitutional_violation',
+    ).length;
     const totalEvents = Math.max(this.eventHistory.length, 1);
-    const constitutionalCompliance = Math.max(0, 1 - (constitutionalEvents / totalEvents));
+    const constitutionalCompliance = Math.max(0, 1 - constitutionalEvents / totalEvents);
 
     return {
       isActive: this.isMonitoring,
       eventsTracked: this.eventHistory.length,
       alertsGenerated,
       uptime: process.uptime(),
-      constitutionalCompliance
+      constitutionalCompliance,
     };
   }
 
@@ -478,19 +568,25 @@ export class UnifiedMonitoringService extends EventEmitter {
     const monitoringStatus = this.getMonitoringStatus();
 
     // Analyze Constitutional AI compliance
-    const violationsDetected = this.eventHistory.filter(e => e.type === 'constitutional_violation').length;
+    const violationsDetected = this.eventHistory.filter(
+      (e) => e.type === 'constitutional_violation',
+    ).length;
     const recommendations: string[] = [];
-    
+
     if (performanceMetrics.constitutionalAI.qualityScore < 85) {
-      recommendations.push('Review Constitutional AI validation settings to improve quality scores');
+      recommendations.push(
+        'Review Constitutional AI validation settings to improve quality scores',
+      );
     }
-    
+
     if (performanceMetrics.constitutionalAI.complianceRate < 95) {
       recommendations.push('Investigate compliance violations and update validation rules');
     }
 
     if (performanceMetrics.responseTime.average > 100) {
-      recommendations.push('Optimize system performance to maintain Constitutional AI response times');
+      recommendations.push(
+        'Optimize system performance to maintain Constitutional AI response times',
+      );
     }
 
     return {
@@ -502,8 +598,8 @@ export class UnifiedMonitoringService extends EventEmitter {
         overallScore: monitoringStatus.constitutionalCompliance,
         violationsDetected,
         qualityTrend: 'stable', // Could be enhanced with trend analysis
-        recommendations
-      }
+        recommendations,
+      },
     };
   }
 
@@ -511,7 +607,10 @@ export class UnifiedMonitoringService extends EventEmitter {
     return this.healthMonitoringService.getComponentHealth(component);
   }
 
-  on(event: 'health_critical' | 'health_degraded' | 'predictive_alert', handler: (data: unknown) => void): this {
+  on(
+    event: 'health_critical' | 'health_degraded' | 'predictive_alert',
+    handler: (data: unknown) => void,
+  ): this {
     return super.on(event, handler);
   }
 
@@ -526,24 +625,36 @@ export class UnifiedMonitoringService extends EventEmitter {
 // Optional auto-instantiation: can be disabled for lightweight scripts / tests
 // Set ONEAGENT_DISABLE_AUTO_MONITORING=1 to prevent creation on import
 // Export either a real monitoring service or a lightweight no-op stub when disabled.
-export const unifiedMonitoringService: UnifiedMonitoringService = process.env.ONEAGENT_DISABLE_AUTO_MONITORING
+export const unifiedMonitoringService: UnifiedMonitoringService = process.env
+  .ONEAGENT_DISABLE_AUTO_MONITORING
   ? ({
       // Minimal no-op implementation (cast to satisfy typing)
-      startMonitoring: async () => { /* monitoring disabled */ },
-      stopMonitoring: async () => { /* monitoring disabled */ },
-      trackOperation: (_component: string, _operation: string, _status: string, _meta?: Record<string, unknown>) => { /* no-op */ },
-  getRecentEvents: (_limit?: number) => [],
+      startMonitoring: async () => {
+        /* monitoring disabled */
+      },
+      stopMonitoring: async () => {
+        /* monitoring disabled */
+      },
+      trackOperation: (
+        _component: string,
+        _operation: string,
+        _status: string,
+        _meta?: Record<string, unknown>,
+      ) => {
+        /* no-op */
+      },
+      getRecentEvents: (_limit?: number) => [],
       getSystemHealth: async () => ({ overall: 'healthy' }),
       emit: () => true,
-      on: () => (unifiedMonitoringService as unknown as UnifiedMonitoringService),
-      once: () => (unifiedMonitoringService as unknown as UnifiedMonitoringService),
-      off: () => (unifiedMonitoringService as unknown as UnifiedMonitoringService),
-      addListener: () => (unifiedMonitoringService as unknown as UnifiedMonitoringService),
-      removeListener: () => (unifiedMonitoringService as unknown as UnifiedMonitoringService),
-      removeAllListeners: () => (unifiedMonitoringService as unknown as UnifiedMonitoringService),
+      on: () => unifiedMonitoringService as unknown as UnifiedMonitoringService,
+      once: () => unifiedMonitoringService as unknown as UnifiedMonitoringService,
+      off: () => unifiedMonitoringService as unknown as UnifiedMonitoringService,
+      addListener: () => unifiedMonitoringService as unknown as UnifiedMonitoringService,
+      removeListener: () => unifiedMonitoringService as unknown as UnifiedMonitoringService,
+      removeAllListeners: () => unifiedMonitoringService as unknown as UnifiedMonitoringService,
       listenerCount: () => 0,
       listeners: () => [],
       // Internal flags used occasionally
-      isMonitoring: false
+      isMonitoring: false,
     } as unknown as UnifiedMonitoringService)
   : new UnifiedMonitoringService();

@@ -20,7 +20,11 @@ export class OneAgentMemoryMemoryClient implements IMemoryClient {
 
   async store(content: string, metadata: UnifiedMetadata): Promise<string> {
     // Use canonical path; metadata already unified
-    return this.client.addMemoryCanonical(content, metadata, metadata.system?.userId || 'default-user');
+    return this.client.addMemoryCanonical(
+      content,
+      metadata,
+      metadata.system?.userId || 'default-user',
+    );
   }
 
   async retrieve(query: string, options?: MemorySearchOptions): Promise<MemorySearchResult> {
@@ -35,7 +39,7 @@ export class OneAgentMemoryMemoryClient implements IMemoryClient {
       constitutionalCompliance: 1,
       queryContext: [],
       suggestedRefinements: [],
-      relatedQueries: []
+      relatedQueries: [],
     };
   }
 
@@ -66,7 +70,7 @@ export class OneAgentMemoryMemoryClient implements IMemoryClient {
 
   async getStats(): Promise<import('../types/oneagent-backbone-types').MemoryAnalytics> {
     // Provide minimal stub converting optimization stats (if any) into MemoryAnalytics shape
-  await this.client.getOptimizationStats(); // currently unused; placeholder for future mapping
+    await this.client.getOptimizationStats(); // currently unused; placeholder for future mapping
     return {
       totalMemories: 0,
       totalSize: 0,
@@ -80,11 +84,11 @@ export class OneAgentMemoryMemoryClient implements IMemoryClient {
       retentionMetrics: {},
       topCategories: {},
       topTags: {},
-  // Provide minimal sensitivity distribution; cast to expected mapped type
-  sensitivityDistribution: { internal: 1 } as unknown as Record<string, number>,
+      // Provide minimal sensitivity distribution; cast to expected mapped type
+      sensitivityDistribution: { internal: 1 } as unknown as Record<string, number>,
       averageQueryTime: 0,
       cacheHitRate: 0,
-      optimizationOpportunities: []
+      optimizationOpportunities: [],
     };
   }
 

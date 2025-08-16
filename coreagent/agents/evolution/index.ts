@@ -1,6 +1,6 @@
 /**
  * index.ts - ALITA Evolution System Entry Point
- * 
+ *
  * Main orchestrator for the ALITA self-evolving agent system.
  * Provides easy access to all evolution functionality.
  */
@@ -52,7 +52,7 @@ export class ALITASystem {
     try {
       // Step 1: Check if we need to convert instructions
       const needsConversion = await this.checkNeedsConversion();
-      
+
       if (needsConversion) {
         console.log('📝 Converting instructions to AgentProfile format...');
         await this.converter.createPreConversionBackup();
@@ -68,7 +68,6 @@ export class ALITASystem {
 
       this.initialized = true;
       console.log('🎯 ALITA System initialized successfully');
-
     } catch (error) {
       console.error('❌ Failed to initialize ALITA System:', error);
       throw error;
@@ -109,13 +108,17 @@ export class ALITASystem {
   /**
    * Trigger manual evolution
    */
-  async evolve(options?: { aggressiveness?: 'conservative' | 'moderate' | 'aggressive'; focusAreas?: string[] }): Promise<void> {
+  async evolve(options?: {
+    aggressiveness?: 'conservative' | 'moderate' | 'aggressive';
+    focusAreas?: string[];
+  }): Promise<void> {
     if (!this.initialized) {
       await this.initialize();
-    }    const evolutionOptions = {
+    }
+    const evolutionOptions = {
       trigger: 'manual' as const,
-      aggressiveness: options?.aggressiveness || 'moderate' as const,
-      ...(options?.focusAreas && { focusAreas: options.focusAreas })
+      aggressiveness: options?.aggressiveness || ('moderate' as const),
+      ...(options?.focusAreas && { focusAreas: options.focusAreas }),
     };
 
     console.log('🧬 Starting manual evolution...');
@@ -127,7 +130,7 @@ export class ALITASystem {
   async getStatus(): Promise<{
     initialized: boolean;
     currentProfile?: string;
-  evolutionStatus: { isEvolving: boolean; lastEvolution?: string };
+    evolutionStatus: { isEvolving: boolean; lastEvolution?: string };
     lastEvolution?: string;
   }> {
     const profile = this.profileManager.getCurrentProfile();
@@ -137,7 +140,7 @@ export class ALITASystem {
       initialized: this.initialized,
       ...(profile && { currentProfile: `${profile.metadata.name} v${profile.metadata.version}` }),
       evolutionStatus,
-      ...(profile?.metadata.lastEvolved && { lastEvolution: profile.metadata.lastEvolved })
+      ...(profile?.metadata.lastEvolved && { lastEvolution: profile.metadata.lastEvolved }),
     };
   }
 
@@ -179,7 +182,9 @@ export class ALITASystem {
       await this.initialize();
     }
 
-    console.log(`⏮️ Rolling back${targetVersion ? ` to version ${targetVersion}` : ' to previous version'}...`);
+    console.log(
+      `⏮️ Rolling back${targetVersion ? ` to version ${targetVersion}` : ' to previous version'}...`,
+    );
     await this.profileManager.rollbackProfile('oneagent-profile', targetVersion);
   }
 

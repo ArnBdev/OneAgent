@@ -1,6 +1,6 @@
 /**
  * DevAgent.ts - Development Agent Implementation
- * 
+ *
  * BaseAgent instance that:
  * - Inherits from BaseAgent with memory integration
  * - Processes actual user messages
@@ -15,7 +15,6 @@ import type { AgentMessage, MemoryRecord } from '../../types/oneagent-backbone-t
 import { createUnifiedTimestamp, unifiedMetadataService } from '../../utils/UnifiedBackboneService';
 import { ISpecializedAgent } from '../base/ISpecializedAgent';
 import { PromptConfig } from '../base/PromptEngine';
-
 
 export interface DevAgentCapabilities {
   codeReview: boolean;
@@ -38,7 +37,7 @@ export interface DevAgentResponse extends AgentResponse {
 export class DevAgent extends BaseAgent implements ISpecializedAgent {
   private capabilities: DevAgentCapabilities;
   private conversationHistory: AgentMessage[] = [];
-  
+
   constructor(config: AgentConfig, promptConfig?: PromptConfig) {
     super(config, promptConfig);
 
@@ -48,7 +47,7 @@ export class DevAgent extends BaseAgent implements ISpecializedAgent {
       codeGeneration: true,
       architectureGuidance: true,
       testingSupport: true,
-      performanceOptimization: true
+      performanceOptimization: true,
     };
   }
 
@@ -66,8 +65,8 @@ export class DevAgent extends BaseAgent implements ISpecializedAgent {
       content: message,
       messageType: 'question',
       metadata: {
-        userId: context.user.id
-      }
+        userId: context.user.id,
+      },
     };
     this.conversationHistory.push(userMessage);
 
@@ -78,15 +77,15 @@ export class DevAgent extends BaseAgent implements ISpecializedAgent {
           source: 'dev_agent',
           component: 'DevAgent',
           sessionId: context.sessionId,
-          userId: context.user.id
+          userId: context.user.id,
         },
         content: {
           category: 'dev_agent_user_message',
           tags: ['dev', 'user_message'],
           sensitivity: 'internal',
           relevanceScore: 0.1,
-          contextDependency: 'session'
-        }
+          contextDependency: 'session',
+        },
       });
       await this.memoryClient?.addMemoryCanonical(message, metadata, context.user.id);
     } catch (memoryErr) {
@@ -99,16 +98,16 @@ export class DevAgent extends BaseAgent implements ISpecializedAgent {
       const search = await this.memoryClient?.searchMemory({
         query: message.slice(0, 80),
         limit: 3,
-        filters: { type: 'dev_agent_user_message', agentId: this.config.id }
+        filters: { type: 'dev_agent_user_message', agentId: this.config.id },
       });
-  priorMemories = search?.results || [];
+      priorMemories = search?.results || [];
     } catch (searchErr) {
       console.warn(`⚠️ DevAgent memory search failed: ${searchErr}`);
     }
 
     // Analyze the request type
     const requestType = this.analyzeRequestType(message);
-    
+
     // Generate AI response using the enhanced prompt system
     const aiResponse = await this.generateDevelopmentResponse(message, context, requestType);
 
@@ -121,28 +120,28 @@ export class DevAgent extends BaseAgent implements ISpecializedAgent {
       messageType: 'update',
       metadata: {
         requestType,
-        qualityScore: 85 // TODO: Calculate actual quality score
-      }
+        qualityScore: 85, // TODO: Calculate actual quality score
+      },
     };
     this.conversationHistory.push(agentMessage);
 
-  return this.createDevResponse(aiResponse, requestType, priorMemories);
+    return this.createDevResponse(aiResponse, requestType, priorMemories);
   }
 
   /**
    * REAL AI-powered development response generation with personality enhancement
    */
   private async generateDevelopmentResponse(
-    message: string, 
-    context: AgentContext, 
-    requestType: string
+    message: string,
+    context: AgentContext,
+    requestType: string,
   ): Promise<string> {
     // Build enhanced development prompt
     const developmentPrompt = this.buildDevelopmentPrompt(message, requestType);
-    
+
     // Generate base response using AI
     const baseResponse = await this.generateResponse(developmentPrompt);
-    
+
     // Apply personality enhancement for authentic DevAgent perspective
     const personalityEnhancedResponse = await this.generatePersonalityResponse(
       baseResponse,
@@ -153,10 +152,10 @@ export class DevAgent extends BaseAgent implements ISpecializedAgent {
         style: 'Professional and analytical',
         coreStrength: 'Software development expertise and problem-solving',
         principles: ['accuracy', 'helpfulness', 'technical_precision'],
-        frameworks: ['systematic_analysis', 'problem_solving']
-      }
+        frameworks: ['systematic_analysis', 'problem_solving'],
+      },
     );
-    
+
     return personalityEnhancedResponse;
   }
 
@@ -172,10 +171,32 @@ export class DevAgent extends BaseAgent implements ISpecializedAgent {
    */
   protected getDomainKeywords(): string[] {
     return [
-      'code', 'function', 'class', 'variable', 'method', 'api', 'bug', 'debug',
-      'test', 'architecture', 'database', 'algorithm', 'performance', 'security',
-      'framework', 'library', 'typescript', 'javascript', 'python', 'node',
-      'react', 'git', 'deployment', 'refactor', 'optimize', 'implement'
+      'code',
+      'function',
+      'class',
+      'variable',
+      'method',
+      'api',
+      'bug',
+      'debug',
+      'test',
+      'architecture',
+      'database',
+      'algorithm',
+      'performance',
+      'security',
+      'framework',
+      'library',
+      'typescript',
+      'javascript',
+      'python',
+      'node',
+      'react',
+      'git',
+      'deployment',
+      'refactor',
+      'optimize',
+      'implement',
     ];
   }
 
@@ -205,36 +226,58 @@ Provide helpful, actionable development guidance with specific examples where ap
    */
   private analyzeRequestType(message: string): string {
     const messageLower = message.toLowerCase();
-    
+
     if (messageLower.includes('review') || messageLower.includes('check')) {
       return 'code_review';
-    } else if (messageLower.includes('debug') || messageLower.includes('error') || messageLower.includes('fix')) {
+    } else if (
+      messageLower.includes('debug') ||
+      messageLower.includes('error') ||
+      messageLower.includes('fix')
+    ) {
       return 'debugging';
-    } else if (messageLower.includes('generate') || messageLower.includes('create') || messageLower.includes('build')) {
+    } else if (
+      messageLower.includes('generate') ||
+      messageLower.includes('create') ||
+      messageLower.includes('build')
+    ) {
       return 'code_generation';
-    } else if (messageLower.includes('architecture') || messageLower.includes('design') || messageLower.includes('structure')) {
+    } else if (
+      messageLower.includes('architecture') ||
+      messageLower.includes('design') ||
+      messageLower.includes('structure')
+    ) {
       return 'architecture_guidance';
     } else if (messageLower.includes('test') || messageLower.includes('testing')) {
       return 'testing_support';
-    } else if (messageLower.includes('optimize') || messageLower.includes('performance') || messageLower.includes('speed')) {
+    } else if (
+      messageLower.includes('optimize') ||
+      messageLower.includes('performance') ||
+      messageLower.includes('speed')
+    ) {
       return 'performance_optimization';
     }
-    
+
     return 'general_development';
   }
 
   /**
    * Create specialized development response
    */
-  private createDevResponse(content: string, requestType: string, priorMemories: MemoryRecord[] = []): DevAgentResponse {
+  private createDevResponse(
+    content: string,
+    requestType: string,
+    priorMemories: MemoryRecord[] = [],
+  ): DevAgentResponse {
     const ts = createUnifiedTimestamp();
     return {
       content,
-      actions: [{
-        type: 'development_assistance',
-        description: `Provided ${requestType} assistance`,
-        parameters: { requestType }
-      }],
+      actions: [
+        {
+          type: 'development_assistance',
+          description: `Provided ${requestType} assistance`,
+          parameters: { requestType },
+        },
+      ],
       memories: priorMemories, // Surface a few contextual memories
       metadata: {
         agentId: this.config.id,
@@ -242,8 +285,8 @@ Provide helpful, actionable development guidance with specific examples where ap
         requestType,
         capabilities: Object.keys(this.capabilities),
         isRealAgent: true, // NOT just metadata!
-        priorMemoriesUsed: priorMemories.length
-      }
+        priorMemoriesUsed: priorMemories.length,
+      },
     };
   }
 
@@ -257,7 +300,8 @@ Provide helpful, actionable development guidance with specific examples where ap
   /**
    * Get agent capabilities
    */
-  getCapabilities(): DevAgentCapabilities {    return { ...this.capabilities };
+  getCapabilities(): DevAgentCapabilities {
+    return { ...this.capabilities };
   }
 
   get id(): string {

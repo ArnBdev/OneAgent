@@ -5,17 +5,22 @@
 process.env.ONEAGENT_FAST_TEST_MODE = '1';
 process.env.ONEAGENT_DISABLE_AUTO_MONITORING = '1'; // keep test output minimal and avoid monitoring-based flakiness
 
-import { createUnifiedTimestamp, createUnifiedId } from '../../coreagent/utils/UnifiedBackboneService';
+import {
+  createUnifiedTimestamp,
+  createUnifiedId,
+} from '../../coreagent/utils/UnifiedBackboneService';
 
 (async () => {
   const { AgentFactory } = await import('../../coreagent/agents/specialized/AgentFactory');
-  const { unifiedAgentCommunicationService } = await import('../../coreagent/utils/UnifiedAgentCommunicationService');
+  const { unifiedAgentCommunicationService } = await import(
+    '../../coreagent/utils/UnifiedAgentCommunicationService'
+  );
 
   // Event counters
   const counters = { sent: 0, received: 0, registered: 0 };
-  const onSent = () => counters.sent += 1;
-  const onReceived = () => counters.received += 1;
-  const onRegistered = () => counters.registered += 1;
+  const onSent = () => (counters.sent += 1);
+  const onReceived = () => (counters.received += 1);
+  const onRegistered = () => (counters.registered += 1);
 
   unifiedAgentCommunicationService.on('message_sent', onSent);
   unifiedAgentCommunicationService.on('message_received', onReceived);
@@ -24,7 +29,7 @@ import { createUnifiedTimestamp, createUnifiedId } from '../../coreagent/utils/U
   try {
     // Canonical timestamp/id usage (visibility for test start)
     const ts = createUnifiedTimestamp();
-  const testId = createUnifiedId('operation', 'comm-invariants');
+    const testId = createUnifiedId('operation', 'comm-invariants');
     void ts; // not strictly needed beyond initialization; kept to satisfy canonical usage guidance
 
     // Create two agents
@@ -32,13 +37,14 @@ import { createUnifiedTimestamp, createUnifiedId } from '../../coreagent/utils/U
     const triage = await AgentFactory.createTriageAgent();
 
     // Expect >= 2 registrations
-    if (counters.registered < 2) throw new Error(`expected >=2 registrations, got ${counters.registered}`);
+    if (counters.registered < 2)
+      throw new Error(`expected >=2 registrations, got ${counters.registered}`);
 
     // Create session with both agents
     const sessionId = await unifiedAgentCommunicationService.createSession({
       name: `comm-invariants-${testId}`,
       participants: [dev.config.id, triage.config.id],
-      topic: 'invariants'
+      topic: 'invariants',
     });
 
     // Targeted send: dev -> triage
@@ -48,20 +54,26 @@ import { createUnifiedTimestamp, createUnifiedId } from '../../coreagent/utils/U
       sessionId,
       fromAgent: dev.config.id,
       toAgent: triage.config.id,
-      content: 'ping-one'
+      content: 'ping-one',
     });
-    if (counters.sent !== sentBefore + 1) throw new Error(`sent counter mismatch (targeted): ${counters.sent} vs ${sentBefore + 1}`);
-    if (counters.received !== recvBefore + 1) throw new Error(`received counter mismatch (targeted): ${counters.received} vs ${recvBefore + 1}`);
+    if (counters.sent !== sentBefore + 1)
+      throw new Error(`sent counter mismatch (targeted): ${counters.sent} vs ${sentBefore + 1}`);
+    if (counters.received !== recvBefore + 1)
+      throw new Error(
+        `received counter mismatch (targeted): ${counters.received} vs ${recvBefore + 1}`,
+      );
 
     // Broadcast: triage -> all (2 participants total). Expect at least one receive (dev gets it). Implementation may or may not deliver to sender; accept >=1.
     const recvBeforeBroadcast = counters.received;
     await unifiedAgentCommunicationService.broadcastMessage({
       sessionId,
       fromAgent: triage.config.id,
-      content: 'broadcast-one'
+      content: 'broadcast-one',
     });
     if (counters.received < recvBeforeBroadcast + 1) {
-      throw new Error(`received counter did not increase after broadcast: ${counters.received} vs >= ${recvBeforeBroadcast + 1}`);
+      throw new Error(
+        `received counter did not increase after broadcast: ${counters.received} vs >= ${recvBeforeBroadcast + 1}`,
+      );
     }
 
     // Handler lifecycle: remove listeners and ensure no further increments
@@ -74,18 +86,25 @@ import { createUnifiedTimestamp, createUnifiedId } from '../../coreagent/utils/U
       sessionId,
       fromAgent: dev.config.id,
       toAgent: triage.config.id,
-      content: 'ping-after-off'
+      content: 'ping-after-off',
     });
     await unifiedAgentCommunicationService.broadcastMessage({
       sessionId,
       fromAgent: triage.config.id,
-      content: 'broadcast-after-off'
+      content: 'broadcast-after-off',
     });
 
-    if (counters.sent !== sentBeforeOff) throw new Error(`sent incremented after off: ${counters.sent} vs ${sentBeforeOff}`);
-    if (counters.received !== recvBeforeOff) throw new Error(`received incremented after off: ${counters.received} vs ${recvBeforeOff}`);
+    if (counters.sent !== sentBeforeOff)
+      throw new Error(`sent incremented after off: ${counters.sent} vs ${sentBeforeOff}`);
+    if (counters.received !== recvBeforeOff)
+      throw new Error(`received incremented after off: ${counters.received} vs ${recvBeforeOff}`);
 
-    console.log('[communication-invariants.test] PASS', { registered: counters.registered, sent: counters.sent, received: counters.received, sessionId });
+    console.log('[communication-invariants.test] PASS', {
+      registered: counters.registered,
+      sent: counters.sent,
+      received: counters.received,
+      sessionId,
+    });
     // Clean shutdown of agents
     await AgentFactory.shutdownAllAgents();
     if (process.env.ONEAGENT_FAST_TEST_MODE === '1') process.exit(0);

@@ -22,7 +22,7 @@ const enhancementSummary = {
       'Rate limiting and timeout management',
       'Multiple search modes (basic, advanced, intelligent, news)',
       'Related query suggestions',
-      'Domain extraction and metadata enrichment'
+      'Domain extraction and metadata enrichment',
     ],
     methods: {
       public: [
@@ -37,7 +37,7 @@ const enhancementSummary = {
         'getConfig()',
         'getStats()',
         'resetStats()',
-        'healthCheck()'
+        'healthCheck()',
       ],
       private: [
         'combineAndDeduplicateResults()',
@@ -52,9 +52,9 @@ const enhancementSummary = {
         'storeSearchLearning()',
         'getSimilarSearchPatterns()',
         'storeQualityResults()',
-        'generateRecommendedFilters()'
-      ]
-    }
+        'generateRecommendedFilters()',
+      ],
+    },
   },
   webFetchTool: {
     name: 'WebFetchTool',
@@ -73,7 +73,7 @@ const enhancementSummary = {
       'Content caching for performance',
       'SSL/TLS error handling',
       'Timeout management',
-      'Mock mode for testing'
+      'Mock mode for testing',
     ],
     methods: {
       public: [
@@ -85,7 +85,7 @@ const enhancementSummary = {
         'getConfig()',
         'getStats()',
         'resetStats()',
-        'healthCheck()'
+        'healthCheck()',
       ],
       private: [
         'extractContent()',
@@ -100,9 +100,9 @@ const enhancementSummary = {
         'updateStats()',
         'storeContentLearning()',
         'getCachedContent()',
-        'mockFetch()'
-      ]
-    }
+        'mockFetch()',
+      ],
+    },
   },
   memoryIntegration: {
     name: 'Canonical Memory Integration',
@@ -116,7 +116,7 @@ const enhancementSummary = {
       'Performance metric tracking',
       'Error pattern recognition',
       'Intelligent query enhancement',
-      'Cross-session knowledge preservation'
+      'Cross-session knowledge preservation',
     ],
     methods: [
       'storeSearchLearning()',
@@ -125,9 +125,9 @@ const enhancementSummary = {
       'getSearchInsights()',
       'storeContentLearning()',
       'getCachedContent()',
-      'generateRecommendedFilters()'
-    ]
-  }
+      'generateRecommendedFilters()',
+    ],
+  },
 };
 
 // Display detailed enhancement information

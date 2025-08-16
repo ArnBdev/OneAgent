@@ -72,7 +72,7 @@ Test each OneAgent chatmode:
 # DevAgent
 @oneagent-dev *help
 
-# ValidationAgent  
+# ValidationAgent
 @oneagent-validation *help
 
 # PlannerAgent
@@ -85,6 +85,7 @@ Test each OneAgent chatmode:
 ## OneAgent Chatmode Workflow
 
 ### Constitutional AI Development Pattern
+
 ```mermaid
 graph LR
     A[Task Request] --> B[@oneagent-triage]
@@ -101,6 +102,7 @@ graph LR
 ### Example Workflow Scenarios
 
 #### Scenario 1: New Feature Development
+
 ```
 1. @oneagent-triage *route-task "Implement user authentication system"
 2. @oneagent-dev *constitutional-develop "User authentication with TypeScript"
@@ -108,6 +110,7 @@ graph LR
 ```
 
 #### Scenario 2: Code Quality Assessment
+
 ```
 1. @oneagent-triage *analyze-requirements "Audit existing codebase for quality"
 2. @oneagent-validation *bmad-analysis "Systematic code quality assessment"
@@ -115,6 +118,7 @@ graph LR
 ```
 
 #### Scenario 3: Project Planning
+
 ```
 1. @oneagent-planner *bmad-planning "Plan Phase 4 implementation strategy"
 2. @oneagent-triage *capacity-planning "Assess agent workload distribution"
@@ -124,18 +128,21 @@ graph LR
 ## Best Practices
 
 ### Constitutional AI Integration
+
 - Always start with `@oneagent-triage` for task routing
-- Use BMAD framework for complex decisions (*bmad-X commands)
+- Use BMAD framework for complex decisions (\*bmad-X commands)
 - Validate output quality with Constitutional AI principles
 - Target 80%+ Grade A quality standards
 
 ### Chatmode Command Structure
+
 - Use `*help` to see available commands for each agent
 - Commands follow pattern: `*action-verb {parameters}`
 - All agents support Constitutional AI validation
 - BMAD framework available for systematic analysis
 
 ### Quality Standards
+
 - Accuracy: Prefer "I don't know" to speculation
 - Transparency: Explain reasoning and limitations
 - Helpfulness: Provide actionable, relevant guidance
@@ -144,18 +151,21 @@ graph LR
 ## Troubleshooting
 
 ### Chatmode Not Available
+
 1. Verify `.vscode/*.chatmode.md` files exist
 2. Restart VS Code to refresh chatmode registry
 3. Check VS Code Copilot Chat extension is enabled
 4. Ensure files have `.chatmode.md` extension
 
 ### Commands Not Working
+
 1. Verify correct `*command` syntax with asterisk prefix
 2. Check agent-specific help with `*help` command
 3. Ensure Constitutional AI context is maintained
 4. Try `*exit` and reactivate chatmode if needed
 
 ### Performance Issues
+
 1. Use `@oneagent-triage *system-health` to check agent status
 2. Monitor workload distribution with `*load-balance`
 3. Apply BMAD analysis for complex routing decisions
@@ -164,18 +174,21 @@ graph LR
 ## Integration Benefits
 
 ### VS Code Copilot Chat Enhancement
+
 - Specialized OneAgent personas for different development tasks
 - Constitutional AI principles integrated into all interactions
 - BMAD framework for systematic analysis and decision-making
 - Professional Grade A quality standards (80%+ target)
 
 ### Development Workflow Optimization
+
 - Intelligent task routing with `@oneagent-triage`
 - Specialized expertise through dedicated agent personas
 - Quality validation and continuous improvement
 - Systematic planning and architectural guidance
 
 ### Constitutional AI Compliance
+
 - Accuracy: Evidence-based recommendations
 - Transparency: Clear reasoning and limitations
 - Helpfulness: Actionable, relevant guidance

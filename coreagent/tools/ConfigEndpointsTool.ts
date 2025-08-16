@@ -11,11 +11,19 @@ export class ConfigEndpointsTool extends UnifiedMCPTool {
     const schema: InputSchema = {
       type: 'object',
       properties: {
-        includeHash: { type: 'boolean', description: 'Include config hash in output (default true)' }
+        includeHash: {
+          type: 'boolean',
+          description: 'Include config hash in output (default true)',
+        },
       },
-      required: []
+      required: [],
     };
-    super('oneagent_config_endpoints', 'Current canonical endpoint configuration snapshot', schema, 'basic');
+    super(
+      'oneagent_config_endpoints',
+      'Current canonical endpoint configuration snapshot',
+      schema,
+      'basic',
+    );
   }
 
   async executeCore(args: { includeHash?: boolean }): Promise<ToolExecutionResult> {
@@ -27,9 +35,11 @@ export class ConfigEndpointsTool extends UnifiedMCPTool {
       data: {
         endpoints,
         ...(includeHash && { hash: UnifiedConfigProvider.getHash() }),
-        overridesActive: cfg.memoryPort !== UnifiedBackboneService.config.memoryPort || cfg.mcpPort !== UnifiedBackboneService.config.mcpPort,
-  timestamp: new Date().toISOString()
-      }
+        overridesActive:
+          cfg.memoryPort !== UnifiedBackboneService.config.memoryPort ||
+          cfg.mcpPort !== UnifiedBackboneService.config.mcpPort,
+        timestamp: new Date().toISOString(),
+      },
     };
   }
 }

@@ -3,7 +3,11 @@
  * Run via: npm run smoke
  */
 import assert from 'node:assert';
-import { createUnifiedTimestamp, createUnifiedId, OneAgentUnifiedBackbone } from '../../coreagent/utils/UnifiedBackboneService';
+import {
+  createUnifiedTimestamp,
+  createUnifiedId,
+  OneAgentUnifiedBackbone,
+} from '../../coreagent/utils/UnifiedBackboneService';
 
 function testUnifiedTimestampAndId() {
   const ts1 = createUnifiedTimestamp();

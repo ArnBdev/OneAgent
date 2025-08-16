@@ -60,42 +60,42 @@ export class UnifiedWebFetchTool extends UnifiedMCPTool {
     const schema: InputSchema = {
       type: 'object',
       properties: {
-        url: { 
-          type: 'string', 
+        url: {
+          type: 'string',
           description: 'URL to fetch content from',
-          pattern: '^https?://.+'
+          pattern: '^https?://.+',
         },
-        extractContent: { 
-          type: 'boolean', 
-          description: 'Extract main content from HTML (default: true)' 
+        extractContent: {
+          type: 'boolean',
+          description: 'Extract main content from HTML (default: true)',
         },
-        includeMetadata: { 
-          type: 'boolean', 
-          description: 'Include page metadata (default: true)' 
+        includeMetadata: {
+          type: 'boolean',
+          description: 'Include page metadata (default: true)',
         },
-        timeout: { 
-          type: 'number', 
+        timeout: {
+          type: 'number',
           description: 'Request timeout in milliseconds (default: 10000)',
           minimum: 1000,
-          maximum: 30000
+          maximum: 30000,
         },
-        userAgent: { 
-          type: 'string', 
-          description: 'Custom User-Agent string' 
+        userAgent: {
+          type: 'string',
+          description: 'Custom User-Agent string',
         },
-        validateUrl: { 
-          type: 'boolean', 
-          description: 'Validate URL before fetching (default: true)' 
-        }
+        validateUrl: {
+          type: 'boolean',
+          description: 'Validate URL before fetching (default: true)',
+        },
       },
-      required: ['url']
+      required: ['url'],
     };
 
     super(
       'oneagent_web_fetch',
       'Fetch and extract content from web pages with Constitutional AI validation',
       schema,
-      'enhanced'
+      'enhanced',
     );
 
     // Initialize WebFetchTool
@@ -111,27 +111,27 @@ export class UnifiedWebFetchTool extends UnifiedMCPTool {
         'text/xml',
         'application/xml',
         'application/json',
-        'text/markdown'
-      ]
+        'text/markdown',
+      ],
     });
     const memoryConfig: OneAgentMemoryConfig = {
       apiKey: process.env.MEM0_API_KEY || 'demo-key',
-      apiUrl: process.env.MEM0_API_URL
+      apiUrl: process.env.MEM0_API_URL,
     };
-  this.memorySystem = OneAgentMemory.getInstance(memoryConfig);
-  this.metadataService = OneAgentUnifiedMetadataService.getInstance();
+    this.memorySystem = OneAgentMemory.getInstance(memoryConfig);
+    this.metadataService = OneAgentUnifiedMetadataService.getInstance();
   }
 
   public async executeCore(args: unknown): Promise<ToolExecutionResult> {
     try {
       const params = args as WebFetchParams;
-      const { 
-        url, 
-        extractContent = true, 
-        includeMetadata = true, 
+      const {
+        url,
+        extractContent = true,
+        includeMetadata = true,
         timeout = 10000,
         userAgent,
-        validateUrl = true
+        validateUrl = true,
       } = params;
 
       // Constitutional AI URL validation
@@ -143,22 +143,22 @@ export class UnifiedWebFetchTool extends UnifiedMCPTool {
             success: false,
             message: `URL validation failed: ${urlValidation.reason}`,
             url,
-            timestamp: new Date().toISOString()
-          }
+            timestamp: new Date().toISOString(),
+          },
         };
-      }      // Fetch content using WebFetchTool
+      } // Fetch content using WebFetchTool
       const fetchResult = await this.webFetchTool.fetchContent({
         url,
         extractContent,
         extractMetadata: includeMetadata,
         timeout,
         ...(userAgent && { userAgent }),
-        validateUrl
+        validateUrl,
       });
 
       // Apply Constitutional AI content filtering
       const filteredContent = await this.applyContentFiltering(fetchResult);
-      
+
       // Store fetch learning in memory
       await this.storeFetchLearning(url, filteredContent);
 
@@ -176,7 +176,7 @@ export class UnifiedWebFetchTool extends UnifiedMCPTool {
             'Web content fetching and extraction',
             'Constitutional AI content filtering',
             'Safe URL validation',
-            'Metadata extraction and analysis'
+            'Metadata extraction and analysis',
           ],
           qualityScore: this.calculateContentQuality(filteredContent),
           toolName: 'oneagent_web_fetch',
@@ -185,16 +185,15 @@ export class UnifiedWebFetchTool extends UnifiedMCPTool {
           metadata: {
             fetchType: 'web_content',
             toolFramework: 'unified_mcp_v1.0',
-            constitutionalLevel: 'enhanced'
-          }
-        }
+            constitutionalLevel: 'enhanced',
+          },
+        },
       };
-
     } catch (error: unknown) {
       return {
         success: false,
         data: error instanceof Error ? error.message : 'Web fetch failed',
-        qualityScore: 0
+        qualityScore: 0,
       };
     }
   }
@@ -205,24 +204,29 @@ export class UnifiedWebFetchTool extends UnifiedMCPTool {
   private validateUrlSafety(url: string): { isValid: boolean; reason?: string } {
     try {
       const urlObj = new URL(url);
-      
+
       // Block potentially harmful protocols
       if (!['http:', 'https:'].includes(urlObj.protocol)) {
         return { isValid: false, reason: 'Only HTTP/HTTPS protocols allowed' };
       }
-      
+
       // Block localhost and private IPs for security
       const hostname = urlObj.hostname.toLowerCase();
-      if (hostname === 'localhost' || hostname.startsWith('127.') || hostname.startsWith('192.168.') || hostname.startsWith('10.')) {
+      if (
+        hostname === 'localhost' ||
+        hostname.startsWith('127.') ||
+        hostname.startsWith('192.168.') ||
+        hostname.startsWith('10.')
+      ) {
         return { isValid: false, reason: 'Private/localhost URLs not allowed' };
       }
-      
+
       // Block potentially malicious file extensions
       const maliciousExtensions = ['.exe', '.bat', '.cmd', '.scr', '.pif', '.com'];
-      if (maliciousExtensions.some(ext => urlObj.pathname.toLowerCase().endsWith(ext))) {
+      if (maliciousExtensions.some((ext) => urlObj.pathname.toLowerCase().endsWith(ext))) {
         return { isValid: false, reason: 'Potentially unsafe file type' };
       }
-      
+
       return { isValid: true };
     } catch {
       return { isValid: false, reason: 'Invalid URL format' };
@@ -241,12 +245,12 @@ export class UnifiedWebFetchTool extends UnifiedMCPTool {
     const harmfulPatterns = [
       /\b(download.*virus|malware|trojan)\b/gi,
       /\b(hack.*password|steal.*data|phishing)\b/gi,
-      /\b(illegal.*download|piracy|torrent)\b/gi
+      /\b(illegal.*download|piracy|torrent)\b/gi,
     ];
 
     const contentWarnings: string[] = [];
     const content = fetchResult.content.text || '';
-    
+
     harmfulPatterns.forEach((pattern, index) => {
       if (pattern.test(content)) {
         contentWarnings.push(`Potential security concern detected (pattern ${index + 1})`);
@@ -258,13 +262,13 @@ export class UnifiedWebFetchTool extends UnifiedMCPTool {
       content: {
         ...fetchResult.content,
         safetyScore: this.calculateSafetyScore(content),
-        ...(contentWarnings.length > 0 && { contentWarnings })
+        ...(contentWarnings.length > 0 && { contentWarnings }),
       },
       constitutionalValidation: {
         passed: contentWarnings.length === 0,
         warnings: contentWarnings,
-        safetyScore: this.calculateSafetyScore(content)
-      }
+        safetyScore: this.calculateSafetyScore(content),
+      },
     };
   }
 
@@ -273,18 +277,26 @@ export class UnifiedWebFetchTool extends UnifiedMCPTool {
    */
   private calculateSafetyScore(content: string): number {
     let score = 100;
-    
+
     const riskyTerms = [
-      'virus', 'malware', 'hack', 'exploit', 'phishing',
-      'illegal', 'piracy', 'crack', 'keygen', 'warez'
+      'virus',
+      'malware',
+      'hack',
+      'exploit',
+      'phishing',
+      'illegal',
+      'piracy',
+      'crack',
+      'keygen',
+      'warez',
     ];
-    
+
     const contentLower = content.toLowerCase();
-    riskyTerms.forEach(term => {
+    riskyTerms.forEach((term) => {
       const matches = (contentLower.match(new RegExp(term, 'g')) || []).length;
       score -= matches * 5; // Reduce score for each risky term occurrence
     });
-    
+
     return Math.max(score, 0);
   }
 
@@ -293,28 +305,28 @@ export class UnifiedWebFetchTool extends UnifiedMCPTool {
    */
   private calculateContentQuality(fetchResult: WebFetchResult): number {
     if (!fetchResult.success) return 0;
-    
+
     let score = 50; // Base score
-    
+
     // Boost for successful content extraction
     if (fetchResult.content && fetchResult.content.text) {
       score += 20;
-      
+
       // Boost for substantial content
       if (fetchResult.content.text.length > 1000) {
         score += 15;
       }
     }
-    
+
     // Boost for metadata availability
     if (fetchResult.content && fetchResult.content.metadata) {
       score += 10;
     }
-    
+
     // Apply safety score
     const safetyScore = fetchResult.content?.safetyScore || 100;
     score = score * (safetyScore / 100);
-    
+
     return Math.min(Math.round(score), 100);
   }
 
@@ -335,7 +347,7 @@ export class UnifiedWebFetchTool extends UnifiedMCPTool {
           qualityScore: this.calculateContentQuality(fetchResult),
           fetchTime: fetchResult.timing?.totalTime || 0,
           timestamp: new Date().toISOString(),
-          insights: this.generateFetchInsights(url, fetchResult)
+          insights: this.generateFetchInsights(url, fetchResult),
         }),
         confidence: 0.9,
         applicationCount: 0,
@@ -344,8 +356,14 @@ export class UnifiedWebFetchTool extends UnifiedMCPTool {
         metadata: {
           tool: 'web_fetch',
           operation: 'web_content_fetch',
-          ...((() => { try { return { domain: new URL(url).hostname }; } catch { return {}; } })())
-        }
+          ...(() => {
+            try {
+              return { domain: new URL(url).hostname };
+            } catch {
+              return {};
+            }
+          })(),
+        },
       };
       await this.memorySystem.addMemoryCanonical(
         learning.content,
@@ -353,22 +371,22 @@ export class UnifiedWebFetchTool extends UnifiedMCPTool {
           system: {
             userId: 'system',
             source: 'web_fetch_tool',
-            component: 'fetch-learning'
+            component: 'fetch-learning',
           },
           content: {
             category: 'web_intelligence',
             tags: ['web', 'fetch', 'learning'],
             sensitivity: 'internal',
             relevanceScore: 0.7,
-            contextDependency: 'global'
+            contextDependency: 'global',
           },
           contextual: {
             url,
             success: fetchResult.success,
-            qualityScore: this.calculateContentQuality(fetchResult)
-          }
+            qualityScore: this.calculateContentQuality(fetchResult),
+          },
         }),
-        'system'
+        'system',
       );
     } catch (_error) {
       console.warn('[UnifiedWebFetchTool] Failed to store fetch learning:', _error);
@@ -380,7 +398,7 @@ export class UnifiedWebFetchTool extends UnifiedMCPTool {
    */
   private generateFetchInsights(url: string, fetchResult: WebFetchResult): string[] {
     const insights: string[] = [];
-    
+
     if (!fetchResult.success) {
       insights.push('Fetch failed - check URL accessibility and network connectivity');
     } else {
@@ -390,20 +408,20 @@ export class UnifiedWebFetchTool extends UnifiedMCPTool {
       } else if (contentLength > 50000) {
         insights.push('Large content detected - consider content summarization');
       }
-      
+
       const safetyScore = fetchResult.content?.safetyScore || 100;
       if (safetyScore < 80) {
         insights.push('Safety concerns detected - review content before use');
       }
     }
-    
+
     try {
       const domain = new URL(url).hostname;
       insights.push(`Domain: ${domain} - consider adding to trusted/blocked list based on quality`);
     } catch {
       insights.push('URL parsing failed - validate URL format');
     }
-    
+
     return insights;
   }
 }

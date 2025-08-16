@@ -14,10 +14,13 @@ const memHealth = `http://127.0.0.1:${MEM_PORT}/health`;
 function httpGet(url: string, timeoutMs = 3000): Promise<number> {
   return new Promise((resolve, reject) => {
     const u = new URL(url);
-    const req = http.request({ hostname: u.hostname, port: u.port, path: u.pathname, method: 'GET', timeout: timeoutMs }, res => {
-      res.resume();
-      resolve(res.statusCode || 0);
-    });
+    const req = http.request(
+      { hostname: u.hostname, port: u.port, path: u.pathname, method: 'GET', timeout: timeoutMs },
+      (res) => {
+        res.resume();
+        resolve(res.statusCode || 0);
+      },
+    );
     req.on('error', reject);
     req.end();
   });
@@ -32,13 +35,18 @@ async function waitReady(url: string, totalMs = 30000, stepMs = 500): Promise<bo
     } catch {
       // ignore
     }
-    await new Promise(r => setTimeout(r, stepMs));
+    await new Promise((r) => setTimeout(r, stepMs));
   }
   return false;
 }
 
 function run(cmd: string, args: string[], cwd: string, env?: NodeJS.ProcessEnv): ChildProcess {
-  const child = spawn(cmd, args, { cwd, stdio: 'inherit', shell: false, env: { ...process.env, ...(env || {}) } });
+  const child = spawn(cmd, args, {
+    cwd,
+    stdio: 'inherit',
+    shell: false,
+    env: { ...process.env, ...(env || {}) },
+  });
   return child;
 }
 
@@ -54,7 +62,21 @@ async function main() {
   try {
     if (!preUp) {
       // Start memory via uvicorn, pointing app-dir to servers
-      mem = run('python', ['-m', 'uvicorn', 'oneagent_memory_server:app', '--app-dir', 'servers', '--host', '127.0.0.1', '--port', String(MEM_PORT)], cwd);
+      mem = run(
+        'python',
+        [
+          '-m',
+          'uvicorn',
+          'oneagent_memory_server:app',
+          '--app-dir',
+          'servers',
+          '--host',
+          '127.0.0.1',
+          '--port',
+          String(MEM_PORT),
+        ],
+        cwd,
+      );
     }
     const ready = await waitReady(memHealth, 30000, 500);
     if (!ready) throw new Error('Memory server not ready for A2A tests');
@@ -75,16 +97,11 @@ async function main() {
 
     for (const test of tests) {
       const code = await new Promise<number>((resolve) => {
-        const child = run(
-          process.execPath,
-          ['-r', tsNodeRegister, test],
-          cwd,
-          {
-            ONEAGENT_FAST_TEST_MODE: '1',
-            ONEAGENT_DISABLE_AUTO_MONITORING: '1',
-            ONEAGENT_SILENCE_COMM_LOGS: '1'
-          }
-        );
+        const child = run(process.execPath, ['-r', tsNodeRegister, test], cwd, {
+          ONEAGENT_FAST_TEST_MODE: '1',
+          ONEAGENT_DISABLE_AUTO_MONITORING: '1',
+          ONEAGENT_SILENCE_COMM_LOGS: '1',
+        });
         child.on('exit', (c) => resolve(c === null ? 1 : c));
       });
       if (code !== 0) {
@@ -94,12 +111,16 @@ async function main() {
     console.log('✓ A2A tests passed');
   } finally {
     if (mem) {
-      try { mem.kill(); } catch { /* ignore */ }
+      try {
+        mem.kill();
+      } catch {
+        /* ignore */
+      }
     }
   }
 }
 
-main().catch(err => {
+main().catch((err) => {
   console.error('A2A tests runner failed:', err);
   process.exit(1);
 });

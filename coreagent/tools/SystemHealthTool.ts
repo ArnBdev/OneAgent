@@ -23,42 +23,45 @@ export class SystemHealthTool extends UnifiedMCPTool {
     const schema: InputSchema = {
       type: 'object',
       properties: {
-        includeDetails: { 
-          type: 'boolean', 
-          description: 'Include detailed metrics (default: true)' 
+        includeDetails: {
+          type: 'boolean',
+          description: 'Include detailed metrics (default: true)',
         },
-        components: { 
+        components: {
           type: 'array',
-          items: { 
+          items: {
             type: 'string',
-            enum: ['memory', 'agents', 'mcp', 'constitutional', 'performance']
+            enum: ['memory', 'agents', 'mcp', 'constitutional', 'performance'],
           },
-          description: 'Specific components to check (default: all)' 
-        }
+          description: 'Specific components to check (default: all)',
+        },
       },
-      required: []
+      required: [],
     };
 
     super(
       'oneagent_system_health',
       'Comprehensive OneAgent system health and performance metrics',
       schema,
-      'basic'
+      'basic',
     );
   }
 
   public async executeCore(args: SystemHealthArgs): Promise<ToolExecutionResult> {
     try {
-      const { includeDetails = true, components = ['memory', 'agents', 'mcp', 'constitutional', 'performance'] } = args;
-      
+      const {
+        includeDetails = true,
+        components = ['memory', 'agents', 'mcp', 'constitutional', 'performance'],
+      } = args;
+
       const healthMetrics = {
         overall: {
           status: 'healthy',
           uptime: process.uptime(),
           timestamp: new Date().toISOString(),
-          version: '4.0.0'
+          version: '4.0.0',
         },
-        components: {} as ComponentMetrics
+        components: {} as ComponentMetrics,
       };
 
       // Add component-specific metrics
@@ -70,8 +73,8 @@ export class SystemHealthTool extends UnifiedMCPTool {
           operations: {
             successful: 156,
             failed: 0,
-            successRate: '100%'
-          }
+            successRate: '100%',
+          },
         };
       }
 
@@ -81,7 +84,7 @@ export class SystemHealthTool extends UnifiedMCPTool {
           activeAgents: 5,
           registeredAgents: ['CoreAgent', 'DevAgent', 'OfficeAgent', 'FitnessAgent', 'TriageAgent'],
           averageResponseTime: '45ms',
-          healthScore: 95
+          healthScore: 95,
         };
       }
 
@@ -94,7 +97,7 @@ export class SystemHealthTool extends UnifiedMCPTool {
           resourcesAvailable: 3,
           promptsAvailable: 2,
           requestsHandled: 12,
-          errorRate: '0%'
+          errorRate: '0%',
         };
       }
 
@@ -105,7 +108,7 @@ export class SystemHealthTool extends UnifiedMCPTool {
           validationsPerformed: 8,
           averageQualityScore: 95,
           complianceRate: '100%',
-          threshold: 80
+          threshold: 80,
         };
       }
 
@@ -116,10 +119,10 @@ export class SystemHealthTool extends UnifiedMCPTool {
           responseTime: {
             average: '120ms',
             p95: '250ms',
-            p99: '500ms'
+            p99: '500ms',
           },
           throughput: '50 requests/minute',
-          errorRate: '0%'
+          errorRate: '0%',
         };
       }
 
@@ -135,7 +138,7 @@ export class SystemHealthTool extends UnifiedMCPTool {
             'Real-time performance monitoring',
             'Component-specific health tracking',
             'Constitutional AI compliance monitoring',
-            'Multi-agent system status'
+            'Multi-agent system status',
           ],
           qualityScore: 100,
           toolName: 'oneagent_system_health',
@@ -144,19 +147,18 @@ export class SystemHealthTool extends UnifiedMCPTool {
           metadata: {
             checkType: 'comprehensive',
             toolFramework: 'unified_mcp_v1.0',
-            constitutionalLevel: 'basic'
-          }
-        }
+            constitutionalLevel: 'basic',
+          },
+        },
       };
-
     } catch (error) {
       return {
         success: false,
         data: {
           success: false,
           error: error instanceof Error ? error.message : 'Unknown error',
-          timestamp: new Date().toISOString()
-        }
+          timestamp: new Date().toISOString(),
+        },
       };
     }
   }

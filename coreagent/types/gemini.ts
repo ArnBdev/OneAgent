@@ -90,9 +90,9 @@ export interface ChatResponse {
  * Gemini Embeddings API Types
  */
 
-export type EmbeddingTaskType = 
+export type EmbeddingTaskType =
   | 'SEMANTIC_SIMILARITY'
-  | 'CLASSIFICATION' 
+  | 'CLASSIFICATION'
   | 'CLUSTERING'
   | 'RETRIEVAL_DOCUMENT'
   | 'RETRIEVAL_QUERY'
@@ -101,7 +101,7 @@ export type EmbeddingTaskType =
   | 'CODE_RETRIEVAL_QUERY';
 
 export interface EmbeddingRequest {
-  model?: string;  // For batch requests
+  model?: string; // For batch requests
   content: {
     parts: Array<{
       text: string;
@@ -123,7 +123,7 @@ export interface EmbeddingResponse {
 
 // Batch response structure - each item directly contains values array
 export interface BatchEmbeddingItem {
-  values: number[];  // Direct structure based on actual API response
+  values: number[]; // Direct structure based on actual API response
 }
 
 export interface EmbeddingBatchResponse {

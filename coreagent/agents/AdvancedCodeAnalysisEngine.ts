@@ -1,22 +1,19 @@
 /**
  * Advanced Code Analysis Engine for DevAgent
- * 
+ *
  * Provides sophisticated code analysis capabilities including:
  * - Context7 integration for documentation lookup (canonical only)
  * - Pattern recognition and learning
  * - Memory-driven code insights
  * - Constitutional AI validation for code quality
  * - Cross-agent learning from code interactions
- * 
+ *
  * @version 1.0.0
  * @created June 14, 2025
  */
 
-
 import { createUnifiedTimestamp } from '../utils/UnifiedBackboneService';
-import type {
-  DocumentationResult
-} from '../types/oneagent-backbone-types';
+import type { DocumentationResult } from '../types/oneagent-backbone-types';
 import { unifiedAgentCommunicationService } from '../utils/UnifiedAgentCommunicationService';
 
 export interface CodeAnalysisRequest {
@@ -88,7 +85,7 @@ export class AdvancedCodeAnalysisEngine {
     successfulAnalyses: 0,
     averageQualityScore: 0,
     context7Usage: 0, // Only for documentation lookup
-    memoryEnhancements: 0
+    memoryEnhancements: 0,
   };
 
   constructor(agentId: string) {
@@ -104,7 +101,9 @@ export class AdvancedCodeAnalysisEngine {
     this.analysisMetrics.totalAnalyses++;
 
     try {
-      console.log(`[CodeAnalysis] Starting ${request.requestType} analysis for ${request.language}`);
+      console.log(
+        `[CodeAnalysis] Starting ${request.requestType} analysis for ${request.language}`,
+      );
 
       // Step 1: Get memory insights from previous similar analyses
       const memoryInsights = await this.getMemoryInsights(request);
@@ -119,13 +118,21 @@ export class AdvancedCodeAnalysisEngine {
       const patterns = await this.extractCodePatterns(request);
 
       // Step 5: Generate suggestions with Constitutional AI validation
-      const suggestions = await this.generateSuggestions(request, baseAnalysis, documentation, memoryInsights);
+      const suggestions = await this.generateSuggestions(
+        request,
+        baseAnalysis,
+        documentation,
+        memoryInsights,
+      );
 
       // Step 6: Calculate quality score
       const qualityScore = await this.calculateQualityScore(request, suggestions);
 
       // Step 7: Validate constitutional compliance
-      const constitutionalCompliance = await this.validateConstitutionalCompliance(baseAnalysis, suggestions);
+      const constitutionalCompliance = await this.validateConstitutionalCompliance(
+        baseAnalysis,
+        suggestions,
+      );
 
       const result: CodeAnalysisResult = {
         analysis: baseAnalysis,
@@ -140,8 +147,8 @@ export class AdvancedCodeAnalysisEngine {
           confidence: this.calculateConfidence(suggestions, documentation, memoryInsights),
           processingTime: createUnifiedTimestamp().unix - startTime,
           context7Used: documentation.length > 0, // Only for documentation lookup
-          memoryEnhanced: memoryInsights.length > 0
-        }
+          memoryEnhanced: memoryInsights.length > 0,
+        },
       };
 
       // Step 8: Store analysis in memory for learning
@@ -151,7 +158,6 @@ export class AdvancedCodeAnalysisEngine {
       this.updateMetrics(result);
 
       return result;
-
     } catch (error) {
       console.error(`[CodeAnalysis] Analysis failed:`, error);
       return this.generateFallbackAnalysis(request);
@@ -160,21 +166,26 @@ export class AdvancedCodeAnalysisEngine {
 
   /**
    * Get memory insights from previous similar analyses
-   */  private async getMemoryInsights(request: CodeAnalysisRequest): Promise<MemoryInsight[]> {
+   */ private async getMemoryInsights(request: CodeAnalysisRequest): Promise<MemoryInsight[]> {
     try {
       // Removed unused searchQuery variable
-      
+
       // Canonical: Use agentComm.getMessageHistory or similar for memory insights
       const sessionId = request.sessionId || 'default';
       const messages = await unifiedAgentCommunicationService.getMessageHistory(sessionId, 5);
       return messages.map((msg: unknown) => {
-        const m = msg as { content?: string; metadata?: { confidenceLevel?: number }; fromAgent?: string; timestamp?: string };
+        const m = msg as {
+          content?: string;
+          metadata?: { confidenceLevel?: number };
+          fromAgent?: string;
+          timestamp?: string;
+        };
         return {
           type: this.classifyInsightType(m.content || ''),
           content: m.content || '',
           confidence: m.metadata?.confidenceLevel || 0.7,
           source: m.fromAgent || 'unknown',
-          timestamp: new Date(m.timestamp || createUnifiedTimestamp().utc)
+          timestamp: new Date(m.timestamp || createUnifiedTimestamp().utc),
         };
       });
     } catch (error) {
@@ -216,42 +227,44 @@ export class AdvancedCodeAnalysisEngine {
   /**
    * Get relevant documentation via context7 (canonical only)
    */
-  private async getRelevantDocumentation(request: CodeAnalysisRequest, analysis: string): Promise<DocumentationResult[]> {
+  private async getRelevantDocumentation(
+    request: CodeAnalysisRequest,
+    analysis: string,
+  ): Promise<DocumentationResult[]> {
     try {
       this.analysisMetrics.context7Usage++; // Only for documentation lookup
 
       const queries = [];
 
       // Language-specific documentation
-      if (request.language) {        queries.push({
+      if (request.language) {
+        queries.push({
           source: this.getDocumentationSource(request.language),
           query: `${request.requestType} ${request.problemDescription || ''}`,
           context: request.context || '',
           userId: request.userId,
-          sessionId: request.sessionId || 'unknown'
+          sessionId: request.sessionId || 'unknown',
         });
       }
 
       // Framework-specific documentation
       const detectedFrameworks = this.detectFrameworks(request.code);
-      for (const framework of detectedFrameworks) {        queries.push({
+      for (const framework of detectedFrameworks) {
+        queries.push({
           source: framework,
           query: `${request.requestType} best practices`,
           context: analysis,
           userId: request.userId,
-          sessionId: request.sessionId || 'unknown'
+          sessionId: request.sessionId || 'unknown',
         });
       }
 
-  const documentationResults: DocumentationResult[] = [];
-  // Canonical: Use UnifiedBackboneService.context7.queryDocumentation
-  // TODO: Integrate canonical Context7 documentation query utility/service here
-  // Placeholder: documentation retrieval disabled until canonical service is wired
+      const documentationResults: DocumentationResult[] = [];
+      // Canonical: Use UnifiedBackboneService.context7.queryDocumentation
+      // TODO: Integrate canonical Context7 documentation query utility/service here
+      // Placeholder: documentation retrieval disabled until canonical service is wired
 
-      return documentationResults
-        .sort((a, b) => b.relevanceScore - a.relevanceScore)
-        .slice(0, 5); // Top 5 most relevant
-
+      return documentationResults.sort((a, b) => b.relevanceScore - a.relevanceScore).slice(0, 5); // Top 5 most relevant
     } catch (error) {
       console.warn(`[CodeAnalysis] Documentation retrieval failed:`, error);
       return [];
@@ -272,7 +285,7 @@ export class AdvancedCodeAnalysisEngine {
     const detectedPatterns = this.detectCodePatterns(request.code, language);
 
     for (const detected of detectedPatterns) {
-      const existing = existingPatterns.find(p => p.name === detected.name);
+      const existing = existingPatterns.find((p) => p.name === detected.name);
       if (existing) {
         existing.frequency++;
         existing.lastSeen = new Date();
@@ -285,7 +298,7 @@ export class AdvancedCodeAnalysisEngine {
           quality: detected.quality,
           lastSeen: new Date(),
           examples: [detected.example],
-          relatedDocumentation: []
+          relatedDocumentation: [],
         });
       }
     }
@@ -303,34 +316,44 @@ export class AdvancedCodeAnalysisEngine {
     request: CodeAnalysisRequest,
     analysis: string,
     documentation: DocumentationResult[],
-    memoryInsights: MemoryInsight[]
+    memoryInsights: MemoryInsight[],
   ): Promise<CodeSuggestion[]> {
     const suggestions: CodeSuggestion[] = [];
 
     // Generate suggestions based on analysis type
     switch (request.requestType) {
       case 'review':
-        suggestions.push(...await this.generateReviewSuggestions(request, analysis, documentation));
+        suggestions.push(
+          ...(await this.generateReviewSuggestions(request, analysis, documentation)),
+        );
         break;
       case 'debug':
-        suggestions.push(...await this.generateDebugSuggestions(request, analysis, memoryInsights));
+        suggestions.push(
+          ...(await this.generateDebugSuggestions(request, analysis, memoryInsights)),
+        );
         break;
       case 'optimize':
-        suggestions.push(...await this.generateOptimizationSuggestions(request, analysis, documentation));
+        suggestions.push(
+          ...(await this.generateOptimizationSuggestions(request, analysis, documentation)),
+        );
         break;
       case 'refactor':
-        suggestions.push(...await this.generateRefactoringSuggestions(request, analysis, documentation));
+        suggestions.push(
+          ...(await this.generateRefactoringSuggestions(request, analysis, documentation)),
+        );
         break;
       case 'test':
-        suggestions.push(...await this.generateTestSuggestions(request, analysis, documentation));
+        suggestions.push(...(await this.generateTestSuggestions(request, analysis, documentation)));
         break;
       case 'explain':
-        suggestions.push(...await this.generateExplanationSuggestions(request, analysis, documentation));
+        suggestions.push(
+          ...(await this.generateExplanationSuggestions(request, analysis, documentation)),
+        );
         break;
     }
 
     // Validate each suggestion for constitutional compliance
-    return suggestions.filter(suggestion => this.validateSuggestion(suggestion));
+    return suggestions.filter((suggestion) => this.validateSuggestion(suggestion));
   }
 
   /**
@@ -400,9 +423,11 @@ export class AdvancedCodeAnalysisEngine {
       analysis.push('Function is quite long - consider breaking into smaller functions');
     }
 
-    const commentLines = lines.filter(line => line.trim().startsWith('//') || line.trim().startsWith('#')).length;
-    const codeLines = lines.filter(line => line.trim().length > 0).length;
-    
+    const commentLines = lines.filter(
+      (line) => line.trim().startsWith('//') || line.trim().startsWith('#'),
+    ).length;
+    const codeLines = lines.filter((line) => line.trim().length > 0).length;
+
     if (commentLines / codeLines < 0.1) {
       analysis.push('Consider adding more comments to explain complex logic');
     }
@@ -445,7 +470,7 @@ export class AdvancedCodeAnalysisEngine {
       python: 'python',
       java: 'java',
       react: 'react',
-      node: 'nodejs'
+      node: 'nodejs',
     };
     return mapping[language.toLowerCase()] || 'generic';
   }
@@ -464,16 +489,19 @@ export class AdvancedCodeAnalysisEngine {
     return frameworks;
   }
 
-  private detectCodePatterns(code: string, _language: string): Array<{name: string, description: string, quality: number, example: string}> {
+  private detectCodePatterns(
+    code: string,
+    _language: string,
+  ): Array<{ name: string; description: string; quality: number; example: string }> {
     const patterns = [];
-    
+
     // Common patterns
     if (code.includes('async') && code.includes('await')) {
       patterns.push({
         name: 'async-await',
         description: 'Asynchronous programming pattern',
         quality: 0.8,
-        example: code.substring(0, 100)
+        example: code.substring(0, 100),
       });
     }
 
@@ -482,7 +510,7 @@ export class AdvancedCodeAnalysisEngine {
         name: 'error-handling',
         description: 'Error handling pattern',
         quality: 0.9,
-        example: code.substring(0, 100)
+        example: code.substring(0, 100),
       });
     }
 
@@ -502,76 +530,120 @@ export class AdvancedCodeAnalysisEngine {
     return 'pattern';
   }
 
-  private calculateConfidence(suggestions: CodeSuggestion[], documentation: DocumentationResult[], memoryInsights: MemoryInsight[]): number {
+  private calculateConfidence(
+    suggestions: CodeSuggestion[],
+    documentation: DocumentationResult[],
+    memoryInsights: MemoryInsight[],
+  ): number {
     let confidence = 0.5; // Base confidence
-    
+
     confidence += Math.min(suggestions.length * 0.1, 0.3); // More suggestions = higher confidence
     confidence += Math.min(documentation.length * 0.05, 0.2); // Documentation = higher confidence
     confidence += Math.min(memoryInsights.length * 0.03, 0.1); // Memory insights = higher confidence
-    
+
     return Math.min(confidence, 1.0);
   }
 
-  private async calculateQualityScore(_request: CodeAnalysisRequest, suggestions: CodeSuggestion[]): Promise<number> {
+  private async calculateQualityScore(
+    _request: CodeAnalysisRequest,
+    suggestions: CodeSuggestion[],
+  ): Promise<number> {
     let score = 85; // Base score
-    
+
     // Deduct points for issues
     for (const suggestion of suggestions) {
       switch (suggestion.severity) {
-        case 'critical': score -= 15; break;
-        case 'high': score -= 10; break;
-        case 'medium': score -= 5; break;
-        case 'low': score -= 2; break;
+        case 'critical':
+          score -= 15;
+          break;
+        case 'high':
+          score -= 10;
+          break;
+        case 'medium':
+          score -= 5;
+          break;
+        case 'low':
+          score -= 2;
+          break;
       }
     }
-    
+
     return Math.max(score, 0);
   }
 
-  private async validateConstitutionalCompliance(_analysis: string, suggestions: CodeSuggestion[]): Promise<boolean> {
+  private async validateConstitutionalCompliance(
+    _analysis: string,
+    suggestions: CodeSuggestion[],
+  ): Promise<boolean> {
     // Check if analysis and suggestions follow Constitutional AI principles
     // - Accuracy: Are suggestions technically sound?
     // - Transparency: Are explanations clear?
     // - Helpfulness: Do suggestions provide actionable guidance?
     // - Safety: Do suggestions avoid harmful recommendations?
-    
-    return !suggestions.some(s => s.type === 'security' && s.severity === 'critical');
+
+    return !suggestions.some((s) => s.type === 'security' && s.severity === 'critical');
   }
 
   private validateSuggestion(suggestion: CodeSuggestion): boolean {
     // Validate suggestion meets Constitutional AI standards
-    return suggestion.reasoning.length > 10 && 
-           suggestion.description.length > 10 &&
-           !suggestion.description.includes('just') && // Avoid vague language
-           !suggestion.description.includes('simply'); // Avoid oversimplification
+    return (
+      suggestion.reasoning.length > 10 &&
+      suggestion.description.length > 10 &&
+      !suggestion.description.includes('just') && // Avoid vague language
+      !suggestion.description.includes('simply')
+    ); // Avoid oversimplification
   }
 
-  private async generateReviewSuggestions(_request: CodeAnalysisRequest, _analysis: string, _documentation: DocumentationResult[]): Promise<CodeSuggestion[]> {
+  private async generateReviewSuggestions(
+    _request: CodeAnalysisRequest,
+    _analysis: string,
+    _documentation: DocumentationResult[],
+  ): Promise<CodeSuggestion[]> {
     // Generate code review suggestions
     return [];
   }
 
-  private async generateDebugSuggestions(_request: CodeAnalysisRequest, _analysis: string, _memoryInsights: MemoryInsight[]): Promise<CodeSuggestion[]> {
+  private async generateDebugSuggestions(
+    _request: CodeAnalysisRequest,
+    _analysis: string,
+    _memoryInsights: MemoryInsight[],
+  ): Promise<CodeSuggestion[]> {
     // Generate debugging suggestions
     return [];
   }
 
-  private async generateOptimizationSuggestions(_request: CodeAnalysisRequest, _analysis: string, _documentation: DocumentationResult[]): Promise<CodeSuggestion[]> {
+  private async generateOptimizationSuggestions(
+    _request: CodeAnalysisRequest,
+    _analysis: string,
+    _documentation: DocumentationResult[],
+  ): Promise<CodeSuggestion[]> {
     // Generate optimization suggestions
     return [];
   }
 
-  private async generateRefactoringSuggestions(_request: CodeAnalysisRequest, _analysis: string, _documentation: DocumentationResult[]): Promise<CodeSuggestion[]> {
+  private async generateRefactoringSuggestions(
+    _request: CodeAnalysisRequest,
+    _analysis: string,
+    _documentation: DocumentationResult[],
+  ): Promise<CodeSuggestion[]> {
     // Generate refactoring suggestions
     return [];
   }
 
-  private async generateTestSuggestions(_request: CodeAnalysisRequest, _analysis: string, _documentation: DocumentationResult[]): Promise<CodeSuggestion[]> {
+  private async generateTestSuggestions(
+    _request: CodeAnalysisRequest,
+    _analysis: string,
+    _documentation: DocumentationResult[],
+  ): Promise<CodeSuggestion[]> {
     // Generate testing suggestions
     return [];
   }
 
-  private async generateExplanationSuggestions(_request: CodeAnalysisRequest, _analysis: string, _documentation: DocumentationResult[]): Promise<CodeSuggestion[]> {
+  private async generateExplanationSuggestions(
+    _request: CodeAnalysisRequest,
+    _analysis: string,
+    _documentation: DocumentationResult[],
+  ): Promise<CodeSuggestion[]> {
     // Generate explanation suggestions
     return [];
   }
@@ -590,28 +662,32 @@ export class AdvancedCodeAnalysisEngine {
         confidence: 0.3,
         processingTime: 0,
         context7Used: false, // Only for documentation lookup
-        memoryEnhanced: false
-      }
+        memoryEnhanced: false,
+      },
     };
   }
 
   private updateMetrics(result: CodeAnalysisResult): void {
-    this.analysisMetrics.averageQualityScore = 
-      (this.analysisMetrics.averageQualityScore * (this.analysisMetrics.successfulAnalyses - 1) + result.qualityScore) / 
+    this.analysisMetrics.averageQualityScore =
+      (this.analysisMetrics.averageQualityScore * (this.analysisMetrics.successfulAnalyses - 1) +
+        result.qualityScore) /
       this.analysisMetrics.successfulAnalyses;
-    
+
     if (result.metadata.context7Used) {
       this.analysisMetrics.context7Usage++; // Only for documentation lookup
     }
-    
+
     if (result.metadata.memoryEnhanced) {
       this.analysisMetrics.memoryEnhancements++;
     }
   }
-  private async storeAnalysisForLearning(request: CodeAnalysisRequest, result: CodeAnalysisResult): Promise<void> {
+  private async storeAnalysisForLearning(
+    request: CodeAnalysisRequest,
+    result: CodeAnalysisResult,
+  ): Promise<void> {
     try {
       const learningContent = `Code analysis: ${request.language} ${request.requestType} - Quality: ${result.qualityScore}% - Patterns: ${result.patterns.length} - Documentation used: ${result.documentation.length}`;
-      
+
       await unifiedAgentCommunicationService.sendMessage({
         toAgent: 'system', // Broadcast to system for learning
         fromAgent: this.agentId,
@@ -622,10 +698,10 @@ export class AdvancedCodeAnalysisEngine {
           language: request.language,
           requestType: request.requestType,
           qualityScore: result.qualityScore,
-          patterns: result.patterns.map(p => p.name),
-          context7Used: result.metadata.context7Used // Only for documentation lookup
+          patterns: result.patterns.map((p) => p.name),
+          context7Used: result.metadata.context7Used, // Only for documentation lookup
         },
-        sessionId: request.sessionId || 'default'
+        sessionId: request.sessionId || 'default',
       });
     } catch (error) {
       console.warn(`[CodeAnalysis] Failed to store analysis for learning:`, error);
@@ -649,9 +725,9 @@ export class AdvancedCodeAnalysisEngine {
       languagePatterns: Object.fromEntries(
         Array.from(this.languagePatterns.entries()).map(([lang, patterns]) => [
           lang,
-          patterns.length
-        ])
-      )
+          patterns.length,
+        ]),
+      ),
     };
   }
 }

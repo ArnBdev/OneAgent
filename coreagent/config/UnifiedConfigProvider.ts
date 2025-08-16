@@ -53,7 +53,10 @@ function shallowMerge<T extends object>(base: T, patch?: Partial<T>): T {
     const v = patchRec[k];
     if (typeof v === 'undefined') continue;
     if (v && typeof v === 'object' && !Array.isArray(v)) {
-      const existing = (result[k] && typeof result[k] === 'object' && !Array.isArray(result[k])) ? result[k] as GenericRecord : {};
+      const existing =
+        result[k] && typeof result[k] === 'object' && !Array.isArray(result[k])
+          ? (result[k] as GenericRecord)
+          : {};
       result[k] = { ...existing, ...(v as GenericRecord) };
     } else {
       result[k] = v;
@@ -143,10 +146,14 @@ class UnifiedConfigProviderImpl {
   }
 
   /** Whether config is frozen */
-  isFrozen(): boolean { return this.frozen; }
+  isFrozen(): boolean {
+    return this.frozen;
+  }
 
   /** Produce stable hash of resolved config (ignores volatile keys if needed) */
-  getHash(): string { return this.lastHash; }
+  getHash(): string {
+    return this.lastHash;
+  }
 
   /** Get full snapshot */
   getSnapshot(): UnifiedConfigSnapshot {
@@ -155,7 +162,7 @@ class UnifiedConfigProviderImpl {
       config: cfg,
       hash: this.getHash(),
       frozen: this.frozen,
-      generatedAt: createUnifiedTimestamp().iso
+      generatedAt: createUnifiedTimestamp().iso,
     };
   }
 
@@ -173,24 +180,42 @@ class UnifiedConfigProviderImpl {
     return crypto.createHash('sha256').update(json).digest('hex').slice(0, 32); // 128-bit truncated
   }
 
-  private updateHashAndEmit(operation: string, patch: PartialConfig, meta: ConfigMutationMeta): void {
+  private updateHashAndEmit(
+    operation: string,
+    patch: PartialConfig,
+    meta: ConfigMutationMeta,
+  ): void {
     const oldHash = this.lastHash;
     this.lastHash = this.computeHash();
-    this.emitOp(operation, 'success', { oldHash, newHash: this.lastHash, changed: oldHash !== this.lastHash, patch, ...meta });
+    this.emitOp(operation, 'success', {
+      oldHash,
+      newHash: this.lastHash,
+      changed: oldHash !== this.lastHash,
+      patch,
+      ...meta,
+    });
   }
 
-  private emitOp(operation: string, status: 'success' | 'error' | 'warning', meta: Record<string, unknown>): void {
+  private emitOp(
+    operation: string,
+    status: 'success' | 'error' | 'warning',
+    meta: Record<string, unknown>,
+  ): void {
     try {
-      unifiedMonitoringService.trackOperation('UnifiedConfigProvider', operation, status === 'success' ? 'success' : 'error', {
-        ...meta,
-        // Use existing canonical id type category 'operation' to avoid introducing new IdType category prematurely
-        operationId: createUnifiedId('operation', operation)
-      });
+      unifiedMonitoringService.trackOperation(
+        'UnifiedConfigProvider',
+        operation,
+        status === 'success' ? 'success' : 'error',
+        {
+          ...meta,
+          // Use existing canonical id type category 'operation' to avoid introducing new IdType category prematurely
+          operationId: createUnifiedId('operation', operation),
+        },
+      );
     } catch {
       // Swallow to avoid config access failures if monitoring disabled
     }
   }
-
 }
 
 export const UnifiedConfigProvider = new UnifiedConfigProviderImpl();
@@ -198,10 +223,14 @@ export type UnifiedConfigProviderType = UnifiedConfigProviderImpl;
 
 // Register on globalThis for lazy, circular-safe access from UnifiedBackboneService without dynamic require
 try {
-  (globalThis as unknown as { __unifiedConfigProvider?: UnifiedConfigProviderType }).__unifiedConfigProvider = UnifiedConfigProvider;
+  (
+    globalThis as unknown as { __unifiedConfigProvider?: UnifiedConfigProviderType }
+  ).__unifiedConfigProvider = UnifiedConfigProvider;
 } catch {
   // ignore if global assignment fails
 }
 
 // Canonical access helper (future code should use backbone wrapper once integrated)
-export function getUnifiedConfig(): ServerConfig { return UnifiedConfigProvider.getConfig(); }
+export function getUnifiedConfig(): ServerConfig {
+  return UnifiedConfigProvider.getConfig();
+}

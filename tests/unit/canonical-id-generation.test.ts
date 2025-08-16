@@ -1,5 +1,8 @@
 // Test Canonical ID Generation System
-import { createUnifiedId, createUnifiedIdWithResult } from './coreagent/utils/UnifiedBackboneService';
+import {
+  createUnifiedId,
+  createUnifiedIdWithResult,
+} from './coreagent/utils/UnifiedBackboneService';
 
 // Test basic ID generation
 console.log('=== CANONICAL ID GENERATION TEST ===');
@@ -28,9 +31,9 @@ const secureId = createUnifiedId('agent', 'coordination', { secure: true });
 console.log('Secure ID:', secureId);
 
 // Test with detailed result
-const idWithResult = createUnifiedIdWithResult('learning', 'pattern_recognition', { 
-  format: 'medium', 
-  secure: true 
+const idWithResult = createUnifiedIdWithResult('learning', 'pattern_recognition', {
+  format: 'medium',
+  secure: true,
 });
 console.log('ID with Result:', JSON.stringify(idWithResult, null, 2));
 

@@ -21,7 +21,7 @@ const inputSchema: InputSchema = {
     query: { type: 'string', description: 'Analysis query or focus' },
     limit: { type: 'number', description: 'Number of messages to analyze', default: 10 },
   },
-  required: ['agentId']
+  required: ['agentId'],
 };
 
 export class OneAgentNLACSAnalyzeTool extends UnifiedMCPTool {
@@ -31,7 +31,7 @@ export class OneAgentNLACSAnalyzeTool extends UnifiedMCPTool {
       'Analyze agent conversations and collaboration patterns using NLACS',
       inputSchema,
       ToolCategory.AGENT_COMMUNICATION,
-      'enhanced'
+      'enhanced',
     );
   }
 
@@ -65,5 +65,5 @@ export class OneAgentNLACSAnalyzeTool extends UnifiedMCPTool {
 toolRegistry.registerTool(new OneAgentNLACSAnalyzeTool(), {
   category: ToolCategory.AGENT_COMMUNICATION,
   constitutionalLevel: 'enhanced',
-  priority: 8
+  priority: 8,
 });

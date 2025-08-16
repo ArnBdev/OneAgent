@@ -1,55 +1,55 @@
 # META Framework (Model-Execute-Test-Adapt)
 # Systematic prompting framework for meta-level agent design and optimization
 
-name: "META Framework"
-type: "meta_design"
-version: "1.0.0"
-description: "Meta-level approach for agent architecture design and continuous optimization"
+name: 'META Framework'
+type: 'meta_design'
+version: '1.0.0'
+description: 'Meta-level approach for agent architecture design and continuous optimization'
 
 structure:
   M_model:
-    purpose: "Design and model agent architectures"
+    purpose: 'Design and model agent architectures'
     questions:
-      - "What agent capabilities and behaviors need to be modeled?"
-      - "What architectural patterns best fit the requirements?"
-      - "How should agent interactions and dependencies be structured?"
-    validation: "Architecture model is complete and optimized"
-    
+      - 'What agent capabilities and behaviors need to be modeled?'
+      - 'What architectural patterns best fit the requirements?'
+      - 'How should agent interactions and dependencies be structured?'
+    validation: 'Architecture model is complete and optimized'
+
   E_execute:
-    purpose: "Implement and instantiate agent configurations"
+    purpose: 'Implement and instantiate agent configurations'
     questions:
-      - "How should the agent configuration be implemented?"
-      - "What initialization and setup processes are required?"
-      - "How can implementation ensure reliability and performance?"
-    validation: "Agent implementation meets design specifications"
-    
+      - 'How should the agent configuration be implemented?'
+      - 'What initialization and setup processes are required?'
+      - 'How can implementation ensure reliability and performance?'
+    validation: 'Agent implementation meets design specifications'
+
   T_test:
-    purpose: "Validate agent functionality and performance"
+    purpose: 'Validate agent functionality and performance'
     questions:
-      - "What testing strategies will validate agent behavior?"
-      - "How can agent performance be measured and benchmarked?"
-      - "What edge cases and failure scenarios need testing?"
-    validation: "Comprehensive testing confirms agent readiness"
-    
+      - 'What testing strategies will validate agent behavior?'
+      - 'How can agent performance be measured and benchmarked?'
+      - 'What edge cases and failure scenarios need testing?'
+    validation: 'Comprehensive testing confirms agent readiness'
+
   A_adapt:
-    purpose: "Optimize and evolve agent configurations"
+    purpose: 'Optimize and evolve agent configurations'
     questions:
-      - "What performance data indicates optimization opportunities?"
-      - "How can agent configurations be improved iteratively?"
-      - "What adaptive mechanisms enable continuous improvement?"
-    validation: "Optimization process drives measurable improvements"
+      - 'What performance data indicates optimization opportunities?'
+      - 'How can agent configurations be improved iteratively?'
+      - 'What adaptive mechanisms enable continuous improvement?'
+    validation: 'Optimization process drives measurable improvements'
 
 application_contexts:
-  - "agent_factory"
-  - "system_architecture"
-  - "meta_programming"
-  - "configuration_management"
+  - 'agent_factory'
+  - 'system_architecture'
+  - 'meta_programming'
+  - 'configuration_management'
 
 quality_standards:
-  precision: "Agent configurations must be precisely specified"
-  validation: "Comprehensive testing ensures agent reliability"
-  optimization: "Continuous improvement drives performance gains"
-  scalability: "Designs support system growth and evolution"
+  precision: 'Agent configurations must be precisely specified'
+  validation: 'Comprehensive testing ensures agent reliability'
+  optimization: 'Continuous improvement drives performance gains'
+  scalability: 'Designs support system growth and evolution'
 
 integration:
   constitutional_ai: true

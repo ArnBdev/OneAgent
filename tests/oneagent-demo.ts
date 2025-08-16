@@ -1,16 +1,16 @@
 /**
  * OneAgent System Demo - Working Implementation
- * 
+ *
  * 🚫 CRITICAL PRODUCTION VERIFICATION SYSTEM - DO NOT DELETE
- * 
+ *
  * This file contains ESSENTIAL production verification logic:
  * - Core OneAgent functionality demonstration
  * - Mock conversation context creation
  * - Core agent interface validation
  * - Unified service integration testing
- * 
+ *
  * Status: PRODUCTION VERIFICATION - ARCHITECTURAL ESSENTIAL
- * 
+ *
  * Demonstrates the core OneAgent functionality with minimal dependencies
  */
 
@@ -70,14 +70,17 @@ class OneAgentDemo {
       { id: 'CoreAgent', skills: ['coordination', 'routing', 'general_assistance'] },
       { id: 'DevAgent', skills: ['coding', 'debugging', 'architecture', 'testing'] },
       { id: 'OfficeAgent', skills: ['documents', 'scheduling', 'productivity', 'communication'] },
-      { id: 'FitnessAgent', skills: ['workout_planning', 'nutrition', 'health_tracking', 'motivation'] }
+      {
+        id: 'FitnessAgent',
+        skills: ['workout_planning', 'nutrition', 'health_tracking', 'motivation'],
+      },
     ];
 
-    agentTypes.forEach(agent => {
+    agentTypes.forEach((agent) => {
       this.specialists.set(agent.id, {
         id: agent.id,
         skills: agent.skills,
-        isActive: true
+        isActive: true,
       });
     });
 
@@ -86,7 +89,7 @@ class OneAgentDemo {
 
   async processUserMessage(message: string, userId: string = 'demo-user'): Promise<string> {
     console.log(`\n📥 Processing message: "${message}"`);
-    
+
     // Create or update context
     if (!this.conversationContext || this.conversationContext.userId !== userId) {
       this.conversationContext = this.createConversationContext(userId);
@@ -98,7 +101,9 @@ class OneAgentDemo {
 
     // Analyze intent
     const intent = this.analyzeIntent(message);
-    console.log(`🧠 Intent analysis: ${intent.intent} (confidence: ${(intent.confidence * 100).toFixed(1)}%)`);
+    console.log(
+      `🧠 Intent analysis: ${intent.intent} (confidence: ${(intent.confidence * 100).toFixed(1)}%)`,
+    );
 
     // Handle routing
     if (intent.requiresSpecialist && intent.suggestedAgent) {
@@ -117,9 +122,14 @@ class OneAgentDemo {
 
   private analyzeIntent(message: string): MockIntentAnalysis {
     const lowerMessage = message.toLowerCase();
-    
+
     // Detect coding-related requests
-    if (lowerMessage.includes('code') || lowerMessage.includes('programming') || lowerMessage.includes('bug') || lowerMessage.includes('debug')) {
+    if (
+      lowerMessage.includes('code') ||
+      lowerMessage.includes('programming') ||
+      lowerMessage.includes('bug') ||
+      lowerMessage.includes('debug')
+    ) {
       return {
         intent: 'coding_assistance',
         confidence: 0.9,
@@ -128,12 +138,17 @@ class OneAgentDemo {
         urgency: 'normal',
         requiresSpecialist: true,
         requiresTeamMeeting: false,
-        suggestedAgent: 'DevAgent'
+        suggestedAgent: 'DevAgent',
       };
     }
 
     // Detect office/productivity requests
-    if (lowerMessage.includes('document') || lowerMessage.includes('schedule') || lowerMessage.includes('meeting') || lowerMessage.includes('productivity')) {
+    if (
+      lowerMessage.includes('document') ||
+      lowerMessage.includes('schedule') ||
+      lowerMessage.includes('meeting') ||
+      lowerMessage.includes('productivity')
+    ) {
       return {
         intent: 'office_assistance',
         confidence: 0.85,
@@ -142,12 +157,17 @@ class OneAgentDemo {
         urgency: 'normal',
         requiresSpecialist: true,
         requiresTeamMeeting: false,
-        suggestedAgent: 'OfficeAgent'
+        suggestedAgent: 'OfficeAgent',
       };
     }
 
     // Detect fitness/health requests
-    if (lowerMessage.includes('workout') || lowerMessage.includes('fitness') || lowerMessage.includes('exercise') || lowerMessage.includes('health')) {
+    if (
+      lowerMessage.includes('workout') ||
+      lowerMessage.includes('fitness') ||
+      lowerMessage.includes('exercise') ||
+      lowerMessage.includes('health')
+    ) {
       return {
         intent: 'fitness_assistance',
         confidence: 0.8,
@@ -156,12 +176,17 @@ class OneAgentDemo {
         urgency: 'normal',
         requiresSpecialist: true,
         requiresTeamMeeting: false,
-        suggestedAgent: 'FitnessAgent'
+        suggestedAgent: 'FitnessAgent',
       };
     }
 
     // Detect team meeting needs
-    if (lowerMessage.includes('discuss') || lowerMessage.includes('brainstorm') || lowerMessage.includes('team') || lowerMessage.includes('collaborate')) {
+    if (
+      lowerMessage.includes('discuss') ||
+      lowerMessage.includes('brainstorm') ||
+      lowerMessage.includes('team') ||
+      lowerMessage.includes('collaborate')
+    ) {
       return {
         intent: 'team_collaboration',
         confidence: 0.9,
@@ -170,7 +195,7 @@ class OneAgentDemo {
         urgency: 'normal',
         requiresSpecialist: false,
         requiresTeamMeeting: true,
-        suggestedMeetingParticipants: ['DevAgent', 'OfficeAgent']
+        suggestedMeetingParticipants: ['DevAgent', 'OfficeAgent'],
       };
     }
 
@@ -182,13 +207,13 @@ class OneAgentDemo {
       contextCategory: 'general',
       urgency: 'normal',
       requiresSpecialist: false,
-      requiresTeamMeeting: false
+      requiresTeamMeeting: false,
     };
   }
 
   private executeHandoff(targetAgentId: string, _originalMessage: string): string {
     const targetAgent = this.specialists.get(targetAgentId);
-    
+
     if (!targetAgent) {
       const response = `I couldn't find the ${targetAgentId} specialist. Let me handle this directly.`;
       this.addToConversationHistory('CoreAgent', response);
@@ -197,28 +222,28 @@ class OneAgentDemo {
 
     console.log(`🔄 Executing handoff to: ${targetAgentId}`);
     console.log(`🎯 Agent skills: ${targetAgent.skills.join(', ')}`);
-    
+
     const handoffMessage = `Hello! I'm the ${targetAgentId} and I specialize in ${targetAgent.skills.join(', ')}. I'm ready to help you with your request.`;
-    
+
     this.addToConversationHistory('system', `Handoff from CoreAgent to ${targetAgentId}`);
     this.addToConversationHistory(targetAgentId, handoffMessage);
-    
+
     return handoffMessage;
   }
 
   private initiateTeamMeeting(_message: string, participants: string[]): string {
     console.log(`🏛️ Initiating team meeting with participants: ${participants.join(', ')}`);
-    
+
     const meetingResponse = `I've convened a team meeting to discuss your request. Our specialists are collaborating to provide you with the best possible assistance.
 
 Meeting Participants:
-${participants.map(p => `  🤖 ${p}: ${this.specialists.get(p)?.skills.join(', ') || 'Available'}`).join('\n')}
+${participants.map((p) => `  🤖 ${p}: ${this.specialists.get(p)?.skills.join(', ') || 'Available'}`).join('\n')}
 
 They're working together to analyze your request and will provide a comprehensive response shortly.`;
 
     this.addToConversationHistory('team-meeting', `Meeting initiated: ${participants.join(', ')}`);
     this.addToConversationHistory('CoreAgent', meetingResponse);
-    
+
     return meetingResponse;
   }
 
@@ -233,8 +258,8 @@ They're working together to analyze your request and will provide a comprehensiv
       projectScope: 'default',
       metadata: {
         createdAt: new Date().toISOString(),
-        platform: 'OneAgent-Demo'
-      }
+        platform: 'OneAgent-Demo',
+      },
     };
   }
 
@@ -244,9 +269,9 @@ They're working together to analyze your request and will provide a comprehensiv
       timestamp: new Date(),
       from,
       content,
-      contextCategory: this.conversationContext.contextCategory
+      contextCategory: this.conversationContext.contextCategory,
     };
-    
+
     this.conversationHistory.push(message);
     this.conversationContext.conversationHistory.push(message);
   }
@@ -263,26 +288,28 @@ They're working together to analyze your request and will provide a comprehensiv
 // Demo execution
 async function runOneAgentDemo(): Promise<void> {
   const oneAgent = new OneAgentDemo();
-  
-  console.log(`🤖 OneAgent System initialized with agents: ${oneAgent.getRegisteredAgents().join(', ')}\n`);
+
+  console.log(
+    `🤖 OneAgent System initialized with agents: ${oneAgent.getRegisteredAgents().join(', ')}\n`,
+  );
 
   // Test scenarios
   const testMessages = [
-    "I need help debugging a JavaScript function",
-    "Can you help me schedule a meeting for next week?",
-    "I want to create a workout plan for building muscle",
+    'I need help debugging a JavaScript function',
+    'Can you help me schedule a meeting for next week?',
+    'I want to create a workout plan for building muscle',
     "Let's brainstorm ideas for improving our project architecture",
-    "What's the weather like today?"
+    "What's the weather like today?",
   ];
 
   for (const message of testMessages) {
-    console.log('=' .repeat(60));
+    console.log('='.repeat(60));
     const response = await oneAgent.processUserMessage(message);
     console.log(`💬 OneAgent Response: ${response}`);
     console.log();
   }
 
-  console.log('=' .repeat(60));
+  console.log('='.repeat(60));
   console.log('📋 Conversation History Summary:');
   const history = oneAgent.getConversationHistory();
   history.forEach((msg, index) => {

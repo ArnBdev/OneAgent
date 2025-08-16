@@ -1,6 +1,6 @@
 /**
  * MemorySystemValidator - Reality Detection for Memory Systems
- * 
+ *
  * Prevents mock memory from masquerading as real Gemini-based memory.
  * Provides transparent, accurate system status for TriageAgent integration.
  * Uses centralized configuration for memory server connection.
@@ -8,7 +8,11 @@
 
 // import { UnifiedBackboneService } from '../utils/UnifiedBackboneService';
 import { IIntelligenceProvider } from '../interfaces/IIntelligenceProvider';
-import { createUnifiedTimestamp, OneAgentUnifiedBackbone, UnifiedBackboneService } from '../utils/UnifiedBackboneService';
+import {
+  createUnifiedTimestamp,
+  OneAgentUnifiedBackbone,
+  UnifiedBackboneService,
+} from '../utils/UnifiedBackboneService';
 
 export interface MemorySystemType {
   type: 'Gemini-ChromaDB' | 'Mem0-Local' | 'MockMemory' | 'Unknown';
@@ -48,34 +52,36 @@ export class MemorySystemValidator implements IIntelligenceProvider {
   /**
    * Comprehensive memory system validation with deception detection
    */
-  async validateMemorySystem(endpoint = UnifiedBackboneService.config.memoryUrl): Promise<MemoryValidationResult> {
+  async validateMemorySystem(
+    endpoint = UnifiedBackboneService.config.memoryUrl,
+  ): Promise<MemoryValidationResult> {
     const cacheKey = `${endpoint}_${createUnifiedTimestamp().unix.toString().slice(-6)}`;
-    
+
     try {
       // Step 1: Test basic connectivity
       const connectionTest = await this.testConnection(endpoint);
-      
+
       // Step 2: Identify actual system type
       const systemType = await this.identifySystemType(endpoint);
-      
+
       // Step 3: Test data integrity and persistence
       const dataQuality = await this.testDataQuality(endpoint);
-      
+
       // Step 4: Detect deceptive reporting
       const transparencyCheck = await this.checkTransparency(systemType, dataQuality);
-      
+
       const result: MemoryValidationResult = {
         systemType,
         connectionStatus: connectionTest.status,
         dataQuality: dataQuality.quality,
         userImpact: this.calculateUserImpact(systemType, dataQuality),
         recommendations: this.generateRecommendations(systemType, connectionTest),
-        transparency: transparencyCheck
+        transparency: transparencyCheck,
       };
 
       this.lastValidation = result;
       this.cache.set(cacheKey, result);
-      
+
       // Log critical findings
       if (transparencyCheck.isDeceptive) {
         console.warn('🚨 DECEPTIVE MEMORY REPORTING DETECTED');
@@ -84,27 +90,30 @@ export class MemorySystemValidator implements IIntelligenceProvider {
       }
 
       return result;
-      
     } catch {
       console.error('❌ Memory system validation failed');
-      
+
       return {
         systemType: {
           type: 'Unknown',
           isReal: false,
           hasPersistence: false,
           hasEmbeddings: false,
-          capabilities: []
+          capabilities: [],
         },
         connectionStatus: 'disconnected',
         dataQuality: 'unknown',
         userImpact: 'Memory system unavailable - no persistence or intelligent search',
-        recommendations: ['Check memory server status', 'Restart memory service', 'Verify configuration'],
+        recommendations: [
+          'Check memory server status',
+          'Restart memory service',
+          'Verify configuration',
+        ],
         transparency: {
           isDeceptive: false,
           actualCapabilities: [],
-          reportedCapabilities: []
-        }
+          reportedCapabilities: [],
+        },
       };
     }
   }
@@ -118,68 +127,81 @@ export class MemorySystemValidator implements IIntelligenceProvider {
     serverInfo?: Record<string, unknown>;
   }> {
     const startTime = createUnifiedTimestamp().unix;
-    
+
     try {
       const response = await fetch(`${endpoint}/health`);
       const responseTime = createUnifiedTimestamp().unix - startTime;
-      
+
       if (!response.ok) {
         return { status: 'degraded', responseTime };
       }
-        const serverInfo = await response.json();
-        // Check if this is mock server (only based on explicit indicators, not response time)
-      if (serverInfo.service?.includes('mem0-test-server') || 
-          serverInfo.message?.includes('mock')) {
+      const serverInfo = await response.json();
+      // Check if this is mock server (only based on explicit indicators, not response time)
+      if (
+        serverInfo.service?.includes('mem0-test-server') ||
+        serverInfo.message?.includes('mock')
+      ) {
         return { status: 'mock_fallback', responseTime, serverInfo };
       }
-      
+
       // Recognize OneAgent Gemini Memory Server as valid real system
-      if (serverInfo.server === 'OneAgent Gemini Memory Server' ||
-          serverInfo.stats?.embedding_model === 'text-embedding-004') {
+      if (
+        serverInfo.server === 'OneAgent Gemini Memory Server' ||
+        serverInfo.stats?.embedding_model === 'text-embedding-004'
+      ) {
         return { status: 'connected', responseTime, serverInfo };
       }
-      
+
       return { status: 'connected', responseTime, serverInfo };
-      
     } catch {
       return { status: 'disconnected', responseTime: createUnifiedTimestamp().unix - startTime };
     }
-  }  /**
+  } /**
    * Identify the actual memory system type
    */
   private async identifySystemType(endpoint: string): Promise<MemorySystemType> {
     try {
       console.log(`🔍 Identifying memory system type for endpoint: ${endpoint}`);
-      
+
       // First check health endpoint for immediate identification
       try {
         const healthResponse = await fetch(`${endpoint}/health`);
         if (healthResponse.ok) {
           const healthData = await healthResponse.json();
-            // Recognize OneAgent Gemini Memory Server immediately
-          if (healthData.server === 'OneAgent Gemini Memory Server' ||
-              healthData.stats?.embedding_model === 'text-embedding-004' ||
-              healthData.data?.embedding_model === 'models/text-embedding-004' ||
-              healthData.message?.includes('OneAgent Memory Server')) {
+          // Recognize OneAgent Gemini Memory Server immediately
+          if (
+            healthData.server === 'OneAgent Gemini Memory Server' ||
+            healthData.stats?.embedding_model === 'text-embedding-004' ||
+            healthData.data?.embedding_model === 'models/text-embedding-004' ||
+            healthData.message?.includes('OneAgent Memory Server')
+          ) {
             console.log(`✅ Detected OneAgent Gemini Memory Server via health check`);
             return {
               type: 'Gemini-ChromaDB',
               isReal: true,
               hasPersistence: true,
               hasEmbeddings: true,
-              capabilities: ['semantic_search', 'vector_storage', 'persistence', 'embeddings', 'real_time_learning']
+              capabilities: [
+                'semantic_search',
+                'vector_storage',
+                'persistence',
+                'embeddings',
+                'real_time_learning',
+              ],
             };
           }
         }
       } catch {
         console.log('🔍 Health endpoint check failed, continuing with feature tests...');
       }
-      
+
       // Test for Unified Memory System
       console.log(`🔍 Testing Unified Memory System features...`);
       const unifiedTest = await this.testUnifiedMemoryFeatures(endpoint);
-      console.log(`🔍 Unified test result: isUnified=${unifiedTest.isUnified}, features=${unifiedTest.features.join(', ')}`);
-      
+      console.log(
+        `🔍 Unified test result: isUnified=${unifiedTest.isUnified}, features=${unifiedTest.features.join(', ')}`,
+      );
+
       if (unifiedTest.isUnified) {
         console.log(`✅ Detected Unified Memory System`);
         return {
@@ -187,15 +209,17 @@ export class MemorySystemValidator implements IIntelligenceProvider {
           isReal: true,
           hasPersistence: true,
           hasEmbeddings: true,
-          capabilities: unifiedTest.features
+          capabilities: unifiedTest.features,
         };
       }
-      
+
       // Test for legacy Gemini-ChromaDB system
       console.log(`🔍 Testing legacy Gemini features...`);
       const geminiTest = await this.testGeminiFeatures(endpoint);
-      console.log(`🔍 Gemini test result: isGemini=${geminiTest.isGemini}, features=${geminiTest.features.join(', ')}`);
-      
+      console.log(
+        `🔍 Gemini test result: isGemini=${geminiTest.isGemini}, features=${geminiTest.features.join(', ')}`,
+      );
+
       if (geminiTest.isGemini) {
         console.log(`✅ Detected legacy Gemini-ChromaDB system`);
         return {
@@ -203,18 +227,20 @@ export class MemorySystemValidator implements IIntelligenceProvider {
           isReal: true,
           hasPersistence: true,
           hasEmbeddings: true,
-          capabilities: ['semantic_search', 'vector_storage', 'persistence', 'embeddings']
+          capabilities: ['semantic_search', 'vector_storage', 'persistence', 'embeddings'],
         };
       }
 
       // Mem0 detection removed (deprecated parallel system)
-  // --- Type guards (move to end of class for clarity) ---
+      // --- Type guards (move to end of class for clarity) ---
 
       // Check for mock system
       console.log(`🔍 Testing mock features...`);
       const mockTest = await this.testMockFeatures(endpoint);
-      console.log(`🔍 Mock test result: isMock=${mockTest.isMock}, indicators=${mockTest.indicators.join(', ')}`);
-      
+      console.log(
+        `🔍 Mock test result: isMock=${mockTest.isMock}, indicators=${mockTest.indicators.join(', ')}`,
+      );
+
       if (mockTest.isMock) {
         console.log(`⚠️ Detected MockMemory system`);
         return {
@@ -222,7 +248,7 @@ export class MemorySystemValidator implements IIntelligenceProvider {
           isReal: false,
           hasPersistence: false,
           hasEmbeddings: false,
-          capabilities: ['temporary_storage', 'session_only']
+          capabilities: ['temporary_storage', 'session_only'],
         };
       }
 
@@ -232,9 +258,8 @@ export class MemorySystemValidator implements IIntelligenceProvider {
         isReal: false,
         hasPersistence: false,
         hasEmbeddings: false,
-        capabilities: []
+        capabilities: [],
       };
-
     } catch (error) {
       console.error('❌ System type identification failed:', error);
       return {
@@ -242,14 +267,16 @@ export class MemorySystemValidator implements IIntelligenceProvider {
         isReal: false,
         hasPersistence: false,
         hasEmbeddings: false,
-        capabilities: []
+        capabilities: [],
       };
     }
   }
   /**
    * Test for Gemini-specific features
    */
-  private async testGeminiFeatures(endpoint: string): Promise<{ isGemini: boolean; features: string[] }> {
+  private async testGeminiFeatures(
+    endpoint: string,
+  ): Promise<{ isGemini: boolean; features: string[] }> {
     try {
       // Look for Gemini-specific features with unified memory API first
       let searchData: unknown = null;
@@ -261,18 +288,23 @@ export class MemorySystemValidator implements IIntelligenceProvider {
           body: JSON.stringify({
             query: 'embedding test',
             userId: 'system_validator',
-            limit: 10
-          })
+            limit: 10,
+          }),
         });
         if (unifiedSearch.ok) {
           searchData = await unifiedSearch.json();
-          if (this.isSearchData(searchData) && searchData.success && searchData.memories && searchData.memories.length > 0) {
+          if (
+            this.isSearchData(searchData) &&
+            searchData.success &&
+            searchData.memories &&
+            searchData.memories.length > 0
+          ) {
             // Check unified memory for Gemini embeddings
             for (const memory of searchData.memories) {
               if (memory.embeddings && memory.embeddings.length > 0) {
                 return {
                   isGemini: true,
-                  features: ['embeddings', 'semantic_search', 'unified_memory']
+                  features: ['embeddings', 'semantic_search', 'unified_memory'],
                 };
               }
             }
@@ -285,12 +317,20 @@ export class MemorySystemValidator implements IIntelligenceProvider {
       const searchQueries = ['embedding', 'semantic', 'search', 'test', 'memory'];
       for (const query of searchQueries) {
         try {
-          const testSearch = await fetch(`${endpoint}/v1/memories?userId=system&query=${query}&limit=10`, {
-            method: 'GET'
-          });
+          const testSearch = await fetch(
+            `${endpoint}/v1/memories?userId=system&query=${query}&limit=10`,
+            {
+              method: 'GET',
+            },
+          );
           if (testSearch.ok) {
             searchData = await testSearch.json();
-            if (this.isSearchData(searchData) && searchData.success && searchData.data && searchData.data.length > 0) {
+            if (
+              this.isSearchData(searchData) &&
+              searchData.success &&
+              searchData.data &&
+              searchData.data.length > 0
+            ) {
               break; // Found memories, use this result
             }
           }
@@ -298,21 +338,40 @@ export class MemorySystemValidator implements IIntelligenceProvider {
           console.log(`🔍 Legacy endpoint test failed for query: ${query}`);
         }
       }
-      if (!this.isSearchData(searchData) || !searchData.success) return { isGemini: false, features: [] };
+      if (!this.isSearchData(searchData) || !searchData.success)
+        return { isGemini: false, features: [] };
       // Check for Gemini-specific response structure
-      let hasEmbeddings = !!(this.isSearchData(searchData) && (searchData.embeddings || searchData.vector_dimensions));
-      let hasSemanticSearch = !!(this.isSearchData(searchData) && (searchData.semantic_results || searchData.similarity_scores));
+      let hasEmbeddings = !!(
+        this.isSearchData(searchData) &&
+        (searchData.embeddings || searchData.vector_dimensions)
+      );
+      let hasSemanticSearch = !!(
+        this.isSearchData(searchData) &&
+        (searchData.semantic_results || searchData.similarity_scores)
+      );
       // Enhanced Gemini detection: Check memory metadata for embedding models
-      let hasGeminiMetadata = this.isSearchData(searchData) && (searchData.model === 'text-embedding-004' || searchData.provider === 'Gemini');
+      let hasGeminiMetadata =
+        this.isSearchData(searchData) &&
+        (searchData.model === 'text-embedding-004' || searchData.provider === 'Gemini');
       // Check individual memories for Gemini embedding model indicators
-      if (this.isSearchData(searchData) && !hasGeminiMetadata && searchData.success && searchData.data && Array.isArray(searchData.data)) {
+      if (
+        this.isSearchData(searchData) &&
+        !hasGeminiMetadata &&
+        searchData.success &&
+        searchData.data &&
+        Array.isArray(searchData.data)
+      ) {
         for (const memory of searchData.data) {
-          if (memory.metadata?.embedding_model?.includes('gemini-text-embedding-004') ||
-              memory.metadata?.embedding_model?.includes('text-embedding-004')) {
+          if (
+            memory.metadata?.embedding_model?.includes('gemini-text-embedding-004') ||
+            memory.metadata?.embedding_model?.includes('text-embedding-004')
+          ) {
             hasGeminiMetadata = true;
             hasEmbeddings = true; // Gemini embeddings confirmed
             hasSemanticSearch = true; // Semantic search capability confirmed
-            console.log(`🔍 Gemini metadata detected in memory ${memory.id}: ${memory.metadata.embedding_model}`);
+            console.log(
+              `🔍 Gemini metadata detected in memory ${memory.id}: ${memory.metadata.embedding_model}`,
+            );
             break;
           }
         }
@@ -323,7 +382,7 @@ export class MemorySystemValidator implements IIntelligenceProvider {
       if (hasGeminiMetadata) features.push('gemini_provider');
       return {
         isGemini: !!(hasGeminiMetadata || (hasEmbeddings && hasSemanticSearch)),
-        features
+        features,
       };
     } catch {
       console.error('❌ testGeminiFeatures failed');
@@ -337,7 +396,9 @@ export class MemorySystemValidator implements IIntelligenceProvider {
   /**
    * Test for mock system indicators
    */
-  private async testMockFeatures(endpoint: string): Promise<{ isMock: boolean; indicators: string[] }> {
+  private async testMockFeatures(
+    endpoint: string,
+  ): Promise<{ isMock: boolean; indicators: string[] }> {
     try {
       const indicators = [];
       // Test 1: Check server info
@@ -361,8 +422,8 @@ export class MemorySystemValidator implements IIntelligenceProvider {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           content: 'Mock detection test',
-          user_id: 'mock_test'
-        })
+          user_id: 'mock_test',
+        }),
       });
       if (testAdd.ok) {
         const addData = await testAdd.json();
@@ -372,7 +433,7 @@ export class MemorySystemValidator implements IIntelligenceProvider {
       }
       return {
         isMock: indicators.length >= 2,
-        indicators
+        indicators,
       };
     } catch {
       return { isMock: false, indicators: [] };
@@ -404,8 +465,8 @@ export class MemorySystemValidator implements IIntelligenceProvider {
           application_count: 0,
           last_applied: new Date().toISOString(),
           source_conversations: [],
-          metadata: { test: true, validator: 'MemorySystemValidator' }
-        })
+          metadata: { test: true, validator: 'MemorySystemValidator' },
+        }),
       });
       if (!addResponse.ok) {
         return { quality: 'unknown', persistence: false, testResults: null };
@@ -419,8 +480,8 @@ export class MemorySystemValidator implements IIntelligenceProvider {
           query: testId,
           userId: 'system_validator',
           limit: 1,
-          metadata_filter: { memoryType: ['learnings'] }
-        })
+          metadata_filter: { memoryType: ['learnings'] },
+        }),
       });
       if (!searchResponse.ok) {
         return { quality: 'unknown', persistence: false, testResults: addData };
@@ -432,7 +493,7 @@ export class MemorySystemValidator implements IIntelligenceProvider {
       if (found && addData.success && searchData.memories[0]) {
         const memory = searchData.memories[0];
         // Check if data seems real or mock - unified memory has different structure
-        const hasRealTimestamp = memory.last_applied !== "2025-01-03T12:00:00Z";
+        const hasRealTimestamp = memory.last_applied !== '2025-01-03T12:00:00Z';
         const hasComplexId = addData.id?.length > 10;
         const hasEmbeddings = memory.embeddings && memory.embeddings.length > 0;
         if (hasRealTimestamp && hasComplexId && hasEmbeddings) {
@@ -446,7 +507,7 @@ export class MemorySystemValidator implements IIntelligenceProvider {
       return {
         quality,
         persistence: found,
-        testResults: { add: addData, search: searchData }
+        testResults: { add: addData, search: searchData },
       };
     } catch (err) {
       return { quality: 'unknown', persistence: false, testResults: err };
@@ -456,26 +517,34 @@ export class MemorySystemValidator implements IIntelligenceProvider {
   /**
    * Check for deceptive reporting
    */
-  private async checkTransparency(systemType: MemorySystemType, dataQuality: unknown): Promise<{
+  private async checkTransparency(
+    systemType: MemorySystemType,
+    dataQuality: unknown,
+  ): Promise<{
     isDeceptive: boolean;
     actualCapabilities: string[];
     reportedCapabilities: string[];
   }> {
     const actualCapabilities = systemType.capabilities;
-    
+
     // These would be reported by a system claiming to be "optimal"
     const reportedCapabilities = [
-      'semantic_search', 'vector_storage', 'persistence', 
-      'embeddings', 'real_time_learning'
+      'semantic_search',
+      'vector_storage',
+      'persistence',
+      'embeddings',
+      'real_time_learning',
     ];
 
-    const isDeceptive = !systemType.isReal && 
-                       (this.isDataQuality(dataQuality) && (dataQuality.quality === 'mock' || !dataQuality.persistence));
+    const isDeceptive =
+      !systemType.isReal &&
+      this.isDataQuality(dataQuality) &&
+      (dataQuality.quality === 'mock' || !dataQuality.persistence);
 
     return {
       isDeceptive,
       actualCapabilities,
-      reportedCapabilities: isDeceptive ? reportedCapabilities : actualCapabilities
+      reportedCapabilities: isDeceptive ? reportedCapabilities : actualCapabilities,
     };
   }
 
@@ -545,34 +614,37 @@ export class MemorySystemValidator implements IIntelligenceProvider {
   /**
    * Test for Unified Memory System features
    */
-  private async testUnifiedMemoryFeatures(endpoint: string): Promise<{ isUnified: boolean; features: string[] }> {
+  private async testUnifiedMemoryFeatures(
+    endpoint: string,
+  ): Promise<{ isUnified: boolean; features: string[] }> {
     try {
       console.log(`🔍 Testing Unified Memory System features for endpoint: ${endpoint}`);
-      
+
       // Test health endpoint for unified memory signature
       const healthResponse = await fetch(`${endpoint}/health`);
       if (!healthResponse.ok) {
         return { isUnified: false, features: [] };
       }
-      
+
       const healthData = await healthResponse.json();
       console.log(`🔍 Health response:`, healthData);
-        // Check for unified memory system indicators
-      const isUnifiedMemoryServer = healthData.service?.includes('unified') || 
-                                   healthData.service?.includes('oneagent') ||
-                                   healthData.system === 'OneAgent Memory System' ||
-                                   healthData.version?.includes('unified') ||
-                                   // Check for ChromaDB + collections structure (unified memory signature)
-                                   (healthData.components?.chromadb === 'connected' && 
-                                    healthData.components?.collections &&
-                                    typeof healthData.components.collections === 'object');
-      
+      // Check for unified memory system indicators
+      const isUnifiedMemoryServer =
+        healthData.service?.includes('unified') ||
+        healthData.service?.includes('oneagent') ||
+        healthData.system === 'OneAgent Memory System' ||
+        healthData.version?.includes('unified') ||
+        // Check for ChromaDB + collections structure (unified memory signature)
+        (healthData.components?.chromadb === 'connected' &&
+          healthData.components?.collections &&
+          typeof healthData.components.collections === 'object');
+
       if (!isUnifiedMemoryServer) {
         return { isUnified: false, features: [] };
       }
-      
+
       const features = ['unified_memory', 'constitutional_ai'];
-        // Test search endpoint with correct unified memory API schema
+      // Test search endpoint with correct unified memory API schema
       try {
         const searchResponse = await fetch(`${endpoint}/memory/search`, {
           method: 'POST',
@@ -580,10 +652,10 @@ export class MemorySystemValidator implements IIntelligenceProvider {
           body: JSON.stringify({
             query: 'test',
             userId: 'system_validator',
-            limit: 1
-          })
+            limit: 1,
+          }),
         });
-        
+
         if (searchResponse.ok) {
           const searchData = await searchResponse.json();
           if (searchData.success) {
@@ -594,7 +666,7 @@ export class MemorySystemValidator implements IIntelligenceProvider {
       } catch (searchError) {
         console.log(`🔍 Search test failed (non-critical):`, searchError);
       }
-      
+
       // Test conversation storage endpoint
       try {
         const conversationResponse = await fetch(`${endpoint}/memory/conversations`, {
@@ -607,22 +679,21 @@ export class MemorySystemValidator implements IIntelligenceProvider {
             timestamp: new Date(),
             content: 'Memory system validation test',
             context: { test: true },
-            outcome: { success: true, value: 'test', confidence: 1 }
-          })
+            outcome: { success: true, value: 'test', confidence: 1 },
+          }),
         });
-        
+
         if (conversationResponse.ok) {
           features.push('conversation_storage');
         }
       } catch (convError) {
         console.log(`🔍 Conversation test failed (non-critical):`, convError);
       }
-      
+
       return {
         isUnified: isUnifiedMemoryServer,
-        features
+        features,
       };
-      
     } catch (error) {
       console.error('❌ testUnifiedMemoryFeatures failed:', error);
       return { isUnified: false, features: [] };

@@ -1,11 +1,11 @@
 /**
  * OneAgent Unified Metadata System
  * Single Source of Truth for All Metadata
- * 
+ *
  * This is the foundational metadata system that serves as the base for all
  * OneAgent components, incorporating Context7 enhancements, Constitutional AI
  * validation, and cross-system compatibility.
- * 
+ *
  * Version: 1.0.0
  * Created: 2024-06-18
  */
@@ -23,7 +23,7 @@ export interface ConstitutionalAIMetadata {
     validationMethod: 'manual' | 'ai' | 'peer-review';
     confidence: number; // 0-1
   };
-  
+
   transparency: {
     score: number; // 0-100
     sourcesDocumented: boolean;
@@ -31,7 +31,7 @@ export interface ConstitutionalAIMetadata {
     limitationsAcknowledged: boolean;
     uncertaintyHandled: boolean;
   };
-  
+
   helpfulness: {
     score: number; // 0-100
     actionable: boolean;
@@ -39,7 +39,7 @@ export interface ConstitutionalAIMetadata {
     userFocused: boolean;
     clarityLevel: 'poor' | 'fair' | 'good' | 'excellent';
   };
-  
+
   safety: {
     score: number; // 0-100
     harmfulContentCheck: boolean;
@@ -47,7 +47,7 @@ export interface ConstitutionalAIMetadata {
     biasCheck: boolean;
     ethicalReview: boolean;
   };
-  
+
   overallCompliance: {
     score: number; // 0-100
     grade: 'A' | 'B' | 'C' | 'D' | 'F';
@@ -76,7 +76,7 @@ export interface QualityMetadata {
     maintainability: number;
     performance: number;
   };
-  
+
   // Quality Standards
   standards: {
     minimumThreshold: number; // Default: 80
@@ -84,7 +84,7 @@ export interface QualityMetadata {
     currentStatus: 'below-minimum' | 'meets-minimum' | 'meets-target' | 'exceeds-target';
     improvementSuggestions: string[];
   };
-  
+
   // Quality History
   qualityHistory: Array<{
     timestamp: Date;
@@ -108,7 +108,7 @@ export interface SemanticMetadata {
     temporal: string[]; // Time-based concepts
     hierarchical: string[]; // Parent-child relationships
   };
-  
+
   // Embeddings
   embeddings: {
     vector?: number[]; // 768-dimensional vector
@@ -116,7 +116,7 @@ export interface SemanticMetadata {
     generatedAt: Date;
     confidence: number;
   };
-  
+
   // Relationships
   relationships: {
     relatedIds: string[];
@@ -124,7 +124,7 @@ export interface SemanticMetadata {
     strength: Record<string, number>; // 0-1
     context: Record<string, string>;
   };
-  
+
   // Searchability
   searchability: {
     searchTerms: string[];
@@ -148,7 +148,7 @@ export interface ContextMetadata {
     version?: string; // e.g., 'v22', '5.7', 'latest'
     environment: 'development' | 'staging' | 'production' | 'testing';
   };
-  
+
   // Usage Context
   usage: {
     frequencyAccessed: number;
@@ -161,7 +161,7 @@ export interface ContextMetadata {
     }>;
     popularityScore: number; // 0-100
   };
-    // Temporal Context (Enhanced - integrated into main temporal section above)
+  // Temporal Context (Enhanced - integrated into main temporal section above)
   temporalLegacy: {
     relevanceWindow: {
       start?: Date;
@@ -187,16 +187,16 @@ export interface OneAgentBaseMetadata {
   id: string;
   version: string;
   schemaVersion: string; // Metadata schema version
-  
+
   // Core Properties
   type: string; // e.g., 'conversation', 'memory', 'documentation', 'user-profile'
   title: string;
   description?: string;
-    // Timestamps (Enhanced with Real-time Intelligence)
+  // Timestamps (Enhanced with Real-time Intelligence)
   createdAt: Date;
   updatedAt: Date;
   lastAccessedAt?: Date;
-  
+
   // Enhanced temporal metadata
   temporal: {
     // Real-time tracking
@@ -207,7 +207,7 @@ export interface OneAgentBaseMetadata {
       timezoneCaptured: string;
       utcOffset: number;
     };
-    
+
     // Context at creation
     contextSnapshot: {
       timeOfDay: 'morning' | 'afternoon' | 'evening' | 'night' | 'early-morning' | 'late-night';
@@ -216,7 +216,7 @@ export interface OneAgentBaseMetadata {
       seasonalContext: 'spring' | 'summer' | 'fall' | 'winter';
       userEnergyContext?: 'low' | 'medium' | 'high' | 'peak';
     };
-    
+
     // Temporal relevance and intelligence
     relevance: {
       isTimeDependent: boolean;
@@ -228,7 +228,7 @@ export interface OneAgentBaseMetadata {
         contextNeeded: string[];
       };
     };
-    
+
     // Life coaching temporal features
     lifeCoaching: {
       habitTimestamp: boolean;
@@ -243,7 +243,7 @@ export interface OneAgentBaseMetadata {
         reflectionTiming: boolean;
       };
     };
-    
+
     // Professional timing intelligence
     professional: {
       projectPhase: 'planning' | 'execution' | 'review' | 'maintenance';
@@ -261,7 +261,7 @@ export interface OneAgentBaseMetadata {
       };
     };
   };
-  
+
   // Source Information
   source: {
     origin: string; // Where this metadata originated
@@ -269,19 +269,19 @@ export interface OneAgentBaseMetadata {
     system: string; // Which OneAgent system
     component?: string; // Specific component
   };
-  
+
   // Constitutional AI Compliance
   constitutional: ConstitutionalAIMetadata;
-  
+
   // Quality Metrics
   quality: QualityMetadata;
-  
+
   // Semantic Information
   semantic: SemanticMetadata;
-  
+
   // Context Information
   context: ContextMetadata;
-  
+
   // Cross-System Integration
   integration: {
     systemIds: Record<string, string>; // e.g., { 'context7': 'ctx7_123', 'memory': 'mem_456' }
@@ -296,7 +296,7 @@ export interface OneAgentBaseMetadata {
       resolution?: 'local' | 'remote' | 'merge' | 'manual';
     }>;
   };
-  
+
   // Validation
   validation: {
     isValid: boolean;
@@ -308,10 +308,10 @@ export interface OneAgentBaseMetadata {
     }>;
     schemaCompliant: boolean;
   };
-  
+
   // Extension Points
   extensions: Record<string, unknown>; // For domain-specific extensions
-  
+
   // System Metadata
   system: {
     readonly: boolean;
@@ -334,14 +334,14 @@ export interface OneAgentBaseMetadata {
 // Documentation Metadata (Context7 Enhanced)
 export interface DocumentationMetadata extends OneAgentBaseMetadata {
   type: 'documentation';
-  
+
   // Documentation-specific properties
   documentation: {
     sourceType: 'official' | 'community' | 'internal' | 'generated';
     sourceUrl?: string;
     lastChecked?: Date;
     verificationStatus: 'verified' | 'unverified' | 'outdated' | 'deprecated';
-    
+
     // Content Structure
     structure: {
       format: 'markdown' | 'html' | 'pdf' | 'text' | 'code';
@@ -351,7 +351,7 @@ export interface DocumentationMetadata extends OneAgentBaseMetadata {
       hasVideos: boolean;
       interactiveElements: boolean;
     };
-    
+
     // Learning Metadata
     learning: {
       difficultyLevel: 'beginner' | 'intermediate' | 'advanced' | 'expert';
@@ -360,7 +360,7 @@ export interface DocumentationMetadata extends OneAgentBaseMetadata {
       estimatedReadTime: number; // minutes
       practicalValue: number; // 0-100
     };
-    
+
     // Best Practices
     bestPractices: {
       identified: string[];
@@ -374,13 +374,13 @@ export interface DocumentationMetadata extends OneAgentBaseMetadata {
 // Memory Metadata
 export interface MemoryMetadata extends OneAgentBaseMetadata {
   type: 'memory';
-  
+
   // Memory-specific properties
   memory: {
     memoryType: 'short_term' | 'long_term' | 'workflow' | 'session';
     importance: number; // 0-100
     confidence: number; // 0-1
-    
+
     // Memory Patterns
     patterns: {
       accessFrequency: number;
@@ -392,7 +392,7 @@ export interface MemoryMetadata extends OneAgentBaseMetadata {
         lastReinforced: Date;
       };
     };
-    
+
     // Learning Context
     learningContext: {
       sessionId?: string;
@@ -407,7 +407,7 @@ export interface MemoryMetadata extends OneAgentBaseMetadata {
 // Conversation Metadata
 export interface ConversationMetadata extends OneAgentBaseMetadata {
   type: 'conversation';
-  
+
   // Conversation-specific properties
   conversation: {
     participants: Array<{
@@ -415,7 +415,7 @@ export interface ConversationMetadata extends OneAgentBaseMetadata {
       role: 'user' | 'assistant' | 'system';
       name?: string;
     }>;
-    
+
     // Conversation Flow
     flow: {
       messageCount: number;
@@ -424,7 +424,7 @@ export interface ConversationMetadata extends OneAgentBaseMetadata {
       complexity: 'simple' | 'moderate' | 'complex' | 'expert';
       completionStatus: 'ongoing' | 'completed' | 'abandoned' | 'transferred';
     };
-    
+
     // Conversation Intelligence
     intelligence: {
       mainTopics: string[];
@@ -434,7 +434,7 @@ export interface ConversationMetadata extends OneAgentBaseMetadata {
       learningOpportunities: string[];
       satisfactionScore?: number; // 0-100
     };
-    
+
     // Session Context
     session: {
       sessionId: string;
@@ -452,7 +452,7 @@ export interface ConversationMetadata extends OneAgentBaseMetadata {
 
 export interface NLACSConversationMetadata extends Omit<ConversationMetadata, 'type'> {
   type: 'nlacs-conversation';
-  
+
   // NLACS-specific properties
   nlacs: {
     // Multi-agent orchestration
@@ -464,7 +464,7 @@ export interface NLACSConversationMetadata extends Omit<ConversationMetadata, 't
       emergentInsightsCount: number;
       synthesesGenerated: number;
     };
-    
+
     // Agent participation tracking
     agents: Array<{
       agentId: string;
@@ -476,7 +476,7 @@ export interface NLACSConversationMetadata extends Omit<ConversationMetadata, 't
       confidenceAverage: number;
       contributionQuality: number; // 0-100
     }>;
-    
+
     // Message analysis
     messageAnalysis: {
       messageTypes: {
@@ -490,7 +490,7 @@ export interface NLACSConversationMetadata extends Omit<ConversationMetadata, 't
       crossReferences: number;
       emergentPatterns: string[];
     };
-    
+
     // Context and privacy
     context: {
       domain: string; // e.g., 'finance', 'health', 'coding', 'career'
@@ -502,7 +502,7 @@ export interface NLACSConversationMetadata extends Omit<ConversationMetadata, 't
         additionalTags?: string[];
       };
     };
-    
+
     // Emergent intelligence tracking
     emergentIntelligence: {
       breakthroughMoments: Array<{
@@ -517,7 +517,7 @@ export interface NLACSConversationMetadata extends Omit<ConversationMetadata, 't
       workflowInnovations: string[];
       qualityScore: number; // Overall conversation quality 0-100
     };
-    
+
     // Status and lifecycle
     lifecycle: {
       status: 'active' | 'concluded' | 'archived' | 'paused';
@@ -549,59 +549,113 @@ export const NLACSDomainTemplates: Record<string, NLACSDomainTemplate> = {
     recommendedAgents: ['FinancialAnalyst', 'InvestmentAdvisor', 'TaxOptimizer', 'RiskAssessment'],
     commonContextTags: ['budgeting', 'investment', 'tax-planning', 'risk-management'],
     privacyLevel: 'PRIVATE',
-    exampleTopics: ['Budget optimization', 'Investment strategy', 'Tax planning', 'Risk assessment'],
-    expectedOutcomes: ['Optimized financial plans', 'Investment recommendations', 'Tax strategies', 'Risk mitigation']
+    exampleTopics: [
+      'Budget optimization',
+      'Investment strategy',
+      'Tax planning',
+      'Risk assessment',
+    ],
+    expectedOutcomes: [
+      'Optimized financial plans',
+      'Investment recommendations',
+      'Tax strategies',
+      'Risk mitigation',
+    ],
   },
-  
+
   health: {
     domain: 'health',
     description: 'Health, wellness, and medical decision support',
-    recommendedAgents: ['HealthAdvisor', 'NutritionSpecialist', 'FitnessTrainer', 'MedicalResearcher'],
+    recommendedAgents: [
+      'HealthAdvisor',
+      'NutritionSpecialist',
+      'FitnessTrainer',
+      'MedicalResearcher',
+    ],
     commonContextTags: ['wellness', 'nutrition', 'fitness', 'preventive-care'],
     privacyLevel: 'PRIVATE',
-    exampleTopics: ['Nutrition planning', 'Fitness optimization', 'Health monitoring', 'Preventive care'],
-    expectedOutcomes: ['Personalized health plans', 'Nutrition strategies', 'Fitness routines', 'Health insights']
+    exampleTopics: [
+      'Nutrition planning',
+      'Fitness optimization',
+      'Health monitoring',
+      'Preventive care',
+    ],
+    expectedOutcomes: [
+      'Personalized health plans',
+      'Nutrition strategies',
+      'Fitness routines',
+      'Health insights',
+    ],
   },
-  
+
   career: {
     domain: 'career',
     description: 'Professional development and career advancement',
     recommendedAgents: ['CareerCoach', 'SkillsAnalyst', 'NetworkingExpert', 'IndustryAnalyst'],
-    commonContextTags: ['professional-development', 'skill-building', 'networking', 'career-growth'],
+    commonContextTags: [
+      'professional-development',
+      'skill-building',
+      'networking',
+      'career-growth',
+    ],
     privacyLevel: 'WORKPLACE',
-    exampleTopics: ['Career planning', 'Skill development', 'Job search strategy', 'Leadership growth'],
-    expectedOutcomes: ['Career roadmaps', 'Skill development plans', 'Networking strategies', 'Leadership insights']
+    exampleTopics: [
+      'Career planning',
+      'Skill development',
+      'Job search strategy',
+      'Leadership growth',
+    ],
+    expectedOutcomes: [
+      'Career roadmaps',
+      'Skill development plans',
+      'Networking strategies',
+      'Leadership insights',
+    ],
   },
-  
+
   coding: {
     domain: 'coding',
     description: 'Software development and technical architecture',
-    recommendedAgents: ['SoftwareArchitect', 'CodeReviewer', 'PerformanceOptimizer', 'SecurityExpert'],
+    recommendedAgents: [
+      'SoftwareArchitect',
+      'CodeReviewer',
+      'PerformanceOptimizer',
+      'SecurityExpert',
+    ],
     commonContextTags: ['software-development', 'architecture', 'performance', 'security'],
     privacyLevel: 'WORKPLACE',
-    exampleTopics: ['Architecture design', 'Code optimization', 'Security review', 'Performance tuning'],
-    expectedOutcomes: ['Technical solutions', 'Architecture recommendations', 'Security improvements', 'Performance optimizations']
-  }
+    exampleTopics: [
+      'Architecture design',
+      'Code optimization',
+      'Security review',
+      'Performance tuning',
+    ],
+    expectedOutcomes: [
+      'Technical solutions',
+      'Architecture recommendations',
+      'Security improvements',
+      'Performance optimizations',
+    ],
+  },
 };
-
 
 // =====================================
 // METADATA UTILITY TYPES
 // =====================================
 
-export type MetadataType = 
-  | 'documentation' 
-  | 'memory' 
-  | 'conversation' 
-  | 'user-profile' 
-  | 'system' 
-  | 'integration' 
+export type MetadataType =
+  | 'documentation'
+  | 'memory'
+  | 'conversation'
+  | 'user-profile'
+  | 'system'
+  | 'integration'
   | 'custom';
 
-export type AnyMetadata = 
-  | DocumentationMetadata 
-  | MemoryMetadata 
-  | ConversationMetadata 
+export type AnyMetadata =
+  | DocumentationMetadata
+  | MemoryMetadata
+  | ConversationMetadata
   | OneAgentBaseMetadata;
 
 // =====================================
@@ -611,7 +665,11 @@ export type AnyMetadata =
 export interface MetadataFactory {
   create<T extends AnyMetadata>(type: MetadataType, data: Partial<T>): T;
   validate<T extends AnyMetadata>(metadata: T): boolean;
-  migrate<T extends AnyMetadata>(metadata: Record<string, unknown>, fromVersion: string, toVersion: string): T;
+  migrate<T extends AnyMetadata>(
+    metadata: Record<string, unknown>,
+    fromVersion: string,
+    toVersion: string,
+  ): T;
   merge<T extends AnyMetadata>(metadata1: T, metadata2: T): T;
 }
 
@@ -625,22 +683,29 @@ export interface MetadataRepository {
   read<T extends AnyMetadata>(id: string): Promise<T | null>;
   update<T extends AnyMetadata>(id: string, updates: Partial<T>): Promise<T>;
   delete(id: string): Promise<boolean>;
-  
+
   // Query Operations
   query<T extends AnyMetadata>(criteria: MetadataQueryCriteria): Promise<T[]>;
   search<T extends AnyMetadata>(query: string, options?: SearchOptions): Promise<T[]>;
-  
+
   // Relationship Operations
   getRelated<T extends AnyMetadata>(id: string, relationshipType?: string): Promise<T[]>;
-  createRelationship(fromId: string, toId: string, relationshipType: string, strength?: number): Promise<boolean>;
-  
+  createRelationship(
+    fromId: string,
+    toId: string,
+    relationshipType: string,
+    strength?: number,
+  ): Promise<boolean>;
+
   // Validation and Quality
   validate<T extends AnyMetadata>(metadata: T): Promise<ValidationResult>;
   scoreQuality<T extends AnyMetadata>(metadata: T): Promise<QualityScore>;
-  
+
   // Constitutional AI
-  validateConstitutional<T extends AnyMetadata>(metadata: T): Promise<ConstitutionalValidationResult>;
-  
+  validateConstitutional<T extends AnyMetadata>(
+    metadata: T,
+  ): Promise<ConstitutionalValidationResult>;
+
   // Synchronization
   sync(systemId: string, metadataId: string): Promise<SyncResult>;
   bulkSync(systemId: string, metadataIds: string[]): Promise<SyncResult[]>;
@@ -710,8 +775,8 @@ export interface SyncResult {
   systemId: string;
   conflicts: Array<{
     field: string;
-  localValue: unknown;
-  remoteValue: unknown;
+    localValue: unknown;
+    remoteValue: unknown;
     resolved: boolean;
     resolution?: 'local' | 'remote' | 'merge';
   }>;
@@ -720,7 +785,7 @@ export interface SyncResult {
 
 /**
  * This unified metadata system provides:
- * 
+ *
  * 1. **Single Source of Truth**: All metadata follows OneAgentBaseMetadata
  * 2. **Constitutional AI Integration**: Built-in compliance tracking
  * 3. **Quality Assurance**: Comprehensive quality scoring and validation
@@ -729,7 +794,7 @@ export interface SyncResult {
  * 6. **Context7 Enhancement**: Enhanced documentation metadata for superior learning
  * 7. **Extensibility**: Clean extension points for domain-specific needs
  * 8. **Performance**: Optimized for indexing, searching, and retrieval
- * 
+ *
  * This foundation enables the OneAgent ecosystem to achieve true metadata
  * coherence while supporting advanced AI capabilities and quality standards.
  */

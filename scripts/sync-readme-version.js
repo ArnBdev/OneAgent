@@ -17,10 +17,16 @@ let readme = fs.readFileSync(readmePath, 'utf8');
 const original = readme;
 
 // Replace top-level header line that contains OneAgent version
-readme = readme.replace(/^#\s+OneAgent\s+v[0-9A-Za-z.\-+]+.*$/m, `# OneAgent v${version} - Memory-Driven Intelligence Platform`);
+readme = readme.replace(
+  /^#\s+OneAgent\s+v[0-9A-Za-z.\-+]+.*$/m,
+  `# OneAgent v${version} - Memory-Driven Intelligence Platform`,
+);
 
 // Replace trailing canonical README notation if present
-readme = readme.replace(/This is the canonical README for OneAgent v[0-9A-Za-z.\-+]+\./m, `This is the canonical README for OneAgent v${version}.`);
+readme = readme.replace(
+  /This is the canonical README for OneAgent v[0-9A-Za-z.\-+]+\./m,
+  `This is the canonical README for OneAgent v${version}.`,
+);
 
 if (readme !== original) {
   fs.writeFileSync(readmePath, readme, 'utf8');

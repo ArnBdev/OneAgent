@@ -2,7 +2,9 @@
 description: OneAgent Memory Operations. All memory actions must use canonical mem0 API, reference persistent memory, and follow Constitutional AI and BMAD standards.
 tools: ['codebase', 'editFiles', 'runCommands', 'search']
 ---
+
 # OneAgent Memory Prompt
+
 - Use only the canonical `OneAgentMemory` (mem0) API for all memory operations: `addMemory`, `searchMemory`, `updateMemory`, `deleteMemory`, `getGraphNeighbors`, and `addMultimodalMemory`.
 - Remove all legacy memory bridges, wrappers, and custom scripts. Do not reference or instantiate any legacy memory logic.
 - All agents, tools, and services must delegate memory and embedding operations directly to the canonical API.

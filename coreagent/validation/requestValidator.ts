@@ -1,7 +1,7 @@
 /**
  * RequestValidator - Basic format and size validation for OneAgent
  * Part of Level 2.5 Security Foundation (Phase 1a)
- * 
+ *
  * Provides lightweight, performance-aware validation without blocking core functionality.
  */
 
@@ -29,16 +29,16 @@ export class RequestValidator {
       maxPromptLength: 100000, // 100k characters
       allowedAgentTypes: [
         'research',
-        'fitness', 
+        'fitness',
         'generic-gemini',
         'memory-qna',
         'office',
         'dev',
         'stem',
-        'medical'
+        'medical',
       ],
       requiredFields: ['prompt', 'agentType'],
-      ...config
+      ...config,
     };
   }
 
@@ -49,7 +49,7 @@ export class RequestValidator {
     const result: ValidationResult = {
       isValid: true,
       errors: [],
-      warnings: []
+      warnings: [],
     };
 
     // Basic null/undefined check
@@ -74,9 +74,11 @@ export class RequestValidator {
     if (typeof obj.prompt === 'string') {
       if (obj.prompt.length > this.config.maxPromptLength) {
         result.isValid = false;
-        result.errors.push(`Prompt exceeds maximum length of ${this.config.maxPromptLength} characters`);
+        result.errors.push(
+          `Prompt exceeds maximum length of ${this.config.maxPromptLength} characters`,
+        );
       }
-      
+
       if (obj.prompt.length === 0) {
         result.isValid = false;
         result.errors.push('Prompt cannot be empty');
@@ -84,7 +86,10 @@ export class RequestValidator {
     }
 
     // Validate agent type
-    if (typeof obj.agentType === 'string' && !this.config.allowedAgentTypes.includes(obj.agentType)) {
+    if (
+      typeof obj.agentType === 'string' &&
+      !this.config.allowedAgentTypes.includes(obj.agentType)
+    ) {
       result.warnings.push(`Unknown agent type: ${obj.agentType}. Will use fallback.`);
     }
 
@@ -121,7 +126,7 @@ export class RequestValidator {
    */
   sanitizeInput(input: string): string {
     if (!input || typeof input !== 'string') return '';
-    
+
     // Remove potential script tags and suspicious patterns
     return input
       .replace(/<script[^>]*>.*?<\/script>/gi, '')

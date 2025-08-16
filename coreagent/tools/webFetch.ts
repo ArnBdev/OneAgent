@@ -6,13 +6,13 @@ import { JSDOM } from 'jsdom';
 import { OneAgentMemory } from '../memory/OneAgentMemory';
 import { createUnifiedTimestamp } from '../utils/UnifiedBackboneService';
 
-import { 
-  WebFetchOptions, 
-  WebFetchResponse, 
-  WebFetchContent, 
+import {
+  WebFetchOptions,
+  WebFetchResponse,
+  WebFetchContent,
   WebFetchMetadata,
   WebFetchConfig,
-  WebFetchError
+  WebFetchError,
 } from '../types/webFetch';
 
 export class WebFetchTool {
@@ -20,14 +20,19 @@ export class WebFetchTool {
   private static readonly HttpErrorShape = class {
     code?: string;
     message!: string;
-    response?: { status?: number; statusText?: string; headers?: Record<string, unknown>; data?: unknown };
+    response?: {
+      status?: number;
+      statusText?: string;
+      headers?: Record<string, unknown>;
+      data?: unknown;
+    };
   };
   private client: AxiosInstance;
   private config: WebFetchConfig;
   private mockMode: boolean = false;
   private lastRequestTime: number = 0;
   private requestCount: number = 0;
-  
+
   // Canonical OneAgent Memory Integration
   private memorySystem?: OneAgentMemory;
   private enableContentCaching: boolean = true;
@@ -48,21 +53,22 @@ export class WebFetchTool {
         'text/markdown',
         'text/css',
         'application/javascript',
-        'text/javascript'
+        'text/javascript',
       ],
       rateLimit: {
         requestsPerSecond: 2,
-        requestsPerMinute: 60
+        requestsPerMinute: 60,
       },
-      ...config
+      ...config,
     };
-    
+
     // Initialize memory system if provided
     if (memorySystem) {
       this.memorySystem = memorySystem;
       console.log('🧠 WebFetchTool: Canonical memory integration enabled');
-    }    // Enable mock mode in test environment or when specified
-    this.mockMode = process.env.NODE_ENV === 'test' || (config?.defaultUserAgent?.includes('mock') ?? false);
+    } // Enable mock mode in test environment or when specified
+    this.mockMode =
+      process.env.NODE_ENV === 'test' || (config?.defaultUserAgent?.includes('mock') ?? false);
 
     if (!this.mockMode) {
       this.client = axios.create({
@@ -71,13 +77,14 @@ export class WebFetchTool {
         validateStatus: (status) => status < 500, // Don't throw on client errors (4xx)
         headers: {
           'User-Agent': this.config.defaultUserAgent,
-          'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,text/plain;q=0.8,*/*;q=0.7',
+          Accept:
+            'text/html,application/xhtml+xml,application/xml;q=0.9,text/plain;q=0.8,*/*;q=0.7',
           'Accept-Language': 'en-US,en;q=0.9',
           'Accept-Encoding': 'gzip, deflate',
-          'DNT': '1', // Do Not Track
-          'Connection': 'keep-alive',
-          'Upgrade-Insecure-Requests': '1'
-        }
+          DNT: '1', // Do Not Track
+          Connection: 'keep-alive',
+          'Upgrade-Insecure-Requests': '1',
+        },
       });
     } else {
       console.log('🌐 WebFetchTool: Running in mock mode');
@@ -91,7 +98,7 @@ export class WebFetchTool {
    */
   async fetchContent(options: WebFetchOptions): Promise<WebFetchResponse> {
     const startTime = createUnifiedTimestamp().unix;
-    
+
     try {
       if (this.mockMode) {
         return this.mockFetch(options);
@@ -111,17 +118,19 @@ export class WebFetchTool {
       const requestConfig = {
         timeout: options.timeout || this.config.defaultTimeout,
         maxRedirects: options.maxRedirects || 5,
-        ...(options.userAgent && { 
-          headers: { 'User-Agent': options.userAgent } 
-        })
+        ...(options.userAgent && {
+          headers: { 'User-Agent': options.userAgent },
+        }),
       };
 
       const response: AxiosResponse = await this.client.get(options.url, requestConfig);
-      
+
       // Check content size
       const contentLength = response.headers['content-length'];
       if (contentLength && parseInt(contentLength) > this.config.maxContentSize) {
-        throw new Error(`Content too large: ${contentLength} bytes (max: ${this.config.maxContentSize})`);
+        throw new Error(
+          `Content too large: ${contentLength} bytes (max: ${this.config.maxContentSize})`,
+        );
       }
 
       // Check content type
@@ -132,11 +141,12 @@ export class WebFetchTool {
 
       // Extract content
       const content = await this.extractContent(response.data, contentType, options);
-      
+
       // Extract metadata (only for HTML content)
-      const metadata = contentType.includes('text/html') && options.extractMetadata !== false
-        ? await this.extractMetadata(response.data, options.url, response.request?.responseURL)
-        : {};
+      const metadata =
+        contentType.includes('text/html') && options.extractMetadata !== false
+          ? await this.extractMetadata(response.data, options.url, response.request?.responseURL)
+          : {};
 
       const fetchTime = createUnifiedTimestamp().unix - startTime;
 
@@ -150,16 +160,15 @@ export class WebFetchTool {
         metadata,
         fetchTime,
         timestamp: new Date().toISOString(),
-        success: true
+        success: true,
       };
 
       console.log(`✅ WebFetchTool: Successfully fetched ${content.size} bytes in ${fetchTime}ms`);
       return result;
-
     } catch (error: unknown) {
       const fetchTime = createUnifiedTimestamp().unix - startTime;
       const err = error as InstanceType<typeof WebFetchTool.HttpErrorShape> | undefined;
-      const message = (err && err.message) ? err.message : 'Fetch error';
+      const message = err && err.message ? err.message : 'Fetch error';
       const code = err?.code || 'FETCH_ERROR';
       const statusCode = err?.response?.status;
       const statusText = err?.response?.statusText;
@@ -167,13 +176,13 @@ export class WebFetchTool {
       const details = err?.response?.data;
 
       console.error('❌ WebFetchTool error:', message);
-      
+
       const webFetchError: WebFetchError = {
         code,
         message,
         url: options.url,
         statusCode,
-        details
+        details,
       };
 
       return {
@@ -186,13 +195,13 @@ export class WebFetchTool {
           text: '',
           contentType: 'text/plain',
           encoding: 'utf-8',
-          size: 0
+          size: 0,
         },
         metadata: {},
         fetchTime,
         timestamp: new Date().toISOString(),
         success: false,
-        error: webFetchError.message
+        error: webFetchError.message,
       };
     }
   }
@@ -204,40 +213,42 @@ export class WebFetchTool {
     return this.fetchContent({
       url,
       extractContent,
-      extractMetadata: extractContent
+      extractMetadata: extractContent,
     });
   }
 
   /**
    * Fetch multiple URLs concurrently (with rate limiting)
    */
-  async fetchMultiple(urls: string[], options?: Partial<WebFetchOptions>): Promise<WebFetchResponse[]> {
+  async fetchMultiple(
+    urls: string[],
+    options?: Partial<WebFetchOptions>,
+  ): Promise<WebFetchResponse[]> {
     console.log(`🌐 WebFetchTool: Fetching ${urls.length} URLs concurrently`);
-    
+
     const results: WebFetchResponse[] = [];
-    
+
     // Process URLs in batches to respect rate limits
     const batchSize = Math.min(3, urls.length);
     for (let i = 0; i < urls.length; i += batchSize) {
       const batch = urls.slice(i, i + batchSize);
-      const batchPromises = batch.map(url => 
-        this.fetchContent({ url, ...options })
-      );
-      
+      const batchPromises = batch.map((url) => this.fetchContent({ url, ...options }));
+
       const batchResults = await Promise.allSettled(batchPromises);
-      results.push(...batchResults.map(result => 
-        result.status === 'fulfilled' ? result.value : this.createErrorResponse(
-          batch[batchResults.indexOf(result)], 
-          result.reason
-        )
-      ));
-      
+      results.push(
+        ...batchResults.map((result) =>
+          result.status === 'fulfilled'
+            ? result.value
+            : this.createErrorResponse(batch[batchResults.indexOf(result)], result.reason),
+        ),
+      );
+
       // Add delay between batches
       if (i + batchSize < urls.length) {
-        await new Promise(resolve => setTimeout(resolve, 1000));
+        await new Promise((resolve) => setTimeout(resolve, 1000));
       }
     }
-    
+
     return results;
   }
 
@@ -247,16 +258,16 @@ export class WebFetchTool {
   async testFetch(): Promise<boolean> {
     try {
       console.log('🌐 Testing web fetch functionality...');
-      
+
       const testResult = await this.quickFetch('https://httpbin.org/user-agent');
       const isWorking = testResult.success && testResult.content.size > 0;
-      
+
       if (isWorking) {
         console.log('✅ Web fetch test passed');
       } else {
         console.log('⚠️ Web fetch test failed or returned no content');
       }
-      
+
       return isWorking;
     } catch (error) {
       console.error('❌ Web fetch test failed:', error);
@@ -272,25 +283,24 @@ export class WebFetchTool {
   private validateUrl(url: string): void {
     try {
       const urlObj = new URL(url);
-      
+
       // Check protocol
       if (!['http:', 'https:'].includes(urlObj.protocol)) {
         throw new Error(`Unsupported protocol: ${urlObj.protocol}`);
       }
-      
+
       // Check for blocked domains
-      if (this.config.blockedDomains?.some(domain => 
-        urlObj.hostname.includes(domain)
-      )) {
+      if (this.config.blockedDomains?.some((domain) => urlObj.hostname.includes(domain))) {
         throw new Error(`Domain ${urlObj.hostname} is blocked`);
       }
-      
+
       // Prevent localhost access in production (security measure)
-      if (process.env.NODE_ENV === 'production' && 
-          ['localhost', '127.0.0.1', '::1'].includes(urlObj.hostname)) {
+      if (
+        process.env.NODE_ENV === 'production' &&
+        ['localhost', '127.0.0.1', '::1'].includes(urlObj.hostname)
+      ) {
         throw new Error('Localhost access not allowed in production');
       }
-      
     } catch (error) {
       if (error instanceof TypeError) {
         throw new Error(`Invalid URL format: ${url}`);
@@ -306,12 +316,12 @@ export class WebFetchTool {
     const now = createUnifiedTimestamp().unix;
     const timeSinceLastRequest = now - this.lastRequestTime;
     const minInterval = 1000 / (this.config.rateLimit?.requestsPerSecond || 2);
-    
+
     if (timeSinceLastRequest < minInterval) {
       const delay = minInterval - timeSinceLastRequest;
-      await new Promise(resolve => setTimeout(resolve, delay));
+      await new Promise((resolve) => setTimeout(resolve, delay));
     }
-    
+
     this.lastRequestTime = createUnifiedTimestamp().unix;
     this.requestCount++;
   }
@@ -320,8 +330,8 @@ export class WebFetchTool {
    * Check if content type is allowed
    */
   private isAllowedContentType(contentType: string): boolean {
-    return this.config.allowedContentTypes.some(allowed => 
-      contentType.toLowerCase().includes(allowed.toLowerCase())
+    return this.config.allowedContentTypes.some((allowed) =>
+      contentType.toLowerCase().includes(allowed.toLowerCase()),
     );
   }
 
@@ -329,9 +339,9 @@ export class WebFetchTool {
    * Extract and clean content based on content type
    */
   private async extractContent(
-    rawContent: string, 
-    contentType: string, 
-    options: WebFetchOptions
+    rawContent: string,
+    contentType: string,
+    options: WebFetchOptions,
   ): Promise<WebFetchContent> {
     if (options.extractContent === false) {
       return {
@@ -339,7 +349,7 @@ export class WebFetchTool {
         text: rawContent,
         contentType,
         encoding: 'utf-8',
-        size: Buffer.byteLength(rawContent, 'utf8')
+        size: Buffer.byteLength(rawContent, 'utf8'),
       };
     }
 
@@ -352,48 +362,54 @@ export class WebFetchTool {
       try {
         const dom = new JSDOM(rawContent);
         const document = dom.window.document;
-        
+
         // Remove script and style elements
         const scriptsAndStyles = document.querySelectorAll('script, style, noscript');
-        scriptsAndStyles.forEach(element => element.remove());
-        
+        scriptsAndStyles.forEach((element) => element.remove());
+
         // Extract clean text
         cleanText = document.body?.textContent || document.textContent || '';
         cleanText = cleanText.replace(/\s+/g, ' ').trim();
-        
+
         // Keep cleaned HTML
         cleanHtml = document.body?.innerHTML || document.documentElement.innerHTML;
-        
-        wordCount = cleanText.split(/\s+/).filter(word => word.length > 0).length;
-        
+
+        wordCount = cleanText.split(/\s+/).filter((word) => word.length > 0).length;
       } catch (err) {
         console.warn('⚠️ HTML parsing failed, using raw content:', err);
-        cleanText = rawContent.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
+        cleanText = rawContent
+          .replace(/<[^>]*>/g, ' ')
+          .replace(/\s+/g, ' ')
+          .trim();
       }
     }
-    
+
     // JSON content
     else if (contentType.includes('application/json')) {
       try {
         const jsonData = JSON.parse(rawContent);
         cleanText = JSON.stringify(jsonData, null, 2);
-  } catch {
+      } catch {
         console.warn('⚠️ JSON parsing failed, using raw content');
       }
     }
-    
-    // XML content  
+
+    // XML content
     else if (contentType.includes('xml')) {
       // Basic XML cleaning - remove tags for text extraction
-      cleanText = rawContent.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
-    }    return {
+      cleanText = rawContent
+        .replace(/<[^>]*>/g, ' ')
+        .replace(/\s+/g, ' ')
+        .trim();
+    }
+    return {
       raw: rawContent,
       text: cleanText,
       ...(cleanHtml && { html: cleanHtml }),
       contentType,
       encoding: 'utf-8', // Assume UTF-8 for now
       size: Buffer.byteLength(rawContent, 'utf8'),
-      ...(wordCount && { wordCount })
+      ...(wordCount && { wordCount }),
     };
   }
 
@@ -401,97 +417,96 @@ export class WebFetchTool {
    * Extract metadata from HTML content
    */
   private async extractMetadata(
-    htmlContent: string, 
-    originalUrl: string, 
-    finalUrl?: string
+    htmlContent: string,
+    originalUrl: string,
+    finalUrl?: string,
   ): Promise<WebFetchMetadata> {
     try {
       const dom = new JSDOM(htmlContent);
       const document = dom.window.document;
-        const metadata: WebFetchMetadata = {};
-      
+      const metadata: WebFetchMetadata = {};
+
       // Basic metadata - only assign if value exists
       const title = document.querySelector('title')?.textContent?.trim();
       if (title) metadata.title = title;
-      
+
       const description = this.getMetaContent(document, 'description');
       if (description) metadata.description = description;
-      
+
       const keywordsRaw = this.getMetaContent(document, 'keywords');
-      if (keywordsRaw) metadata.keywords = keywordsRaw.split(',').map(k => k.trim());
-      
+      if (keywordsRaw) metadata.keywords = keywordsRaw.split(',').map((k) => k.trim());
+
       const author = this.getMetaContent(document, 'author');
       if (author) metadata.author = author;
-      
+
       const language = document.documentElement.lang || this.getMetaContent(document, 'language');
       if (language) metadata.language = language;
-      
+
       const canonical = document.querySelector('link[rel="canonical"]')?.getAttribute('href');
       if (canonical) metadata.canonical = canonical;
-      
+
       const robots = this.getMetaContent(document, 'robots');
       if (robots) metadata.robots = robots;
-      
+
       const viewport = this.getMetaContent(document, 'viewport');
       if (viewport) metadata.viewport = viewport;
-      
+
       // Open Graph metadata
       const ogTitle = this.getMetaProperty(document, 'og:title');
       if (ogTitle) metadata.ogTitle = ogTitle;
-      
+
       const ogDescription = this.getMetaProperty(document, 'og:description');
       if (ogDescription) metadata.ogDescription = ogDescription;
-      
+
       const ogImage = this.getMetaProperty(document, 'og:image');
       if (ogImage) metadata.ogImage = ogImage;
-      
+
       const ogUrl = this.getMetaProperty(document, 'og:url');
       if (ogUrl) metadata.ogUrl = ogUrl;
-      
+
       const ogType = this.getMetaProperty(document, 'og:type');
       if (ogType) metadata.ogType = ogType;
-      
+
       const ogSiteName = this.getMetaProperty(document, 'og:site_name');
       if (ogSiteName) metadata.ogSiteName = ogSiteName;
-      
+
       // Twitter Card metadata
       const twitterCard = this.getMetaName(document, 'twitter:card');
       if (twitterCard) metadata.twitterCard = twitterCard;
-      
+
       const twitterTitle = this.getMetaName(document, 'twitter:title');
       if (twitterTitle) metadata.twitterTitle = twitterTitle;
-      
+
       const twitterDescription = this.getMetaName(document, 'twitter:description');
       if (twitterDescription) metadata.twitterDescription = twitterDescription;
-      
+
       const twitterImage = this.getMetaName(document, 'twitter:image');
       if (twitterImage) metadata.twitterImage = twitterImage;
-      
+
       const twitterSite = this.getMetaName(document, 'twitter:site');
       if (twitterSite) metadata.twitterSite = twitterSite;
-      
+
       // Additional metadata
       const favicon = this.extractFavicon(document, finalUrl || originalUrl);
       if (favicon) metadata.favicon = favicon;
-      
+
       const generator = this.getMetaContent(document, 'generator');
       if (generator) metadata.generator = generator;
-      
+
       const lastModified = this.getMetaContent(document, 'last-modified');
       if (lastModified) metadata.lastModified = lastModified;
-      
+
       const publishedTime = this.getMetaProperty(document, 'article:published_time');
       if (publishedTime) metadata.publishedTime = publishedTime;
-      
+
       const modifiedTime = this.getMetaProperty(document, 'article:modified_time');
       if (modifiedTime) metadata.modifiedTime = modifiedTime;
-      
+
       // Extract images and links
       metadata.images = this.extractImages(document, finalUrl || originalUrl);
       metadata.links = this.extractLinks(document, finalUrl || originalUrl);
-      
+
       return metadata;
-      
     } catch (err) {
       console.warn('⚠️ Metadata extraction failed:', err);
       return {};
@@ -509,7 +524,9 @@ export class WebFetchTool {
    * Get meta content by property (for Open Graph)
    */
   private getMetaProperty(document: Document, property: string): string | undefined {
-    return document.querySelector(`meta[property="${property}"]`)?.getAttribute('content') || undefined;
+    return (
+      document.querySelector(`meta[property="${property}"]`)?.getAttribute('content') || undefined
+    );
   }
 
   /**
@@ -525,10 +542,10 @@ export class WebFetchTool {
   private extractFavicon(document: Document, baseUrl: string): string | undefined {
     const selectors = [
       'link[rel="icon"]',
-      'link[rel="shortcut icon"]', 
-      'link[rel="apple-touch-icon"]'
+      'link[rel="shortcut icon"]',
+      'link[rel="apple-touch-icon"]',
     ];
-    
+
     for (const selector of selectors) {
       const link = document.querySelector(selector);
       if (link) {
@@ -538,7 +555,7 @@ export class WebFetchTool {
         }
       }
     }
-    
+
     // Default favicon location
     try {
       const url = new URL(baseUrl);
@@ -554,9 +571,9 @@ export class WebFetchTool {
   private extractImages(document: Document, baseUrl: string): string[] {
     const images = Array.from(document.querySelectorAll('img[src]'));
     return images
-      .map(img => img.getAttribute('src'))
+      .map((img) => img.getAttribute('src'))
       .filter((src): src is string => !!src)
-      .map(src => this.resolveUrl(src, baseUrl))
+      .map((src) => this.resolveUrl(src, baseUrl))
       .slice(0, 20); // Limit to first 20 images
   }
 
@@ -566,10 +583,10 @@ export class WebFetchTool {
   private extractLinks(document: Document, baseUrl: string): string[] {
     const links = Array.from(document.querySelectorAll('a[href]'));
     return links
-      .map(link => link.getAttribute('href'))
+      .map((link) => link.getAttribute('href'))
       .filter((href): href is string => !!href)
-      .filter(href => href.startsWith('http') || href.startsWith('/'))
-      .map(href => this.resolveUrl(href, baseUrl))
+      .filter((href) => href.startsWith('http') || href.startsWith('/'))
+      .map((href) => this.resolveUrl(href, baseUrl))
       .slice(0, 50); // Limit to first 50 links
   }
 
@@ -601,7 +618,10 @@ export class WebFetchTool {
    * Create error response
    */
   private createErrorResponse(url: string, error: unknown): WebFetchResponse {
-    const message = typeof error === 'object' && error && 'message' in error ? String((error as { message: unknown }).message) : 'Unknown error';
+    const message =
+      typeof error === 'object' && error && 'message' in error
+        ? String((error as { message: unknown }).message)
+        : 'Unknown error';
     return {
       url,
       statusCode: 0,
@@ -612,13 +632,13 @@ export class WebFetchTool {
         text: '',
         contentType: 'text/plain',
         encoding: 'utf-8',
-        size: 0
+        size: 0,
       },
       metadata: {},
       fetchTime: 0,
       timestamp: new Date().toISOString(),
       success: false,
-      error: message
+      error: message,
     };
   }
 
@@ -627,7 +647,7 @@ export class WebFetchTool {
    */
   private mockFetch(options: WebFetchOptions): WebFetchResponse {
     console.log(`🌐 Mock fetch for: ${options.url}`);
-    
+
     const mockHtml = `
 <!DOCTYPE html>
 <html lang="en">
@@ -651,12 +671,18 @@ export class WebFetchTool {
 
     const mockContent: WebFetchContent = {
       raw: mockHtml,
-      text: 'Mock Page Content This is mock content returned by WebFetchTool for URL: ' + options.url + ' In production, this would be real webpage content fetched from the actual URL.',
-      html: '<h1>Mock Page Content</h1><p>This is mock content returned by WebFetchTool for URL: ' + options.url + '</p><p>In production, this would be real webpage content fetched from the actual URL.</p><a href="https://example.com/link1">Mock Link 1</a><a href="https://example.com/link2">Mock Link 2</a><img src="https://example.com/image1.jpg" alt="Mock Image 1">',
+      text:
+        'Mock Page Content This is mock content returned by WebFetchTool for URL: ' +
+        options.url +
+        ' In production, this would be real webpage content fetched from the actual URL.',
+      html:
+        '<h1>Mock Page Content</h1><p>This is mock content returned by WebFetchTool for URL: ' +
+        options.url +
+        '</p><p>In production, this would be real webpage content fetched from the actual URL.</p><a href="https://example.com/link1">Mock Link 1</a><a href="https://example.com/link2">Mock Link 2</a><img src="https://example.com/image1.jpg" alt="Mock Image 1">',
       contentType: 'text/html',
       encoding: 'utf-8',
       size: mockHtml.length,
-      wordCount: 25
+      wordCount: 25,
     };
 
     const mockMetadata: WebFetchMetadata = {
@@ -666,7 +692,7 @@ export class WebFetchTool {
       ogTitle: 'Mock Page Title',
       ogDescription: 'Mock webpage for testing WebFetchTool functionality',
       images: ['https://example.com/image1.jpg'],
-      links: ['https://example.com/link1', 'https://example.com/link2']
+      links: ['https://example.com/link1', 'https://example.com/link2'],
     };
 
     return {
@@ -676,13 +702,13 @@ export class WebFetchTool {
       statusText: 'OK',
       headers: {
         'content-type': 'text/html; charset=utf-8',
-        'content-length': mockHtml.length.toString()
+        'content-length': mockHtml.length.toString(),
       },
       content: mockContent,
       metadata: mockMetadata,
       fetchTime: 150, // Mock 150ms fetch time
       timestamp: new Date().toISOString(),
-      success: true
+      success: true,
     };
   }
 
@@ -696,8 +722,8 @@ export class WebFetchTool {
       config: {
         ...this.config,
         // Don't expose sensitive data
-        defaultUserAgent: this.config.defaultUserAgent
-      }
+        defaultUserAgent: this.config.defaultUserAgent,
+      },
     };
   }
 }

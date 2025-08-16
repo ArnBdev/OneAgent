@@ -9,13 +9,14 @@
 **Installation Command**: `pip install "mem0ai[graph]"`
 
 **Configuration**:
+
 ```python
 config = {
     "graph_store": {
         "provider": "memgraph",
         "config": {
             "url": "bolt://localhost:7687",
-            "username": "memgraph", 
+            "username": "memgraph",
             "password": "mem0graph"
         }
     }
@@ -34,13 +35,15 @@ This changes the entire OneAgent architecture strategy:
 ### 📊 WHAT THIS PROVIDES
 
 **From Mem0**:
+
 - LLM-powered entity extraction
-- Semantic memory search  
+- Semantic memory search
 - Automatic conflict resolution
 - 26% higher accuracy than OpenAI Memory
 - 91% lower latency, 90% token savings
 
 **From Memgraph**:
+
 - High-performance graph storage
 - 60+ advanced graph algorithms
 - Real-time analytics capabilities
@@ -48,6 +51,7 @@ This changes the entire OneAgent architecture strategy:
 - Enterprise-grade performance
 
 **Combined**:
+
 - AI-extracted entities stored in high-performance graph
 - Advanced collaboration pattern analysis
 - Dynamic agent team optimization
@@ -62,6 +66,7 @@ This changes the entire OneAgent architecture strategy:
 ### 📈 COMPETITIVE ADVANTAGE
 
 This integration enables OneAgent to offer:
+
 - Real-time agent collaboration optimization
 - Data-driven team formation algorithms
 - Performance-based agent selection

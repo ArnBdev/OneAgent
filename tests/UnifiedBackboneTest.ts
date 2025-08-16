@@ -1,22 +1,22 @@
 /**
  * OneAgent Unified Backbone Test
  * Critical Foundation Validation
- * 
+ *
  * This test validates that the unified time and metadata services work correctly
  * and can be integrated into all OneAgent systems.
- * 
+ *
  * Version: 1.0.0
  * Created: 2024-06-18
  * Priority: CRITICAL BACKBONE VALIDATION
  */
 
-import { 
-  unifiedTimeService, 
-  unifiedMetadataService, 
+import {
+  unifiedTimeService,
+  unifiedMetadataService,
   unifiedBackbone,
   createUnifiedTimestamp,
   createUnifiedMetadata,
-  getUnifiedSystemHealth
+  getUnifiedSystemHealth,
 } from '../coreagent/utils/UnifiedBackboneService.js';
 
 interface TestResults {
@@ -46,49 +46,55 @@ interface TestResults {
 /**
  * Test unified time service functionality
  */
-async function testTimeService(): Promise<{ timestamp: boolean; context: boolean; intelligence: boolean }> {
+async function testTimeService(): Promise<{
+  timestamp: boolean;
+  context: boolean;
+  intelligence: boolean;
+}> {
   console.log('🕒 Testing Unified Time Service...');
-  
+
   try {
     // Test timestamp creation
     const timestamp = unifiedTimeService.now();
-    const timestampValid = timestamp && 
-                          typeof timestamp.unix === 'number' &&
-                          typeof timestamp.utc === 'string' &&
-                          typeof timestamp.timezone === 'string' &&
-                          typeof timestamp.context === 'string';
-    
+    const timestampValid =
+      timestamp &&
+      typeof timestamp.unix === 'number' &&
+      typeof timestamp.utc === 'string' &&
+      typeof timestamp.timezone === 'string' &&
+      typeof timestamp.context === 'string';
+
     console.log('✅ Timestamp:', timestampValid ? 'PASS' : 'FAIL', timestamp);
-    
+
     // Test context retrieval
     const context = unifiedTimeService.getContext();
-    const contextValid = context &&
-                        context.realTime &&
-                        context.context &&
-                        context.intelligence &&
-                        typeof context.intelligence.energyLevel === 'string';
-    
+    const contextValid =
+      context &&
+      context.realTime &&
+      context.context &&
+      context.intelligence &&
+      typeof context.intelligence.energyLevel === 'string';
+
     console.log('✅ Context:', contextValid ? 'PASS' : 'FAIL', context.intelligence);
-    
+
     // Test intelligence features
     const energyLevel = unifiedTimeService.getEnergyLevel();
     const suggestionContext = unifiedTimeService.getSuggestionContext();
     const isOptimalFocus = unifiedTimeService.isOptimalTime('focus');
-    
-    const intelligenceValid = energyLevel && suggestionContext && typeof isOptimalFocus === 'boolean';
-    
+
+    const intelligenceValid =
+      energyLevel && suggestionContext && typeof isOptimalFocus === 'boolean';
+
     console.log('✅ Intelligence:', intelligenceValid ? 'PASS' : 'FAIL', {
       energyLevel,
       suggestionContext,
-      isOptimalFocus
+      isOptimalFocus,
     });
-    
+
     return {
       timestamp: timestampValid,
       context: contextValid,
-      intelligence: intelligenceValid
+      intelligence: intelligenceValid,
     };
-    
   } catch (error) {
     console.error('❌ Time Service Error:', error);
     return { timestamp: false, context: false, intelligence: false };
@@ -98,9 +104,14 @@ async function testTimeService(): Promise<{ timestamp: boolean; context: boolean
 /**
  * Test unified metadata service functionality
  */
-async function testMetadataService(): Promise<{ create: boolean; update: boolean; retrieve: boolean; quality: boolean }> {
+async function testMetadataService(): Promise<{
+  create: boolean;
+  update: boolean;
+  retrieve: boolean;
+  quality: boolean;
+}> {
   console.log('📊 Testing Unified Metadata Service...');
-  
+
   try {
     // Test metadata creation
     const metadata = unifiedMetadataService.create('test', 'unit_test', {
@@ -109,41 +120,38 @@ async function testMetadataService(): Promise<{ create: boolean; update: boolean
         tags: ['unit', 'backbone', 'validation'],
         sensitivity: 'internal',
         relevanceScore: 0.9,
-        contextDependency: 'session'
-      }
+        contextDependency: 'session',
+      },
     });
-    
-    const createValid = metadata && 
-                       metadata.id &&
-                       metadata.temporal.created &&
-                       metadata.quality.score > 0;
-    
+
+    const createValid =
+      metadata && metadata.id && metadata.temporal.created && metadata.quality.score > 0;
+
     console.log('✅ Create:', createValid ? 'PASS' : 'FAIL', metadata.id);
-    
+
     // Test metadata update
     const updated = unifiedMetadataService.update(metadata.id, {
-      quality: { ...metadata.quality, score: 95 }
+      quality: { ...metadata.quality, score: 95 },
     });
-    
+
     const updateValid = updated && updated.quality.score === 95;
     console.log('✅ Update:', updateValid ? 'PASS' : 'FAIL', updated.quality.score);
-    
+
     // Test metadata retrieval
     const retrieved = unifiedMetadataService.retrieve(metadata.id);
     const retrieveValid = retrieved && retrieved.id === metadata.id;
     console.log('✅ Retrieve:', retrieveValid ? 'PASS' : 'FAIL');
-    
+
     // Test quality validation
     const qualityCheck = unifiedMetadataService.validateQuality(metadata);
     const qualityValid = qualityCheck && typeof qualityCheck.score === 'number';
     console.log('✅ Quality:', qualityValid ? 'PASS' : 'FAIL', qualityCheck);
-      return {
+    return {
       create: !!createValid,
       update: !!updateValid,
       retrieve: !!retrieveValid,
-      quality: !!qualityValid
+      quality: !!qualityValid,
     };
-    
   } catch (error) {
     console.error('❌ Metadata Service Error:', error);
     return { create: false, update: false, retrieve: false, quality: false };
@@ -153,9 +161,13 @@ async function testMetadataService(): Promise<{ create: boolean; update: boolean
 /**
  * Test agent integration features
  */
-async function testAgentIntegration(): Promise<{ contextCreation: boolean; alitaIntegration: boolean; systemHealth: boolean }> {
+async function testAgentIntegration(): Promise<{
+  contextCreation: boolean;
+  alitaIntegration: boolean;
+  systemHealth: boolean;
+}> {
   console.log('🤖 Testing Agent Integration...');
-  
+
   try {
     // Test agent context creation
     const agentContext = unifiedBackbone.createAgentContext('test-agent', 'development', {
@@ -163,41 +175,43 @@ async function testAgentIntegration(): Promise<{ contextCreation: boolean; alita
       userId: 'test-user-456',
       capabilities: ['test_capability'],
       memoryEnabled: true,
-      aiEnabled: true
+      aiEnabled: true,
     });
-    
-    const contextValid = agentContext &&
-                        agentContext.agentId === 'test-agent' &&
-                        agentContext.timeService &&
-                        agentContext.metadataService &&
-                        agentContext.sessionId === 'test-session-123';
-    
+
+    const contextValid =
+      agentContext &&
+      agentContext.agentId === 'test-agent' &&
+      agentContext.timeService &&
+      agentContext.metadataService &&
+      agentContext.sessionId === 'test-session-123';
+
     console.log('✅ Agent Context:', contextValid ? 'PASS' : 'FAIL');
-    
+
     // Test ALITA integration
     const alitaContext = unifiedBackbone.createALITAContext('test_trigger', 'moderate');
-    const alitaValid = alitaContext &&
-                      alitaContext.evolutionTimestamp &&
-                      alitaContext.learningMetadata &&
-                      alitaContext.evolutionContext.trigger === 'test_trigger';
-    
+    const alitaValid =
+      alitaContext &&
+      alitaContext.evolutionTimestamp &&
+      alitaContext.learningMetadata &&
+      alitaContext.evolutionContext.trigger === 'test_trigger';
+
     console.log('✅ ALITA Integration:', alitaValid ? 'PASS' : 'FAIL');
-    
+
     // Test system health
     const systemHealth = unifiedBackbone.getSystemHealth();
-    const healthValid = systemHealth &&
-                       systemHealth.components.timeService.operational &&
-                       systemHealth.components.metadataService.operational &&
-                       typeof systemHealth.overall.score === 'number';
-    
+    const healthValid =
+      systemHealth &&
+      systemHealth.components.timeService.operational &&
+      systemHealth.components.metadataService.operational &&
+      typeof systemHealth.overall.score === 'number';
+
     console.log('✅ System Health:', healthValid ? 'PASS' : 'FAIL', systemHealth);
-    
+
     return {
       contextCreation: contextValid,
       alitaIntegration: alitaValid,
-      systemHealth: healthValid
+      systemHealth: healthValid,
     };
-    
   } catch (error) {
     console.error('❌ Agent Integration Error:', error);
     return { contextCreation: false, alitaIntegration: false, systemHealth: false };
@@ -209,16 +223,15 @@ async function testAgentIntegration(): Promise<{ contextCreation: boolean; alita
  */
 async function testConvenienceFunctions(): Promise<boolean> {
   console.log('🛠️ Testing Convenience Functions...');
-  
+
   try {
     const timestamp = createUnifiedTimestamp();
     const metadata = createUnifiedMetadata('convenience_test', 'unit_test');
     const health = getUnifiedSystemHealth();
-      const valid = !!(timestamp && metadata && health);
+    const valid = !!(timestamp && metadata && health);
     console.log('✅ Convenience Functions:', valid ? 'PASS' : 'FAIL');
-    
+
     return valid;
-    
   } catch (error) {
     console.error('❌ Convenience Functions Error:', error);
     return false;
@@ -230,14 +243,14 @@ async function testConvenienceFunctions(): Promise<boolean> {
  */
 export async function runUnifiedBackboneTest(): Promise<TestResults> {
   console.log('\n🚀 OneAgent Unified Backbone Test - STARTING\n');
-  console.log('=' .repeat(60));
-  
+  console.log('='.repeat(60));
+
   // Run all tests
   const timeResults = await testTimeService();
   const metadataResults = await testMetadataService();
   const agentResults = await testAgentIntegration();
   const convenienceValid = await testConvenienceFunctions();
-  
+
   // Calculate overall score
   const allTests = [
     timeResults.timestamp,
@@ -250,14 +263,14 @@ export async function runUnifiedBackboneTest(): Promise<TestResults> {
     agentResults.contextCreation,
     agentResults.alitaIntegration,
     agentResults.systemHealth,
-    convenienceValid
+    convenienceValid,
   ];
-  
-  const passedTests = allTests.filter(test => test).length;
+
+  const passedTests = allTests.filter((test) => test).length;
   const totalTests = allTests.length;
   const score = Math.round((passedTests / totalTests) * 100);
   const success = score >= 80; // 80% pass rate for success
-  
+
   const issues: string[] = [];
   if (!timeResults.timestamp) issues.push('Time service timestamp creation failed');
   if (!timeResults.context) issues.push('Time service context retrieval failed');
@@ -270,7 +283,7 @@ export async function runUnifiedBackboneTest(): Promise<TestResults> {
   if (!agentResults.alitaIntegration) issues.push('ALITA integration failed');
   if (!agentResults.systemHealth) issues.push('System health monitoring failed');
   if (!convenienceValid) issues.push('Convenience functions failed');
-  
+
   const results: TestResults = {
     timeService: timeResults,
     metadataService: metadataResults,
@@ -278,21 +291,21 @@ export async function runUnifiedBackboneTest(): Promise<TestResults> {
     overall: {
       success,
       score,
-      issues
-    }
+      issues,
+    },
   };
-  
-  console.log('\n' + '=' .repeat(60));
+
+  console.log('\n' + '='.repeat(60));
   console.log('🎯 UNIFIED BACKBONE TEST RESULTS');
-  console.log('=' .repeat(60));
+  console.log('='.repeat(60));
   console.log(`Overall Score: ${score}% (${passedTests}/${totalTests} tests passed)`);
   console.log(`Status: ${success ? '✅ SUCCESS' : '❌ FAILURE'}`);
-  
+
   if (issues.length > 0) {
     console.log('\n❌ Issues Found:');
-    issues.forEach(issue => console.log(`  - ${issue}`));
+    issues.forEach((issue) => console.log(`  - ${issue}`));
   }
-  
+
   if (success) {
     console.log('\n🎉 UNIFIED BACKBONE IS READY FOR SYSTEM INTEGRATION!');
     console.log('✅ Time service operational with intelligence');
@@ -303,7 +316,7 @@ export async function runUnifiedBackboneTest(): Promise<TestResults> {
   } else {
     console.log('\n⚠️  UNIFIED BACKBONE NEEDS FIXES BEFORE SYSTEM INTEGRATION');
   }
-  
+
   console.log('\nNext Steps:');
   console.log('1. 🔄 Replace all new Date() with unifiedTimeService.now()');
   console.log('2. 📊 Update all metadata operations to use unifiedMetadataService');
@@ -311,16 +324,16 @@ export async function runUnifiedBackboneTest(): Promise<TestResults> {
   console.log('4. 🧠 Update memory systems to use unified interfaces');
   console.log('5. 💬 Update chat interfaces to use unified time/metadata');
   console.log('6. 🔄 Update ALITA to use real-time evolution tracking');
-  
+
   return results;
 }
 
 // Self-executing test for immediate validation
 runUnifiedBackboneTest()
-  .then(results => {
+  .then((results) => {
     process.exit(results.overall.success ? 0 : 1);
   })
-  .catch(error => {
+  .catch((error) => {
     console.error('Test execution failed:', error);
     process.exit(1);
   });

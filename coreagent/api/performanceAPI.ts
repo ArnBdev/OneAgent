@@ -1,6 +1,6 @@
 /**
  * Performance API for OneAgent UI Integration
- * 
+ *
  * Provides HTTP endpoints for accessing performance metrics, memory intelligence,
  * and system analytics from the UI layer.
  */
@@ -10,7 +10,11 @@ import { MemoryIntelligence } from '../intelligence/memoryIntelligence';
 import { GeminiClient } from '../tools/geminiClient';
 import { OneAgentMemory } from '../memory/OneAgentMemory';
 import { GeminiEmbeddingsTool } from '../tools/geminiEmbeddings';
-import { createUnifiedTimestamp, createUnifiedId, getUnifiedErrorHandler } from '../utils/UnifiedBackboneService';
+import {
+  createUnifiedTimestamp,
+  createUnifiedId,
+  getUnifiedErrorHandler,
+} from '../utils/UnifiedBackboneService';
 
 // Canonical API error details (aligned with unified error system)
 export interface PerformanceAPIErrorDetails {
@@ -72,7 +76,7 @@ export class PerformanceAPI {
     memoryIntelligence: MemoryIntelligence,
     geminiClient: GeminiClient,
     memoryClient: OneAgentMemory,
-    embeddingsTool: GeminiEmbeddingsTool
+    embeddingsTool: GeminiEmbeddingsTool,
   ) {
     this.memoryIntelligence = memoryIntelligence;
     this.geminiClient = geminiClient;
@@ -85,36 +89,40 @@ export class PerformanceAPI {
    */
   async getSystemStatus(): Promise<PerformanceAPIResponse<SystemStatus>> {
     try {
-  const report = await globalProfiler.generateReport();
-  const memorySearch = await this.memoryClient.searchMemory({
+      const report = await globalProfiler.generateReport();
+      const memorySearch = await this.memoryClient.searchMemory({
         query: 'system',
         limit: 100,
-        type: 'system'
+        type: 'system',
       });
-  const memoryData = memorySearch?.results || [];
-  await this.memoryIntelligence.generateMemoryAnalytics('system');
+      const memoryData = memorySearch?.results || [];
+      await this.memoryIntelligence.generateMemoryAnalytics('system');
       // Integrate unified error metrics (non-critical augmentation)
       let validationErrors = 0;
       try {
-        const metricsAccessor = this.errorHandler as unknown as { getMetrics?: () => { errorsByType?: Record<string, number> } };
+        const metricsAccessor = this.errorHandler as unknown as {
+          getMetrics?: () => { errorsByType?: Record<string, number> };
+        };
         const metrics = metricsAccessor.getMetrics?.();
         if (metrics?.errorsByType?.VALIDATION) {
           validationErrors = metrics.errorsByType.VALIDATION;
         }
-      } catch { /* ignore metric augmentation failures */ }
+      } catch {
+        /* ignore metric augmentation failures */
+      }
 
       // Test service connections
       const services: SystemStatus['services'] = {
         gemini: 'unknown',
         mem0: 'unknown',
-        embedding: 'unknown'
+        embedding: 'unknown',
       };
       try {
         // Test connection by attempting a simple search
         await this.memoryClient.searchMemory({
           query: 'test',
           limit: 1,
-          type: 'system'
+          type: 'system',
         });
         services.mem0 = 'connected';
       } catch {
@@ -130,20 +138,27 @@ export class PerformanceAPI {
       }
       // Derive category breakdown and importance locally to avoid tight coupling
       const categoryBreakdown: Record<string, number> = {};
-      for (const r of memoryData as Array<{ metadata?: { content?: { tags?: string[]; category?: string }, quality?: { score?: number } } }>) {
+      for (const r of memoryData as Array<{
+        metadata?: {
+          content?: { tags?: string[]; category?: string };
+          quality?: { score?: number };
+        };
+      }>) {
         const cat = r.metadata?.content?.tags?.[0] || r.metadata?.content?.category || 'general';
         categoryBreakdown[cat] = (categoryBreakdown[cat] || 0) + 1;
       }
-      const importanceSamples: number[] = (memoryData as Array<{ metadata?: { quality?: { score?: number } } }>).map(r =>
-        Math.round(((r.metadata?.quality?.score ?? 0.7) * 100))
-      );
-      const avgImportanceScore = importanceSamples.length ? Math.round(importanceSamples.reduce((a,b)=>a+b,0)/importanceSamples.length) : 0;
+      const importanceSamples: number[] = (
+        memoryData as Array<{ metadata?: { quality?: { score?: number } } }>
+      ).map((r) => Math.round((r.metadata?.quality?.score ?? 0.7) * 100));
+      const avgImportanceScore = importanceSamples.length
+        ? Math.round(importanceSamples.reduce((a, b) => a + b, 0) / importanceSamples.length)
+        : 0;
 
       const status: SystemStatus = {
         performance: {
           totalOperations: report.totalOperations,
           averageLatency: report.averageLatency,
-          errorRate: report.errorRate
+          errorRate: report.errorRate,
         },
         memory: {
           totalMemories: memoryData.length,
@@ -152,28 +167,27 @@ export class PerformanceAPI {
           topCategories: Object.entries(categoryBreakdown)
             .sort(([, a], [, b]) => (b as number) - (a as number))
             .slice(0, 5)
-            .map(([category]) => category)
+            .map(([category]) => category),
         },
         security: {
           validationErrors,
           rateLimitViolations: 0,
           authenticationFailures: 0,
           securityAlertsActive: 0,
-          lastSecurityScan: createUnifiedTimestamp().utc
+          lastSecurityScan: createUnifiedTimestamp().utc,
         },
-        services
+        services,
       };
 
       return {
         success: true,
         data: status,
-        timestamp: createUnifiedTimestamp().utc
+        timestamp: createUnifiedTimestamp().utc,
       };
-
     } catch (error) {
       const entry = await this.errorHandler.handleError(error as Error, {
         component: this.component,
-        operation: 'getSystemStatus'
+        operation: 'getSystemStatus',
       });
       return {
         success: false,
@@ -183,10 +197,10 @@ export class PerformanceAPI {
           type: entry.type,
           severity: entry.severity,
           message: entry.message,
-          timestamp: entry.timestamp.utc
+          timestamp: entry.timestamp.utc,
         },
         timestamp: createUnifiedTimestamp().utc,
-        traceId: entry.id
+        traceId: entry.id,
       };
     }
   }
@@ -201,7 +215,7 @@ export class PerformanceAPI {
     } catch (error) {
       const entry = await this.errorHandler.handleError(error as Error, {
         component: this.component,
-        operation: 'getPerformanceMetrics'
+        operation: 'getPerformanceMetrics',
       });
       return {
         success: false,
@@ -211,35 +225,40 @@ export class PerformanceAPI {
           type: entry.type,
           severity: entry.severity,
           message: entry.message,
-          timestamp: entry.timestamp.utc
+          timestamp: entry.timestamp.utc,
         },
         timestamp: createUnifiedTimestamp().utc,
-        traceId: entry.id
+        traceId: entry.id,
       };
     }
   }
 
   /**
    * Get memory intelligence analytics
-  */  async getMemoryAnalytics(filter?: { query?: string; limit?: number; userId?: string }): Promise<PerformanceAPIResponse> {
+   */ async getMemoryAnalytics(filter?: {
+    query?: string;
+    limit?: number;
+    userId?: string;
+  }): Promise<PerformanceAPIResponse> {
     try {
       await this.memoryClient.searchMemory({
         query: filter?.query || '',
         limit: filter?.limit || 100,
-        type: 'system'
+        type: 'system',
       });
-      const analytics = await this.memoryIntelligence.generateMemoryAnalytics(filter?.userId || 'system');
-      
+      const analytics = await this.memoryIntelligence.generateMemoryAnalytics(
+        filter?.userId || 'system',
+      );
+
       return {
         success: true,
         data: analytics,
-        timestamp: createUnifiedTimestamp().utc
+        timestamp: createUnifiedTimestamp().utc,
       };
-
     } catch (error) {
       const entry = await this.errorHandler.handleError(error as Error, {
         component: this.component,
-        operation: 'getMemoryAnalytics'
+        operation: 'getMemoryAnalytics',
       });
       return {
         success: false,
@@ -249,10 +268,10 @@ export class PerformanceAPI {
           type: entry.type,
           severity: entry.severity,
           message: entry.message,
-          timestamp: entry.timestamp.utc
+          timestamp: entry.timestamp.utc,
         },
         timestamp: createUnifiedTimestamp().utc,
-        traceId: entry.id
+        traceId: entry.id,
       };
     }
   }
@@ -260,46 +279,55 @@ export class PerformanceAPI {
   /**
    * Search memories with intelligence
    */
-  async searchMemories(query?: string, filter?: { limit?: number; userId?: string; type?: string; topK?: number; similarityThreshold?: number; model?: 'gemini-embedding-001' | 'text-embedding-004' | 'gemini-embedding-exp-03-07' }): Promise<PerformanceAPIResponse> {
+  async searchMemories(
+    query?: string,
+    filter?: {
+      limit?: number;
+      userId?: string;
+      type?: string;
+      topK?: number;
+      similarityThreshold?: number;
+      model?: 'gemini-embedding-001' | 'text-embedding-004' | 'gemini-embedding-exp-03-07';
+    },
+  ): Promise<PerformanceAPIResponse> {
     try {
       let results;
-      
+
       if (query) {
         // Use semantic search
         const searchResults = await this.embeddingsTool.semanticSearch(query, {
           topK: filter?.topK,
           similarityThreshold: filter?.similarityThreshold,
-          model: filter?.model
+          model: filter?.model,
         });
         results = {
-          memories: searchResults.results.map(r => r.memory),
+          memories: searchResults.results.map((r) => r.memory),
           analytics: searchResults.analytics,
-          searchType: 'semantic'
+          searchType: 'semantic',
         };
       } else {
         // Use basic search
         const memoryResults = await this.memoryClient.searchMemory({
           query: query,
           limit: filter?.limit || 50,
-          type: 'system'
+          type: 'system',
         });
         results = {
           memories: memoryResults?.results || [],
-          searchType: 'basic'
+          searchType: 'basic',
         };
       }
-      
+
       return {
         success: true,
         data: results,
-        timestamp: createUnifiedTimestamp().utc
+        timestamp: createUnifiedTimestamp().utc,
       };
-
     } catch (error) {
       const entry = await this.errorHandler.handleError(error as Error, {
         component: this.component,
         operation: 'searchMemories',
-        query
+        query,
       });
       return {
         success: false,
@@ -309,10 +337,10 @@ export class PerformanceAPI {
           type: entry.type,
           severity: entry.severity,
           message: entry.message,
-          timestamp: entry.timestamp.utc
+          timestamp: entry.timestamp.utc,
         },
         timestamp: createUnifiedTimestamp().utc,
-        traceId: entry.id
+        traceId: entry.id,
       };
     }
   }
@@ -328,14 +356,14 @@ export class PerformanceAPI {
   ): Promise<PerformanceAPIResponse> {
     try {
       // Categorize and score the memory (create temporary memory object)
-      const tempMemory = { 
-        id: 'temp', 
-        content, 
+      const tempMemory = {
+        id: 'temp',
+        content,
         metadata: metadata || {},
         createdAt: createUnifiedTimestamp().utc,
-        updatedAt: createUnifiedTimestamp().utc
+        updatedAt: createUnifiedTimestamp().utc,
       };
-      
+
       const category = await this.memoryIntelligence.categorizeMemory(tempMemory);
       const importance = await this.memoryIntelligence.calculateImportanceScore(tempMemory);
       // Store with embedding and intelligence
@@ -347,8 +375,8 @@ export class PerformanceAPI {
         {
           ...metadata,
           category: category,
-          importance_score: importance.overall
-        }
+          importance_score: importance.overall,
+        },
       );
 
       return {
@@ -358,16 +386,15 @@ export class PerformanceAPI {
           embedding: result.embedding,
           intelligence: {
             category,
-            importance
-          }
+            importance,
+          },
         },
-        timestamp: createUnifiedTimestamp().utc
+        timestamp: createUnifiedTimestamp().utc,
       };
-
     } catch (error) {
       const entry = await this.errorHandler.handleError(error as Error, {
         component: this.component,
-        operation: 'createMemory'
+        operation: 'createMemory',
       });
       return {
         success: false,
@@ -377,10 +404,10 @@ export class PerformanceAPI {
           type: entry.type,
           severity: entry.severity,
           message: entry.message,
-          timestamp: entry.timestamp.utc
+          timestamp: entry.timestamp.utc,
         },
         timestamp: createUnifiedTimestamp().utc,
-        traceId: entry.id
+        traceId: entry.id,
       };
     }
   }
@@ -388,21 +415,23 @@ export class PerformanceAPI {
   /**
    * Get similar memories
    */
-  async getSimilarMemories(memoryId: string, options?: { limit?: number }): Promise<PerformanceAPIResponse> {
+  async getSimilarMemories(
+    memoryId: string,
+    options?: { limit?: number },
+  ): Promise<PerformanceAPIResponse> {
     try {
       const results = await this.embeddingsTool.findSimilarMemories(memoryId, options);
-      
+
       return {
         success: true,
         data: results,
-        timestamp: createUnifiedTimestamp().utc
+        timestamp: createUnifiedTimestamp().utc,
       };
-
     } catch (error) {
       const entry = await this.errorHandler.handleError(error as Error, {
         component: this.component,
         operation: 'getSimilarMemories',
-        memoryId
+        memoryId,
       });
       return {
         success: false,
@@ -412,10 +441,10 @@ export class PerformanceAPI {
           type: entry.type,
           severity: entry.severity,
           message: entry.message,
-          timestamp: entry.timestamp.utc
+          timestamp: entry.timestamp.utc,
         },
         timestamp: createUnifiedTimestamp().utc,
-        traceId: entry.id
+        traceId: entry.id,
       };
     }
   }
@@ -426,17 +455,16 @@ export class PerformanceAPI {
   async clearPerformanceData(): Promise<PerformanceAPIResponse> {
     try {
       globalProfiler.clearMetrics();
-      
+
       return {
         success: true,
         data: { message: 'Performance data cleared' },
-        timestamp: createUnifiedTimestamp().utc
+        timestamp: createUnifiedTimestamp().utc,
       };
-
     } catch (error) {
       const entry = await this.errorHandler.handleError(error as Error, {
         component: this.component,
-        operation: 'clearPerformanceData'
+        operation: 'clearPerformanceData',
       });
       return {
         success: false,
@@ -446,10 +474,10 @@ export class PerformanceAPI {
           type: entry.type,
           severity: entry.severity,
           message: entry.message,
-          timestamp: entry.timestamp.utc
+          timestamp: entry.timestamp.utc,
         },
         timestamp: createUnifiedTimestamp().utc,
-        traceId: entry.id
+        traceId: entry.id,
       };
     }
   }
@@ -466,7 +494,7 @@ export class PerformanceAPI {
       await this.errorHandler.handleError(error as Error, {
         component: this.component,
         operation: 'recordEvent',
-        eventType
+        eventType,
       });
     }
   }
@@ -491,20 +519,19 @@ export class PerformanceAPI {
         rateLimitViolations: 0, // Would be tracked by ContextManager
         authenticationFailures: 0, // Would be tracked by authentication system
         securityAlertsActive: 0, // Would be tracked by PerformanceBridge
-    lastSecurityScan: createUnifiedTimestamp().utc,
-        securityLevel: 'operational' as 'secure' | 'operational' | 'warning' | 'critical'
+        lastSecurityScan: createUnifiedTimestamp().utc,
+        securityLevel: 'operational' as 'secure' | 'operational' | 'warning' | 'critical',
       };
 
       return {
         success: true,
         data: securityStatus,
-        timestamp: createUnifiedTimestamp().utc
+        timestamp: createUnifiedTimestamp().utc,
       };
-
     } catch (error) {
       const entry = await this.errorHandler.handleError(error as Error, {
         component: this.component,
-        operation: 'getSecurityMetrics'
+        operation: 'getSecurityMetrics',
       });
       return {
         success: false,
@@ -514,10 +541,10 @@ export class PerformanceAPI {
           type: entry.type,
           severity: entry.severity,
           message: entry.message,
-          timestamp: entry.timestamp.utc
+          timestamp: entry.timestamp.utc,
         },
         timestamp: createUnifiedTimestamp().utc,
-        traceId: entry.id
+        traceId: entry.id,
       };
     }
   }

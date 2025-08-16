@@ -38,7 +38,6 @@
 
 ---
 
-
 ## Phase 4: System Integration & Orchestration
 
 - [⏳ In Progress] **BaseAgent Integration:** Canonical A2A+NLACS enhancement underway. All agents will inherit A2A + NLACS capabilities (not just API layer).
@@ -58,6 +57,7 @@
 ---
 
 ## Legend
+
 - [✅ Completed]: Already implemented in your codebase.
 - [ ]: Still to be implemented (some have placeholders, as noted).
 
@@ -71,10 +71,11 @@
 ---
 
 **Next Steps:**
+
 - Prioritize implementing real entity extraction, constitutional validation, and emergent intelligence.
 - Integrate these features into both the API and agent layers.
 - Expand orchestration and privacy controls as described above.
 
 ---
 
-*This document will be updated as progress is made. Please refer to this file to track the status of A2A + NLACS implementation in OneAgent.*
+_This document will be updated as progress is made. Please refer to this file to track the status of A2A + NLACS implementation in OneAgent._

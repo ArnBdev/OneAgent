@@ -4,7 +4,9 @@
 import '../setup/disableMonitoring';
 import { unifiedMonitoringService } from '../../coreagent/monitoring/UnifiedMonitoringService';
 
-interface MinimalMonitoringShape { isMonitoring?: boolean }
+interface MinimalMonitoringShape {
+  isMonitoring?: boolean;
+}
 
 (async () => {
   if ((unifiedMonitoringService as unknown as MinimalMonitoringShape).isMonitoring !== false) {
@@ -13,6 +15,6 @@ interface MinimalMonitoringShape { isMonitoring?: boolean }
   // Should not throw
   await unifiedMonitoringService.startMonitoring();
   await unifiedMonitoringService.stopMonitoring();
-  unifiedMonitoringService.trackOperation?.('test','op','success',{});
+  unifiedMonitoringService.trackOperation?.('test', 'op', 'success', {});
   console.log('[monitoring-disable-behavior.test] PASS');
 })();

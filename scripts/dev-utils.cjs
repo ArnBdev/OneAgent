@@ -16,7 +16,7 @@ function run() {
     console.error('[dev-utils] Provide one or more test file paths.');
     process.exit(1);
   }
-  const testFiles = rest.map(f => path.resolve(f));
+  const testFiles = rest.map((f) => path.resolve(f));
   if (testFiles.length > 1) {
     process.env.ONEAGENT_TEST_BATCH_MODE = '1';
   }

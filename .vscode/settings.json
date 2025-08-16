@@ -28,5 +28,8 @@
   "typescript.suggest.completeFunctionCalls": true,
   "editor.inlineSuggest.enabled": true,
   "editor.suggest.preview": true,
-  "terminal.integrated.suggest.enabled": true
+  "terminal.integrated.suggest.enabled": true,
+  "prettier.prettierPath": "node_modules/prettier",
+  "editor.defaultFormatter": "esbenp.prettier-vscode",
+  "editor.formatOnSave": true
 }

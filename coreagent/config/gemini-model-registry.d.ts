@@ -1,13 +1,13 @@
 export interface GeminiModel {
-    name: string;
-    tier: 'pro' | 'flash' | 'lite' | 'embedding';
-    type: 'llm' | 'embedding';
-    description: string;
-    pricingUSDper1Ktokens: number;
-    inputLimitTokens?: number;
-    outputLimitTokens?: number;
-    version?: string;
-    [key: string]: any;
+  name: string;
+  tier: 'pro' | 'flash' | 'lite' | 'embedding';
+  type: 'llm' | 'embedding';
+  description: string;
+  pricingUSDper1Ktokens: number;
+  inputLimitTokens?: number;
+  outputLimitTokens?: number;
+  version?: string;
+  [key: string]: any;
 }
 export declare const GEMINI_MODELS: Record<string, GeminiModel>;
 /**

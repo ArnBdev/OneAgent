@@ -1,4 +1,5 @@
 # OneAgent ⟷ Mem0/Memgraph Compatibility Analysis
+
 ## Complete Technical Mapping and Migration Plan
 
 ### Executive Summary
@@ -11,16 +12,16 @@ After analyzing OneAgent's backbone memory system against Mem0/Memgraph capabili
 
 ## 🎯 Compatibility Matrix
 
-| OneAgent Feature | Mem0 Support | Memgraph Support | Implementation Strategy |
-|------------------|-------------|------------------|------------------------|
-| **Temporal Awareness (TimeWindow)** | ❌ No native | ✅ Graph queries | Store temporal data as graph properties |
-| **Constitutional AI Validation** | ❌ No native | ✅ Custom properties | Implement in bridge layer |
-| **Memory Intelligence** | ❌ No native | ✅ Analytics | Use Memgraph algorithms |
-| **Cross-Agent Learning** | ❌ Limited | ✅ Graph relations | Model as agent-to-agent edges |
-| **Quality Scoring** | ❌ No native | ✅ Node properties | Store as metadata in graph |
-| **Semantic Embeddings** | ✅ Built-in | ✅ Vector search | Direct mapping |
-| **Pattern Detection** | ❌ No native | ✅ Graph algorithms | Use community detection |
-| **Organic Growth** | ❌ No native | ✅ Dynamic graphs | Track evolution over time |
+| OneAgent Feature                    | Mem0 Support | Memgraph Support     | Implementation Strategy                 |
+| ----------------------------------- | ------------ | -------------------- | --------------------------------------- |
+| **Temporal Awareness (TimeWindow)** | ❌ No native | ✅ Graph queries     | Store temporal data as graph properties |
+| **Constitutional AI Validation**    | ❌ No native | ✅ Custom properties | Implement in bridge layer               |
+| **Memory Intelligence**             | ❌ No native | ✅ Analytics         | Use Memgraph algorithms                 |
+| **Cross-Agent Learning**            | ❌ Limited   | ✅ Graph relations   | Model as agent-to-agent edges           |
+| **Quality Scoring**                 | ❌ No native | ✅ Node properties   | Store as metadata in graph              |
+| **Semantic Embeddings**             | ✅ Built-in  | ✅ Vector search     | Direct mapping                          |
+| **Pattern Detection**               | ❌ No native | ✅ Graph algorithms  | Use community detection                 |
+| **Organic Growth**                  | ❌ No native | ✅ Dynamic graphs    | Track evolution over time               |
 
 ---
 
@@ -44,43 +45,44 @@ export class OneAgentMem0Bridge implements UnifiedMemoryInterface {
   async storeConversation(conversation: ConversationMemory): Promise<string> {
     // 1. Constitutional validation (preserve OneAgent feature)
     const validation = await this.constitutionalValidator.validate(conversation.content);
-    
+
     // 2. Enhanced metadata with temporal context
     const enhancedMetadata = {
       ...conversation.metadata,
       temporal: {
         timeWindow: this.temporalManager.getCurrentWindow(),
         contextSnapshot: conversation.context,
-        qualityScore: conversation.outcome.qualityScore
+        qualityScore: conversation.outcome.qualityScore,
       },
       constitutional: {
         compliant: validation.compliant,
-        score: validation.score
+        score: validation.score,
       },
       oneagent: {
         agentId: conversation.agentId,
         userId: conversation.userId,
-        sessionId: conversation.context.sessionId
-      }
+        sessionId: conversation.context.sessionId,
+      },
     };
-    
+
     // 3. Store in Mem0 with enhanced metadata
     const memoryId = await this.mem0Client.add(
       conversation.content,
       conversation.userId,
-      enhancedMetadata
+      enhancedMetadata,
     );
-    
+
     // 4. Create graph relationships in Memgraph
     await this.createConversationGraph(conversation, memoryId);
-    
+
     return memoryId;
   }
 
   // ✅ Advanced feature - Graph-powered
   async identifyEmergingPatterns(): Promise<EmergingPattern[]> {
     // Use Memgraph's advanced analytics
-    const patterns = await this.memgraphClient.executeQuery(`
+    const patterns = await this.memgraphClient.executeQuery(
+      `
       MATCH (c:Conversation)-[:FROM_AGENT]->(a:Agent)
       CALL community_detection.get() YIELD node, community_id
       WITH community_id, collect(a) as agents, count(c) as frequency
@@ -88,25 +90,30 @@ export class OneAgentMem0Bridge implements UnifiedMemoryInterface {
       RETURN community_id, agents, frequency, 
              avg([c in collect(c) | c.quality_score]) as avg_quality
       ORDER BY frequency DESC, avg_quality DESC
-    `, { minFrequency: 5 });
-    
+    `,
+      { minFrequency: 5 },
+    );
+
     return this.convertToEmergingPatterns(patterns);
   }
 
   // ✅ OneAgent-specific - Temporal queries
   async getConversationsInWindow(timeWindow: TimeWindow): Promise<ConversationData[]> {
     // Query Memgraph with temporal constraints
-    const results = await this.memgraphClient.executeQuery(`
+    const results = await this.memgraphClient.executeQuery(
+      `
       MATCH (c:Conversation)
       WHERE c.timestamp >= $start AND c.timestamp <= $end
       OPTIONAL MATCH (c)-[:HAS_CONTEXT]->(ctx:Context)
       RETURN c, ctx
       ORDER BY c.timestamp DESC
-    `, {
-      start: timeWindow.start.getTime(),
-      end: timeWindow.end.getTime()
-    });
-    
+    `,
+      {
+        start: timeWindow.start.getTime(),
+        end: timeWindow.end.getTime(),
+      },
+    );
+
     return this.convertToConversationData(results);
   }
 }
@@ -117,23 +124,25 @@ export class OneAgentMem0Bridge implements UnifiedMemoryInterface {
 ## 📋 Required Backbone Mappings
 
 ### 1. Temporal Awareness Bridge
+
 ```typescript
 class TemporalAwarenessBridge {
   async storeWithTemporal(
-    content: string, 
-    timeWindow: TimeWindow, 
-    metadata: UnifiedMetadata
+    content: string,
+    timeWindow: TimeWindow,
+    metadata: UnifiedMetadata,
   ): Promise<string> {
     const temporalGraph = {
       timestamp: metadata.temporal.created.unix,
       timeOfDay: metadata.temporal.contextSnapshot.timeOfDay,
       dayOfWeek: metadata.temporal.contextSnapshot.dayOfWeek,
       energyLevel: metadata.temporal.contextSnapshot.energyContext,
-      businessContext: metadata.temporal.contextSnapshot.businessContext
+      businessContext: metadata.temporal.contextSnapshot.businessContext,
     };
-    
+
     // Store in Memgraph as time-aware nodes
-    await this.memgraphClient.executeQuery(`
+    await this.memgraphClient.executeQuery(
+      `
       CREATE (t:TemporalContext {
         timestamp: $timestamp,
         timeOfDay: $timeOfDay,
@@ -141,22 +150,26 @@ class TemporalAwarenessBridge {
         energyLevel: $energyLevel,
         businessContext: $businessContext
       })
-    `, temporalGraph);
-    
+    `,
+      temporalGraph,
+    );
+
     return memoryId;
   }
 }
 ```
 
 ### 2. Constitutional AI Bridge
+
 ```typescript
 class ConstitutionalAIBridge {
   async validateAndStore(content: string, metadata: any): Promise<ValidationResult> {
     // Preserve OneAgent's constitutional validation
     const validation = await this.validateConstitutional(content);
-    
+
     // Store validation results in Memgraph
-    await this.memgraphClient.executeQuery(`
+    await this.memgraphClient.executeQuery(
+      `
       MATCH (m:Memory {id: $memoryId})
       CREATE (m)-[:VALIDATED_BY]->(v:Validation {
         compliant: $compliant,
@@ -166,45 +179,51 @@ class ConstitutionalAIBridge {
         safety: $safety,
         overallScore: $score
       })
-    `, {
-      memoryId,
-      ...validation
-    });
-    
+    `,
+      {
+        memoryId,
+        ...validation,
+      },
+    );
+
     return validation;
   }
 }
 ```
 
 ### 3. Memory Intelligence Bridge
+
 ```typescript
 class MemoryIntelligenceBridge {
   async enhancedSemanticSearch(
     query: string,
     userId: string,
-    options: MemorySearchQuery
+    options: MemorySearchQuery,
   ): Promise<MemoryResult[]> {
     // 1. Mem0 semantic search
     const semanticResults = await this.mem0Client.search(query, userId);
-    
+
     // 2. Memgraph relationship enhancement
     const enhanced = await Promise.all(
       semanticResults.map(async (result) => {
-        const relationships = await this.memgraphClient.executeQuery(`
+        const relationships = await this.memgraphClient.executeQuery(
+          `
           MATCH (m:Memory {id: $memoryId})-[r]-(related)
           RETURN related, type(r), r.strength
           ORDER BY r.strength DESC
           LIMIT 5
-        `, { memoryId: result.id });
-        
+        `,
+          { memoryId: result.id },
+        );
+
         return {
           ...result,
           relatedMemories: relationships,
-          relationshipScore: this.calculateRelationshipScore(relationships)
+          relationshipScore: this.calculateRelationshipScore(relationships),
         };
-      })
+      }),
     );
-    
+
     return this.convertToMemoryResults(enhanced);
   }
 }
@@ -215,6 +234,7 @@ class MemoryIntelligenceBridge {
 ## 🚀 Migration Implementation Plan
 
 ### Phase 1: Foundation (Week 1)
+
 ```typescript
 // 1. Install and configure Mem0 + Memgraph
 npm install mem0ai @memgraph/client
@@ -250,18 +270,21 @@ export class OneAgentMem0Bridge implements UnifiedMemoryInterface {
 ```
 
 ### Phase 2: Core Methods (Week 2)
+
 - Implement all `UnifiedMemoryInterface` methods
 - Map `ConversationMemory` → Mem0 + Memgraph graph
 - Preserve `TimeWindow` and temporal awareness
 - Maintain constitutional validation
 
 ### Phase 3: Advanced Features (Week 3)
+
 - Cross-agent learning with graph relationships
 - Pattern detection using Memgraph algorithms
 - Organic growth tracking
 - Quality metrics and analytics
 
 ### Phase 4: Migration & Testing (Week 4)
+
 - Data migration from existing system
 - Performance testing and optimization
 - Integration testing with all agents
@@ -278,7 +301,7 @@ class MemoryMigrationService {
   async migrateExistingMemories(): Promise<void> {
     // 1. Export from current system
     const existingMemories = await this.currentMemoryClient.exportAll();
-    
+
     // 2. Transform to Mem0/Memgraph format
     for (const memory of existingMemories) {
       const transformedMemory = {
@@ -288,14 +311,14 @@ class MemoryMigrationService {
           ...memory.metadata,
           migrated: true,
           originalId: memory.id,
-          originalTimestamp: memory.timestamp
-        }
+          originalTimestamp: memory.timestamp,
+        },
       };
-      
+
       // 3. Store in new system with full feature preservation
       await this.oneAgentBridge.storeConversation(transformedMemory);
     }
-    
+
     // 4. Verify data integrity
     await this.verifyMigration();
   }
@@ -307,6 +330,7 @@ class MemoryMigrationService {
 ## ✅ Compatibility Guarantees
 
 ### All OneAgent Features Preserved:
+
 1. **✅ Temporal Awareness**: Stored as graph properties and time-based queries
 2. **✅ Constitutional AI**: Implemented in bridge layer with graph storage
 3. **✅ Memory Intelligence**: Enhanced with Memgraph analytics
@@ -317,6 +341,7 @@ class MemoryMigrationService {
 8. **✅ Metadata**: Full preservation + enhancement
 
 ### Performance Improvements:
+
 - **Vector Search**: Mem0's optimized semantic search
 - **Graph Analytics**: Memgraph's high-performance algorithms
 - **Scalability**: Both systems designed for production scale
@@ -327,25 +352,26 @@ class MemoryMigrationService {
 ## 🔧 Implementation Verification
 
 ### Testing Strategy:
+
 ```typescript
 // Compatibility test suite
 describe('OneAgent Mem0 Bridge Compatibility', () => {
   test('preserves all UnifiedMemoryInterface methods', async () => {
     const bridge = new OneAgentMem0Bridge(config);
-    
+
     // Test all interface methods exist and work
     expect(bridge.storeConversation).toBeDefined();
     expect(bridge.getConversationsInWindow).toBeDefined();
     expect(bridge.identifyEmergingPatterns).toBeDefined();
     // ... all methods
   });
-  
+
   test('maintains temporal awareness', async () => {
     const timeWindow = { start: new Date(), end: new Date() };
     const conversations = await bridge.getConversationsInWindow(timeWindow);
     expect(conversations).toHaveTemporalData();
   });
-  
+
   test('preserves constitutional validation', async () => {
     const conversation = createTestConversation();
     const id = await bridge.storeConversation(conversation);
@@ -360,12 +386,14 @@ describe('OneAgent Mem0 Bridge Compatibility', () => {
 ## 📈 Expected Benefits
 
 ### Immediate Gains:
+
 - **Production-Ready Memory**: Battle-tested Mem0 + Memgraph
 - **Advanced Graph Analytics**: Community detection, PageRank, shortest paths
 - **LLM-Based Processing**: Automatic fact extraction and conflict resolution
 - **Scalability**: Handle millions of memories with graph optimization
 
 ### Strategic Advantages:
+
 - **Competitive Differentiation**: Advanced collaborative agent features
 - **Development Velocity**: Focus on OneAgent features vs memory infrastructure
 - **Maintenance**: Official support for both Mem0 and Memgraph

@@ -45,7 +45,7 @@ export interface WebFetchMetadata {
   canonical?: string;
   robots?: string;
   viewport?: string;
-  
+
   // Open Graph metadata
   ogTitle?: string;
   ogDescription?: string;
@@ -53,14 +53,14 @@ export interface WebFetchMetadata {
   ogUrl?: string;
   ogType?: string;
   ogSiteName?: string;
-  
+
   // Twitter Card metadata
   twitterCard?: string;
   twitterTitle?: string;
   twitterDescription?: string;
   twitterImage?: string;
   twitterSite?: string;
-  
+
   // Additional metadata
   favicon?: string;
   generator?: string;

@@ -19,7 +19,11 @@ import { AgentType } from '../types/oneagent-backbone-types';
 import { AgentFactory } from '../agents/base/AgentFactory';
 import { ISpecializedAgent } from '../agents/base/ISpecializedAgent';
 import { AgentContext, AgentResponse } from '../agents/base/BaseAgent';
-import { createUnifiedTimestamp, unifiedMetadataService, createUnifiedId } from '../utils/UnifiedBackboneService';
+import {
+  createUnifiedTimestamp,
+  unifiedMetadataService,
+  createUnifiedId,
+} from '../utils/UnifiedBackboneService';
 
 export interface ConversationParticipant {
   id: string;
@@ -84,8 +88,8 @@ export class EnhancedChatAPI {
         conversationId,
         metadata: {
           confidence: 1.0,
-          qualityScore: 0.8
-        }
+          qualityScore: 0.8,
+        },
       };
 
       // Route to appropriate agent
@@ -96,17 +100,20 @@ export class EnhancedChatAPI {
           id: request.userId,
           name: 'User',
           createdAt: ts.iso,
-          lastActiveAt: ts.iso
+          lastActiveAt: ts.iso,
         },
         sessionId: conversationId,
         conversationHistory: [],
         metadata: {
           fromParticipant: request.fromParticipant,
-          messageId
-        }
+          messageId,
+        },
       };
 
-      const agentResponse = await (targetAgent as ISpecializedAgent).processMessage(agentContext, request.content);
+      const agentResponse = await (targetAgent as ISpecializedAgent).processMessage(
+        agentContext,
+        request.content,
+      );
 
       // Persist conversation pair
       await this.storeUniversalConversation(message, agentResponse, request.userId);
@@ -114,7 +121,7 @@ export class EnhancedChatAPI {
       const responseTs = createUnifiedTimestamp();
       const responseMetadata: ConversationMessage['metadata'] = {
         confidence: (agentResponse.metadata?.confidence as number) || 0.8,
-        qualityScore: (agentResponse.metadata?.qualityScore as number) || 0.8
+        qualityScore: (agentResponse.metadata?.qualityScore as number) || 0.8,
       };
       if (agentResponse.metadata?.reasoning) {
         responseMetadata.reasoning = agentResponse.metadata.reasoning as string;
@@ -125,15 +132,15 @@ export class EnhancedChatAPI {
         fromParticipant: {
           id: 'coreagent',
           type: 'agent',
-            // Keep original class name for traceability
+          // Keep original class name for traceability
           name: targetAgent.constructor.name,
-          agentType: this.extractAgentType(targetAgent)
+          agentType: this.extractAgentType(targetAgent),
         },
         toParticipant: request.fromParticipant,
         content: agentResponse.content,
         timestamp: new Date(responseTs.utc),
         conversationId,
-        metadata: responseMetadata
+        metadata: responseMetadata,
       };
 
       return { message: responseMessage, success: true };
@@ -147,10 +154,10 @@ export class EnhancedChatAPI {
           content: 'I encountered an error processing your message.',
           timestamp: new Date(ts.utc),
           conversationId: request.conversationId || 'error',
-          metadata: { qualityScore: 0.0 }
+          metadata: { qualityScore: 0.0 },
         },
         success: false,
-        error: errorMessage
+        error: errorMessage,
       };
     }
   }
@@ -163,26 +170,42 @@ export class EnhancedChatAPI {
     toAgentType: string,
     content: string,
     userId: string,
-    conversationId?: string
+    conversationId?: string,
   ): Promise<ConversationResponse> {
     const allowedAgentTypes: AgentType[] = [
-      'general','coding','research','analysis','creative','specialist','coordinator','validator','development','office','fitness','core','triage'
+      'general',
+      'coding',
+      'research',
+      'analysis',
+      'creative',
+      'specialist',
+      'coordinator',
+      'validator',
+      'development',
+      'office',
+      'fitness',
+      'core',
+      'triage',
     ];
 
-    const safeFrom: AgentType = allowedAgentTypes.includes(fromAgentType as AgentType) ? fromAgentType as AgentType : 'general';
-    const safeTo: AgentType = allowedAgentTypes.includes(toAgentType as AgentType) ? toAgentType as AgentType : 'general';
+    const safeFrom: AgentType = allowedAgentTypes.includes(fromAgentType as AgentType)
+      ? (fromAgentType as AgentType)
+      : 'general';
+    const safeTo: AgentType = allowedAgentTypes.includes(toAgentType as AgentType)
+      ? (toAgentType as AgentType)
+      : 'general';
 
     const fromParticipant: ConversationParticipant = {
       id: fromAgentType,
       type: 'agent',
       name: `${fromAgentType.charAt(0).toUpperCase() + fromAgentType.slice(1)}Agent`,
-      agentType: safeFrom
+      agentType: safeFrom,
     };
     const toParticipant: ConversationParticipant = {
       id: toAgentType,
       type: 'agent',
       name: `${toAgentType.charAt(0).toUpperCase() + toAgentType.slice(1)}Agent`,
-      agentType: safeTo
+      agentType: safeTo,
     };
 
     return this.processUniversalMessage({
@@ -190,7 +213,7 @@ export class EnhancedChatAPI {
       toParticipant,
       content,
       userId,
-      ...(conversationId && { conversationId })
+      ...(conversationId && { conversationId }),
     });
   }
 
@@ -201,7 +224,7 @@ export class EnhancedChatAPI {
     topic: string,
     participantAgentTypes: string[],
     userId: string,
-    facilitator: string = 'core'
+    facilitator: string = 'core',
   ): Promise<ConversationMessage[]> {
     const conversationId = this.generateConversationId();
     const responses: ConversationMessage[] = [];
@@ -211,7 +234,7 @@ export class EnhancedChatAPI {
       'team',
       `Team meeting topic: ${topic}. Please provide your perspectives.`,
       userId,
-      conversationId
+      conversationId,
     );
     if (intro.success) responses.push(intro.message);
 
@@ -222,7 +245,7 @@ export class EnhancedChatAPI {
           'team',
           `Perspective from ${agentType} on ${topic}...`,
           userId,
-          conversationId
+          conversationId,
         );
         if (contrib.success) responses.push(contrib.message);
       }
@@ -233,7 +256,7 @@ export class EnhancedChatAPI {
       'team',
       `Synthesis of team perspectives on ${topic}...`,
       userId,
-      conversationId
+      conversationId,
     );
     if (synthesis.success) responses.push(synthesis.message);
 
@@ -254,20 +277,20 @@ export class EnhancedChatAPI {
       const userParticipant: ConversationParticipant = {
         id: userId,
         type: 'user',
-        name: `User ${userId}`
+        name: `User ${userId}`,
       };
 
       const response = await this.processUniversalMessage({
         fromParticipant: userParticipant,
         content: message,
-        userId
+        userId,
       });
 
       res.json({
         response: response.message.content,
         agentType: response.message.fromParticipant.agentType || 'core',
         success: response.success,
-        error: response.error
+        error: response.error,
       });
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
@@ -275,7 +298,7 @@ export class EnhancedChatAPI {
         response: 'Error processing message.',
         agentType: 'error',
         success: false,
-        error: errorMessage
+        error: errorMessage,
       });
     }
   }
@@ -291,8 +314,8 @@ export class EnhancedChatAPI {
           id: createUnifiedId('agent', request.toParticipant.agentType),
           name: request.toParticipant.name,
           memoryEnabled: true,
-            aiEnabled: true,
-          userId: request.userId
+          aiEnabled: true,
+          userId: request.userId,
         });
       } catch {
         // Fallback
@@ -304,7 +327,7 @@ export class EnhancedChatAPI {
       name: 'DefaultAgent',
       memoryEnabled: true,
       aiEnabled: true,
-      userId: request.userId
+      userId: request.userId,
     });
   }
 
@@ -314,9 +337,10 @@ export class EnhancedChatAPI {
   private async storeUniversalConversation(
     message: ConversationMessage,
     agentResponse: AgentResponse,
-    userId: string
+    userId: string,
   ): Promise<void> {
-    const conversationText = `${message.fromParticipant.name}: ${message.content}\n` +
+    const conversationText =
+      `${message.fromParticipant.name}: ${message.content}\n` +
       `${agentResponse.metadata?.agentType || 'Agent'}: ${agentResponse.content}`;
 
     await this.unifiedMemoryClient.store(
@@ -325,32 +349,44 @@ export class EnhancedChatAPI {
         system: {
           source: 'UniversalConversationGateway',
           component: 'conversation-system',
-          userId
+          userId,
         },
         content: {
           category: 'universal_conversation',
           tags: [message.fromParticipant.type, 'agent'],
           sensitivity: 'internal',
           relevanceScore: 1.0,
-          contextDependency: 'session'
+          contextDependency: 'session',
         },
         quality: {
           score: 1.0,
           confidence: 1.0,
           constitutionalCompliant: true,
-          validationLevel: 'enhanced'
-        }
-      })
+          validationLevel: 'enhanced',
+        },
+      }),
     );
   }
 
   private extractAgentType(agent: ISpecializedAgent): AgentType {
     const className = agent.constructor.name.toLowerCase();
     const allowed: AgentType[] = [
-      'general','coding','research','analysis','creative','specialist','coordinator','validator','development','office','fitness','core','triage'
+      'general',
+      'coding',
+      'research',
+      'analysis',
+      'creative',
+      'specialist',
+      'coordinator',
+      'validator',
+      'development',
+      'office',
+      'fitness',
+      'core',
+      'triage',
     ];
-    const guess = className.replace('agent','');
-    return allowed.includes(guess as AgentType) ? guess as AgentType : 'general';
+    const guess = className.replace('agent', '');
+    return allowed.includes(guess as AgentType) ? (guess as AgentType) : 'general';
   }
 
   // Canonical ID helpers

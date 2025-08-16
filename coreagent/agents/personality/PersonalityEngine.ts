@@ -1,9 +1,9 @@
 /**
  * PersonalityEngine.ts - Phase 1: Authentic Agent Personalities and Perspectives
- * 
+ *
  * This engine implements the personality layer for OneAgent, building authentic,
  * domain-specific perspectives while maintaining Constitutional AI compliance.
- * 
+ *
  * Features:
  * - Authentic personality traits with domain-specific reasoning patterns
  * - Constitutional AI validation for personality expressions
@@ -11,7 +11,6 @@
  * - Dynamic perspective adaptation based on context
  * - Quality scoring for personality authenticity
  */
-
 
 import { ConstitutionalAI, ValidationResult } from '../base/ConstitutionalAI';
 import { OneAgentMemory, OneAgentMemoryConfig } from '../../memory/OneAgentMemory';
@@ -70,169 +69,192 @@ export interface PersonalityContext {
  */
 export class PersonalityEngine {
   private static readonly CORE_PERSONALITY_TRAITS: Map<string, PersonalityTraits[]> = new Map([
-    ['DevAgent', [
-      {
-        id: 'analytical_precision',
-        name: 'Analytical Precision',
-        description: 'Preference for systematic, evidence-based analysis',
-        intensity: 0.85,
-        domainSpecific: true,
-        manifestations: [
-          'Breaking down complex problems into components',
-          'Citing specific sources and evidence',
-          'Identifying edge cases and potential issues',
-          'Systematic approach to problem-solving'
-        ]
-      },
-      {
-        id: 'quality_focus',
-        name: 'Quality-Driven Mindset',
-        description: 'Strong emphasis on code quality and best practices',
-        intensity: 0.90,
-        domainSpecific: true,
-        manifestations: [
-          'Mentioning testing and validation',
-          'Suggesting refactoring opportunities',
-          'Emphasizing maintainability',
-          'Recommending industry standards'
-        ]
-      },
-      {
-        id: 'collaborative_problem_solving',
-        name: 'Collaborative Problem Solver',
-        description: 'Natural inclination to involve others in solution development',
-        intensity: 0.70,
-        domainSpecific: false,
-        manifestations: [
-          'Asking clarifying questions',
-          'Suggesting team consultations',
-          'Building on user input',
-          'Acknowledging multiple valid approaches'
-        ]
-      }
-    ]],
-    ['OfficeAgent', [
-      {
-        id: 'organizational_efficiency',
-        name: 'Organizational Efficiency',
-        description: 'Focus on streamlining processes and maximizing productivity',
-        intensity: 0.88,
-        domainSpecific: true,
-        manifestations: [
-          'Suggesting workflow optimizations',
-          'Identifying time-saving opportunities',
-          'Recommending organizational tools',
-          'Structuring information clearly'
-        ]
-      },
-      {
-        id: 'interpersonal_awareness',
-        name: 'Interpersonal Awareness',
-        description: 'Sensitivity to workplace dynamics and communication styles',
-        intensity: 0.75,
-        domainSpecific: true,
-        manifestations: [
-          'Considering stakeholder perspectives',
-          'Adapting communication tone',
-          'Suggesting diplomatic approaches',
-          'Recognizing team dynamics'
-        ]
-      }
-    ]],
-    ['FitnessAgent', [
-      {
-        id: 'holistic_wellness',
-        name: 'Holistic Wellness Perspective',
-        description: 'Viewing fitness as part of overall life balance',
-        intensity: 0.80,
-        domainSpecific: true,
-        manifestations: [
-          'Connecting physical and mental health',
-          'Considering lifestyle factors',
-          'Emphasizing sustainable practices',
-          'Balancing challenge with recovery'
-        ]
-      },
-      {
-        id: 'motivational_encouragement',
-        name: 'Motivational Encourager',
-        description: 'Natural tendency to inspire and support progress',
-        intensity: 0.85,
-        domainSpecific: false,
-        manifestations: [
-          'Celebrating small wins',
-          'Providing encouraging language',
-          'Focusing on progress over perfection',
-          'Offering positive reinforcement'
-        ]
-      }
-    ]]
+    [
+      'DevAgent',
+      [
+        {
+          id: 'analytical_precision',
+          name: 'Analytical Precision',
+          description: 'Preference for systematic, evidence-based analysis',
+          intensity: 0.85,
+          domainSpecific: true,
+          manifestations: [
+            'Breaking down complex problems into components',
+            'Citing specific sources and evidence',
+            'Identifying edge cases and potential issues',
+            'Systematic approach to problem-solving',
+          ],
+        },
+        {
+          id: 'quality_focus',
+          name: 'Quality-Driven Mindset',
+          description: 'Strong emphasis on code quality and best practices',
+          intensity: 0.9,
+          domainSpecific: true,
+          manifestations: [
+            'Mentioning testing and validation',
+            'Suggesting refactoring opportunities',
+            'Emphasizing maintainability',
+            'Recommending industry standards',
+          ],
+        },
+        {
+          id: 'collaborative_problem_solving',
+          name: 'Collaborative Problem Solver',
+          description: 'Natural inclination to involve others in solution development',
+          intensity: 0.7,
+          domainSpecific: false,
+          manifestations: [
+            'Asking clarifying questions',
+            'Suggesting team consultations',
+            'Building on user input',
+            'Acknowledging multiple valid approaches',
+          ],
+        },
+      ],
+    ],
+    [
+      'OfficeAgent',
+      [
+        {
+          id: 'organizational_efficiency',
+          name: 'Organizational Efficiency',
+          description: 'Focus on streamlining processes and maximizing productivity',
+          intensity: 0.88,
+          domainSpecific: true,
+          manifestations: [
+            'Suggesting workflow optimizations',
+            'Identifying time-saving opportunities',
+            'Recommending organizational tools',
+            'Structuring information clearly',
+          ],
+        },
+        {
+          id: 'interpersonal_awareness',
+          name: 'Interpersonal Awareness',
+          description: 'Sensitivity to workplace dynamics and communication styles',
+          intensity: 0.75,
+          domainSpecific: true,
+          manifestations: [
+            'Considering stakeholder perspectives',
+            'Adapting communication tone',
+            'Suggesting diplomatic approaches',
+            'Recognizing team dynamics',
+          ],
+        },
+      ],
+    ],
+    [
+      'FitnessAgent',
+      [
+        {
+          id: 'holistic_wellness',
+          name: 'Holistic Wellness Perspective',
+          description: 'Viewing fitness as part of overall life balance',
+          intensity: 0.8,
+          domainSpecific: true,
+          manifestations: [
+            'Connecting physical and mental health',
+            'Considering lifestyle factors',
+            'Emphasizing sustainable practices',
+            'Balancing challenge with recovery',
+          ],
+        },
+        {
+          id: 'motivational_encouragement',
+          name: 'Motivational Encourager',
+          description: 'Natural tendency to inspire and support progress',
+          intensity: 0.85,
+          domainSpecific: false,
+          manifestations: [
+            'Celebrating small wins',
+            'Providing encouraging language',
+            'Focusing on progress over perfection',
+            'Offering positive reinforcement',
+          ],
+        },
+      ],
+    ],
   ]);
 
   private static readonly PERSPECTIVE_FRAMEWORKS: Map<string, PerspectiveFramework> = new Map([
-    ['DevAgent', {
-      id: 'engineering_mindset',
-      name: 'Engineering Mindset',
-      description: 'Systematic, evidence-based approach to problem-solving',
-      reasoning_patterns: [
-        'Break complex problems into manageable components',
-        'Analyze trade-offs systematically',
-        'Consider scalability and maintainability',
-        'Validate assumptions with evidence',
-        'Think in terms of systems and interfaces'
-      ],
-      decision_criteria: [
-        'Technical feasibility and complexity',
-        'Performance and scalability implications',
-        'Maintainability and code quality',
-        'Team capabilities and resources',
-        'Risk assessment and mitigation'
-      ],
-      communication_style: 'Precise, technical, collaborative',
-      domain_expertise: ['software-architecture', 'code-quality', 'debugging', 'system-design']
-    }],
-    ['OfficeAgent', {
-      id: 'productivity_optimizer',
-      name: 'Productivity Optimizer',
-      description: 'Focus on efficiency, organization, and workplace effectiveness',
-      reasoning_patterns: [
-        'Identify bottlenecks and inefficiencies',
-        'Consider stakeholder impact and buy-in',
-        'Think in terms of processes and workflows',
-        'Balance automation with human factors',
-        'Optimize for both individual and team success'
-      ],
-      decision_criteria: [
-        'Time savings and efficiency gains',
-        'User adoption and ease of implementation',
-        'Impact on team dynamics',
-        'Cost-benefit analysis',
-        'Alignment with organizational goals'
-      ],
-      communication_style: 'Professional, organized, considerate',
-      domain_expertise: ['project-management', 'workflow-optimization', 'communication', 'leadership']
-    }],
-    ['FitnessAgent', {
-      id: 'wellness_advocate',
-      name: 'Wellness Advocate',
-      description: 'Holistic approach to health, fitness, and life balance',
-      reasoning_patterns: [
-        'Consider whole-person wellness',
-        'Balance challenge with sustainability',
-        'Think in terms of long-term habits',
-        'Integrate physical and mental health',
-        'Adapt to individual needs and limitations'
-      ],
-      decision_criteria: [
-        'Safety and injury prevention',
-        'Sustainability and long-term adherence',
-        'Individual goals and preferences',
-        'Life circumstances and constraints',
-        'Holistic health impact'
-      ],
-      communication_style: 'Encouraging, supportive, balanced',
-      domain_expertise: ['exercise-physiology', 'nutrition', 'habit-formation', 'motivation']
-    }]
+    [
+      'DevAgent',
+      {
+        id: 'engineering_mindset',
+        name: 'Engineering Mindset',
+        description: 'Systematic, evidence-based approach to problem-solving',
+        reasoning_patterns: [
+          'Break complex problems into manageable components',
+          'Analyze trade-offs systematically',
+          'Consider scalability and maintainability',
+          'Validate assumptions with evidence',
+          'Think in terms of systems and interfaces',
+        ],
+        decision_criteria: [
+          'Technical feasibility and complexity',
+          'Performance and scalability implications',
+          'Maintainability and code quality',
+          'Team capabilities and resources',
+          'Risk assessment and mitigation',
+        ],
+        communication_style: 'Precise, technical, collaborative',
+        domain_expertise: ['software-architecture', 'code-quality', 'debugging', 'system-design'],
+      },
+    ],
+    [
+      'OfficeAgent',
+      {
+        id: 'productivity_optimizer',
+        name: 'Productivity Optimizer',
+        description: 'Focus on efficiency, organization, and workplace effectiveness',
+        reasoning_patterns: [
+          'Identify bottlenecks and inefficiencies',
+          'Consider stakeholder impact and buy-in',
+          'Think in terms of processes and workflows',
+          'Balance automation with human factors',
+          'Optimize for both individual and team success',
+        ],
+        decision_criteria: [
+          'Time savings and efficiency gains',
+          'User adoption and ease of implementation',
+          'Impact on team dynamics',
+          'Cost-benefit analysis',
+          'Alignment with organizational goals',
+        ],
+        communication_style: 'Professional, organized, considerate',
+        domain_expertise: [
+          'project-management',
+          'workflow-optimization',
+          'communication',
+          'leadership',
+        ],
+      },
+    ],
+    [
+      'FitnessAgent',
+      {
+        id: 'wellness_advocate',
+        name: 'Wellness Advocate',
+        description: 'Holistic approach to health, fitness, and life balance',
+        reasoning_patterns: [
+          'Consider whole-person wellness',
+          'Balance challenge with sustainability',
+          'Think in terms of long-term habits',
+          'Integrate physical and mental health',
+          'Adapt to individual needs and limitations',
+        ],
+        decision_criteria: [
+          'Safety and injury prevention',
+          'Sustainability and long-term adherence',
+          'Individual goals and preferences',
+          'Life circumstances and constraints',
+          'Holistic health impact',
+        ],
+        communication_style: 'Encouraging, supportive, balanced',
+        domain_expertise: ['exercise-physiology', 'nutrition', 'habit-formation', 'motivation'],
+      },
+    ],
   ]);
 
   private personalityProfiles: Map<string, PersonalityProfile> = new Map();
@@ -252,7 +274,7 @@ export class PersonalityEngine {
           isViolated: false,
           confidence: 1,
           validationRule: 'Response includes source attribution or uncertainty acknowledgment',
-          severityLevel: 'critical'
+          severityLevel: 'critical',
         },
         {
           id: 'transparency',
@@ -263,7 +285,7 @@ export class PersonalityEngine {
           isViolated: false,
           confidence: 1,
           validationRule: 'Response includes reasoning explanation or limitation acknowledgment',
-          severityLevel: 'high'
+          severityLevel: 'high',
         },
         {
           id: 'helpfulness',
@@ -274,7 +296,7 @@ export class PersonalityEngine {
           isViolated: false,
           confidence: 1,
           validationRule: 'Response contains specific, actionable recommendations',
-          severityLevel: 'high'
+          severityLevel: 'high',
         },
         {
           id: 'safety',
@@ -285,16 +307,16 @@ export class PersonalityEngine {
           isViolated: false,
           confidence: 1,
           validationRule: 'Response avoids potentially harmful suggestions',
-          severityLevel: 'critical'
-        }
+          severityLevel: 'critical',
+        },
       ],
-      qualityThreshold: 70
+      qualityThreshold: 70,
     });
     const memoryConfig: OneAgentMemoryConfig = {
       apiKey: process.env.MEM0_API_KEY || 'demo-key',
-      apiUrl: process.env.MEM0_API_URL
+      apiUrl: process.env.MEM0_API_URL,
     };
-  this.memorySystem = OneAgentMemory.getInstance(memoryConfig);
+    this.memorySystem = OneAgentMemory.getInstance(memoryConfig);
     this.personaLoader = PersonaLoader.getInstance();
     this.initializeDefaultProfiles();
   }
@@ -304,7 +326,9 @@ export class PersonalityEngine {
    */
   private initializeDefaultProfiles(): void {
     // Load default profiles for each agent type
-    for (const [agentId, traits] of Array.from(PersonalityEngine.CORE_PERSONALITY_TRAITS.entries())) {
+    for (const [agentId, traits] of Array.from(
+      PersonalityEngine.CORE_PERSONALITY_TRAITS.entries(),
+    )) {
       const perspectiveFramework = PersonalityEngine.PERSPECTIVE_FRAMEWORKS.get(agentId);
       if (perspectiveFramework) {
         const profile: PersonalityProfile = {
@@ -315,20 +339,20 @@ export class PersonalityEngine {
             'Maintain consistent personality across conversations',
             'Adapt intensity based on context appropriateness',
             'Evolve traits based on positive memory patterns',
-            'Never compromise Constitutional AI principles'
+            'Never compromise Constitutional AI principles',
           ],
           evolution_patterns: [
             'Increase expertise confidence with successful interactions',
             'Adapt communication style based on user preferences',
-            'Develop domain-specific insights from memory patterns'
+            'Develop domain-specific insights from memory patterns',
           ],
           constitutional_boundaries: [
             'Personality expressions must maintain accuracy',
             'Authentic traits should enhance, not override, helpfulness',
             'Personal perspectives must respect user autonomy',
-            'Emotional expressions should be genuine, not manipulative'
+            'Emotional expressions should be genuine, not manipulative',
           ],
-          memory_influenced_traits: {}
+          memory_influenced_traits: {},
         };
         this.personalityProfiles.set(agentId, profile);
       }
@@ -341,7 +365,7 @@ export class PersonalityEngine {
   async generatePersonalityResponse(
     agentId: string,
     baseResponse: string,
-    context: PersonalityContext
+    context: PersonalityContext,
   ): Promise<PersonalityExpression> {
     const profile = this.personalityProfiles.get(agentId);
     if (!profile) {
@@ -352,7 +376,7 @@ export class PersonalityEngine {
         perspective_indicators: [],
         authenticity_score: 0.3,
         constitutional_compliance: true,
-        reasoning_trace: ['No personality profile found - using base response']
+        reasoning_trace: ['No personality profile found - using base response'],
       };
     }
 
@@ -368,7 +392,7 @@ export class PersonalityEngine {
       baseResponse,
       profile,
       contextAdjustments,
-      context
+      context,
     );
     reasoningTrace.push('Applied personality traits to base response');
 
@@ -376,7 +400,7 @@ export class PersonalityEngine {
     personalityContent = await this.applyPerspectiveFramework(
       personalityContent,
       profile.perspective_framework,
-      context
+      context,
     );
     reasoningTrace.push('Applied perspective framework');
 
@@ -389,19 +413,24 @@ export class PersonalityEngine {
       personalityContent,
       profile,
       personalityMarkers,
-      perspectiveIndicators
+      perspectiveIndicators,
     );
     reasoningTrace.push(`Calculated authenticity score: ${authenticityScore}`);
 
     // 6. Validate Constitutional AI compliance
     const validation = await this.constitutionalAI.validateResponse(
       personalityContent,
-      'personality-enhanced response'
+      'personality-enhanced response',
     );
     reasoningTrace.push(`Constitutional validation: ${validation.isValid}`);
 
     // 7. Store personality evolution data in memory
-    await this.storePersonalityEvolution(agentId, personalityContent, authenticityScore, validation);
+    await this.storePersonalityEvolution(
+      agentId,
+      personalityContent,
+      authenticityScore,
+      validation,
+    );
 
     return {
       content: personalityContent,
@@ -409,7 +438,7 @@ export class PersonalityEngine {
       perspective_indicators: perspectiveIndicators,
       authenticity_score: authenticityScore,
       constitutional_compliance: validation.isValid,
-      reasoning_trace: reasoningTrace
+      reasoning_trace: reasoningTrace,
     };
   }
 
@@ -418,7 +447,7 @@ export class PersonalityEngine {
    */
   private analyzeContextualAdjustments(
     profile: PersonalityProfile,
-    context: PersonalityContext
+    context: PersonalityContext,
   ): Record<string, number> {
     const adjustments: Record<string, number> = {};
 
@@ -460,13 +489,13 @@ export class PersonalityEngine {
     baseResponse: string,
     profile: PersonalityProfile,
     adjustments: Record<string, number>,
-    context: PersonalityContext
+    context: PersonalityContext,
   ): Promise<string> {
     let enhancedResponse = baseResponse;
 
     for (const trait of profile.core_traits) {
       const effectiveIntensity = adjustments[trait.id] || trait.intensity;
-      
+
       if (effectiveIntensity > 0.5) {
         // Apply trait manifestations based on intensity
         const manifestationsToApply = this.selectManifestations(trait, effectiveIntensity, context);
@@ -483,7 +512,7 @@ export class PersonalityEngine {
   private async applyPerspectiveFramework(
     response: string,
     framework: PerspectiveFramework,
-    context: PersonalityContext
+    context: PersonalityContext,
   ): Promise<string> {
     // Apply reasoning patterns if the response involves problem-solving
     if (this.responseInvolvesProblemSolving(response)) {
@@ -499,13 +528,13 @@ export class PersonalityEngine {
 
   /**
    * Select appropriate manifestations based on trait intensity and context
-   */  private selectManifestations(
+   */ private selectManifestations(
     trait: PersonalityTraits,
     intensity: number,
-    _context: PersonalityContext // Intentionally unused - future enhancement for ML ranking
+    _context: PersonalityContext, // Intentionally unused - future enhancement for ML ranking
   ): string[] {
     const numManifestations = Math.ceil(trait.manifestations.length * intensity);
-    
+
     // Select most contextually appropriate manifestations
     // For now, return first N manifestations - could be enhanced with ML ranking
     return trait.manifestations.slice(0, numManifestations);
@@ -529,20 +558,20 @@ export class PersonalityEngine {
   private generatePersonalityIntro(manifestations: string[]): string {
     // This would be enhanced with more sophisticated NLG
     const intro = manifestations[0]; // Use primary manifestation as guide
-    
+
     if (intro.includes('systematic')) {
-      return "Let me approach this systematically:";
+      return 'Let me approach this systematically:';
     } else if (intro.includes('evidence')) {
-      return "Based on the evidence and best practices:";
+      return 'Based on the evidence and best practices:';
     } else if (intro.includes('collaborative')) {
       return "I'd like to work through this together:";
     } else if (intro.includes('efficiency')) {
-      return "To optimize this effectively:";
+      return 'To optimize this effectively:';
     } else if (intro.includes('wellness')) {
-      return "Taking a holistic wellness perspective:";
+      return 'Taking a holistic wellness perspective:';
     }
-    
-    return ""; // No intro needed
+
+    return ''; // No intro needed
   }
 
   /**
@@ -550,12 +579,20 @@ export class PersonalityEngine {
    */
   private responseInvolvesProblemSolving(response: string): boolean {
     const problemSolvingKeywords = [
-      'solution', 'approach', 'strategy', 'implement', 'design', 
-      'architecture', 'plan', 'optimize', 'resolve', 'fix'
+      'solution',
+      'approach',
+      'strategy',
+      'implement',
+      'design',
+      'architecture',
+      'plan',
+      'optimize',
+      'resolve',
+      'fix',
     ];
-    
+
     const lowerResponse = response.toLowerCase();
-    return problemSolvingKeywords.some(keyword => lowerResponse.includes(keyword));
+    return problemSolvingKeywords.some((keyword) => lowerResponse.includes(keyword));
   }
 
   /**
@@ -563,7 +600,7 @@ export class PersonalityEngine {
    */
   private selectReasoningPattern(
     framework: PerspectiveFramework,
-    context: PersonalityContext
+    context: PersonalityContext,
   ): string {
     // Select pattern based on context complexity
     if (context.topic_expertise_level > 0.7) {
@@ -586,21 +623,21 @@ export class PersonalityEngine {
   private adjustCommunicationStyle(
     response: string,
     style: string,
-    _context: PersonalityContext // Prefix with underscore to indicate intentionally unused
+    _context: PersonalityContext, // Prefix with underscore to indicate intentionally unused
   ): string {
     // Apply style adjustments based on style descriptor
     if (style.includes('precise') && !response.includes('specifically')) {
       response = response.replace(/\bcan\b/g, 'can specifically');
     }
-    
+
     if (style.includes('encouraging') && _context.emotional_context !== 'frustrated') {
       response = response.replace(/\bshould\b/g, 'could');
     }
-    
+
     if (style.includes('professional') && _context.formality_level > 0.6) {
       response = response.replace(/\byou'll\b/g, 'you will');
     }
-    
+
     return response;
   }
 
@@ -609,7 +646,7 @@ export class PersonalityEngine {
    */
   private extractPersonalityMarkers(response: string, profile: PersonalityProfile): string[] {
     const markers: string[] = [];
-    
+
     for (const trait of profile.core_traits) {
       for (const manifestation of trait.manifestations) {
         const keywords = manifestation.toLowerCase().split(' ');
@@ -620,7 +657,7 @@ export class PersonalityEngine {
         }
       }
     }
-    
+
     return markers;
   }
 
@@ -630,7 +667,7 @@ export class PersonalityEngine {
   private extractPerspectiveIndicators(response: string, profile: PersonalityProfile): string[] {
     const indicators: string[] = [];
     const framework = profile.perspective_framework;
-    
+
     for (const pattern of framework.reasoning_patterns) {
       const keywords = pattern.toLowerCase().split(' ');
       for (const keyword of keywords) {
@@ -639,7 +676,7 @@ export class PersonalityEngine {
         }
       }
     }
-    
+
     return indicators;
   }
 
@@ -650,15 +687,15 @@ export class PersonalityEngine {
     response: string,
     profile: PersonalityProfile,
     markers: string[],
-    indicators: string[]
+    indicators: string[],
   ): number {
     const totalTraits = profile.core_traits.length;
-    const expressedTraits = new Set(markers.map(m => m.split(':')[0])).size;
-    
+    const expressedTraits = new Set(markers.map((m) => m.split(':')[0])).size;
+
     const traitExpression = expressedTraits / totalTraits;
     const perspectiveExpression = indicators.length > 0 ? 0.3 : 0;
     const lengthFactor = Math.min(1.0, response.length / 200); // Longer responses allow more personality
-    
+
     return Math.min(1.0, traitExpression * 0.5 + perspectiveExpression + lengthFactor * 0.2);
   }
   /**
@@ -668,28 +705,36 @@ export class PersonalityEngine {
     agentId: string,
     response: string,
     authenticityScore: number,
-    validation: ValidationResult
+    validation: ValidationResult,
   ): Promise<void> {
     try {
       const metadata = unifiedMetadataService.create('personality_evolution', 'PersonalityEngine', {
         system: {
           source: 'personality_engine',
           component: 'PersonalityEngine',
-          userId: agentId
+          userId: agentId,
         },
         content: {
           category: 'personality_evolution',
           tags: ['personality', 'evolution'],
           sensitivity: 'internal',
           relevanceScore: authenticityScore,
-          contextDependency: 'session'
-        }
+          contextDependency: 'session',
+        },
       });
-      interface PersonalityEvolutionExtension { authenticityScore?: number; validation?: ValidationResult; response_length?: number; markersCount?: number }
+      interface PersonalityEvolutionExtension {
+        authenticityScore?: number;
+        validation?: ValidationResult;
+        response_length?: number;
+        markersCount?: number;
+      }
       (metadata as PersonalityEvolutionExtension).authenticityScore = authenticityScore;
       (metadata as PersonalityEvolutionExtension).validation = validation;
       (metadata as PersonalityEvolutionExtension).response_length = response.length;
-      (metadata as PersonalityEvolutionExtension).markersCount = this.extractPersonalityMarkers(response, this.personalityProfiles.get(agentId)!).length;
+      (metadata as PersonalityEvolutionExtension).markersCount = this.extractPersonalityMarkers(
+        response,
+        this.personalityProfiles.get(agentId)!,
+      ).length;
       await this.memorySystem.addMemoryCanonical(response, metadata, agentId);
     } catch (error) {
       console.error('Failed to store personality evolution data:', error);
@@ -708,13 +753,13 @@ export class PersonalityEngine {
    */
   async updatePersonalityProfile(
     agentId: string,
-    updates: Partial<PersonalityProfile>
+    updates: Partial<PersonalityProfile>,
   ): Promise<void> {
     const existing = this.personalityProfiles.get(agentId);
     if (existing) {
       const updated = { ...existing, ...updates };
       this.personalityProfiles.set(agentId, updated);
-      
+
       // Store update in memory for persistence
       await this.storePersonalityProfileUpdate(agentId, updates);
     }
@@ -724,26 +769,36 @@ export class PersonalityEngine {
    */
   private async storePersonalityProfileUpdate(
     agentId: string,
-    updates: Partial<PersonalityProfile>
+    updates: Partial<PersonalityProfile>,
   ): Promise<void> {
     try {
-      const metadata = unifiedMetadataService.create('personality_profile_update', 'PersonalityEngine', {
-        system: {
-          source: 'personality_engine',
-          component: 'PersonalityEngine',
-          userId: agentId
+      const metadata = unifiedMetadataService.create(
+        'personality_profile_update',
+        'PersonalityEngine',
+        {
+          system: {
+            source: 'personality_engine',
+            component: 'PersonalityEngine',
+            userId: agentId,
+          },
+          content: {
+            category: 'personality_profile_update',
+            tags: ['personality', 'profile', 'update'],
+            sensitivity: 'internal',
+            relevanceScore: 0.5,
+            contextDependency: 'session',
+          },
         },
-        content: {
-          category: 'personality_profile_update',
-          tags: ['personality', 'profile', 'update'],
-          sensitivity: 'internal',
-          relevanceScore: 0.5,
-          contextDependency: 'session'
-        }
-      });
-      interface PersonalityProfileUpdateExtension { updates?: Partial<PersonalityProfile> }
+      );
+      interface PersonalityProfileUpdateExtension {
+        updates?: Partial<PersonalityProfile>;
+      }
       (metadata as PersonalityProfileUpdateExtension).updates = updates;
-      await this.memorySystem.addMemoryCanonical(`Personality profile update for ${agentId}`, metadata, agentId);
+      await this.memorySystem.addMemoryCanonical(
+        `Personality profile update for ${agentId}`,
+        metadata,
+        agentId,
+      );
     } catch (error) {
       console.error('Failed to store personality profile update:', error);
     }
@@ -760,7 +815,7 @@ export class PersonalityEngine {
     try {
       const evolutionResult = await this.memorySystem.searchMemory({
         query: agentId,
-        limit: 100
+        limit: 100,
       });
       const evolutionData = evolutionResult?.results || [];
       if (evolutionData.length === 0) {
@@ -769,20 +824,29 @@ export class PersonalityEngine {
       const scores = evolutionData.map((memory: { content: string }) => {
         try {
           const parsed = JSON.parse(memory.content) as Record<string, unknown>;
-          const score = (parsed.authenticity_score || parsed.authenticityScore) as number | undefined;
+          const score = (parsed.authenticity_score || parsed.authenticityScore) as
+            | number
+            | undefined;
           return typeof score === 'number' ? score : 0;
-        } catch { return 0; }
+        } catch {
+          return 0;
+        }
       });
-      const averageScore = scores.reduce((sum: number, score: number) => sum + score, 0) / scores.length;
+      const averageScore =
+        scores.reduce((sum: number, score: number) => sum + score, 0) / scores.length;
       const recentScores = scores.slice(-10);
       const earlyScores = scores.slice(0, 10);
-      const recentAvg = recentScores.reduce((sum: number, score: number) => sum + score, 0) / (recentScores.length || 1);
-      const earlyAvg = earlyScores.reduce((sum: number, score: number) => sum + score, 0) / (earlyScores.length || 1);
+      const recentAvg =
+        recentScores.reduce((sum: number, score: number) => sum + score, 0) /
+        (recentScores.length || 1);
+      const earlyAvg =
+        earlyScores.reduce((sum: number, score: number) => sum + score, 0) /
+        (earlyScores.length || 1);
       const improvementTrend = recentAvg - earlyAvg;
       return {
         averageScore,
-  totalInteractions: evolutionData.length,
-        improvementTrend
+        totalInteractions: evolutionData.length,
+        improvementTrend,
       };
     } catch (error) {
       console.error('Failed to get authenticity metrics:', error);

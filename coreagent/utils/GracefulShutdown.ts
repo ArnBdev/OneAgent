@@ -6,11 +6,11 @@ import { OneAgentUnifiedBackbone } from './UnifiedBackboneService';
 import { healthMonitoringService } from '../monitoring/HealthMonitoringService';
 
 export interface ShutdownOptions {
-  exit?: boolean;           // Whether to call process.exit
-  timeoutMs?: number;       // Max time to wait for async cleanup
-  reason?: string;          // Reason for logging
+  exit?: boolean; // Whether to call process.exit
+  timeoutMs?: number; // Max time to wait for async cleanup
+  reason?: string; // Reason for logging
   forceAfterTimeout?: boolean; // Force exit if timeout reached
-  exitCode?: number;        // Process exit code (default 0)
+  exitCode?: number; // Process exit code (default 0)
 }
 
 export class GracefulShutdownManager {
@@ -24,11 +24,17 @@ export class GracefulShutdownManager {
   }
 
   async shutdown(options: ShutdownOptions = {}): Promise<void> {
-    if (this.shuttingDown) return; 
+    if (this.shuttingDown) return;
     this.shuttingDown = true;
 
     const start = Date.now();
-  const { exit = false, timeoutMs = 5000, reason = 'unspecified', forceAfterTimeout = true, exitCode = 0 } = options;
+    const {
+      exit = false,
+      timeoutMs = 5000,
+      reason = 'unspecified',
+      forceAfterTimeout = true,
+      exitCode = 0,
+    } = options;
 
     this.logger.log(`🔻 Initiating graceful shutdown (reason: ${reason})`);
 
@@ -92,7 +98,7 @@ export class GracefulShutdownManager {
       // Await tasks with timeout
       await Promise.race([
         Promise.allSettled(tasks),
-        new Promise(resolve => setTimeout(resolve, timeoutMs))
+        new Promise((resolve) => setTimeout(resolve, timeoutMs)),
       ]);
 
       const elapsed = Date.now() - start;
@@ -116,4 +122,5 @@ export class GracefulShutdownManager {
   }
 }
 
-export const gracefulShutdown = (options?: ShutdownOptions) => GracefulShutdownManager.getInstance().shutdown(options);
+export const gracefulShutdown = (options?: ShutdownOptions) =>
+  GracefulShutdownManager.getInstance().shutdown(options);

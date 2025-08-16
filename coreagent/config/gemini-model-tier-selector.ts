@@ -51,8 +51,8 @@ export class ModelTierSelector {
 
   selectOptimalModel(criteria: ModelSelectionCriteria): ModelSelection {
     // Find all models matching the required tier (or all if not specified)
-    const models: GeminiModel[] = Object.values(GEMINI_MODELS).filter(m =>
-      !criteria.requiredTier || m.tier === criteria.requiredTier
+    const models: GeminiModel[] = Object.values(GEMINI_MODELS).filter(
+      (m) => !criteria.requiredTier || m.tier === criteria.requiredTier,
     );
     // Sort by cost or performance as requested
     let sorted = models;
@@ -62,7 +62,7 @@ export class ModelTierSelector {
       sorted = models.sort((a, b) => (b.outputLimitTokens || 0) - (a.outputLimitTokens || 0));
     }
     const primary = sorted[0] || GEMINI_MODELS['gemini-pro'];
-    const fallbackModels = sorted.slice(1, 3).map(m => m.name);
+    const fallbackModels = sorted.slice(1, 3).map((m) => m.name);
     return {
       modelName: primary.name,
       primaryModel: primary.name,
@@ -71,10 +71,14 @@ export class ModelTierSelector {
       estimatedCostPer1K: primary.pricingUSDper1Ktokens,
       fallbackModels,
       capabilities: {
-        reasoning: 'good', coding: 'good', bulk: 'good',
-        realtime: 'good', multimodal: 'good', agentic: 'good'
+        reasoning: 'good',
+        coding: 'good',
+        bulk: 'good',
+        realtime: 'good',
+        multimodal: 'good',
+        agentic: 'good',
       },
-      rateLimits: { rpm: 60 }
+      rateLimits: { rpm: 60 },
     };
   }
 }

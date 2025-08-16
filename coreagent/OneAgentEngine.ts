@@ -1,12 +1,12 @@
 /**
  * OneAgent Unified Engine v4.0
- * 
+ *
  * Single source of truth for all OneAgent functionality.
  * Supports multiple deployment modes: HTTP MCP, stdio MCP, standalone GUI, CLI
- * 
+ *
  * Features:
  * - Constitutional AI validation
- * - BMAD Framework analysis  
+ * - BMAD Framework analysis
  * - Multi-agent communication
  * - Unified memory system
  * - Quality-first development
@@ -22,7 +22,7 @@ import type {
   ErrorDetails,
   RequestContext,
   ToolResult,
-  ConstitutionalPrinciple
+  ConstitutionalPrinciple,
 } from './types/oneagent-backbone-types';
 
 // Import core systems
@@ -110,26 +110,26 @@ export class OneAgentEngine extends EventEmitter {
   constructor(_config?: Partial<typeof UnifiedBackboneService.config>) {
     super();
     this.config = UnifiedBackboneService.config;
-    
+
     // Initialize safe config defaults if properties are missing
     if (!this.config) {
       this.config = {} as typeof UnifiedBackboneService.config;
     }
     if (!this.config.memory) {
-      this.config.memory = { 
-        enabled: true, 
+      this.config.memory = {
+        enabled: true,
         provider: 'mem0',
-        config: {}
+        config: {},
       };
     }
     if (!this.config.constitutional) {
-      this.config.constitutional = { 
-        enabled: true, 
+      this.config.constitutional = {
+        enabled: true,
         principles: [] as ConstitutionalPrinciple[],
-        qualityThreshold: 0.8 
+        qualityThreshold: 0.8,
       };
     }
-    
+
     // Initialize canonical memory system
     let memoryConfig: OneAgentMemoryConfig;
     if (process.env.MEM0_API_URL) {
@@ -137,15 +137,15 @@ export class OneAgentEngine extends EventEmitter {
       memoryConfig = {
         apiUrl: process.env.MEM0_API_URL,
         endpoint: process.env.MEM0_API_URL,
-        apiKey: process.env.MEM0_API_KEY || 'local-dev'
+        apiKey: process.env.MEM0_API_KEY || 'local-dev',
       };
     } else {
       // Cloud mem0: require real apiKey
       memoryConfig = {
-        apiKey: process.env.MEM0_API_KEY || 'demo-key'
+        apiKey: process.env.MEM0_API_KEY || 'demo-key',
       };
     }
-  this.memorySystem = OneAgentMemory.getInstance(memoryConfig);
+    this.memorySystem = OneAgentMemory.getInstance(memoryConfig);
     this.initializeCoreSystems();
   }
 
@@ -177,12 +177,13 @@ export class OneAgentEngine extends EventEmitter {
 
       this.initialized = true;
       this.emit('initialized', { mode, timestamp: createUnifiedTimestamp().iso });
-      
+
       console.log('✅ OneAgent Engine initialized successfully');
       console.log(`📊 Mode: ${mode}`);
-      console.log(`🧠 Constitutional AI: ${this.config.constitutional.enabled ? 'ACTIVE' : 'DISABLED'}`);
+      console.log(
+        `🧠 Constitutional AI: ${this.config.constitutional.enabled ? 'ACTIVE' : 'DISABLED'}`,
+      );
       console.log(`💾 Memory: ${this.config.memory.enabled ? 'ACTIVE' : 'DISABLED'}`);
-
     } catch (error) {
       console.error('❌ OneAgent Engine initialization failed:', error);
       throw error;
@@ -221,15 +222,12 @@ export class OneAgentEngine extends EventEmitter {
         'oneagent_memory_add',
         'oneagent_memory_edit',
         'oneagent_memory_delete',
-        'oneagent_memory_search'
+        'oneagent_memory_search',
       ];
-      if (
-        this.config.constitutional.enabled &&
-        !canonicalMemoryTools.includes(request.method)
-      ) {
+      if (this.config.constitutional.enabled && !canonicalMemoryTools.includes(request.method)) {
         const validation = await this.constitutionalAI.validateResponse(
           String(result.data || result.success),
-          request.params?.userMessage || request.method
+          request.params?.userMessage || request.method,
         );
         constitutionalValidated = validation.isValid;
         qualityScore = validation.score || 0;
@@ -240,7 +238,7 @@ export class OneAgentEngine extends EventEmitter {
         data: result.data as OneAgentResponseData,
         constitutionalValidated,
         qualityScore: qualityScore || 0,
-        timestamp: createUnifiedTimestamp().iso
+        timestamp: createUnifiedTimestamp().iso,
       };
       const duration = createUnifiedTimestamp().unix - startTime.unix;
       console.log(`✅ Request completed in ${duration}ms (Q:${qualityScore || 0}%)`);
@@ -254,15 +252,15 @@ export class OneAgentEngine extends EventEmitter {
           code: 'PROCESSING_ERROR',
           message: error instanceof Error ? error.message : 'Unknown error',
           details: error,
-          timestamp: createUnifiedTimestamp()
+          timestamp: createUnifiedTimestamp(),
         },
         constitutionalValidated: false,
-        timestamp: createUnifiedTimestamp().iso
+        timestamp: createUnifiedTimestamp().iso,
       };
 
       const duration = createUnifiedTimestamp().unix - startTime.unix;
       console.error(`❌ Request failed in ${duration}ms:`, error);
-      
+
       this.emit('request_failed', { request, error, duration });
       return errorResponse;
     }
@@ -330,23 +328,23 @@ export class OneAgentEngine extends EventEmitter {
         inputSchema: {
           content: { type: 'string', description: 'Content to validate (alias: response)' },
           response: { type: 'string', description: 'Content to validate (alias: content)' },
-          userMessage: { type: 'string', description: 'Original user message' }
-        }
+          userMessage: { type: 'string', description: 'Original user message' },
+        },
       },
       {
         name: 'oneagent_bmad_analyze',
         description: 'Analyze task using BMAD 9-point framework',
         inputSchema: {
-          task: { type: 'string', description: 'Task to analyze' }
-        }
+          task: { type: 'string', description: 'Task to analyze' },
+        },
       },
       {
         name: 'oneagent_quality_score',
         description: 'Generate quality score and improvement suggestions',
         inputSchema: {
           content: { type: 'string', description: 'Content to score' },
-          criteria: { type: 'array', items: { type: 'string' }, description: 'Quality criteria' }
-        }
+          criteria: { type: 'array', items: { type: 'string' }, description: 'Quality criteria' },
+        },
       },
     ];
     const a2aTools = unifiedAgentCommunicationService.getToolSchemas();
@@ -362,7 +360,10 @@ export class OneAgentEngine extends EventEmitter {
   }
 
   private async initializeCoreSystems(): Promise<void> {
-    this.constitutionalAI = new ConstitutionalAI({ principles: this.config.constitutional.principles, qualityThreshold: this.config.constitutional.qualityThreshold });
+    this.constitutionalAI = new ConstitutionalAI({
+      principles: this.config.constitutional.principles,
+      qualityThreshold: this.config.constitutional.qualityThreshold,
+    });
     this.bmadEngine = new BMADElicitationEngine();
   }
 
@@ -380,7 +381,7 @@ export class OneAgentEngine extends EventEmitter {
       console.log('✅ Constitutional AI Initialized.');
     }
   }
-  
+
   private async initializeBMAD(): Promise<void> {
     console.log('📊 Initializing BMAD Elicitation Engine...');
     // Already initialized in initializeCoreSystems
@@ -389,7 +390,7 @@ export class OneAgentEngine extends EventEmitter {
 
   private async initializeTools(): Promise<void> {
     console.log('🛠️  Initializing standard tools...');
-    
+
     this.unifiedWebSearch = new UnifiedWebSearchTool();
     toolRegistry.registerTool(this.unifiedWebSearch);
 
@@ -437,54 +438,73 @@ export class OneAgentEngine extends EventEmitter {
   private async handleA2AToolCall(request: OneAgentRequest): Promise<ToolResult> {
     const { method, params } = request;
     console.log(`📡 Handling A2A tool call: ${method}`);
-    
+
     const timestamp = createUnifiedTimestamp();
-    
+
     try {
       let result: unknown;
-      
+
       switch (method) {
         case 'oneagent_a2a_register_agent':
-          result = await unifiedAgentCommunicationService.registerAgent(params as import('./types/oneagent-backbone-types').AgentRegistration);
+          result = await unifiedAgentCommunicationService.registerAgent(
+            params as import('./types/oneagent-backbone-types').AgentRegistration,
+          );
           break;
         case 'oneagent_a2a_discover_agents':
-          result = await unifiedAgentCommunicationService.discoverAgents(params as import('./types/oneagent-backbone-types').AgentFilter);
+          result = await unifiedAgentCommunicationService.discoverAgents(
+            params as import('./types/oneagent-backbone-types').AgentFilter,
+          );
           break;
         case 'oneagent_a2a_create_session':
-          result = await unifiedAgentCommunicationService.createSession(params as unknown as import('./types/oneagent-backbone-types').SessionConfig);
+          result = await unifiedAgentCommunicationService.createSession(
+            params as unknown as import('./types/oneagent-backbone-types').SessionConfig,
+          );
           break;
         case 'oneagent_a2a_join_session':
-          result = await unifiedAgentCommunicationService.joinSession(params.sessionId as string, params.agentId as string);
+          result = await unifiedAgentCommunicationService.joinSession(
+            params.sessionId as string,
+            params.agentId as string,
+          );
           break;
         case 'oneagent_a2a_send_message':
-          result = await unifiedAgentCommunicationService.sendMessage(params as unknown as import('./types/oneagent-backbone-types').AgentMessage);
+          result = await unifiedAgentCommunicationService.sendMessage(
+            params as unknown as import('./types/oneagent-backbone-types').AgentMessage,
+          );
           break;
         case 'oneagent_a2a_broadcast_message':
-          result = await unifiedAgentCommunicationService.sendMessage({ ...(params as unknown as import('./types/oneagent-backbone-types').AgentMessage), toAgent: undefined });
+          result = await unifiedAgentCommunicationService.sendMessage({
+            ...(params as unknown as import('./types/oneagent-backbone-types').AgentMessage),
+            toAgent: undefined,
+          });
           break;
         case 'oneagent_a2a_get_message_history':
-          result = await unifiedAgentCommunicationService.getMessageHistory(params.sessionId as string, Number(params.limit));
+          result = await unifiedAgentCommunicationService.getMessageHistory(
+            params.sessionId as string,
+            Number(params.limit),
+          );
           break;
         case 'oneagent_a2a_get_session_info':
-          result = await unifiedAgentCommunicationService.getSessionInfo(params.sessionId as string);
+          result = await unifiedAgentCommunicationService.getSessionInfo(
+            params.sessionId as string,
+          );
           break;
         default:
           throw new Error(`Unknown A2A tool call: ${method}`);
       }
-      
+
       return {
         success: true,
         data: result,
-        timestamp
+        timestamp,
       };
     } catch (error) {
       return {
         success: false,
         error: {
           message: error instanceof Error ? error.message : String(error),
-          code: 'A2A_TOOL_ERROR'
+          code: 'A2A_TOOL_ERROR',
         } as ErrorDetails,
-        timestamp
+        timestamp,
       };
     }
   }

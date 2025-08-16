@@ -7,6 +7,7 @@ This document has been **consolidated** into a comprehensive plan:
 📋 **[ONEAGENT_UNIFIED_ARCHITECTURE_PLAN.md](../../ONEAGENT_UNIFIED_ARCHITECTURE_PLAN.md)**
 
 The unified document includes:
+
 - Complete parallel systems inventory (9 systems)
 - Canonical architecture design
 - Agent communication failure analysis (from this document)
@@ -25,6 +26,7 @@ The unified document includes:
 ### 🔍 **What We Have:**
 
 #### 1. **A2A Protocol Implementation** ✅
+
 - **Location**: `coreagent/protocols/a2a/A2AProtocol.ts`
 - **Status**: Complete Google A2A v0.2.5 specification implementation
 - **Features**:
@@ -37,6 +39,7 @@ The unified document includes:
   - Configuration system integration (no hardcoded ports)
 
 #### 2. **BaseAgent System** ✅
+
 - **Location**: `coreagent/agents/base/BaseAgent.ts`
 - **Status**: Complete agent base class with advanced capabilities
 - **Features**:
@@ -49,6 +52,7 @@ The unified document includes:
   - Specialized agent actions and message processing
 
 #### 3. **NLACS Configuration** ✅
+
 - **Location**: `.env` file
 - **Status**: Complete NLACS configuration in environment variables
 - **Features**:
@@ -102,7 +106,7 @@ import { createOneAgentA2A, OneAgentA2AProtocol } from '../../protocols/a2a/A2AP
 export abstract class BaseAgent {
   // MISSING: A2A protocol client
   protected a2aProtocol?: OneAgentA2AProtocol;
-  
+
   // MISSING: Agent-to-agent communication methods
   async sendMessageToAgent(agentId: string, message: string): Promise<AgentResponse> {
     // Should use A2A protocol to send messages to other agents
@@ -133,7 +137,7 @@ export class NLACSService {
 // In AgentFactory.ts - MISSING
 async createAgent(config: AgentFactoryConfig): Promise<ISpecializedAgent> {
   const agent = new SpecializedAgent(config);
-  
+
   // MISSING: A2A protocol setup
   if (config.a2aEnabled !== false) {
     agent.setupA2AProtocol({
@@ -143,7 +147,7 @@ async createAgent(config: AgentFactoryConfig): Promise<ISpecializedAgent> {
       capabilities: {...}
     });
   }
-  
+
   return agent;
 }
 ```
@@ -151,12 +155,15 @@ async createAgent(config: AgentFactoryConfig): Promise<ISpecializedAgent> {
 ## **Architecture Questions Answered**
 
 ### Q: "Is BaseAgent using the new A2A implementation?"
+
 **A: NO** - BaseAgent has no A2A protocol integration. It only has registry/discovery.
 
 ### Q: "Are all agents inheriting A2A with NLACS?"
+
 **A: NO** - Agents inherit from BaseAgent but get no A2A or NLACS capabilities.
 
 ### Q: "Is NLACS part of OneAgent A2A?"
+
 **A: NO** - NLACS is a separate system for multi-agent coordination. A2A is the communication protocol.
 
 ## **How The Systems Should Work Together**
@@ -182,16 +189,19 @@ Memory Storage & Learning
 ## **Implementation Priority**
 
 ### **Phase 1: BaseAgent + A2A Integration** (High Priority)
+
 - Add A2A protocol client to BaseAgent
 - Implement `sendMessageToAgent()` method
 - Enable agent-to-agent communication
 
 ### **Phase 2: NLACS Service Implementation** (Medium Priority)
+
 - Create NLACS service implementation
 - Multi-agent conversation management
 - Constitutional AI validation for agent communications
 
 ### **Phase 3: Advanced Features** (Low Priority)
+
 - Agent mesh networking
 - Workflow orchestration
 - Streaming agent communications
@@ -224,6 +234,7 @@ Memory Storage & Learning
 ### **Configuration Integration:**
 
 The `.env` file already has all required configuration:
+
 - A2A Protocol settings
 - NLACS service settings
 - Port configurations

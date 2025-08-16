@@ -20,12 +20,12 @@ export class OneAgentMemoryDeleteTool extends UnifiedMCPTool {
         type: 'object',
         properties: {
           memoryId: { type: 'string', description: 'ID of the memory item to delete (required)' },
-          userId: { type: 'string', description: 'User ID (optional)' }
+          userId: { type: 'string', description: 'User ID (optional)' },
         },
-        required: ['memoryId']
+        required: ['memoryId'],
       },
       'memory_context',
-      'critical'
+      'critical',
     );
     this.memoryClient = memoryClient;
   }
@@ -47,11 +47,14 @@ export class OneAgentMemoryDeleteTool extends UnifiedMCPTool {
           deleted: result?.success === true,
           message: result?.message || 'Memory deleted successfully',
           error: result?.error || null,
-          timestamp: result?.timestamp || new Date().toISOString()
-        }
+          timestamp: result?.timestamp || new Date().toISOString(),
+        },
       };
     } catch (error) {
-      return { success: false, data: { error: error instanceof Error ? error.message : String(error) } };
+      return {
+        success: false,
+        data: { error: error instanceof Error ? error.message : String(error) },
+      };
     }
   }
 }

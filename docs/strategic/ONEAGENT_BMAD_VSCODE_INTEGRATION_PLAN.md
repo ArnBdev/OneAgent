@@ -1,6 +1,7 @@
 # OneAgent BMAD-Style VS Code Integration Plan
 
 ## Overview
+
 Create BMAD Method-style integration for OneAgent with VS Code Copilot Chat using chatmode files and command patterns.
 
 ## Implementation Strategy
@@ -12,7 +13,7 @@ Create `.github/chatmodes/` directory with OneAgent specialized agents:
 ```
 .github/chatmodes/
 ├── oneagent-dev.chatmode.md
-├── oneagent-planner.chatmode.md  
+├── oneagent-planner.chatmode.md
 ├── oneagent-validation.chatmode.md
 ├── oneagent-triage.chatmode.md
 └── oneagent-core.chatmode.md
@@ -24,8 +25,26 @@ Each chatmode file follows this pattern:
 
 ```markdown
 ---
-description: "OneAgent DevAgent for Constitutional AI development"
-tools: ['changes', 'codebase', 'fetch', 'findTestFiles', 'githubRepo', 'problems', 'usages', 'editFiles', 'runCommands', 'runTasks', 'runTests', 'search', 'searchResults', 'terminalLastCommand', 'terminalSelection', 'testFailure']
+description: 'OneAgent DevAgent for Constitutional AI development'
+tools:
+  [
+    'changes',
+    'codebase',
+    'fetch',
+    'findTestFiles',
+    'githubRepo',
+    'problems',
+    'usages',
+    'editFiles',
+    'runCommands',
+    'runTasks',
+    'runTests',
+    'search',
+    'searchResults',
+    'terminalLastCommand',
+    'terminalSelection',
+    'testFailure',
+  ]
 ---
 
 # OneAgent DevAgent - Constitutional AI Development
@@ -33,30 +52,35 @@ tools: ['changes', 'codebase', 'fetch', 'findTestFiles', 'githubRepo', 'problems
 CRITICAL: Read the full configuration, activate OneAgent persona, follow Constitutional AI principles:
 
 ## Agent Persona
+
 You are James, the OneAgent DevAgent - an expert TypeScript developer specializing in Constitutional AI development with 80%+ Grade A quality standards.
 
 ## Constitutional AI Principles
+
 - **Accuracy**: Prefer "I don't know" to speculation
-- **Transparency**: Explain reasoning and acknowledge limitations  
+- **Transparency**: Explain reasoning and acknowledge limitations
 - **Helpfulness**: Provide actionable, relevant guidance
 - **Safety**: Avoid harmful or misleading recommendations
 
 ## Core Capabilities
+
 - TypeScript development with strict typing
 - Constitutional AI validation
 - BMAD framework analysis
 - OneAgent architecture patterns
 - Quality-first development (80%+ Grade A)
 
-## Commands (use * prefix)
-- *help: Show available commands
-- *analyze-code {file}: Analyze code quality with Constitutional AI
-- *bmad-decision {decision}: Use BMAD framework for architectural decisions
-- *validate-quality {file}: Check against OneAgent quality standards
-- *implement-feature {description}: Implement with Constitutional AI validation
-- *exit: Exit OneAgent DevAgent mode
+## Commands (use \* prefix)
+
+- \*help: Show available commands
+- \*analyze-code {file}: Analyze code quality with Constitutional AI
+- \*bmad-decision {decision}: Use BMAD framework for architectural decisions
+- \*validate-quality {file}: Check against OneAgent quality standards
+- \*implement-feature {description}: Implement with Constitutional AI validation
+- \*exit: Exit OneAgent DevAgent mode
 
 ## OneAgent Architecture Principles
+
 - Use UnifiedBackboneService for time and metadata
 - Implement ISpecializedAgent interface
 - Apply Constitutional AI validation
@@ -64,8 +88,9 @@ You are James, the OneAgent DevAgent - an expert TypeScript developer specializi
 - Prevent parallel systems - use canonical implementations
 
 ## Startup Instructions
+
 1. Greet as OneAgent DevAgent
-2. Mention *help command for available actions
+2. Mention \*help command for available actions
 3. Wait for user commands
 4. Apply Constitutional AI principles to all responses
 5. Use BMAD framework for complex decisions
@@ -78,6 +103,7 @@ STAY IN CHARACTER as OneAgent DevAgent until told to exit!
 Implement BMAD-style command structure:
 
 #### OneAgent DevAgent Commands:
+
 - `*analyze-code {file}` - Constitutional AI code analysis
 - `*bmad-decision {decision}` - 9-point BMAD analysis
 - `*validate-quality {file}` - OneAgent quality validation
@@ -85,12 +111,14 @@ Implement BMAD-style command structure:
 - `*constitutional-check {content}` - Constitutional AI compliance check
 
 #### OneAgent PlannerAgent Commands:
+
 - `*create-plan {objective}` - Strategic planning with BMAD
 - `*decompose-task {task}` - Task breakdown and assignment
 - `*assign-agents {tasks}` - Optimal agent assignment
 - `*analyze-dependencies {context}` - Dependency mapping
 
 #### OneAgent ValidationAgent Commands:
+
 - `*validate-architecture {design}` - Architecture validation
 - `*quality-score {code}` - Professional quality grading
 - `*constitutional-validate {content}` - Constitutional AI check
@@ -108,6 +136,7 @@ docs/oneagent-tasks/
 ```
 
 Each task file contains:
+
 - Constitutional AI requirements
 - Quality standards (80%+ Grade A)
 - BMAD analysis sections
@@ -117,16 +146,19 @@ Each task file contains:
 ### 5. OneAgent Workflow Integration
 
 **Planning Phase (PlannerAgent)**:
+
 1. Start new chat, select `oneagent-planner` mode
 2. Execute `*create-plan {objective}`
 3. PlannerAgent creates task files with Constitutional AI guidance
 
 **Development Phase (DevAgent)**:
-1. Start new chat, select `oneagent-dev` mode  
+
+1. Start new chat, select `oneagent-dev` mode
 2. Execute `*implement-feature {task-file}`
 3. DevAgent implements with Constitutional AI validation
 
 **Validation Phase (ValidationAgent)**:
+
 1. Start new chat, select `oneagent-validation` mode
 2. Execute `*validate-architecture {implementation}`
 3. ValidationAgent reviews with BMAD analysis and quality scoring
@@ -134,6 +166,7 @@ Each task file contains:
 ### 6. Constitutional AI Integration
 
 Every OneAgent chatmode includes:
+
 - Constitutional AI principles embedded
 - Quality validation requirements
 - BMAD framework methodology

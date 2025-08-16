@@ -1,6 +1,6 @@
 /**
  * AgentProfile.ts - Dynamic Agent Configuration System
- * 
+ *
  * Core interface for ALITA self-evolving agent profiles.
  * Replaces static instruction files with dynamic, evolving configuration.
  */
@@ -117,7 +117,7 @@ export interface AgentProfile {
   frameworks: FrameworkPreferences;
   qualityThresholds: QualityConfig;
   evolutionHistory: EvolutionRecord[];
-  
+
   // Memory integration
   memoryConfig: {
     userId: string;
@@ -125,7 +125,7 @@ export interface AgentProfile {
     learningEnabled: boolean;
     memoryTypes: string[];
   };
-  
+
   // Multi-agent integration
   multiAgentConfig: {
     networkParticipation: boolean;

@@ -2,13 +2,14 @@
 
 **Unified startup is required. All legacy and redundant scripts have been deleted.**
 
-| Task                | PowerShell Command                                 | Batch Command                                 |
-|---------------------|----------------------------------------------------|-----------------------------------------------|
-| Unified Startup     | `./scripts/start-oneagent-system.ps1`              | `./scripts/start-oneagent-system.bat`         |
-| MCP Server Only     | `node -r ts-node/register coreagent/server/unified-mcp-server.ts`   | `node -r ts-node/register coreagent/server/unified-mcp-server.ts`|
-| Memory Server Only  | `uvicorn servers.oneagent_memory_server:app --host 127.0.0.1 --port 8010 --reload` | Same as PowerShell |
+| Task               | PowerShell Command                                                                 | Batch Command                                                     |
+| ------------------ | ---------------------------------------------------------------------------------- | ----------------------------------------------------------------- |
+| Unified Startup    | `./scripts/start-oneagent-system.ps1`                                              | `./scripts/start-oneagent-system.bat`                             |
+| MCP Server Only    | `node -r ts-node/register coreagent/server/unified-mcp-server.ts`                  | `node -r ts-node/register coreagent/server/unified-mcp-server.ts` |
+| Memory Server Only | `uvicorn servers.oneagent_memory_server:app --host 127.0.0.1 --port 8010 --reload` | Same as PowerShell                                                |
 
 > **IMPORTANT:**
+>
 > - Use ONLY the scripts above for all development and production startup.
 > - All legacy and redundant scripts (e.g., `start.ps1`, `start.bat`, `start-unified.ps1`, `start-memory-server.ps1`) have been deleted for safety and clarity.
 

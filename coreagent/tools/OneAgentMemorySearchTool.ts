@@ -22,12 +22,12 @@ export class OneAgentMemorySearchTool extends UnifiedMCPTool {
         properties: {
           query: { type: 'string', description: 'Natural language search query (required)' },
           userId: { type: 'string', description: 'User ID (optional)' },
-          limit: { type: 'number', description: 'Max results (default 5)', default: 5 }
+          limit: { type: 'number', description: 'Max results (default 5)', default: 5 },
         },
-        required: ['query']
+        required: ['query'],
       },
       'memory_context',
-      'critical'
+      'critical',
     );
     this.memoryClient = memoryClient;
   }
@@ -39,7 +39,7 @@ export class OneAgentMemorySearchTool extends UnifiedMCPTool {
     }
     try {
       const { query, userId, limit } = args;
-  const result = await this.memoryClient.searchMemory({ query, userId, limit });
+      const result = await this.memoryClient.searchMemory({ query, userId, limit });
       // Structured, typed output
       return {
         success: true,
@@ -50,11 +50,14 @@ export class OneAgentMemorySearchTool extends UnifiedMCPTool {
           limit: limit || 5,
           message: 'Memory search completed',
           error: null,
-          timestamp: new Date().toISOString()
-        }
+          timestamp: new Date().toISOString(),
+        },
       };
     } catch (error) {
-      return { success: false, data: { error: error instanceof Error ? error.message : String(error) } };
+      return {
+        success: false,
+        data: { error: error instanceof Error ? error.message : String(error) },
+      };
     }
   }
 }

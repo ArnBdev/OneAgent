@@ -18,50 +18,46 @@ export class ConversationRetrievalTool extends UnifiedMCPTool {
     const schema: InputSchema = {
       type: 'object',
       properties: {
-        sessionId: { 
-          type: 'string', 
-          description: 'Specific session ID to retrieve (optional)' 
+        sessionId: {
+          type: 'string',
+          description: 'Specific session ID to retrieve (optional)',
         },
-        agentType: { 
-          type: 'string', 
-          description: 'Filter by agent type (optional)' 
+        agentType: {
+          type: 'string',
+          description: 'Filter by agent type (optional)',
         },
-        timeRangeHours: { 
-          type: 'number', 
-          description: 'Time range in hours to search (optional)' 
+        timeRangeHours: {
+          type: 'number',
+          description: 'Time range in hours to search (optional)',
         },
-        includeFullLogs: { 
-          type: 'boolean', 
-          description: 'Include full conversation logs (default: true)' 
+        includeFullLogs: {
+          type: 'boolean',
+          description: 'Include full conversation logs (default: true)',
         },
-        maxResults: { 
-          type: 'number', 
-          description: 'Maximum number of conversations to retrieve (default: 50)' 
-        }
+        maxResults: {
+          type: 'number',
+          description: 'Maximum number of conversations to retrieve (default: 50)',
+        },
       },
-      required: []
+      required: [],
     };
 
     super(
       'oneagent_conversation_retrieve',
       'Retrieve agent conversation history with full logging access',
       schema,
-      'enhanced'
+      'enhanced',
     );
   }
 
   public async executeCore(args: ConversationRetrievalArgs): Promise<ToolExecutionResult> {
     try {
-      const { 
-        sessionId, 
-        agentType, 
-        includeFullLogs = true,
-        maxResults = 50
-      } = args;
+      const { sessionId, agentType, includeFullLogs = true, maxResults = 50 } = args;
 
       // Build search query
-      const searchQuery = 'NLACS_CONVERSATION' + 
-        (agentType ? ` ${agentType}` : '') + 
+      const searchQuery =
+        'NLACS_CONVERSATION' +
+        (agentType ? ` ${agentType}` : '') +
         (sessionId ? ` ${sessionId}` : '');
 
       // TODO: Integrate with canonical memory search tool when available
@@ -81,9 +77,9 @@ export class ConversationRetrievalTool extends UnifiedMCPTool {
           metadata: {
             conversationRetrieval: true,
             toolFramework: 'unified_mcp_v1.0',
-            fullLogsIncluded: includeFullLogs
-          }
-        }
+            fullLogsIncluded: includeFullLogs,
+          },
+        },
       };
     } catch (error) {
       return {
@@ -94,8 +90,8 @@ export class ConversationRetrievalTool extends UnifiedMCPTool {
           message: `Conversation retrieval failed: ${(error as Error).message}`,
           timestamp: new Date().toISOString(),
           toolName: this.name,
-          error: (error as Error).message
-        }
+          error: (error as Error).message,
+        },
       };
     }
   }

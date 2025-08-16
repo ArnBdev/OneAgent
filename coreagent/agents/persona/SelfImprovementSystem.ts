@@ -1,6 +1,6 @@
 /**
  * SelfImprovementSystem.ts - Agent Self-Evaluation and Improvement
- * 
+ *
  * Provides systematic self-improvement capabilities:
  * - Performance tracking and analysis
  * - Constitutional AI validation feedback
@@ -77,9 +77,9 @@ export class SelfImprovementSystem extends EventEmitter {
     super();
     const memoryConfig: OneAgentMemoryConfig = {
       apiKey: process.env.MEM0_API_KEY || 'demo-key',
-      apiUrl: process.env.MEM0_API_URL
+      apiUrl: process.env.MEM0_API_URL,
     };
-  this.memorySystem = OneAgentMemory.getInstance(memoryConfig);
+    this.memorySystem = OneAgentMemory.getInstance(memoryConfig);
   }
 
   public static getInstance(): SelfImprovementSystem {
@@ -98,16 +98,16 @@ export class SelfImprovementSystem extends EventEmitter {
     }
 
     console.log('[SelfImprovementSystem] Initializing...');
-    
+
     // Load historical performance data
     await this.loadPerformanceHistory();
-    
+
     // Schedule periodic evaluations for all agents
     await this.scheduleEvaluations();
-    
+
     this.isActive = true;
     this.emit('initialized');
-    
+
     console.log('[SelfImprovementSystem] Initialized successfully');
   }
 
@@ -118,10 +118,10 @@ export class SelfImprovementSystem extends EventEmitter {
     if (!this.performanceHistory.has(agentId)) {
       this.performanceHistory.set(agentId, []);
     }
-    
+
     // Schedule regular evaluation (every 24 hours)
     this.scheduleAgentEvaluation(agentId, 24 * 60 * 60 * 1000);
-    
+
     console.log(`[SelfImprovementSystem] Registered agent: ${agentId}`);
   }
 
@@ -131,12 +131,12 @@ export class SelfImprovementSystem extends EventEmitter {
   public async recordPerformance(metrics: PerformanceMetrics): Promise<void> {
     const history = this.performanceHistory.get(metrics.agentId) || [];
     history.push(metrics);
-    
+
     // Keep only last 100 entries per agent
     if (history.length > 100) {
       history.splice(0, history.length - 100);
     }
-    
+
     this.performanceHistory.set(metrics.agentId, history);
     // Store in memory for persistence
     await this.memorySystem.addMemoryCanonical(
@@ -144,13 +144,19 @@ export class SelfImprovementSystem extends EventEmitter {
       {
         type: 'performance_metrics',
         system: { userId: 'system', source: 'self_improvement', component: 'performance-tracking' },
-        content: { category: 'agent_metrics', tags: ['performance','metrics'], sensitivity: 'internal', relevanceScore: 0.7, contextDependency: 'global' },
+        content: {
+          category: 'agent_metrics',
+          tags: ['performance', 'metrics'],
+          sensitivity: 'internal',
+          relevanceScore: 0.7,
+          contextDependency: 'global',
+        },
         contextual: { agentId: metrics.agentId },
-        quality: { score: metrics.averageQualityScore / 100, reliability: 0.9 }
+        quality: { score: metrics.averageQualityScore / 100, reliability: 0.9 },
       } as unknown as Partial<import('../../types/oneagent-backbone-types').UnifiedMetadata>,
-      'system'
+      'system',
     );
-    
+
     // Check if immediate evaluation is needed
     if (this.needsImmediateAttention(metrics)) {
       await this.performSelfEvaluation(metrics.agentId);
@@ -162,62 +168,73 @@ export class SelfImprovementSystem extends EventEmitter {
    */
   public async performSelfEvaluation(agentId: string): Promise<SelfEvaluationResult> {
     console.log(`[SelfImprovementSystem] Performing self-evaluation for ${agentId}`);
-    
+
     const currentPersona = personaLoader.getPersona(agentId);
     if (!currentPersona) {
       throw new Error(`No persona found for agent: ${agentId}`);
     }
-    
+
     const history = this.performanceHistory.get(agentId) || [];
     const recentMetrics = history.slice(-10); // Last 10 interactions
-    
+
     if (recentMetrics.length === 0) {
       throw new Error(`No performance data available for agent: ${agentId}`);
     }
-    
+
     const currentMetrics = this.calculateAverageMetrics(recentMetrics);
     const improvements = await this.generateImprovementSuggestions(currentPersona, recentMetrics);
     const overallHealth = this.assessOverallHealth(currentMetrics);
     const recommendedActions = this.generateRecommendedActions(improvements, overallHealth);
-    
+
     const evaluation: SelfEvaluationResult = {
       agentId,
       timestamp: new Date().toISOString(),
       currentMetrics,
       improvements,
       overallHealth,
-      recommendedActions
+      recommendedActions,
     };
     // Store evaluation results
     await this.memorySystem.addMemoryCanonical(
       `Self-evaluation for ${agentId}: ${overallHealth} health, ${improvements.length} suggestions`,
       {
         type: 'self_evaluation',
-        system: { userId: 'system', source: 'self_improvement', component: 'evaluation', sessionId: this.generateUnifiedId('self_evaluation') },
-        content: { category: 'agent_evaluation', tags: ['self','evaluation', overallHealth], sensitivity: 'internal', relevanceScore: 0.8, contextDependency: 'session' },
+        system: {
+          userId: 'system',
+          source: 'self_improvement',
+          component: 'evaluation',
+          sessionId: this.generateUnifiedId('self_evaluation'),
+        },
+        content: {
+          category: 'agent_evaluation',
+          tags: ['self', 'evaluation', overallHealth],
+          sensitivity: 'internal',
+          relevanceScore: 0.8,
+          contextDependency: 'session',
+        },
         contextual: { agentId, improvements: improvements.length, overallHealth },
-        quality: { score: 0.9 }
+        quality: { score: 0.9 },
       } as unknown as Partial<import('../../types/oneagent-backbone-types').UnifiedMetadata>,
-      'system'
+      'system',
     );
-    
+
     // Apply high-priority improvements automatically
     await this.applyAutomaticImprovements(agentId, improvements);
-    
+
     this.emit('evaluationCompleted', evaluation);
-    
+
     return evaluation;
   }
 
   /**
    * Generate improvement suggestions based on performance analysis
-   */  private async generateImprovementSuggestions( 
-    persona: PersonaConfig, 
-    metrics: PerformanceMetrics[]
+   */ private async generateImprovementSuggestions(
+    persona: PersonaConfig,
+    metrics: PerformanceMetrics[],
   ): Promise<ImprovementSuggestion[]> {
     const suggestions: ImprovementSuggestion[] = [];
     const avgMetrics = this.calculateAverageMetrics(metrics);
-    
+
     // Quality score improvements
     if (avgMetrics.averageQualityScore < persona.quality_standards.minimum_score) {
       suggestions.push({
@@ -227,14 +244,14 @@ export class SelfImprovementSystem extends EventEmitter {
         proposedChange: {
           quality_standards: {
             ...persona.quality_standards,
-            minimum_score: Math.min(persona.quality_standards.minimum_score + 5, 95)
-          }
+            minimum_score: Math.min(persona.quality_standards.minimum_score + 5, 95),
+          },
         },
         expectedImprovement: 'Stricter quality validation will improve response quality',
-        riskLevel: 'low'
+        riskLevel: 'low',
       });
     }
-    
+
     // Constitutional compliance improvements
     if (avgMetrics.constitutionalCompliance < 95) {
       suggestions.push({
@@ -244,19 +261,21 @@ export class SelfImprovementSystem extends EventEmitter {
         proposedChange: {
           constitutional_details: {
             ...persona.constitutional_details,
-            accuracy: 'Verify all information thoroughly and prefer uncertainty to incorrect statements',
+            accuracy:
+              'Verify all information thoroughly and prefer uncertainty to incorrect statements',
             transparency: 'Explain reasoning clearly and acknowledge limitations explicitly',
             helpfulness: 'Provide actionable guidance while maintaining accuracy',
-            safety: 'Prioritize user safety and follow best practices consistently'
-          }
+            safety: 'Prioritize user safety and follow best practices consistently',
+          },
         },
         expectedImprovement: 'Enhanced constitutional guidance will improve compliance',
-        riskLevel: 'low'
+        riskLevel: 'low',
       });
     }
-    
+
     // Response time improvements
-    if (avgMetrics.responseTime > 5000) { // 5 seconds
+    if (avgMetrics.responseTime > 5000) {
+      // 5 seconds
       suggestions.push({
         category: 'capability',
         priority: 'medium',
@@ -264,17 +283,18 @@ export class SelfImprovementSystem extends EventEmitter {
         proposedChange: {
           communication_style: {
             ...persona.communication_style,
-            approach: 'Efficient and focused responses with key insights prioritized'
-          }
+            approach: 'Efficient and focused responses with key insights prioritized',
+          },
         },
         expectedImprovement: 'Streamlined communication will reduce response time',
-        riskLevel: 'low'
+        riskLevel: 'low',
       });
     }
-    
+
     // Capability utilization analysis
     for (const [capability, utilization] of Object.entries(avgMetrics.capabilityUtilization)) {
-      if (utilization < 0.1) { // Less than 10% usage
+      if (utilization < 0.1) {
+        // Less than 10% usage
         suggestions.push({
           category: 'capability',
           priority: 'low',
@@ -282,46 +302,54 @@ export class SelfImprovementSystem extends EventEmitter {
           proposedChange: {
             capabilities: {
               ...persona.capabilities,
-              primary: persona.capabilities.primary.filter(cap => cap !== capability)
-            }
+              primary: persona.capabilities.primary.filter((cap) => cap !== capability),
+            },
           },
           expectedImprovement: 'Removing unused capabilities will improve focus',
-          riskLevel: 'medium'
+          riskLevel: 'medium',
         });
       }
     }
-    
+
     return suggestions;
   }
 
   /**
    * Apply automatic improvements for high-priority, low-risk suggestions
    */
-  private async applyAutomaticImprovements(agentId: string, suggestions: ImprovementSuggestion[]): Promise<void> {
-    const autoApplyable = suggestions.filter(s => 
-      s.priority === 'high' && 
-      s.riskLevel === 'low' && 
-      s.category !== 'capability' // Don't auto-remove capabilities
+  private async applyAutomaticImprovements(
+    agentId: string,
+    suggestions: ImprovementSuggestion[],
+  ): Promise<void> {
+    const autoApplyable = suggestions.filter(
+      (s) => s.priority === 'high' && s.riskLevel === 'low' && s.category !== 'capability', // Don't auto-remove capabilities
     );
-    
+
     for (const suggestion of autoApplyable) {
       try {
         await personaLoader.updatePersona(agentId, suggestion.proposedChange);
-        
-        console.log(`[SelfImprovementSystem] Auto-applied improvement for ${agentId}: ${suggestion.description}`);
+
+        console.log(
+          `[SelfImprovementSystem] Auto-applied improvement for ${agentId}: ${suggestion.description}`,
+        );
         // Record the improvement
         await this.memorySystem.addMemoryCanonical(
           `Auto-applied improvement: ${suggestion.description}`,
           {
             type: 'auto_improvement',
             system: { userId: 'system', source: 'self_improvement', component: 'auto-apply' },
-            content: { category: 'agent_improvement', tags: ['auto','improvement', suggestion.category], sensitivity: 'internal', relevanceScore: 0.75, contextDependency: 'global' },
+            content: {
+              category: 'agent_improvement',
+              tags: ['auto', 'improvement', suggestion.category],
+              sensitivity: 'internal',
+              relevanceScore: 0.75,
+              contextDependency: 'global',
+            },
             contextual: { agentId, priority: suggestion.priority, category: suggestion.category },
-            quality: { score: 1.0 }
+            quality: { score: 1.0 },
           } as unknown as Partial<import('../../types/oneagent-backbone-types').UnifiedMetadata>,
-          'system'
+          'system',
         );
-        
       } catch (error) {
         console.error(`[SelfImprovementSystem] Failed to apply improvement for ${agentId}:`, error);
       }
@@ -335,25 +363,31 @@ export class SelfImprovementSystem extends EventEmitter {
     if (metrics.length === 0) {
       throw new Error('No metrics to calculate average from');
     }
-    
-    const totals = metrics.reduce((acc, metric) => ({
-      interactionCount: acc.interactionCount + metric.interactionCount,
-      averageQualityScore: acc.averageQualityScore + metric.averageQualityScore,
-      constitutionalCompliance: acc.constitutionalCompliance + metric.constitutionalCompliance,
-      userSatisfactionScore: acc.userSatisfactionScore + metric.userSatisfactionScore,
-      responseTime: acc.responseTime + metric.responseTime,
-      errorRate: acc.errorRate + metric.errorRate,
-      capabilityUtilization: this.mergeCapabilityUtilization(acc.capabilityUtilization, metric.capabilityUtilization)
-    }), {
-      interactionCount: 0,
-      averageQualityScore: 0,
-      constitutionalCompliance: 0,
-      userSatisfactionScore: 0,
-      responseTime: 0,
-      errorRate: 0,
-      capabilityUtilization: {}
-    });
-    
+
+    const totals = metrics.reduce(
+      (acc, metric) => ({
+        interactionCount: acc.interactionCount + metric.interactionCount,
+        averageQualityScore: acc.averageQualityScore + metric.averageQualityScore,
+        constitutionalCompliance: acc.constitutionalCompliance + metric.constitutionalCompliance,
+        userSatisfactionScore: acc.userSatisfactionScore + metric.userSatisfactionScore,
+        responseTime: acc.responseTime + metric.responseTime,
+        errorRate: acc.errorRate + metric.errorRate,
+        capabilityUtilization: this.mergeCapabilityUtilization(
+          acc.capabilityUtilization,
+          metric.capabilityUtilization,
+        ),
+      }),
+      {
+        interactionCount: 0,
+        averageQualityScore: 0,
+        constitutionalCompliance: 0,
+        userSatisfactionScore: 0,
+        responseTime: 0,
+        errorRate: 0,
+        capabilityUtilization: {},
+      },
+    );
+
     return {
       agentId: metrics[0].agentId,
       timestamp: new Date().toISOString(),
@@ -363,14 +397,20 @@ export class SelfImprovementSystem extends EventEmitter {
       userSatisfactionScore: totals.userSatisfactionScore / metrics.length,
       responseTime: totals.responseTime / metrics.length,
       errorRate: totals.errorRate / metrics.length,
-      capabilityUtilization: this.averageCapabilityUtilization(totals.capabilityUtilization, metrics.length)
+      capabilityUtilization: this.averageCapabilityUtilization(
+        totals.capabilityUtilization,
+        metrics.length,
+      ),
     };
   }
 
   /**
    * Merge capability utilization maps
    */
-  private mergeCapabilityUtilization(acc: Record<string, number>, current: Record<string, number>): Record<string, number> {
+  private mergeCapabilityUtilization(
+    acc: Record<string, number>,
+    current: Record<string, number>,
+  ): Record<string, number> {
     const result = { ...acc };
     for (const [key, value] of Object.entries(current)) {
       result[key] = (result[key] || 0) + value;
@@ -381,7 +421,10 @@ export class SelfImprovementSystem extends EventEmitter {
   /**
    * Calculate average capability utilization
    */
-  private averageCapabilityUtilization(totals: Record<string, number>, count: number): Record<string, number> {
+  private averageCapabilityUtilization(
+    totals: Record<string, number>,
+    count: number,
+  ): Record<string, number> {
     const result: Record<string, number> = {};
     for (const [key, value] of Object.entries(totals)) {
       result[key] = value / count;
@@ -392,39 +435,41 @@ export class SelfImprovementSystem extends EventEmitter {
   /**
    * Assess overall health based on metrics
    */
-  private assessOverallHealth(metrics: PerformanceMetrics): 'excellent' | 'good' | 'needs_attention' | 'critical' {
+  private assessOverallHealth(
+    metrics: PerformanceMetrics,
+  ): 'excellent' | 'good' | 'needs_attention' | 'critical' {
     let score = 0;
-    
+
     // Quality score (30% weight)
     if (metrics.averageQualityScore >= 90) score += 30;
     else if (metrics.averageQualityScore >= 80) score += 25;
     else if (metrics.averageQualityScore >= 70) score += 15;
     else score += 5;
-    
+
     // Constitutional compliance (25% weight)
     if (metrics.constitutionalCompliance >= 95) score += 25;
     else if (metrics.constitutionalCompliance >= 85) score += 20;
     else if (metrics.constitutionalCompliance >= 75) score += 10;
     else score += 0;
-    
+
     // User satisfaction (20% weight)
     if (metrics.userSatisfactionScore >= 4.5) score += 20;
     else if (metrics.userSatisfactionScore >= 4.0) score += 15;
     else if (metrics.userSatisfactionScore >= 3.5) score += 10;
     else score += 5;
-    
+
     // Response time (15% weight)
     if (metrics.responseTime <= 2000) score += 15;
     else if (metrics.responseTime <= 5000) score += 10;
     else if (metrics.responseTime <= 10000) score += 5;
     else score += 0;
-    
+
     // Error rate (10% weight)
     if (metrics.errorRate <= 0.01) score += 10;
     else if (metrics.errorRate <= 0.05) score += 8;
     else if (metrics.errorRate <= 0.1) score += 5;
     else score += 0;
-    
+
     if (score >= 85) return 'excellent';
     if (score >= 70) return 'good';
     if (score >= 50) return 'needs_attention';
@@ -434,32 +479,37 @@ export class SelfImprovementSystem extends EventEmitter {
   /**
    * Generate recommended actions based on improvements
    */
-  private generateRecommendedActions(improvements: ImprovementSuggestion[], health: string): string[] {
+  private generateRecommendedActions(
+    improvements: ImprovementSuggestion[],
+    health: string,
+  ): string[] {
     const actions: string[] = [];
-    
+
     if (health === 'critical') {
       actions.push('Immediate manual review required - multiple critical issues detected');
     }
-    
-    const highPriorityImprovements = improvements.filter(i => i.priority === 'high');
+
+    const highPriorityImprovements = improvements.filter((i) => i.priority === 'high');
     if (highPriorityImprovements.length > 0) {
-      actions.push(`Review ${highPriorityImprovements.length} high-priority improvement suggestions`);
+      actions.push(
+        `Review ${highPriorityImprovements.length} high-priority improvement suggestions`,
+      );
     }
-    
-    const qualityImprovements = improvements.filter(i => i.category === 'quality');
+
+    const qualityImprovements = improvements.filter((i) => i.category === 'quality');
     if (qualityImprovements.length > 0) {
       actions.push('Focus on quality improvement strategies');
     }
-    
-    const capabilityImprovements = improvements.filter(i => i.category === 'capability');
+
+    const capabilityImprovements = improvements.filter((i) => i.category === 'capability');
     if (capabilityImprovements.length > 0) {
       actions.push('Review capability utilization and optimization');
     }
-    
+
     if (actions.length === 0) {
       actions.push('Continue current performance monitoring');
     }
-    
+
     return actions;
   }
 
@@ -484,18 +534,18 @@ export class SelfImprovementSystem extends EventEmitter {
     if (existing) {
       clearInterval(existing);
     }
-    
+
     // Schedule new evaluation
-  const timer = setInterval(async () => {
+    const timer = setInterval(async () => {
       try {
         await this.performSelfEvaluation(agentId);
       } catch (error) {
         console.error(`[SelfImprovementSystem] Scheduled evaluation failed for ${agentId}:`, error);
       }
     }, intervalMs);
-  // Let process exit naturally in short-lived scripts/tests
-  (timer as unknown as NodeJS.Timer).unref?.();
-    
+    // Let process exit naturally in short-lived scripts/tests
+    (timer as unknown as NodeJS.Timer).unref?.();
+
     this.evaluationSchedule.set(agentId, timer);
   }
 
@@ -517,7 +567,7 @@ export class SelfImprovementSystem extends EventEmitter {
       // Remove redeclaration and use a unique variable name for the loaded memories
       const loadedResult = await this.memorySystem.searchMemory({
         query: 'performance_metrics',
-        limit: 1000
+        limit: 1000,
       });
       const loadedMemories = loadedResult?.results || [];
       for (const memory of loadedMemories) {
@@ -528,8 +578,10 @@ export class SelfImprovementSystem extends EventEmitter {
           this.performanceHistory.set(metrics.agentId, history);
         }
       }
-      
-      console.log(`[SelfImprovementSystem] Loaded performance history for ${this.performanceHistory.size} agents`);
+
+      console.log(
+        `[SelfImprovementSystem] Loaded performance history for ${this.performanceHistory.size} agents`,
+      );
     } catch (error) {
       console.error('[SelfImprovementSystem] Failed to load performance history:', error);
     }
@@ -563,7 +615,7 @@ export class SelfImprovementSystem extends EventEmitter {
     const prefix = context ? `${type}_${context}` : type;
     return `${prefix}_${timestamp}_${randomSuffix}`;
   }
-  
+
   private generateSecureRandomSuffix(): string {
     // Use crypto.randomUUID() for better randomness, fallback to Math.random()
     if (typeof crypto !== 'undefined' && crypto.randomUUID) {

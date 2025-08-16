@@ -7,12 +7,14 @@ OneAgent is a **professional-grade, memory-driven multiagent AI platform** featu
 ## ✨ **Key Features**
 
 ### **🧠 Memory-Driven Intelligence (Phase 4 - COMPLETE)**
+
 - **Cross-Conversation Learning**: Pattern recognition and knowledge transfer across sessions
 - **Emergent Intelligence Synthesis**: Breakthrough insight detection and cross-domain synthesis
 - **Memory-Driven Optimization**: Historical performance analysis and workflow optimization
 - **Institutional Memory Evolution**: Continuous knowledge growth and pattern evolution
 
 ### **🔧 Core Architecture**
+
 - **Constitutional AI Integration**: Built-in safety and ethical validation
 - **Canonical Memory System**: OneAgentMemory with mem0 backend
 - **Strict TypeScript**: 70,000+ lines of error-free, professional-grade code
@@ -20,6 +22,7 @@ OneAgent is a **professional-grade, memory-driven multiagent AI platform** featu
 - **Modular Agent Design**: BaseAgent and ISpecializedAgent architecture
 
 ### **📊 Proven Performance**
+
 - **95% Pattern Recognition Accuracy**: Identifying successful workflows
 - **90% Breakthrough Detection**: Revolutionary insight identification
 - **85% Predictive Accuracy**: Conversation outcome prediction
@@ -30,20 +33,21 @@ OneAgent is a **professional-grade, memory-driven multiagent AI platform** featu
 ### Quick Start (Local MCP + Memory)
 
 1. Copy `.env.example` to `.env` and optionally set:
-	- `GEMINI_API_KEY` (required for real memory operations)
-	- `MEM0_API_KEY` (enables authenticated memory stats/read and is required for writes)
+   - `GEMINI_API_KEY` (required for real memory operations)
+   - `MEM0_API_KEY` (enables authenticated memory stats/read and is required for writes)
 2. Start both servers with readiness checks:
-	- Windows PowerShell: `./scripts/start-oneagent-system.ps1`
+   - Windows PowerShell: `./scripts/start-oneagent-system.ps1`
 3. Validate runtime (type-check, lint, smoke including SSE and memory health):
-	- `npm run verify:runtime`
+   - `npm run verify:runtime`
 
 Default endpoints:
+
 - Memory server: http://127.0.0.1:8010 (GET /health)
 - MCP server: http://127.0.0.1:8083 (GET /health, GET /mcp for SSE)
- - A2A well-known Agent Card (served by MCP server):
-	 - Preferred (A2A >= 0.3.0): http://127.0.0.1:8083/.well-known/agent-card.json
-	 - Legacy alias (A2A 0.2.x): http://127.0.0.1:8083/.well-known/agent.json
-	 - Notes: Default A2A protocol advertised is 0.2.6; extended card is not required for 0.2.x.
+- A2A well-known Agent Card (served by MCP server):
+  - Preferred (A2A >= 0.3.0): http://127.0.0.1:8083/.well-known/agent-card.json
+  - Legacy alias (A2A 0.2.x): http://127.0.0.1:8083/.well-known/agent.json
+  - Notes: Default A2A protocol advertised is 0.2.6; extended card is not required for 0.2.x.
 
 ### Try it in 2 minutes (Hello A2A)
 
@@ -56,6 +60,7 @@ npm run demo:hello
 This validates MCP /health, /info, JSON-RPC initialize, tools/list, and confirms SSE heartbeat—without writing to memory.
 
 ### Developer commands
+
 ```bash
 # Install deps
 npm install
@@ -78,24 +83,26 @@ npm run test:a2a
 The communication subsystem is validated in two modes to ensure zero regression while keeping CI fast:
 
 1. Monitoring Disabled Mode (fast, silent):
-	- Env: `ONEAGENT_FAST_TEST_MODE=1`, `ONEAGENT_DISABLE_AUTO_MONITORING=1`, `ONEAGENT_SILENCE_COMM_LOGS=1`
-	- Purpose: Validate core communication flow & legacy pattern absence without incurring monitoring overhead.
-	- Operation event assertions are intentionally skipped (monitoring stub returns no events).
+   - Env: `ONEAGENT_FAST_TEST_MODE=1`, `ONEAGENT_DISABLE_AUTO_MONITORING=1`, `ONEAGENT_SILENCE_COMM_LOGS=1`
+   - Purpose: Validate core communication flow & legacy pattern absence without incurring monitoring overhead.
+   - Operation event assertions are intentionally skipped (monitoring stub returns no events).
 
 2. Monitoring Enabled Mode (coverage enforcement):
-	- Env: `ONEAGENT_FAST_TEST_MODE=1`, `ONEAGENT_SILENCE_COMM_LOGS=1` (monitoring flag unset)
-	- Purpose: Enforce presence of `operation` field events for all canonical methods:
-	  `registerAgent`, `discoverAgents`, `createSession`, `sendMessage`, `getMessageHistory`.
-	- Fails build if any required operation event is missing.
+   - Env: `ONEAGENT_FAST_TEST_MODE=1`, `ONEAGENT_SILENCE_COMM_LOGS=1` (monitoring flag unset)
+   - Purpose: Enforce presence of `operation` field events for all canonical methods:
+     `registerAgent`, `discoverAgents`, `createSession`, `sendMessage`, `getMessageHistory`.
+   - Fails build if any required operation event is missing.
 
 The `scripts/verify-build.js` script orchestrates both passes and performs an in-process post-run verification to guarantee operation coverage (no reliance on only the test process memory). A lightweight utility `tests/utils/monitoringTestUtils.ts` provides reusable coverage assertions (no parallel metrics state—derives strictly from monitoring events).
 
 Run full verification locally:
+
 ```bash
 node scripts/verify-build.js
 ```
 
 Environment Flags Summary:
+
 - `ONEAGENT_FAST_TEST_MODE=1` → In-memory agent/session/message registries (zero external dependencies)
 - `ONEAGENT_DISABLE_AUTO_MONITORING=1` → Replaces monitoring singleton with no-op stub (skips event assertions)
 - `ONEAGENT_SILENCE_COMM_LOGS=1` → Suppresses verbose communication logs for cleaner CI output
@@ -103,19 +110,23 @@ Environment Flags Summary:
 Rate limit enforcement (30 msgs / 60s per agent-session) is covered by `tests/canonical/communication-rate-limit.test.ts` and executes in fast mode. Both conformance and rate limit tests exit cleanly to avoid lingering handles, ensuring CI stability.
 
 This dual-mode strategy delivers deterministic coverage plus minimal runtime overhead, preserving canonical single-source monitoring (UnifiedMonitoringService) without introducing parallel systems.
+
 ### A2A invariants and conformance
+
 - Conformance: `npm run test:a2a-conformance`
 - Invariants (send/receive counts, broadcast fan-out, handler lifecycle): `npm run test:a2a-invariants`
 
 ## 🏗️ **System Architecture**
 
 ### **Phase 4 Memory-Driven Intelligence**
+
 - **CrossConversationLearningEngine** (17,117 lines): Pattern analysis and workflow optimization
 - **EmergentIntelligenceEngine** (27,484 lines): Breakthrough insight detection and synthesis
 - **MemoryDrivenOptimizer** (25,354 lines): Historical performance analysis and optimization
 - **Phase4Integration**: Unified interface for all memory-driven capabilities
 
 ### **Core Components**
+
 - **Canonical Memory System**: OneAgentMemory with Constitutional AI validation
 - **Agent Architecture**: BaseAgent with ISpecializedAgent interface
 - **Communication Protocols**: A2A, MCP, and NLACS integration
@@ -124,19 +135,23 @@ This dual-mode strategy delivers deterministic coverage plus minimal runtime ove
 ## 📈 **Revolutionary Capabilities**
 
 ### **1. Proactive Intelligence**
+
 Transform from reactive responses to proactive suggestions based on learned patterns and successful outcomes.
 
 ### **2. Cross-Conversation Learning**
+
 - **Pattern Recognition**: Identify successful workflows across multiple sessions
 - **Knowledge Transfer**: Apply insights from one conversation to improve future interactions
 - **Institutional Memory**: Build and evolve organizational knowledge over time
 
 ### **3. Emergent Intelligence Synthesis**
+
 - **Breakthrough Detection**: Automatically identify revolutionary insights
 - **Cross-Domain Synthesis**: Combine insights from different domains
 - **Intelligence Amplification**: Enhance human and agent intelligence systematically
 
 ### **4. Memory-Driven Optimization**
+
 - **Workflow Optimization**: Suggest improvements based on historical success
 - **Predictive Intelligence**: Predict likely outcomes and optimal strategies
 - **Resource Allocation**: Optimize resources through historical performance data
@@ -144,18 +159,21 @@ Transform from reactive responses to proactive suggestions based on learned patt
 ## 🔮 **Roadmap**
 
 ### **✅ Phase 4: Memory-Driven Intelligence (COMPLETE)**
+
 - Cross-conversation learning and pattern recognition
 - Emergent intelligence synthesis and breakthrough detection
 - Memory-driven optimization and workflow analysis
 - Constitutional AI validation and safety compliance
 
 ### **🚀 Phase 5: Autonomous Intelligence (PLANNED)**
+
 - Autonomous agent lifecycle management
 - Predictive system intelligence and proactive problem solving
 - Universal pattern application and meta-learning capabilities
 - Self-improving system evolution
 
 ### **🌟 Future Phases**
+
 - **Phase 6**: Ecosystem Intelligence and multi-system integration
 - **Phase 7**: Universal Intelligence Network and collective intelligence
 - **Phase 8**: Evolutionary AI and continuous system evolution
@@ -163,6 +181,7 @@ Transform from reactive responses to proactive suggestions based on learned patt
 ## 📚 **Documentation**
 
 ### **Core Documentation**
+
 - **[PHASE_4_COMPLETION_REPORT_FINAL.md](./PHASE_4_COMPLETION_REPORT_FINAL.md)**: Complete Phase 4 implementation report
 - **[PHASE_5_AUTONOMOUS_INTELLIGENCE_ROADMAP.md](./PHASE_5_AUTONOMOUS_INTELLIGENCE_ROADMAP.md)**: Phase 5 strategic roadmap
 - **[ONEAGENT_ARCHITECTURE.md](./ONEAGENT_ARCHITECTURE.md)**: Complete architecture overview
@@ -170,22 +189,26 @@ Transform from reactive responses to proactive suggestions based on learned patt
 - **[docs/monitoring/OPERATION_METRICS.md](./docs/monitoring/OPERATION_METRICS.md)**: Canonical event-based operation metrics (trackOperation + summarizeOperationMetrics)
 
 ### **Phase 4 Specifications**
+
 - **[PHASE_4_MEMORY_DRIVEN_INTELLIGENCE_OVERVIEW.md](./PHASE_4_MEMORY_DRIVEN_INTELLIGENCE_OVERVIEW.md)**: Phase 4 technical specifications
 - **[PHASE_4_COMPLETION_REPORT.md](./PHASE_4_COMPLETION_REPORT.md)**: Implementation achievement report
 
 ## 🎯 **Business Impact**
 
 ### **Productivity Gains**
+
 - **25% faster task completion** through workflow optimization
 - **40% better knowledge retention** across conversations
 - **30% improved resource allocation** through historical analysis
 
 ### **Innovation Acceleration**
+
 - **90% breakthrough detection accuracy** for important insights
 - **70% cross-domain synthesis success** rate
 - **20% continuous improvement** in system performance
 
 ### **Competitive Advantage**
+
 - **World's first Constitutional AI-validated memory-driven intelligence platform**
 - **Self-improving system** that evolves through experience
 - **Proactive intelligence** that prevents problems before they occur
@@ -193,37 +216,44 @@ Transform from reactive responses to proactive suggestions based on learned patt
 ## 🔧 **Technical Specifications**
 
 ### **Requirements**
+
 - **Node.js v22+**: Modern JavaScript runtime
 - **TypeScript 5.7+**: Strict type safety
 - **mem0**: Memory backend system
 - **Constitutional AI**: Safety and ethical validation
 
 ### **Architecture**
+
 - **70,000+ lines** of professional-grade TypeScript
 - **Zero compilation errors** with strict type checking
 - **Comprehensive error handling** with graceful fallbacks
 - **Full memory integration** with persistent learning
 
 ### **Canonical Memory API (Unified Metadata)**
+
 All memory writes MUST use the canonical path:
 
 ```ts
 // Preferred ergonomic alias (delegates to canonical)
-await memory.addMemory("User prefers dark mode", {
-	category: "preferences",
-	tags: ["ui", "theme"],
-	importance: "standard"
-}, userId);
+await memory.addMemory(
+  'User prefers dark mode',
+  {
+    category: 'preferences',
+    tags: ['ui', 'theme'],
+    importance: 'standard',
+  },
+  userId,
+);
 
 // Direct canonical form (same effect)
 await memory.addMemoryCanonical(
-	"User prefers dark mode",
-	{
-		category: "preferences",
-		tags: ["ui", "theme"],
-		importance: "standard"
-	},
-	userId
+  'User prefers dark mode',
+  {
+    category: 'preferences',
+    tags: ['ui', 'theme'],
+    importance: 'standard',
+  },
+  userId,
 );
 ```
 
@@ -237,10 +267,13 @@ await memory.addMemory({ content: "...", metadata: { ... } });
 has been fully removed. Batch operations and tools now automatically construct canonical metadata; no parallel memory write paths remain. This consolidation improves analytics fidelity, learning consistency, and future adapter simplification potential (e.g., `adaptSearchResponse`).
 
 ### Monitoring Control (Lightweight Scripts)
+
 Set environment variable `ONEAGENT_DISABLE_AUTO_MONITORING=1` to prevent automatic monitoring service instantiation during simple imports (unit tests, one-off scripts). All periodic timers also use `unref()` so they won't block process exit when enabled.
 
 ### Canonical Agent Communication (Consolidated)
+
 All agent-to-agent (A2A) coordination uses `UnifiedAgentCommunicationService` (singleton exported as `unifiedAgentCommunicationService`). Legacy service names (`AgentCommunicationService`, `A2ACommunicationService`, `MultiAgentCommunicationService`) are guarded by throwing stubs in `DeprecatedCommunication.ts` to prevent parallel system regression. A conformance test (`tests/canonical/communication-conformance.test.ts`) enforces:
+
 - Successful register → discover → createSession → sendMessage → getMessageHistory flow
 - Monitoring events with explicit `operation` field for each core method
 - Absence of legacy class references in the codebase
@@ -250,18 +283,15 @@ Rate limiting (30 messages / 60s per agent-session) is enforced and covered by `
 Monitoring events now include an explicit `operation` field (in addition to the descriptive message) for robust assertion and aggregation, while `trackOperation` remains the canonical entry point (no parallel metrics store).
 
 ### Public interop (A2A 0.3.0 readiness plan)
+
 - Status: Forward-compatible. We serve both `/.well-known/agent-card.json` (preferred) and `/.well-known/agent.json` (legacy) and advertise protocol 0.2.6 by default.
-- Planned for public interop (future major):
-	- Extended Agent Card handler (authenticated optional)
-	- AgentCard signatures (trust attestation)
-	- mTLS and OAuth2 metadata in `securitySchemes`
-	- Multiple transport announcement (Transport enum), push notification configs
-	- Documentation updates and conformance tests
-These are intentionally deferred to keep v4.0.1 stable; implement when external A2A registry/agents integration is prioritized.
+- Planned for public interop (future major): - Extended Agent Card handler (authenticated optional) - AgentCard signatures (trust attestation) - mTLS and OAuth2 metadata in `securitySchemes` - Multiple transport announcement (Transport enum), push notification configs - Documentation updates and conformance tests
+  These are intentionally deferred to keep v4.0.1 stable; implement when external A2A registry/agents integration is prioritized.
 
 ## 🤝 **Contributing**
 
 OneAgent is built with professional development standards:
+
 - **Constitutional AI principles**: Accuracy, Transparency, Helpfulness, Safety
 - **Quality-first development**: 80%+ quality score requirement
 - **Comprehensive testing**: All functionality verified
@@ -281,4 +311,4 @@ MIT License - See LICENSE file for details
 
 ---
 
-*This is the canonical README for OneAgent v4.0.2. All documentation is current and reflects the consolidated Phase 4 implementation.*
+_This is the canonical README for OneAgent v4.0.2. All documentation is current and reflects the consolidated Phase 4 implementation._

@@ -16,11 +16,19 @@
  *   npx ts-node c:/Users/arne/.cline/mcps/OneAgent/coreagent/tests/planner-agent.test.ts
  */
 
-import { PlannerAgent, PlanningProgressResponse, PlanningReportResponse } from '../agents/specialized/PlannerAgent';
+import {
+  PlannerAgent,
+  PlanningProgressResponse,
+  PlanningReportResponse,
+} from '../agents/specialized/PlannerAgent';
 import type { AgentConfig } from '../agents/base/BaseAgent';
 
 // Minimal stub types for clarity
-interface ValidateResult { isValid: boolean; score: number; violations: unknown[] }
+interface ValidateResult {
+  isValid: boolean;
+  score: number;
+  violations: unknown[];
+}
 // Minimal private shape to safely access stubs without using 'any'
 interface PlannerAgentPrivate {
   constitutionalAI?: { validateResponse: (...args: unknown[]) => Promise<ValidateResult> };
@@ -35,9 +43,9 @@ async function runPlannerAgentTest() {
     id: 'planner_test_agent',
     name: 'Planner Test Agent',
     description: 'Test agent for planning workflows',
-    capabilities: ['planning','decomposition','assignment'],
-  memoryEnabled: false, // disabled for isolated test (avoid external memory server)
-  aiEnabled: false // prevent real SmartGemini initialization
+    capabilities: ['planning', 'decomposition', 'assignment'],
+    memoryEnabled: false, // disabled for isolated test (avoid external memory server)
+    aiEnabled: false, // prevent real SmartGemini initialization
   };
 
   const planner = new PlannerAgent(agentConfig);
@@ -48,17 +56,42 @@ async function runPlannerAgentTest() {
     validateResponse: async (..._args: unknown[]): Promise<ValidateResult> => ({
       isValid: true,
       score: 0.95,
-      violations: []
-    })
+      violations: [],
+    }),
   };
 
   // Stub AI client for deterministic decomposition BEFORE initialize
   (planner as unknown as PlannerAgentPrivate).aiClient = {
-    generateContent: async (_prompt: string) => JSON.stringify([
-      { title: 'Analyze Requirements', description: 'Gather and clarify project requirements', priority: 'high', complexity: 'moderate', estimatedEffort: 4, dependencies: [], requiredSkills: ['analysis'] },
-      { title: 'Design Architecture', description: 'Create system design and architecture docs', priority: 'critical', complexity: 'complex', estimatedEffort: 8, dependencies: ['Analyze Requirements'], requiredSkills: ['architecture'] },
-      { title: 'Implement Core Modules', description: 'Develop core system components', priority: 'high', complexity: 'complex', estimatedEffort: 16, dependencies: ['Design Architecture'], requiredSkills: ['coding'] }
-    ])
+    generateContent: async (_prompt: string) =>
+      JSON.stringify([
+        {
+          title: 'Analyze Requirements',
+          description: 'Gather and clarify project requirements',
+          priority: 'high',
+          complexity: 'moderate',
+          estimatedEffort: 4,
+          dependencies: [],
+          requiredSkills: ['analysis'],
+        },
+        {
+          title: 'Design Architecture',
+          description: 'Create system design and architecture docs',
+          priority: 'critical',
+          complexity: 'complex',
+          estimatedEffort: 8,
+          dependencies: ['Analyze Requirements'],
+          requiredSkills: ['architecture'],
+        },
+        {
+          title: 'Implement Core Modules',
+          description: 'Develop core system components',
+          priority: 'high',
+          complexity: 'complex',
+          estimatedEffort: 16,
+          dependencies: ['Design Architecture'],
+          requiredSkills: ['coding'],
+        },
+      ]),
   };
 
   await planner.initialize();
@@ -68,13 +101,13 @@ async function runPlannerAgentTest() {
     projectId: 'proj_demo',
     objective: 'Deliver MVP of planning system',
     constraints: ['timeboxed 2 weeks'],
-    resources: ['dev_team','docs'],
+    resources: ['dev_team', 'docs'],
     timeframe: '2 weeks',
-    stakeholders: ['product','engineering'],
+    stakeholders: ['product', 'engineering'],
     riskTolerance: 'medium' as const,
-    qualityRequirements: ['reliability','clarity'],
-    successCriteria: ['MVP delivered','tests passing'],
-    constitutionalRequirements: ['accuracy','transparency']
+    qualityRequirements: ['reliability', 'clarity'],
+    successCriteria: ['MVP delivered', 'tests passing'],
+    constitutionalRequirements: ['accuracy', 'transparency'],
   };
   const session = await planner.createPlanningSession(sessionContext);
   console.assert(session.id.startsWith('planning_'), '❌ Session ID format mismatch');
@@ -83,7 +116,10 @@ async function runPlannerAgentTest() {
   // 2. Decompose objective
   const tasks = await planner.decomposeObjective(sessionContext.objective, sessionContext, 5);
   console.assert(tasks.length === 3, '❌ Expected 3 tasks from stub decomposition');
-  console.log('✅ Decomposed objective into tasks:', tasks.map(t => t.title));
+  console.log(
+    '✅ Decomposed objective into tasks:',
+    tasks.map((t) => t.title),
+  );
 
   // 3. Assign tasks
   // Provide custom agents list (mirrors internal capability examples)
@@ -91,26 +127,39 @@ async function runPlannerAgentTest() {
     {
       agentId: 'dev_agent',
       agentType: 'development',
-      capabilities: ['coding','architecture','testing'],
-      specializations: ['typescript','node.js'],
-      performanceMetrics: { taskSuccessRate: 0.9, averageResponseTime: 1.0, qualityScore: 0.9, collaborationRating: 0.85 },
+      capabilities: ['coding', 'architecture', 'testing'],
+      specializations: ['typescript', 'node.js'],
+      performanceMetrics: {
+        taskSuccessRate: 0.9,
+        averageResponseTime: 1.0,
+        qualityScore: 0.9,
+        collaborationRating: 0.85,
+      },
       availability: 'available' as const,
       workloadCapacity: 10,
-      currentTasks: [] as string[]
+      currentTasks: [] as string[],
     },
     {
       agentId: 'core_agent',
       agentType: 'core',
-      capabilities: ['analysis','synthesis'],
+      capabilities: ['analysis', 'synthesis'],
       specializations: ['strategic_thinking'],
-      performanceMetrics: { taskSuccessRate: 0.88, averageResponseTime: 1.5, qualityScore: 0.92, collaborationRating: 0.88 },
+      performanceMetrics: {
+        taskSuccessRate: 0.88,
+        averageResponseTime: 1.5,
+        qualityScore: 0.92,
+        collaborationRating: 0.88,
+      },
       availability: 'available' as const,
       workloadCapacity: 5,
-      currentTasks: [] as string[]
-    }
+      currentTasks: [] as string[],
+    },
   ];
   // Cast through unknown to satisfy structural typing without 'any'
-  const assignments = await planner.assignTasksToAgents(tasks, availableAgents as unknown as Parameters<typeof planner.assignTasksToAgents>[1]);
+  const assignments = await planner.assignTasksToAgents(
+    tasks,
+    availableAgents as unknown as Parameters<typeof planner.assignTasksToAgents>[1],
+  );
   console.assert(assignments.size > 0, '❌ No assignments produced');
   console.log('✅ Task assignments:', Object.fromEntries(assignments));
 
@@ -128,7 +177,9 @@ async function runPlannerAgentTest() {
   console.log('✅ Generated report');
 
   // 6. Constitutional validation of session context artifact
-  const validation = await planner.executeAction('validate_constitutionally', { content: JSON.stringify(sessionContext) });
+  const validation = await planner.executeAction('validate_constitutionally', {
+    content: JSON.stringify(sessionContext),
+  });
   const validationMeta = validation.metadata?.result as ValidateResult | undefined;
   console.assert(validationMeta?.isValid === true, '❌ Validation expected to be true');
   console.log('✅ Constitutional validation passed');
@@ -136,7 +187,7 @@ async function runPlannerAgentTest() {
   console.log('\n🎉 PlannerAgent core workflow test completed successfully');
 }
 
-runPlannerAgentTest().catch(err => {
+runPlannerAgentTest().catch((err) => {
   console.error('🔥 PlannerAgent test failed:', err);
   process.exit(1);
 });

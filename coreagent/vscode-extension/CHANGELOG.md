@@ -5,6 +5,7 @@ All notable changes to the "OneAgent Professional" extension will be documented 
 ## [1.0.0] - 2025-06-12
 
 ### Added
+
 - Initial release of OneAgent Professional VS Code extension
 - Chat participant integration with Constitutional AI validation
 - Quality scoring system with A-F grading
@@ -20,6 +21,7 @@ All notable changes to the "OneAgent Professional" extension will be documented 
 - Welcome message for first-time users
 
 ### Features
+
 - **Constitutional AI Integration**: All responses validated against 4 core principles
 - **Quality-First Development**: Professional grading system with actionable feedback
 - **BMAD Framework**: Systematic analysis for complex problem-solving
@@ -28,6 +30,7 @@ All notable changes to the "OneAgent Professional" extension will be documented 
 - **Real-time Monitoring**: Live system health and performance metrics
 
 ### Technical
+
 - TypeScript implementation with strict typing
 - MCP protocol communication on port 8083
 - Graceful degradation when OneAgent is offline
@@ -36,6 +39,7 @@ All notable changes to the "OneAgent Professional" extension will be documented 
 - Professional UI/UX with VS Code theming
 
 ### Documentation
+
 - Complete implementation guide
 - Architectural independence guidelines
 - Quality assurance standards
@@ -45,6 +49,7 @@ All notable changes to the "OneAgent Professional" extension will be documented 
 ## [Unreleased]
 
 ### Planned Features
+
 - Enhanced memory visualization
 - Code annotation system
 - Automated quality monitoring

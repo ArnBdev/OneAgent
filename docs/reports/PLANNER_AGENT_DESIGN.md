@@ -3,6 +3,7 @@
 ## 🎯 **The Vision: PlannerAgent as the Central Orchestrator**
 
 You've identified the perfect solution! A **PlannerAgent** that:
+
 - **Creates and manages workflows** automatically
 - **Audits memory** to ensure tasks are completed properly
 - **Coordinates other agents** through A2A communication
@@ -12,6 +13,7 @@ You've identified the perfect solution! A **PlannerAgent** that:
 ## 🏗️ **PlannerAgent Architecture**
 
 ### **Core Responsibilities**
+
 1. **Workflow Creation**: Generate optimal workflows based on user intent
 2. **Task Assignment**: Delegate specific tasks to appropriate agents
 3. **Progress Monitoring**: Track completion status through memory auditing
@@ -19,6 +21,7 @@ You've identified the perfect solution! A **PlannerAgent** that:
 5. **Adaptive Planning**: Adjust workflows based on real-time feedback
 
 ### **Memory-Driven Intelligence**
+
 ```typescript
 interface PlannerAgentMemory {
   // Workflow patterns learned from experience
@@ -30,7 +33,7 @@ interface PlannerAgentMemory {
       averageSuccessRate: number;
     };
   };
-  
+
   // Agent performance tracking
   agentPerformance: {
     [agentId: string]: {
@@ -41,7 +44,7 @@ interface PlannerAgentMemory {
       recentFailures: string[];
     };
   };
-  
+
   // User preferences and patterns
   userPreferences: {
     [userId: string]: {
@@ -57,6 +60,7 @@ interface PlannerAgentMemory {
 ## 🔧 **Complete PlannerAgent Implementation**
 
 ### **1. Core PlannerAgent Class**
+
 ```typescript
 import { BaseAgent, AgentConfig, AgentContext, AgentResponse } from '../base/BaseAgent';
 import { ISpecializedAgent } from '../base/ISpecializedAgent';
@@ -80,27 +84,27 @@ export class PlannerAgent extends BaseAgent implements ISpecializedAgent {
         'task-assignment',
         'progress-monitoring',
         'quality-auditing',
-        'adaptive-planning'
+        'adaptive-planning',
       ],
       a2aEnabled: true,
       a2aCapabilities: [
         'session-management',
         'task-coordination',
         'progress-tracking',
-        'quality-validation'
-      ]
+        'quality-validation',
+      ],
     });
   }
 
   async initialize(): Promise<void> {
     await super.initialize();
-    
+
     // Initialize specialized components
     this.workflowEngine = new WorkflowEngine(this.memoryClient!);
     this.taskMonitor = new TaskMonitor(this.memoryClient!);
     this.qualityAuditor = new QualityAuditor(this.memoryClient!);
     this.learningEngine = new LearningEngine(this.memoryClient!);
-    
+
     console.log('🎯 PlannerAgent initialized with workflow orchestration capabilities');
   }
 
@@ -108,19 +112,19 @@ export class PlannerAgent extends BaseAgent implements ISpecializedAgent {
     try {
       // Parse user intent
       const intent = await this.parseUserIntent(message, context);
-      
+
       // Generate or retrieve workflow
       const workflow = await this.workflowEngine.generateWorkflow(intent, context);
-      
+
       // Create A2A session for coordination
       const session = await this.createCoordinationSession(workflow, context);
-      
+
       // Execute workflow
       const result = await this.executeWorkflow(workflow, session, context);
-      
+
       // Store learning patterns
       await this.learningEngine.recordWorkflowExecution(workflow, result, context);
-      
+
       return {
         content: `Workflow executed successfully: ${result.summary}`,
         actions: result.actions,
@@ -128,13 +132,13 @@ export class PlannerAgent extends BaseAgent implements ISpecializedAgent {
           workflowId: workflow.id,
           sessionId: session.id,
           participatingAgents: workflow.agents,
-          completionStatus: result.status
-        }
+          completionStatus: result.status,
+        },
       };
     } catch (error) {
       return {
         content: `Workflow execution failed: ${error}`,
-        metadata: { error: error.toString() }
+        metadata: { error: error.toString() },
       };
     }
   }
@@ -148,7 +152,7 @@ export class PlannerAgent extends BaseAgent implements ISpecializedAgent {
       context: 'workflow_planning',
       extractActions: true,
       identifyStakeholders: true,
-      assessComplexity: true
+      assessComplexity: true,
     });
 
     return {
@@ -158,14 +162,17 @@ export class PlannerAgent extends BaseAgent implements ISpecializedAgent {
       requiredCapabilities: analysis.requiredCapabilities,
       estimatedDuration: analysis.estimatedDuration,
       qualityRequirements: analysis.qualityRequirements,
-      userPreferences: await this.getUserPreferences(context.user.id)
+      userPreferences: await this.getUserPreferences(context.user.id),
     };
   }
 
   /**
    * Create A2A coordination session for workflow execution
    */
-  private async createCoordinationSession(workflow: Workflow, context: AgentContext): Promise<A2ASession> {
+  private async createCoordinationSession(
+    workflow: Workflow,
+    context: AgentContext,
+  ): Promise<A2ASession> {
     const sessionId = await this.workflowEngine.createA2ASession({
       name: `Workflow: ${workflow.name}`,
       participants: workflow.agents,
@@ -176,8 +183,8 @@ export class PlannerAgent extends BaseAgent implements ISpecializedAgent {
         userId: context.user.id,
         plannedBy: 'planner-agent',
         priority: workflow.priority,
-        deadline: workflow.deadline
-      }
+        deadline: workflow.deadline,
+      },
     });
 
     return {
@@ -185,7 +192,7 @@ export class PlannerAgent extends BaseAgent implements ISpecializedAgent {
       workflow: workflow,
       participants: workflow.agents,
       status: 'active',
-      createdAt: new Date()
+      createdAt: new Date(),
     };
   }
 
@@ -195,7 +202,7 @@ export class PlannerAgent extends BaseAgent implements ISpecializedAgent {
   private async executeWorkflow(
     workflow: Workflow,
     session: A2ASession,
-    context: AgentContext
+    context: AgentContext,
   ): Promise<WorkflowResult> {
     const result: WorkflowResult = {
       workflowId: workflow.id,
@@ -203,46 +210,46 @@ export class PlannerAgent extends BaseAgent implements ISpecializedAgent {
       startTime: new Date(),
       completedTasks: [],
       actions: [],
-      summary: ''
+      summary: '',
     };
 
     try {
       // Execute workflow phases sequentially
       for (const phase of workflow.phases) {
         console.log(`🎯 PlannerAgent executing phase: ${phase.name}`);
-        
+
         // Create tasks for this phase
         const tasks = await this.createPhaseTasks(phase, session, context);
-        
+
         // Assign tasks to agents
         await this.assignTasks(tasks, session);
-        
+
         // Monitor task completion
         const phaseResult = await this.monitorPhaseCompletion(phase, session, context);
-        
+
         // Validate phase quality
         await this.validatePhaseQuality(phase, phaseResult, context);
-        
+
         result.completedTasks.push(...phaseResult.completedTasks);
         result.actions.push(...phaseResult.actions);
-        
+
         // Adaptive planning: adjust next phases based on results
         await this.adaptWorkflowBasedOnResults(workflow, phaseResult, context);
       }
-      
+
       result.status = 'completed';
       result.endTime = new Date();
       result.summary = await this.generateWorkflowSummary(result, context);
-      
+
       return result;
     } catch (error) {
       result.status = 'failed';
       result.error = error.toString();
       result.endTime = new Date();
-      
+
       // Store failure patterns for learning
       await this.learningEngine.recordWorkflowFailure(workflow, error, context);
-      
+
       throw error;
     }
   }
@@ -253,18 +260,18 @@ export class PlannerAgent extends BaseAgent implements ISpecializedAgent {
   private async monitorPhaseCompletion(
     phase: WorkflowPhase,
     session: A2ASession,
-    context: AgentContext
+    context: AgentContext,
   ): Promise<PhaseResult> {
     const monitor = new TaskCompletionMonitor(session.id, this.memoryClient!);
-    
+
     // Poll memory for task completion evidence
     const completionResult = await monitor.waitForPhaseCompletion(phase, {
       timeoutMs: phase.timeoutMs || 300000, // 5 minutes default
       checkIntervalMs: 5000, // Check every 5 seconds
       qualityThreshold: 0.8,
-      requireConstitutionalCompliance: true
+      requireConstitutionalCompliance: true,
     });
-    
+
     return completionResult;
   }
 
@@ -274,19 +281,15 @@ export class PlannerAgent extends BaseAgent implements ISpecializedAgent {
   private async validatePhaseQuality(
     phase: WorkflowPhase,
     phaseResult: PhaseResult,
-    context: AgentContext
+    context: AgentContext,
   ): Promise<void> {
-    const qualityReport = await this.qualityAuditor.auditPhaseQuality(
-      phase,
-      phaseResult,
-      context
-    );
-    
+    const qualityReport = await this.qualityAuditor.auditPhaseQuality(phase, phaseResult, context);
+
     if (qualityReport.overallScore < 0.8) {
       // Quality below threshold - request improvements
       await this.requestQualityImprovements(phase, qualityReport, context);
     }
-    
+
     // Store quality metrics for learning
     await this.learningEngine.recordQualityMetrics(phase, qualityReport, context);
   }
@@ -297,13 +300,13 @@ export class PlannerAgent extends BaseAgent implements ISpecializedAgent {
   private async requestQualityImprovements(
     phase: WorkflowPhase,
     qualityReport: QualityReport,
-    context: AgentContext
+    context: AgentContext,
   ): Promise<void> {
     for (const issue of qualityReport.issues) {
       await this.broadcastA2AMessage(
         phase.sessionId,
         `Quality improvement needed: ${issue.description}. Please address: ${issue.recommendation}`,
-        'action'
+        'action',
       );
     }
   }
@@ -314,22 +317,18 @@ export class PlannerAgent extends BaseAgent implements ISpecializedAgent {
   private async adaptWorkflowBasedOnResults(
     workflow: Workflow,
     phaseResult: PhaseResult,
-    context: AgentContext
+    context: AgentContext,
   ): Promise<void> {
     // Analyze current results
     const analysis = await this.analyzePhaseResults(phaseResult, context);
-    
+
     // Adjust remaining phases if needed
     if (analysis.suggestsWorkflowAdjustment) {
-      const adjustments = await this.generateWorkflowAdjustments(
-        workflow,
-        analysis,
-        context
-      );
-      
+      const adjustments = await this.generateWorkflowAdjustments(workflow, analysis, context);
+
       // Apply adjustments
       await this.applyWorkflowAdjustments(workflow, adjustments, context);
-      
+
       // Notify participants of changes
       await this.notifyWorkflowChanges(workflow, adjustments, context);
     }
@@ -340,18 +339,18 @@ export class PlannerAgent extends BaseAgent implements ISpecializedAgent {
    */
   private async generateWorkflowSummary(
     result: WorkflowResult,
-    context: AgentContext
+    context: AgentContext,
   ): Promise<string> {
     const summary = await this.constitutionalAI!.synthesize(
-      result.completedTasks.map(task => task.output).join('\n'),
+      result.completedTasks.map((task) => task.output).join('\n'),
       {
         context: 'workflow_summary',
         format: 'executive_summary',
         includeKeyInsights: true,
-        includeNextSteps: true
-      }
+        includeNextSteps: true,
+      },
     );
-    
+
     return summary;
   }
 
@@ -365,39 +364,42 @@ export class PlannerAgent extends BaseAgent implements ISpecializedAgent {
           intent: 'string',
           participants: 'string[]',
           priority: 'string',
-          deadline: 'string'
-        }
+          deadline: 'string',
+        },
       },
       {
         type: 'monitor_progress',
         description: 'Monitor workflow progress and quality',
         parameters: {
           workflowId: 'string',
-          includeQualityMetrics: 'boolean'
-        }
+          includeQualityMetrics: 'boolean',
+        },
       },
       {
         type: 'audit_completion',
         description: 'Audit task completion through memory analysis',
         parameters: {
           sessionId: 'string',
-          qualityThreshold: 'number'
-        }
+          qualityThreshold: 'number',
+        },
       },
       {
         type: 'optimize_workflow',
         description: 'Optimize workflow based on historical patterns',
         parameters: {
           workflowType: 'string',
-          constraints: 'object'
-        }
-      }
+          constraints: 'object',
+        },
+      },
     ];
   }
 
-  async executeAction(action: string | AgentAction, params: Record<string, unknown>): Promise<unknown> {
+  async executeAction(
+    action: string | AgentAction,
+    params: Record<string, unknown>,
+  ): Promise<unknown> {
     const actionType = typeof action === 'string' ? action : action.type;
-    
+
     switch (actionType) {
       case 'create_workflow':
         return await this.createWorkflowFromIntent(params);
@@ -417,31 +419,36 @@ export class PlannerAgent extends BaseAgent implements ISpecializedAgent {
     // Implementation for creating workflows from user intent
     const intent = params.intent as string;
     const participants = params.participants as string[];
-    
-    return await this.workflowEngine.generateWorkflow({
-      type: 'custom',
-      description: intent,
-      requiredCapabilities: [],
-      complexity: 'medium'
-    }, this.getCurrentContext());
+
+    return await this.workflowEngine.generateWorkflow(
+      {
+        type: 'custom',
+        description: intent,
+        requiredCapabilities: [],
+        complexity: 'medium',
+      },
+      this.getCurrentContext(),
+    );
   }
 
-  private async monitorWorkflowProgress(params: Record<string, unknown>): Promise<WorkflowProgress> {
+  private async monitorWorkflowProgress(
+    params: Record<string, unknown>,
+  ): Promise<WorkflowProgress> {
     const workflowId = params.workflowId as string;
     return await this.taskMonitor.getWorkflowProgress(workflowId);
   }
 
   private async auditTaskCompletion(params: Record<string, unknown>): Promise<CompletionAudit> {
     const sessionId = params.sessionId as string;
-    const qualityThreshold = params.qualityThreshold as number || 0.8;
-    
+    const qualityThreshold = (params.qualityThreshold as number) || 0.8;
+
     return await this.qualityAuditor.auditSessionCompletion(sessionId, qualityThreshold);
   }
 
   private async optimizeWorkflow(params: Record<string, unknown>): Promise<WorkflowOptimization> {
     const workflowType = params.workflowType as string;
     const constraints = params.constraints as object;
-    
+
     return await this.learningEngine.optimizeWorkflowPattern(workflowType, constraints);
   }
 }
@@ -450,11 +457,12 @@ export class PlannerAgent extends BaseAgent implements ISpecializedAgent {
 ## 🔍 **Memory-Driven Auditing System**
 
 ### **TaskCompletionMonitor**
+
 ```typescript
 export class TaskCompletionMonitor {
   constructor(
     private sessionId: string,
-    private memory: OneAgentMemory
+    private memory: OneAgentMemory,
   ) {}
 
   /**
@@ -462,22 +470,22 @@ export class TaskCompletionMonitor {
    */
   async waitForPhaseCompletion(
     phase: WorkflowPhase,
-    options: MonitoringOptions
+    options: MonitoringOptions,
   ): Promise<PhaseResult> {
     const startTime = Date.now();
     const endTime = startTime + options.timeoutMs;
-    
+
     while (Date.now() < endTime) {
       // Check memory for task completion evidence
       const completionEvidence = await this.checkCompletionEvidence(phase);
-      
+
       if (completionEvidence.isComplete) {
         // Validate quality if required
         const qualityValid = await this.validateQuality(
           completionEvidence,
-          options.qualityThreshold
+          options.qualityThreshold,
         );
-        
+
         if (qualityValid) {
           return {
             phaseId: phase.id,
@@ -485,15 +493,15 @@ export class TaskCompletionMonitor {
             completedTasks: completionEvidence.tasks,
             actions: completionEvidence.actions,
             qualityScore: completionEvidence.qualityScore,
-            duration: Date.now() - startTime
+            duration: Date.now() - startTime,
           };
         }
       }
-      
+
       // Wait before next check
-      await new Promise(resolve => setTimeout(resolve, options.checkIntervalMs));
+      await new Promise((resolve) => setTimeout(resolve, options.checkIntervalMs));
     }
-    
+
     // Timeout reached
     throw new Error(`Phase ${phase.name} timed out after ${options.timeoutMs}ms`);
   }
@@ -507,12 +515,12 @@ export class TaskCompletionMonitor {
       query: `session:${this.sessionId} phase:${phase.id} completed`,
       user_id: 'planner-agent',
       limit: 50,
-      semanticSearch: true
+      semanticSearch: true,
     });
-    
+
     // Analyze messages for completion indicators
     const evidence = await this.analyzeCompletionMessages(messages, phase);
-    
+
     return evidence;
   }
 
@@ -521,37 +529,38 @@ export class TaskCompletionMonitor {
    */
   private async analyzeCompletionMessages(
     messages: any[],
-    phase: WorkflowPhase
+    phase: WorkflowPhase,
   ): Promise<CompletionEvidence> {
     const evidence: CompletionEvidence = {
       isComplete: false,
       tasks: [],
       actions: [],
       qualityScore: 0,
-      participantResponses: []
+      participantResponses: [],
     };
-    
+
     // Look for completion indicators in messages
     for (const message of messages) {
       const analysis = await this.analyzeMessage(message, phase);
-      
+
       if (analysis.indicatesCompletion) {
         evidence.tasks.push(analysis.task);
         evidence.actions.push(analysis.action);
         evidence.participantResponses.push(analysis.response);
       }
     }
-    
+
     // Determine if phase is complete
     evidence.isComplete = this.assessPhaseCompletion(evidence, phase);
     evidence.qualityScore = this.calculateQualityScore(evidence);
-    
+
     return evidence;
   }
 }
 ```
 
 ### **QualityAuditor**
+
 ```typescript
 export class QualityAuditor {
   constructor(private memory: OneAgentMemory) {}
@@ -562,16 +571,16 @@ export class QualityAuditor {
   async auditPhaseQuality(
     phase: WorkflowPhase,
     phaseResult: PhaseResult,
-    context: AgentContext
+    context: AgentContext,
   ): Promise<QualityReport> {
     // Get all outputs from this phase
     const outputs = await this.getPhaseOutputs(phase, context);
-    
+
     // Analyze each output for quality
     const qualityAnalyses = await Promise.all(
-      outputs.map(output => this.analyzeOutputQuality(output, phase))
+      outputs.map((output) => this.analyzeOutputQuality(output, phase)),
     );
-    
+
     // Generate overall quality report
     const report: QualityReport = {
       phaseId: phase.id,
@@ -579,9 +588,9 @@ export class QualityAuditor {
       individualScores: qualityAnalyses,
       issues: this.identifyQualityIssues(qualityAnalyses),
       recommendations: this.generateRecommendations(qualityAnalyses),
-      constitutionalCompliance: this.checkConstitutionalCompliance(qualityAnalyses)
+      constitutionalCompliance: this.checkConstitutionalCompliance(qualityAnalyses),
     };
-    
+
     return report;
   }
 
@@ -590,23 +599,23 @@ export class QualityAuditor {
    */
   private async analyzeOutputQuality(
     output: TaskOutput,
-    phase: WorkflowPhase
+    phase: WorkflowPhase,
   ): Promise<QualityAnalysis> {
     const analysis = await this.constitutionalAI.validate(output.content, {
       context: phase.qualityRequirements,
       checkAccuracy: true,
       checkHelpfulness: true,
       checkSafety: true,
-      checkTransparency: true
+      checkTransparency: true,
     });
-    
+
     return {
       outputId: output.id,
       agentId: output.agentId,
       qualityScore: analysis.overallScore,
       constitutionalScore: analysis.constitutionalScore,
       issues: analysis.issues,
-      recommendations: analysis.recommendations
+      recommendations: analysis.recommendations,
     };
   }
 }
@@ -617,6 +626,7 @@ export class QualityAuditor {
 ### **User Request**: "I want to build an AI-powered business automation platform"
 
 #### **Step 1: PlannerAgent Creates Workflow**
+
 ```typescript
 // PlannerAgent automatically:
 const workflow = await plannerAgent.generateWorkflow({
@@ -664,47 +674,47 @@ const workflow = await plannerAgent.generateWorkflow({
 ```
 
 #### **Step 2: PlannerAgent Orchestrates Execution**
+
 ```typescript
 // Create A2A session
 const session = await plannerAgent.createA2ASession({
   name: 'AI Business Platform Analysis',
   participants: ['DevAgent', 'OfficeAgent', 'CoreAgent', 'TriageAgent'],
   mode: 'collaborative',
-  topic: 'AI-powered business automation platform development'
+  topic: 'AI-powered business automation platform development',
 });
 
 // Execute Phase 1: Technical Analysis
-await plannerAgent.assignTasks([
-  { task: 'analyze_technical_requirements', agent: 'DevAgent' },
-  { task: 'assess_ai_implementation', agent: 'DevAgent' },
-  { task: 'evaluate_scalability', agent: 'CoreAgent' }
-], session);
+await plannerAgent.assignTasks(
+  [
+    { task: 'analyze_technical_requirements', agent: 'DevAgent' },
+    { task: 'assess_ai_implementation', agent: 'DevAgent' },
+    { task: 'evaluate_scalability', agent: 'CoreAgent' },
+  ],
+  session,
+);
 
 // Monitor completion through memory
 await plannerAgent.monitorPhaseCompletion(workflow.phases[0], session);
 ```
 
 #### **Step 3: PlannerAgent Audits Quality**
+
 ```typescript
 // Audit task completion by checking memory
 const auditResult = await plannerAgent.auditTaskCompletion(session.id, 0.8);
 
 // Quality check through memory analysis
-const qualityReport = await plannerAgent.validatePhaseQuality(
-  workflow.phases[0],
-  auditResult
-);
+const qualityReport = await plannerAgent.validatePhaseQuality(workflow.phases[0], auditResult);
 
 // If quality insufficient, request improvements
 if (qualityReport.overallScore < 0.8) {
-  await plannerAgent.requestQualityImprovements(
-    workflow.phases[0],
-    qualityReport
-  );
+  await plannerAgent.requestQualityImprovements(workflow.phases[0], qualityReport);
 }
 ```
 
 #### **Step 4: PlannerAgent Learns and Adapts**
+
 ```typescript
 // Store successful patterns
 await plannerAgent.recordSuccessfulPattern({
@@ -714,20 +724,21 @@ await plannerAgent.recordSuccessfulPattern({
   successMetrics: {
     completionTime: actualDuration,
     qualityScore: averageQualityScore,
-    userSatisfaction: userFeedback
-  }
+    userSatisfaction: userFeedback,
+  },
 });
 
 // Optimize future workflows
 await plannerAgent.optimizeWorkflowPattern('business_development', {
   timeConstraints: 'under_1_hour',
-  qualityThreshold: 0.9
+  qualityThreshold: 0.9,
 });
 ```
 
 ## 🚀 **The Result: Truly Intelligent Workflows**
 
 ### **✅ What PlannerAgent Provides**
+
 1. **Automatic Workflow Generation** - Creates optimal workflows based on user intent
 2. **Memory-Driven Auditing** - Monitors task completion through memory analysis
 3. **Quality Assurance** - Validates outputs using Constitutional AI
@@ -736,6 +747,7 @@ await plannerAgent.optimizeWorkflowPattern('business_development', {
 6. **Complete Orchestration** - Manages all agent coordination seamlessly
 
 ### **✅ User Experience**
+
 ```typescript
 // User says: "I want to build an AI-powered business automation platform"
 
@@ -752,6 +764,7 @@ await plannerAgent.optimizeWorkflowPattern('business_development', {
 ```
 
 ### **✅ Memory-Driven Intelligence**
+
 - **Task Completion Detection**: Automatically detects when agents complete tasks through memory analysis
 - **Quality Validation**: Uses Constitutional AI to validate all outputs
 - **Progress Tracking**: Real-time monitoring of workflow progress
@@ -761,21 +774,25 @@ await plannerAgent.optimizeWorkflowPattern('business_development', {
 ## 🎯 **Implementation Timeline**
 
 ### **Phase 1: Core PlannerAgent (1 week)**
+
 - PlannerAgent base class with A2A integration
 - WorkflowEngine for automatic workflow generation
 - Basic task assignment and monitoring
 
 ### **Phase 2: Memory-Driven Auditing (1 week)**
+
 - TaskCompletionMonitor for memory-based progress tracking
 - QualityAuditor for output validation
 - Real-time adaptation capabilities
 
 ### **Phase 3: Learning Engine (1 week)**
+
 - Pattern recognition and storage
 - Workflow optimization algorithms
 - Performance analytics and reporting
 
 ### **Phase 4: Integration & Testing (1 week)**
+
 - Complete system integration
 - User experience testing
 - Performance optimization
@@ -785,6 +802,7 @@ await plannerAgent.optimizeWorkflowPattern('business_development', {
 ## 🏆 **The Vision Realized**
 
 This PlannerAgent implementation creates the world's first AI system where:
+
 - **Workflows generate themselves** based on user intent and learned patterns
 - **Progress is monitored automatically** through memory auditing
 - **Quality is guaranteed** through Constitutional AI validation

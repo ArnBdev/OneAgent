@@ -15,7 +15,7 @@ export function loadYamlFile(filePath: string): unknown {
  */
 export function loadYamlDirectory(dirPath: string): Record<string, unknown> {
   if (!fs.existsSync(dirPath)) return {};
-  const files = fs.readdirSync(dirPath).filter(f => f.endsWith('.yaml') || f.endsWith('.yml'));
+  const files = fs.readdirSync(dirPath).filter((f) => f.endsWith('.yaml') || f.endsWith('.yml'));
   const result: Record<string, unknown> = {};
   for (const file of files) {
     const key = path.basename(file, path.extname(file));

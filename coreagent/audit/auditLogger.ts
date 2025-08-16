@@ -1,7 +1,7 @@
 /**
  * SimpleAuditLogger - Asynchronous logging system for OneAgent
  * Part of Level 2.5 Security Foundation (Phase 1a)
- * 
+ *
  * Provides audit trail functionality with minimal performance impact.
  */
 
@@ -45,7 +45,7 @@ export class SimpleAuditLogger {
       enableConsoleOutput: false,
       bufferSize: 100,
       flushInterval: 5000, // 5 seconds
-      ...config
+      ...config,
     };
 
     this.initializeLogger();
@@ -55,7 +55,7 @@ export class SimpleAuditLogger {
     try {
       // Ensure log directory exists
       await fs.mkdir(this.config.logDirectory, { recursive: true });
-      
+
       // Start flush timer
       this.startFlushTimer();
     } catch (error) {
@@ -75,28 +75,44 @@ export class SimpleAuditLogger {
   /**
    * Logs a general information event
    */
-  async logInfo(category: string, message: string, metadata?: Record<string, unknown>): Promise<void> {
+  async logInfo(
+    category: string,
+    message: string,
+    metadata?: Record<string, unknown>,
+  ): Promise<void> {
     return this.log('INFO', category, message, metadata);
   }
 
   /**
    * Logs a warning event
    */
-  async logWarning(category: string, message: string, metadata?: Record<string, unknown>): Promise<void> {
+  async logWarning(
+    category: string,
+    message: string,
+    metadata?: Record<string, unknown>,
+  ): Promise<void> {
     return this.log('WARN', category, message, metadata);
   }
 
   /**
    * Logs an error event
    */
-  async logError(category: string, message: string, metadata?: Record<string, unknown>): Promise<void> {
+  async logError(
+    category: string,
+    message: string,
+    metadata?: Record<string, unknown>,
+  ): Promise<void> {
     return this.log('ERROR', category, message, metadata);
   }
 
   /**
    * Logs a security-related event
    */
-  async logSecurity(category: string, message: string, metadata?: Record<string, unknown>): Promise<void> {
+  async logSecurity(
+    category: string,
+    message: string,
+    metadata?: Record<string, unknown>,
+  ): Promise<void> {
     return this.log('SECURITY', category, message, metadata);
   }
 
@@ -107,7 +123,7 @@ export class SimpleAuditLogger {
     level: AuditLogEntry['level'],
     category: string,
     message: string,
-  metadata?: Record<string, unknown>
+    metadata?: Record<string, unknown>,
   ): Promise<void> {
     if (this.isShuttingDown) return;
 
@@ -116,7 +132,7 @@ export class SimpleAuditLogger {
       level,
       category,
       message,
-      ...metadata
+      ...metadata,
     };
 
     // Add to buffer (non-blocking)
@@ -142,13 +158,13 @@ export class SimpleAuditLogger {
     agentType: string,
     requestId: string,
     message: string,
-    level: AuditLogEntry['level'] = 'INFO'
+    level: AuditLogEntry['level'] = 'INFO',
   ): Promise<void> {
     return this.log(level, 'REQUEST', message, {
       userId,
       sessionId,
       agentType,
-      requestId
+      requestId,
     });
   }
 
@@ -159,7 +175,7 @@ export class SimpleAuditLogger {
     requestId: string,
     isValid: boolean,
     errors: string[],
-    warnings: string[]
+    warnings: string[],
   ): Promise<void> {
     return this.log(
       isValid ? 'INFO' : 'WARN',
@@ -169,8 +185,8 @@ export class SimpleAuditLogger {
         requestId,
         isValid,
         errors,
-        warnings
-      }
+        warnings,
+      },
     );
   }
 
@@ -185,10 +201,10 @@ export class SimpleAuditLogger {
 
     try {
       const logFile = this.getCurrentLogFile();
-      const logLines = entriesToFlush.map(entry => JSON.stringify(entry)).join('\n') + '\n';
-      
+      const logLines = entriesToFlush.map((entry) => JSON.stringify(entry)).join('\n') + '\n';
+
       await fs.appendFile(logFile, logLines, 'utf8');
-      
+
       // Check file size and rotate if necessary
       await this.rotateLogsIfNeeded(logFile);
     } catch (error) {
@@ -216,11 +232,11 @@ export class SimpleAuditLogger {
         const timestamp = createUnifiedTimestamp().iso.replace(/[:.]/g, '-');
         const rotatedFile = logFile.replace('.log', `-${timestamp}.log`);
         await fs.rename(logFile, rotatedFile);
-        
+
         // Clean up old files
         await this.cleanupOldLogs();
       }
-  } catch {
+    } catch {
       // File might not exist yet, which is fine
     }
   }
@@ -232,11 +248,11 @@ export class SimpleAuditLogger {
     try {
       const files = await fs.readdir(this.config.logDirectory);
       const logFiles: { name: string; path: string; stats: Stats | null }[] = files
-        .filter(f => f.startsWith('audit-') && f.endsWith('.log'))
-        .map(f => ({
+        .filter((f) => f.startsWith('audit-') && f.endsWith('.log'))
+        .map((f) => ({
           name: f,
           path: path.join(this.config.logDirectory, f),
-          stats: null
+          stats: null,
         }));
 
       // Get file stats
@@ -253,14 +269,14 @@ export class SimpleAuditLogger {
         .filter((f): f is { name: string; path: string; stats: Stats } => f.stats !== null)
         .sort((a, b) => b.stats.mtime.getTime() - a.stats.mtime.getTime())
         .slice(this.config.maxFiles) // Keep only the newest N files
-    .forEach(async (file) => {
+        .forEach(async (file) => {
           try {
             await fs.unlink(file.path);
           } catch (error) {
             console.error(`Failed to delete old log file ${file.name}:`, error);
           }
         });
-  } catch (error) {
+    } catch (error) {
       console.error('Failed to cleanup old logs:', error);
     }
   }
@@ -270,7 +286,7 @@ export class SimpleAuditLogger {
    */
   async shutdown(): Promise<void> {
     this.isShuttingDown = true;
-    
+
     if (this.flushTimer) {
       clearInterval(this.flushTimer);
       this.flushTimer = null;
@@ -286,7 +302,7 @@ export class SimpleAuditLogger {
   getStats(): { bufferSize: number; config: AuditLoggerConfig } {
     return {
       bufferSize: this.logBuffer.length,
-      config: { ...this.config }
+      config: { ...this.config },
     };
   }
 }

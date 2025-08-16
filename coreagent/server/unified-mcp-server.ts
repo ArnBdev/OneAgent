@@ -6,10 +6,10 @@ dotenv.config({ path: path.join(process.cwd(), '.env') });
 
 /**
  * OneAgent Unified MCP HTTP Server
- * 
+ *
  * Unified entry point for all OneAgent MCP functionality.
  * Supports HTTP MCP protocol for VS Code Copilot Chat integration.
- * 
+ *
  * Architecture:
  * - Single source of truth via OneAgentEngine
  * - Constitutional AI validation
@@ -23,7 +23,15 @@ dotenv.config({ path: path.join(process.cwd(), '.env') });
 // Avoid logging secrets in output
 
 import { OneAgentEngine, OneAgentRequest, OneAgentResponse } from '../OneAgentEngine';
-import { createUnifiedTimestamp, UnifiedBackboneService, getUnifiedErrorHandler, getAppVersion, getAppName, OneAgentUnifiedMetadataService, OneAgentUnifiedTimeService } from '../utils/UnifiedBackboneService';
+import {
+  createUnifiedTimestamp,
+  UnifiedBackboneService,
+  getUnifiedErrorHandler,
+  getAppVersion,
+  getAppName,
+  OneAgentUnifiedMetadataService,
+  OneAgentUnifiedTimeService,
+} from '../utils/UnifiedBackboneService';
 import { createAgentCard } from '../types/AgentCard';
 import { SimpleAuditLogger } from '../audit/auditLogger';
 import passport from 'passport';
@@ -44,8 +52,11 @@ app.use(passport.initialize());
 app.use((req: Request, res: Response, next: NextFunction) => {
   res.header('Access-Control-Allow-Origin', '*');
   res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
-  res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization');
-  
+  res.header(
+    'Access-Control-Allow-Headers',
+    'Origin, X-Requested-With, Content-Type, Accept, Authorization',
+  );
+
   if (req.method === 'OPTIONS') {
     res.sendStatus(200);
   } else {
@@ -68,18 +79,18 @@ const oneAgent = OneAgentEngine.getInstance({
         isViolated: false,
         confidence: 0.95,
         validationRule: 'prefer_uncertainty_over_speculation',
-        severityLevel: 'high' as const
+        severityLevel: 'high' as const,
       },
       {
         id: 'transparency',
-        name: 'Transparency', 
+        name: 'Transparency',
         description: 'Explain reasoning and acknowledge limitations',
         category: 'transparency' as const,
         weight: 0.8,
         isViolated: false,
         confidence: 0.9,
         validationRule: 'explain_reasoning_and_limitations',
-        severityLevel: 'medium' as const
+        severityLevel: 'medium' as const,
       },
       {
         id: 'helpfulness',
@@ -90,7 +101,7 @@ const oneAgent = OneAgentEngine.getInstance({
         isViolated: false,
         confidence: 0.85,
         validationRule: 'actionable_relevant_guidance',
-        severityLevel: 'medium' as const
+        severityLevel: 'medium' as const,
       },
       {
         id: 'safety',
@@ -101,17 +112,17 @@ const oneAgent = OneAgentEngine.getInstance({
         isViolated: false,
         confidence: 0.95,
         validationRule: 'avoid_harmful_misleading_content',
-        severityLevel: 'critical' as const
-      }
-    ]
+        severityLevel: 'critical' as const,
+      },
+    ],
   },
   memory: {
     enabled: true,
     provider: 'mem0',
     config: {
-      retentionDays: 30
-    }
-  }
+      retentionDays: 30,
+    },
+  },
 });
 
 // Canonical server identifiers (resolved via backbone/package.json)
@@ -188,7 +199,7 @@ const MCP_PROTOCOL_VERSION = '2025-06-18';
 // Initialize audit logger
 const auditLogger = new SimpleAuditLogger({
   logDirectory: 'logs/mcp-server',
-  enableConsoleOutput: process.env.NODE_ENV === 'development'
+  enableConsoleOutput: process.env.NODE_ENV === 'development',
 });
 
 // Store server state
@@ -213,9 +224,9 @@ function sendMcpNotificationToAllSseClients(method: string, params: unknown) {
   const notification = {
     jsonrpc: '2.0',
     method,
-    params
+    params,
   };
-  sseClients.forEach(clientRes => {
+  sseClients.forEach((clientRes) => {
     sendSseEvent(clientRes, 'mcpNotification', notification);
   });
 }
@@ -226,20 +237,20 @@ function sendMcpNotificationToAllSseClients(method: string, params: unknown) {
 async function initializeServer(): Promise<void> {
   try {
     await auditLogger.logInfo('MCP_SERVER', 'Initializing OneAgent Unified MCP Server...', {});
-    
+
     await oneAgent.initialize('mcp-http');
-    
-    const mcpEndpoint = environmentConfig.endpoints.mcp.url.replace(/\/$/, '') + environmentConfig.endpoints.mcp.path;
+
+    const mcpEndpoint =
+      environmentConfig.endpoints.mcp.url.replace(/\/$/, '') + environmentConfig.endpoints.mcp.path;
     await auditLogger.logInfo('MCP_SERVER', 'OneAgent Unified MCP Server ready', {
       protocol: mcpEndpoint,
       constitutionalAI: 'ACTIVE',
       bmadFramework: 'ACTIVE',
-      unifiedTools: 'ACTIVE'
+      unifiedTools: 'ACTIVE',
     });
-    
   } catch (error) {
-    await auditLogger.logError('MCP_SERVER', 'Server initialization failed', { 
-      error: error instanceof Error ? error.message : String(error)
+    await auditLogger.logError('MCP_SERVER', 'Server initialization failed', {
+      error: error instanceof Error ? error.message : String(error),
     });
     throw error;
   }
@@ -254,52 +265,52 @@ async function handleMCPRequest(mcpRequest: MCPRequest): Promise<MCPResponse> {
     if (mcpRequest.method === 'initialize') {
       return handleInitialize(mcpRequest);
     }
-    
+
     if (mcpRequest.method === 'notifications/initialized') {
       return { jsonrpc: '2.0', id: mcpRequest.id, result: {} };
     }
-    
+
     if (mcpRequest.method === 'tools/list') {
       return handleToolsList(mcpRequest);
     }
-    
+
     if (mcpRequest.method === 'tools/call') {
       return handleToolCall(mcpRequest);
     }
-    
+
     if (mcpRequest.method === 'resources/list') {
       return handleResourcesList(mcpRequest);
     }
-    
+
     if (mcpRequest.method === 'resources/read') {
       return handleResourceRead(mcpRequest);
     }
-    
+
     if (mcpRequest.method === 'prompts/list') {
       return handlePromptsList(mcpRequest);
     }
-    
+
     if (mcpRequest.method === 'prompts/get') {
       return handlePromptGet(mcpRequest);
     }
-    
+
     // MCP 2025 Enhanced Methods
     if (mcpRequest.method === 'tools/sets') {
       return handleToolSets(mcpRequest);
     }
-    
+
     if (mcpRequest.method === 'resources/templates') {
       return handleResourceTemplates(mcpRequest);
     }
-    
+
     if (mcpRequest.method === 'sampling/createMessage') {
       return handleSampling(mcpRequest);
     }
-    
+
     if (mcpRequest.method === 'auth/status') {
       return handleAuthStatus(mcpRequest);
     }
-    
+
     // Example: Elicitation support
     if (mcpRequest.method === 'agent/elicitation') {
       return {
@@ -308,33 +319,35 @@ async function handleMCPRequest(mcpRequest: MCPRequest): Promise<MCPResponse> {
         result: {
           type: 'elicitation',
           prompt: 'Please clarify your request: ...',
-          context: {}
-        }
+          context: {},
+        },
       };
     }
-    
+
     // Convert to OneAgent request
     const oneAgentRequest: OneAgentRequest = {
       id: String(mcpRequest.id),
       type: determineRequestType(mcpRequest.method),
       method: mcpRequest.method,
       params: mcpRequest.params || {},
-      timestamp: createUnifiedTimestamp().iso
+      timestamp: createUnifiedTimestamp().iso,
     };
-    
+
     const oneAgentResponse = await oneAgent.processRequest(oneAgentRequest);
-    
+
     return convertToMCPResponse(mcpRequest.id, oneAgentResponse);
-    
   } catch (error) {
     // Canonical error handling
     try {
-      await getUnifiedErrorHandler().handleError(error instanceof Error ? error : new Error(String(error)), {
-        component: 'UnifiedMCPServer',
-        operation: 'handleMCPRequest',
-        method: mcpRequest?.method,
-        requestId: mcpRequest?.id
-      });
+      await getUnifiedErrorHandler().handleError(
+        error instanceof Error ? error : new Error(String(error)),
+        {
+          component: 'UnifiedMCPServer',
+          operation: 'handleMCPRequest',
+          method: mcpRequest?.method,
+          requestId: mcpRequest?.id,
+        },
+      );
     } catch {
       // swallow secondary error handler issues
     }
@@ -344,8 +357,8 @@ async function handleMCPRequest(mcpRequest: MCPRequest): Promise<MCPResponse> {
       error: {
         code: -32603,
         message: error instanceof Error ? error.message : 'Internal error',
-        data: { timestamp: createUnifiedTimestamp().iso }
-      }
+        data: { timestamp: createUnifiedTimestamp().iso },
+      },
     };
   }
 }
@@ -363,71 +376,76 @@ function handleInitialize(mcpRequest: MCPRequest): MCPResponse {
     return {
       jsonrpc: '2.0',
       id: mcpRequest.id,
-      error: { code: -32602, message: 'Invalid initialize params: clientInfo required' }
+      error: { code: -32602, message: 'Invalid initialize params: clientInfo required' },
     };
   }
   clientInfo = params.clientInfo || null;
   serverInitialized = true;
-  
+
   console.log(`🤝 MCP Client connected: ${clientInfo.name} v${clientInfo.version}`);
-  
+
   const capabilities: MCPServerCapabilities = {
     logging: {},
     prompts: { listChanged: true },
-    resources: { 
-      subscribe: true, 
+    resources: {
+      subscribe: true,
       listChanged: true,
-      templates: true // MCP 2025 enhanced resources
+      templates: true, // MCP 2025 enhanced resources
     },
-    tools: { 
+    tools: {
       listChanged: true,
-      toolSets: true // MCP 2025 tool sets
+      toolSets: true, // MCP 2025 tool sets
     },
     sampling: {
-      enabled: true // MCP 2025 sampling support
+      enabled: true, // MCP 2025 sampling support
     },
     auth: {
       oauth2: {
-        authorizationUrl: process.env.OAUTH_AUTHORIZATION_URL || 'https://auth.oneagent.ai/oauth/authorize',
+        authorizationUrl:
+          process.env.OAUTH_AUTHORIZATION_URL || 'https://auth.oneagent.ai/oauth/authorize',
         tokenUrl: process.env.OAUTH_TOKEN_URL || 'https://auth.oneagent.ai/oauth/token',
-        scopes: ['read', 'write', 'analyze'] // MCP 2025 OAuth integration
-      }
-    }
+        scopes: ['read', 'write', 'analyze'], // MCP 2025 OAuth integration
+      },
+    },
   };
-  
+
   return {
     jsonrpc: '2.0',
     id: mcpRequest.id,
     result: {
       protocolVersion: MCP_PROTOCOL_VERSION, // Use the latest protocol version
       capabilities,
-    serverInfo: {
-  name: SERVER_NAME,
-  version: SERVER_VERSION,
-        description: 'Professional AI Development Platform with Constitutional AI, BMAD Framework, and MCP 2025 enhancements'
-      }
-    }
+      serverInfo: {
+        name: SERVER_NAME,
+        version: SERVER_VERSION,
+        description:
+          'Professional AI Development Platform with Constitutional AI, BMAD Framework, and MCP 2025 enhancements',
+      },
+    },
   };
 }
 
 function handleToolsList(mcpRequest: MCPRequest): MCPResponse {
   const tools = oneAgent.getAvailableTools();
-  
+
   return {
     jsonrpc: '2.0',
     id: mcpRequest.id,
     result: {
-      tools: tools.map(tool => ({
+      tools: tools.map((tool) => ({
         name: tool.name,
         description: tool.description,
-        inputSchema: tool.inputSchema
-      }))
-    }
+        inputSchema: tool.inputSchema,
+      })),
+    },
   };
 }
 
 async function handleToolCall(mcpRequest: MCPRequest): Promise<MCPResponse> {
-  const params = mcpRequest.params as unknown as { name: string; arguments?: Record<string, unknown> };
+  const params = mcpRequest.params as unknown as {
+    name: string;
+    arguments?: Record<string, unknown>;
+  };
   const { name, arguments: args } = params;
   if (!name || typeof name !== 'string') {
     return {
@@ -435,8 +453,8 @@ async function handleToolCall(mcpRequest: MCPRequest): Promise<MCPResponse> {
       id: mcpRequest.id,
       error: {
         code: -32602,
-        message: 'Invalid tool name'
-      }
+        message: 'Invalid tool name',
+      },
     };
   }
   // Defensive: Log and check arguments
@@ -447,32 +465,33 @@ async function handleToolCall(mcpRequest: MCPRequest): Promise<MCPResponse> {
       id: mcpRequest.id,
       error: {
         code: -32602,
-        message: 'Tool call missing required arguments property. Expected { name, arguments: { ... } }.'
-      }
+        message:
+          'Tool call missing required arguments property. Expected { name, arguments: { ... } }.',
+      },
     };
   }
-  
+
   const oneAgentRequest: OneAgentRequest = {
     id: String(mcpRequest.id),
     type: 'tool_call',
     method: name,
     params: args,
-    timestamp: createUnifiedTimestamp().iso
+    timestamp: createUnifiedTimestamp().iso,
   };
-  
+
   const response = await oneAgent.processRequest(oneAgentRequest);
-  
+
   if (!response.success) {
     return {
       jsonrpc: '2.0',
       id: mcpRequest.id,
       error: {
         code: -32603,
-        message: response.error?.message || 'Tool execution failed'
-      }
+        message: response.error?.message || 'Tool execution failed',
+      },
     };
   }
-  
+
   // Structured output per MCP 2025-06-18
   return {
     jsonrpc: '2.0',
@@ -481,27 +500,27 @@ async function handleToolCall(mcpRequest: MCPRequest): Promise<MCPResponse> {
       toolResult: {
         type: typeof response.data,
         data: response.data,
-        success: true
+        success: true,
       },
-      isError: false
-    }
+      isError: false,
+    },
   };
 }
 
 function handleResourcesList(mcpRequest: MCPRequest): MCPResponse {
   const resources = oneAgent.getAvailableResources();
-  
+
   return {
     jsonrpc: '2.0',
     id: mcpRequest.id,
     result: {
-      resources: resources.map(resource => ({
+      resources: resources.map((resource) => ({
         uri: resource.uri,
         name: resource.name,
         description: resource.description,
-        mimeType: resource.mimeType
-      }))
-    }
+        mimeType: resource.mimeType,
+      })),
+    },
   };
 }
 
@@ -510,29 +529,34 @@ async function handleResourceRead(mcpRequest: MCPRequest): Promise<MCPResponse> 
   const { uri } = params;
   // Start timing (canonical time)
   const startUnix = createUnifiedTimestamp().unix;
-  
+
   try {
     // Enhanced resource handling with backbone metadata and temporal awareness
     if (uri.startsWith('oneagent://')) {
       // Parse OneAgent URI for enhanced processing
       const uriParts = uri.replace('oneagent://', '').split('/');
       const resourceType = uriParts[0]; // memory, system, analysis, development
-      const operation = uriParts[1];   // search, health, constitutional, docs
-      const parameter = uriParts[2];   // query, component, contentId, technology
-      
+      const operation = uriParts[1]; // search, health, constitutional, docs
+      const parameter = uriParts[2]; // query, component, contentId, technology
+
       // Create enhanced OneAgent request with backbone metadata
       const oneAgentRequest: OneAgentRequest = {
         id: String(mcpRequest.id),
         type: 'resource_get',
-        method: resourceType === 'development' && operation === 'docs' 
-          ? 'oneagent_context7_query'
-          : `oneagent_${resourceType}_${operation}`,
+        method:
+          resourceType === 'development' && operation === 'docs'
+            ? 'oneagent_context7_query'
+            : `oneagent_${resourceType}_${operation}`,
         params: {
-          [resourceType === 'memory' ? 'query' : 
-           resourceType === 'system' ? 'component' :
-           resourceType === 'analysis' ? 'contentId' :
-           resourceType === 'development' ? 'query' :
-           'timeWindow']: parameter,
+          [resourceType === 'memory'
+            ? 'query'
+            : resourceType === 'system'
+              ? 'component'
+              : resourceType === 'analysis'
+                ? 'contentId'
+                : resourceType === 'development'
+                  ? 'query'
+                  : 'timeWindow']: parameter,
           enableBackboneMetadata: true,
           enableConstitutionalValidation: true,
           enableTemporalAwareness: true,
@@ -541,74 +565,26 @@ async function handleResourceRead(mcpRequest: MCPRequest): Promise<MCPResponse> 
           ...(resourceType === 'development' && {
             storeInMemory: true,
             enhanceCollectiveKnowledge: true,
-            technology: parameter
-          })
+            technology: parameter,
+          }),
         },
-        timestamp: createUnifiedTimestamp().iso
+        timestamp: createUnifiedTimestamp().iso,
       };
-      
-  const response = await oneAgent.processRequest(oneAgentRequest);
-      
-      if (!response.success) {
-        return {
-          jsonrpc: '2.0',
-          id: mcpRequest.id,
-          error: {
-            code: -32603,
-            message: response.error?.message || 'Enhanced resource read failed'
-          }
-        };
-      }
-      
-      // Return with enhanced metadata including backbone and temporal info
-  const endUnix = createUnifiedTimestamp().unix;
-  const processingMs = Math.max(0, endUnix - startUnix);
-      return {
-        jsonrpc: '2.0',
-        id: mcpRequest.id,
-        result: {
-          contents: [{
-            uri,
-            mimeType: 'application/json',
-            text: JSON.stringify({
-              data: response.data,
-              metadata: {
-                backboneCompliant: true,
-                constitutionalValidated: true,
-                temporalContext: createUnifiedTimestamp().iso,
-        qualityScore: response.qualityScore || 'N/A',
-        processingTime: `${processingMs}ms`
-              }
-            }, null, 2)
-          }]
-        }
-      };
-    }
-    
-    // Fallback to standard OneAgent processing for non-oneagent:// URIs
-    try {
-      // Use OneAgent engine for resource handling
-      const oneAgentRequest: OneAgentRequest = {
-        id: String(mcpRequest.id),
-        type: 'resource_get',
-        method: uri,
-        params: mcpRequest.params || {},
-        timestamp: createUnifiedTimestamp().iso
-      };
-      
+
       const response = await oneAgent.processRequest(oneAgentRequest);
-      
+
       if (!response.success) {
         return {
           jsonrpc: '2.0',
           id: mcpRequest.id,
           error: {
             code: -32603,
-            message: response.error?.message || 'Resource read failed'
-          }
+            message: response.error?.message || 'Enhanced resource read failed',
+          },
         };
       }
-      
+
+      // Return with enhanced metadata including backbone and temporal info
       const endUnix = createUnifiedTimestamp().unix;
       const processingMs = Math.max(0, endUnix - startUnix);
       return {
@@ -619,90 +595,165 @@ async function handleResourceRead(mcpRequest: MCPRequest): Promise<MCPResponse> 
             {
               uri,
               mimeType: 'application/json',
-        text: JSON.stringify({ data: response.data, metadata: { processingTime: `${processingMs}ms`, temporalContext: createUnifiedTimestamp().iso } }, null, 2)
-            }
-          ]
-        }
+              text: JSON.stringify(
+                {
+                  data: response.data,
+                  metadata: {
+                    backboneCompliant: true,
+                    constitutionalValidated: true,
+                    temporalContext: createUnifiedTimestamp().iso,
+                    qualityScore: response.qualityScore || 'N/A',
+                    processingTime: `${processingMs}ms`,
+                  },
+                },
+                null,
+                2,
+              ),
+            },
+          ],
+        },
       };
-      
+    }
+
+    // Fallback to standard OneAgent processing for non-oneagent:// URIs
+    try {
+      // Use OneAgent engine for resource handling
+      const oneAgentRequest: OneAgentRequest = {
+        id: String(mcpRequest.id),
+        type: 'resource_get',
+        method: uri,
+        params: mcpRequest.params || {},
+        timestamp: createUnifiedTimestamp().iso,
+      };
+
+      const response = await oneAgent.processRequest(oneAgentRequest);
+
+      if (!response.success) {
+        return {
+          jsonrpc: '2.0',
+          id: mcpRequest.id,
+          error: {
+            code: -32603,
+            message: response.error?.message || 'Resource read failed',
+          },
+        };
+      }
+
+      const endUnix = createUnifiedTimestamp().unix;
+      const processingMs = Math.max(0, endUnix - startUnix);
+      return {
+        jsonrpc: '2.0',
+        id: mcpRequest.id,
+        result: {
+          contents: [
+            {
+              uri,
+              mimeType: 'application/json',
+              text: JSON.stringify(
+                {
+                  data: response.data,
+                  metadata: {
+                    processingTime: `${processingMs}ms`,
+                    temporalContext: createUnifiedTimestamp().iso,
+                  },
+                },
+                null,
+                2,
+              ),
+            },
+          ],
+        },
+      };
     } catch (error) {
       try {
-        await getUnifiedErrorHandler().handleError(error instanceof Error ? error : new Error(String(error)), {
-          component: 'UnifiedMCPServer',
-          operation: 'handleResourceRead-fallback',
-          uri
-        });
-  } catch { /* ignore secondary error handler failure */ }
+        await getUnifiedErrorHandler().handleError(
+          error instanceof Error ? error : new Error(String(error)),
+          {
+            component: 'UnifiedMCPServer',
+            operation: 'handleResourceRead-fallback',
+            uri,
+          },
+        );
+      } catch {
+        /* ignore secondary error handler failure */
+      }
       return {
         jsonrpc: '2.0',
         id: mcpRequest.id,
         error: {
           code: -32603,
-          message: error instanceof Error ? error.message : 'Resource read failed'
-        }
+          message: error instanceof Error ? error.message : 'Resource read failed',
+        },
       };
     }
-    
   } catch (error) {
     try {
-      await getUnifiedErrorHandler().handleError(error instanceof Error ? error : new Error(String(error)), {
-        component: 'UnifiedMCPServer',
-        operation: 'handleResourceRead',
-        uri
-      });
-  } catch { /* ignore secondary error handler failure */ }
+      await getUnifiedErrorHandler().handleError(
+        error instanceof Error ? error : new Error(String(error)),
+        {
+          component: 'UnifiedMCPServer',
+          operation: 'handleResourceRead',
+          uri,
+        },
+      );
+    } catch {
+      /* ignore secondary error handler failure */
+    }
     return {
       jsonrpc: '2.0',
       id: mcpRequest.id,
       error: {
         code: -32603,
-        message: error instanceof Error ? error.message : 'Resource read failed'
-      }
+        message: error instanceof Error ? error.message : 'Resource read failed',
+      },
     };
   }
 }
 
 function handlePromptsList(mcpRequest: MCPRequest): MCPResponse {
   const prompts = oneAgent.getAvailablePrompts();
-  
+
   return {
     jsonrpc: '2.0',
     id: mcpRequest.id,
     result: {
-      prompts: prompts.map(prompt => ({
+      prompts: prompts.map((prompt) => ({
         name: prompt.name,
         description: prompt.description,
-        arguments: prompt.arguments
-      }))
-    }
+        arguments: prompt.arguments,
+      })),
+    },
   };
 }
 
 async function handlePromptGet(mcpRequest: MCPRequest): Promise<MCPResponse> {
-  const params = mcpRequest.params as unknown as { name: string; arguments?: Record<string, unknown> };
+  const params = mcpRequest.params as unknown as {
+    name: string;
+    arguments?: Record<string, unknown>;
+  };
   const { name, arguments: args } = params;
-  
+
   const oneAgentRequest: OneAgentRequest = {
     id: String(mcpRequest.id),
     type: 'prompt_invoke',
     method: name,
     params: args || {},
-    timestamp: createUnifiedTimestamp().iso
+    timestamp: createUnifiedTimestamp().iso,
   };
-  
+
   const response = await oneAgent.processRequest(oneAgentRequest);
-  
+
   if (!response.success) {
     return {
       jsonrpc: '2.0',
       id: mcpRequest.id,
       error: {
         code: -32603,
-        message: response.error?.message || 'Prompt execution failed'
-      }
+        message: response.error?.message || 'Prompt execution failed',
+      },
     };
   }
-  
+
   return {
     jsonrpc: '2.0',
     id: mcpRequest.id,
@@ -713,15 +764,18 @@ async function handlePromptGet(mcpRequest: MCPRequest): Promise<MCPResponse> {
           role: 'user',
           content: {
             type: 'text',
-            text: JSON.stringify(response.data, null, 2)
-          }
-        }
-      ]
-    }
+            text: JSON.stringify(response.data, null, 2),
+          },
+        },
+      ],
+    },
   };
 }
 
-function convertToMCPResponse(id: string | number, oneAgentResponse: OneAgentResponse): MCPResponse {
+function convertToMCPResponse(
+  id: string | number,
+  oneAgentResponse: OneAgentResponse,
+): MCPResponse {
   if (!oneAgentResponse.success) {
     return {
       jsonrpc: '2.0',
@@ -729,15 +783,17 @@ function convertToMCPResponse(id: string | number, oneAgentResponse: OneAgentRes
       error: {
         code: -32603,
         message: oneAgentResponse.error?.message || 'Request failed',
-        data: oneAgentResponse.error?.details ? oneAgentResponse.error.details as Record<string, unknown> : null
-      }
+        data: oneAgentResponse.error?.details
+          ? (oneAgentResponse.error.details as Record<string, unknown>)
+          : null,
+      },
     };
   }
-  
+
   return {
     jsonrpc: '2.0',
     id,
-    result: oneAgentResponse.data || null
+    result: oneAgentResponse.data || null,
   };
 }
 
@@ -755,13 +811,13 @@ app.post('/mcp', async (req: Request, res: Response) => {
         id: null,
         error: {
           code: -32600,
-          message: 'Batch requests are not supported in MCP 2025-06-18.'
-        }
+          message: 'Batch requests are not supported in MCP 2025-06-18.',
+        },
       });
       return;
     }
     const mcpRequest: MCPRequest = req.body;
-    
+
     // Validate MCP request format
     if (!mcpRequest.jsonrpc || mcpRequest.jsonrpc !== '2.0') {
       res.status(400).json({
@@ -769,46 +825,50 @@ app.post('/mcp', async (req: Request, res: Response) => {
         id: mcpRequest.id || null,
         error: {
           code: -32600,
-          message: 'Invalid Request: missing or invalid jsonrpc field'
-        }
+          message: 'Invalid Request: missing or invalid jsonrpc field',
+        },
       });
       return;
     }
-    
+
     if (!mcpRequest.method) {
       res.status(400).json({
         jsonrpc: '2.0',
         id: mcpRequest.id || null,
         error: {
           code: -32600,
-          message: 'Invalid Request: missing method field'
-        }
+          message: 'Invalid Request: missing method field',
+        },
       });
       return;
     }
-    
+
     console.log(`📥 MCP Request: ${mcpRequest.method} (ID: ${mcpRequest.id})`);
-    
+
     const response = await handleMCPRequest(mcpRequest);
     // Add protocol version header
     res.setHeader('X-MCP-Protocol-Version', MCP_PROTOCOL_VERSION);
     res.json(response);
-    
   } catch (error) {
     try {
-      await getUnifiedErrorHandler().handleError(error instanceof Error ? error : new Error(String(error)), {
-        component: 'UnifiedMCPServer',
-        operation: 'mcpEndpoint'
-      });
-  } catch { /* ignore secondary error handler failure */ }
+      await getUnifiedErrorHandler().handleError(
+        error instanceof Error ? error : new Error(String(error)),
+        {
+          component: 'UnifiedMCPServer',
+          operation: 'mcpEndpoint',
+        },
+      );
+    } catch {
+      /* ignore secondary error handler failure */
+    }
     res.status(500).json({
       jsonrpc: '2.0',
       id: req.body?.id || null,
       error: {
         code: -32603,
         message: 'Internal error',
-        data: { timestamp: createUnifiedTimestamp().iso }
-      }
+        data: { timestamp: createUnifiedTimestamp().iso },
+      },
     });
   }
 });
@@ -827,7 +887,7 @@ app.get('/mcp', (req: Request, res: Response) => {
   sendSseEvent(res, 'mcpNotification', {
     jsonrpc: '2.0',
     method: 'notifications/initialized',
-    params: { timestamp: createUnifiedTimestamp().iso }
+    params: { timestamp: createUnifiedTimestamp().iso },
   });
 
   // Heartbeat
@@ -855,12 +915,12 @@ app.get('/mcp', (req: Request, res: Response) => {
 app.get('/health', (_req: Request, res: Response) => {
   res.json({
     status: 'healthy',
-  server: SERVER_NAME,
-  version: SERVER_VERSION,
+    server: SERVER_NAME,
+    version: SERVER_VERSION,
     initialized: serverInitialized,
     constitutional: true,
     bmad: true,
-    timestamp: createUnifiedTimestamp().iso
+    timestamp: createUnifiedTimestamp().iso,
   });
 });
 
@@ -870,25 +930,25 @@ app.get('/health', (_req: Request, res: Response) => {
 app.get('/info', (_req: Request, res: Response) => {
   res.json({
     server: {
-  name: SERVER_NAME,
-  version: SERVER_VERSION,
-      protocol: `HTTP MCP ${MCP_PROTOCOL_VERSION}` // Use the latest protocol version
+      name: SERVER_NAME,
+      version: SERVER_VERSION,
+      protocol: `HTTP MCP ${MCP_PROTOCOL_VERSION}`, // Use the latest protocol version
     },
     features: {
       constitutionalAI: true,
       bmadFramework: true,
       multiAgent: true,
       unifiedMemory: true,
-      qualityScoring: true
+      qualityScoring: true,
     },
     endpoints: {
       mcp: '/mcp',
       health: '/health',
-      info: '/info'
+      info: '/info',
     },
     client: clientInfo,
     initialized: serverInitialized,
-    timestamp: createUnifiedTimestamp().iso
+    timestamp: createUnifiedTimestamp().iso,
   });
 });
 
@@ -919,28 +979,26 @@ function getAgentCardPayload() {
         streaming: true,
         pushNotifications: false,
         stateTransitionHistory: true,
-        extensions: []
+        extensions: [],
       },
       skills: [],
       status: 'active',
-      health: 'healthy'
+      health: 'healthy',
     },
-    { timeService, metadataService }
+    { timeService, metadataService },
   );
 
   // Populate common A2A fields we expose publicly
   return {
     ...card,
     preferredTransport: 'JSONRPC',
-    additionalInterfaces: [
-      { url: environmentConfig.endpoints.mcp.url, transport: 'JSONRPC' }
-    ],
+    additionalInterfaces: [{ url: environmentConfig.endpoints.mcp.url, transport: 'JSONRPC' }],
     endpoints: {
       a2a: environmentConfig.endpoints.mcp.url,
-      mcp: environmentConfig.endpoints.mcp.url
+      mcp: environmentConfig.endpoints.mcp.url,
     },
     supportsAuthenticatedExtendedCard: false,
-    iconUrl: card.iconUrl || undefined
+    iconUrl: card.iconUrl || undefined,
   };
 }
 
@@ -970,9 +1028,9 @@ app.get('/.well-known/agent.json', (_req: Request, res: Response) => {
 async function startServer(): Promise<void> {
   try {
     await initializeServer();
-    
+
     const port = UnifiedBackboneService.config.mcpPort;
-    
+
     const server = app.listen(port, () => {
       // Canonical startup banner
       console.log('==============================================');
@@ -982,10 +1040,10 @@ async function startServer(): Promise<void> {
       console.log('🌟 OneAgent Unified MCP Server Started Successfully!');
       console.log('');
       console.log('📡 Server Information:');
-  const base = environmentConfig.endpoints.mcp.url.replace(/\/mcp$/, '');
-  console.log(`   • HTTP MCP Endpoint: ${base}/mcp`);
-  console.log(`   • Health Check: ${base}/health`);
-  console.log(`   • Server Info: ${base}/info`);
+      const base = environmentConfig.endpoints.mcp.url.replace(/\/mcp$/, '');
+      console.log(`   • HTTP MCP Endpoint: ${base}/mcp`);
+      console.log(`   • Health Check: ${base}/health`);
+      console.log(`   • Server Info: ${base}/info`);
       console.log('');
       console.log('🎯 Features:');
       console.log('   • Constitutional AI Validation ✅');
@@ -999,7 +1057,7 @@ async function startServer(): Promise<void> {
       console.log('');
       console.log('🎪 Ready for VS Code Copilot Chat! 🎪');
     });
-    
+
     // Graceful shutdown
     process.on('SIGINT', () => {
       console.log('\n🛑 Shutting down OneAgent Unified MCP Server...');
@@ -1009,7 +1067,7 @@ async function startServer(): Promise<void> {
         process.exit(0);
       });
     });
-    
+
     process.on('SIGTERM', () => {
       console.log('\n🛑 Shutting down OneAgent Unified MCP Server...');
       server.close(async () => {
@@ -1018,7 +1076,6 @@ async function startServer(): Promise<void> {
         process.exit(0);
       });
     });
-    
   } catch (error) {
     console.error('💥 Failed to start OneAgent Unified MCP Server:', error);
     process.exit(1);
@@ -1026,7 +1083,7 @@ async function startServer(): Promise<void> {
 }
 
 // Auto-start server
-startServer().catch(error => {
+startServer().catch((error) => {
   console.error('💥 Startup failed:', error);
   process.exit(1);
 });
@@ -1036,13 +1093,19 @@ export { startServer, oneAgent };
 // Example: Dynamic notification triggers for tools/resources/prompts
 // These can be called after any change to tools/resources/prompts
 function notifyToolsListChanged() {
-  sendMcpNotificationToAllSseClients('tools/listChanged', { timestamp: createUnifiedTimestamp().iso });
+  sendMcpNotificationToAllSseClients('tools/listChanged', {
+    timestamp: createUnifiedTimestamp().iso,
+  });
 }
 function notifyResourcesListChanged() {
-  sendMcpNotificationToAllSseClients('resources/listChanged', { timestamp: createUnifiedTimestamp().iso });
+  sendMcpNotificationToAllSseClients('resources/listChanged', {
+    timestamp: createUnifiedTimestamp().iso,
+  });
 }
 function notifyPromptsListChanged() {
-  sendMcpNotificationToAllSseClients('prompts/listChanged', { timestamp: createUnifiedTimestamp().iso });
+  sendMcpNotificationToAllSseClients('prompts/listChanged', {
+    timestamp: createUnifiedTimestamp().iso,
+  });
 }
 
 // Wire dynamic notifications to OneAgentEngine events for full compliance
@@ -1066,36 +1129,54 @@ if (typeof oneAgent.on === 'function') {
 function handleToolSets(mcpRequest: MCPRequest): MCPResponse {
   // Tool sets organize tools into logical groups for better UX
   const toolSets = {
-    "constitutional-ai": {
-      name: "Constitutional AI",
-      description: "AI validation and quality assurance tools",
-      tools: ["oneagent_constitutional_validate", "oneagent_bmad_analyze", "oneagent_quality_score"],
-      icon: "shield-check"
+    'constitutional-ai': {
+      name: 'Constitutional AI',
+      description: 'AI validation and quality assurance tools',
+      tools: [
+        'oneagent_constitutional_validate',
+        'oneagent_bmad_analyze',
+        'oneagent_quality_score',
+      ],
+      icon: 'shield-check',
     },
-    "memory-context": {
-      name: "Memory & Context",
-      description: "Memory management and context handling tools",
-      tools: ["oneagent_memory_search", "oneagent_memory_add", "oneagent_memory_edit", "oneagent_memory_delete"],
-      icon: "database"
+    'memory-context': {
+      name: 'Memory & Context',
+      description: 'Memory management and context handling tools',
+      tools: [
+        'oneagent_memory_search',
+        'oneagent_memory_add',
+        'oneagent_memory_edit',
+        'oneagent_memory_delete',
+      ],
+      icon: 'database',
     },
-    "development-docs": {
-      name: "Development Documentation",
-      description: "Web development documentation retrieval and storage (Context7)",
-      tools: ["oneagent_context7_query"],
-      icon: "book"
+    'development-docs': {
+      name: 'Development Documentation',
+      description: 'Web development documentation retrieval and storage (Context7)',
+      tools: ['oneagent_context7_query'],
+      icon: 'book',
     },
-    "research-analysis": {
-      name: "Research & Analysis", 
-      description: "Web search and analysis tools",
-      tools: ["oneagent_enhanced_search", "oneagent_web_search", "oneagent_web_fetch", "oneagent_code_analyze"],
-      icon: "search"
+    'research-analysis': {
+      name: 'Research & Analysis',
+      description: 'Web search and analysis tools',
+      tools: [
+        'oneagent_enhanced_search',
+        'oneagent_web_search',
+        'oneagent_web_fetch',
+        'oneagent_code_analyze',
+      ],
+      icon: 'search',
     },
-    "system-management": {
-      name: "System Management",
-      description: "System health and communication tools",
-      tools: ["oneagent_system_health", "oneagent_conversation_retrieve", "oneagent_conversation_search"],
-      icon: "settings"
-    }
+    'system-management': {
+      name: 'System Management',
+      description: 'System health and communication tools',
+      tools: [
+        'oneagent_system_health',
+        'oneagent_conversation_retrieve',
+        'oneagent_conversation_search',
+      ],
+      icon: 'settings',
+    },
   };
 
   return {
@@ -1104,9 +1185,9 @@ function handleToolSets(mcpRequest: MCPRequest): MCPResponse {
     result: {
       toolSets: Object.entries(toolSets).map(([id, set]) => ({
         id,
-        ...set
-      }))
-    }
+        ...set,
+      })),
+    },
   };
 }
 
@@ -1114,56 +1195,57 @@ function handleResourceTemplates(mcpRequest: MCPRequest): MCPResponse {
   // MCP 2025 resource templates using OneAgent backbone metadata
   const templates = [
     {
-      uriTemplate: "oneagent://memory/search/{query}",
-      name: "Memory Search Results",
-      description: "Dynamic memory search with backbone metadata and Constitutional AI filtering",
-      mimeType: "application/json",
+      uriTemplate: 'oneagent://memory/search/{query}',
+      name: 'Memory Search Results',
+      description: 'Dynamic memory search with backbone metadata and Constitutional AI filtering',
+      mimeType: 'application/json',
       annotations: {
-        audience: ["human", "llm"],
+        audience: ['human', 'llm'],
         priority: 1,
         backboneMetadata: true,
         constitutionalCompliant: true,
-        temporalAware: true
-      }
+        temporalAware: true,
+      },
     },
     {
-      uriTemplate: "oneagent://system/health/{component}",
-      name: "System Health Report", 
-      description: "Real-time system metrics with unified backbone metadata tracking",
-      mimeType: "application/json",
+      uriTemplate: 'oneagent://system/health/{component}',
+      name: 'System Health Report',
+      description: 'Real-time system metrics with unified backbone metadata tracking',
+      mimeType: 'application/json',
       annotations: {
-        audience: ["human"],
+        audience: ['human'],
         priority: 2,
         backboneMetadata: true,
-        performanceTracking: true
-      }
+        performanceTracking: true,
+      },
     },
     {
-      uriTemplate: "oneagent://analysis/constitutional/{contentId}",
-      name: "Constitutional AI Analysis",
-      description: "Constitutional AI validation with backbone metadata and quality scoring",
-      mimeType: "text/markdown",
+      uriTemplate: 'oneagent://analysis/constitutional/{contentId}',
+      name: 'Constitutional AI Analysis',
+      description: 'Constitutional AI validation with backbone metadata and quality scoring',
+      mimeType: 'text/markdown',
       annotations: {
-        audience: ["human", "llm"],
+        audience: ['human', 'llm'],
         priority: 1,
         backboneMetadata: true,
         constitutionalCompliant: true,
-        qualityScoring: true
-      }
+        qualityScoring: true,
+      },
     },
     {
-      uriTemplate: "oneagent://development/docs/{technology}",
-      name: "Development Documentation",
-      description: "Web development documentation and patterns for coding tasks (Context7 integration)",
-      mimeType: "text/markdown",
+      uriTemplate: 'oneagent://development/docs/{technology}',
+      name: 'Development Documentation',
+      description:
+        'Web development documentation and patterns for coding tasks (Context7 integration)',
+      mimeType: 'text/markdown',
       annotations: {
-        audience: ["human", "llm"],
+        audience: ['human', 'llm'],
         priority: 1,
         backboneMetadata: true,
         constitutionalCompliant: true,
         webDevelopment: true,
-        context7Integration: true
-      }
+        context7Integration: true,
+      },
     },
   ];
 
@@ -1171,26 +1253,26 @@ function handleResourceTemplates(mcpRequest: MCPRequest): MCPResponse {
     jsonrpc: '2.0',
     id: mcpRequest.id,
     result: {
-      resourceTemplates: templates
-    }
+      resourceTemplates: templates,
+    },
   };
 }
 
 async function handleSampling(mcpRequest: MCPRequest): Promise<MCPResponse> {
   // MCP 2025 sampling with Constitutional AI and backbone metadata integration
-  const params = mcpRequest.params as unknown as { 
+  const params = mcpRequest.params as unknown as {
     messages: Array<{ content?: { text?: string } }>;
     model?: string;
     temperature?: number;
     maxTokens?: number;
   };
   const { messages, model, temperature, maxTokens } = params;
-  
+
   try {
     // Extract query from messages for Constitutional AI processing
     const lastMessage = messages[messages.length - 1];
     const query = lastMessage?.content?.text || 'sampling request';
-    
+
     // Use oneagent_constitutional_validate for sampling validation
     const constitutionalRequest: OneAgentRequest = {
       id: String(mcpRequest.id) + '_constitutional',
@@ -1199,21 +1281,21 @@ async function handleSampling(mcpRequest: MCPRequest): Promise<MCPResponse> {
       params: {
         response: query,
         userMessage: 'MCP sampling request',
-        context: { 
+        context: {
           sampling: true,
           model: model || 'default',
           temperature: temperature || 0.7,
           maxTokens: maxTokens || 1000,
           backboneMetadata: true,
           temporalContext: createUnifiedTimestamp().iso,
-          timestamp: createUnifiedTimestamp()
-        }
+          timestamp: createUnifiedTimestamp(),
+        },
       },
-      timestamp: createUnifiedTimestamp().iso
+      timestamp: createUnifiedTimestamp().iso,
     };
 
     const constitutionalValidation = await oneAgent.processRequest(constitutionalRequest);
-    
+
     // Create enhanced search request with Constitutional AI guidance
     const samplingRequest: OneAgentRequest = {
       id: String(mcpRequest.id),
@@ -1225,23 +1307,25 @@ async function handleSampling(mcpRequest: MCPRequest): Promise<MCPResponse> {
         model: model || 'gpt-4',
         temperature: temperature || 0.7,
         maxTokens: maxTokens || 1000,
-        constitutionalGuidance: constitutionalValidation.success ? constitutionalValidation.data : undefined,
+        constitutionalGuidance: constitutionalValidation.success
+          ? constitutionalValidation.data
+          : undefined,
         enableBackboneMetadata: true,
-        enableTemporalAwareness: true
+        enableTemporalAwareness: true,
       },
-      timestamp: createUnifiedTimestamp().iso
+      timestamp: createUnifiedTimestamp().iso,
     };
 
     const response = await oneAgent.processRequest(samplingRequest);
-    
+
     if (!response.success) {
       return {
         jsonrpc: '2.0',
         id: mcpRequest.id,
         error: {
           code: -32603,
-          message: response.error?.message || 'Constitutional sampling failed'
-        }
+          message: response.error?.message || 'Constitutional sampling failed',
+        },
       };
     }
 
@@ -1252,18 +1336,22 @@ async function handleSampling(mcpRequest: MCPRequest): Promise<MCPResponse> {
         role: 'assistant',
         content: {
           type: 'text',
-          text: JSON.stringify({
-            response: response.data,
-            metadata: {
-              constitutionallyValidated: constitutionalValidation.success,
-              backboneCompliant: true,
-              temporalContext: createUnifiedTimestamp().iso,
-              samplingParams: { model, temperature, maxTokens },
-              qualityScore: response.qualityScore || 'N/A'
-            }
-          }, null, 2)
-        }
-      }
+          text: JSON.stringify(
+            {
+              response: response.data,
+              metadata: {
+                constitutionallyValidated: constitutionalValidation.success,
+                backboneCompliant: true,
+                temporalContext: createUnifiedTimestamp().iso,
+                samplingParams: { model, temperature, maxTokens },
+                qualityScore: response.qualityScore || 'N/A',
+              },
+            },
+            null,
+            2,
+          ),
+        },
+      },
     };
   } catch (error) {
     return {
@@ -1271,8 +1359,8 @@ async function handleSampling(mcpRequest: MCPRequest): Promise<MCPResponse> {
       id: mcpRequest.id,
       error: {
         code: -32603,
-        message: error instanceof Error ? error.message : 'Constitutional sampling error'
-      }
+        message: error instanceof Error ? error.message : 'Constitutional sampling error',
+      },
     };
   }
 }
@@ -1281,18 +1369,20 @@ function handleAuthStatus(mcpRequest: MCPRequest): MCPResponse {
   // MCP 2025 OAuth authentication with OneAgent backbone metadata integration
   const authStatus = {
     authenticated: !process.env.REQUIRE_AUTH || process.env.NODE_ENV === 'development',
-    user: process.env.REQUIRE_AUTH ? null : { 
-      id: 'dev-user', 
-      name: 'Development User',
-      scopes: ['read', 'write', 'analyze'],
-      backboneMetadata: {
-        userId: 'dev-user',
-        sessionId: `session_${createUnifiedTimestamp().unix}`,
-        temporalContext: createUnifiedTimestamp().iso,
-        constitutionallyValidated: true,
-        qualityCompliant: true
-      }
-    },
+    user: process.env.REQUIRE_AUTH
+      ? null
+      : {
+          id: 'dev-user',
+          name: 'Development User',
+          scopes: ['read', 'write', 'analyze'],
+          backboneMetadata: {
+            userId: 'dev-user',
+            sessionId: `session_${createUnifiedTimestamp().unix}`,
+            temporalContext: createUnifiedTimestamp().iso,
+            constitutionallyValidated: true,
+            qualityCompliant: true,
+          },
+        },
     scopes: ['read', 'write', 'analyze'],
     expiresAt: null, // No expiration for development
     systemInfo: {
@@ -1301,15 +1391,15 @@ function handleAuthStatus(mcpRequest: MCPRequest): MCPResponse {
       temporalAwareness: true,
       qualityScoring: true,
       memoryIntelligence: true,
-      mcpVersion: MCP_PROTOCOL_VERSION
+      mcpVersion: MCP_PROTOCOL_VERSION,
     },
-    timestamp: createUnifiedTimestamp().iso
+    timestamp: createUnifiedTimestamp().iso,
   };
 
   return {
     jsonrpc: '2.0',
     id: mcpRequest.id,
-    result: authStatus
+    result: authStatus,
   };
 }
 

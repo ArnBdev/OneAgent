@@ -1,14 +1,14 @@
 // filepath: coreagent/intelligence/webFindingsManager.ts
 // Intelligent web findings storage and management system
 
-import { 
-  WebSearchFinding, 
-  WebFetchFinding, 
+import {
+  WebSearchFinding,
+  WebFetchFinding,
   WebFindingsConfig,
   FindingsSearchOptions,
   FindingsSearchResult,
   FindingsStorageStats,
-  FindingsCleanupResult
+  FindingsCleanupResult,
 } from '../types/webFindings';
 import { BraveSearchResponse } from '../types/braveSearch';
 import { WebFetchResponse } from '../types/webFetch';
@@ -25,30 +25,30 @@ export class WebFindingsManager {
   private memoryIntelligence: MemoryIntelligence | undefined;
   private cacheSystem = OneAgentUnifiedBackbone.getInstance().cache;
   private memoryClient: IMemoryClient | undefined;
-  
+
   // In-memory caches
   private searchCache = new Map<string, WebSearchFinding>();
   private fetchCache = new Map<string, WebFetchFinding>();
-  
+
   // File system paths
   private readonly basePath: string;
   private readonly cachePath: string;
   private readonly persistentPath: string;
-  
+
   // Performance tracking
   private stats = {
     operations: 0,
     cacheHits: 0,
     cacheMisses: 0,
     classifications: 0,
-    persistedFindings: 0
+    persistedFindings: 0,
   };
 
   constructor(
     config?: Partial<WebFindingsConfig>,
     memoryIntelligence?: MemoryIntelligence,
     _embeddingCache?: unknown, // Legacy parameter, now using unified cache
-    memoryClient?: IMemoryClient
+    memoryClient?: IMemoryClient,
   ) {
     this.config = {
       storage: {
@@ -57,29 +57,26 @@ export class WebFindingsManager {
         maxCacheSize: 100, // MB
         defaultTTL: 30 * 60 * 1000, // 30 minutes
         compressionThreshold: 50 * 1024, // 50KB
-        autoCleanupInterval: 60 * 60 * 1000 // 1 hour
+        autoCleanupInterval: 60 * 60 * 1000, // 1 hour
       },
       classification: {
         autoClassify: true,
         importanceThreshold: 0.6,
-        devAgentRelevanceBoost: 1.5
-      },      integration: {
+        devAgentRelevanceBoost: 1.5,
+      },
+      integration: {
         memoryIntelligence: !!memoryIntelligence,
         embeddingCache: true, // Always available via unified cache
-        memoryBridge: !!memoryClient // Use memoryClient for memoryBridge compatibility
+        memoryBridge: !!memoryClient, // Use memoryClient for memoryBridge compatibility
       },
       privacy: {
         obfuscateUrls: false,
-        excludePatterns: [
-          '**/login/**',
-          '**/auth/**',
-          '**/admin/**',
-          '**/private/**'
-        ],
-        maxPersonalDataRetention: 30 // days
+        excludePatterns: ['**/login/**', '**/auth/**', '**/admin/**', '**/private/**'],
+        maxPersonalDataRetention: 30, // days
       },
-      ...config
-    };    this.memoryIntelligence = memoryIntelligence;
+      ...config,
+    };
+    this.memoryIntelligence = memoryIntelligence;
     // Legacy embeddingCache parameter ignored - using unified cache system
     this.memoryClient = memoryClient;
 
@@ -99,7 +96,7 @@ export class WebFindingsManager {
     query: string,
     searchResponse: BraveSearchResponse,
     userId?: string,
-    sessionId?: string
+    sessionId?: string,
   ): Promise<WebSearchFinding> {
     const startTime = createUnifiedTimestamp();
     this.stats.operations++;
@@ -111,9 +108,9 @@ export class WebFindingsManager {
         timestamp: startTime.iso,
         totalResults: searchResponse.web?.results?.length || 0,
         searchTime: endTime.unix - startTime.unix,
-        source: 'brave'
+        source: 'brave',
       };
-      
+
       if (userId) metadata.userId = userId;
       if (sessionId) metadata.sessionId = sessionId;
 
@@ -129,8 +126,8 @@ export class WebFindingsManager {
           persistToMemory: false,
           ttl: this.config.storage.defaultTTL,
           accessCount: 1,
-          lastAccessed: startTime.iso
-        }
+          lastAccessed: startTime.iso,
+        },
       };
 
       // Determine storage strategy
@@ -144,7 +141,7 @@ export class WebFindingsManager {
       if (this.config.storage.enableCaching) {
         this.searchCache.set(finding.id, finding);
         finding.storage.cached = true;
-        
+
         // Also cache by query hash for quick lookup
         const queryHash = this.hashQuery(query);
         this.searchCache.set(queryHash, finding);
@@ -155,9 +152,10 @@ export class WebFindingsManager {
         await this.saveToDisk(finding, 'search');
       }
 
-      console.log(`✅ Search finding stored: query="${query.substring(0, 50)}..." importance=${finding.classification.importance}`);
+      console.log(
+        `✅ Search finding stored: query="${query.substring(0, 50)}..." importance=${finding.classification.importance}`,
+      );
       return finding;
-
     } catch (error) {
       console.error('❌ Failed to store search finding:', error);
       throw error;
@@ -171,7 +169,7 @@ export class WebFindingsManager {
     url: string,
     fetchResponse: WebFetchResponse,
     userId?: string,
-    sessionId?: string
+    sessionId?: string,
   ): Promise<WebFetchFinding> {
     const startTime = createUnifiedTimestamp();
     this.stats.operations++;
@@ -179,16 +177,17 @@ export class WebFindingsManager {
     try {
       // Extract and analyze content
       const extracted = await this.extractContentData(fetchResponse);
-        // Build metadata object carefully to handle optional properties
+      // Build metadata object carefully to handle optional properties
       const metadata: WebFetchFinding['metadata'] = {
         timestamp: startTime.iso,
         fetchTime: fetchResponse.fetchTime,
         statusCode: fetchResponse.statusCode,
-        domain: this.extractDomain(url) // Add domain for easy citation
+        domain: this.extractDomain(url), // Add domain for easy citation
       };
-      
+
       if (fetchResponse.metadata?.title) metadata.title = fetchResponse.metadata.title;
-      if (fetchResponse.metadata?.description) metadata.description = fetchResponse.metadata.description;
+      if (fetchResponse.metadata?.description)
+        metadata.description = fetchResponse.metadata.description;
       if (userId) metadata.userId = userId;
       if (sessionId) metadata.sessionId = sessionId;
 
@@ -201,7 +200,7 @@ export class WebFindingsManager {
           text: fetchResponse.content.text || '',
           size: fetchResponse.content.size,
           contentType: fetchResponse.content.contentType,
-          encoding: fetchResponse.content.encoding
+          encoding: fetchResponse.content.encoding,
         },
         metadata,
         extracted,
@@ -212,8 +211,8 @@ export class WebFindingsManager {
           ttl: this.config.storage.defaultTTL,
           accessCount: 1,
           lastAccessed: startTime.iso,
-          compressed: false
-        }
+          compressed: false,
+        },
       };
 
       // Determine storage strategy
@@ -227,7 +226,7 @@ export class WebFindingsManager {
       if (this.config.storage.enableCaching) {
         this.fetchCache.set(finding.id, finding);
         finding.storage.cached = true;
-        
+
         // Also cache by URL hash for quick lookup
         const urlHash = this.hashUrl(url);
         this.fetchCache.set(urlHash, finding);
@@ -238,9 +237,10 @@ export class WebFindingsManager {
         await this.saveToDisk(finding, 'fetch');
       }
 
-      console.log(`✅ Fetch finding stored: url="${url.substring(0, 50)}..." importance=${finding.classification.importance}`);
+      console.log(
+        `✅ Fetch finding stored: url="${url.substring(0, 50)}..." importance=${finding.classification.importance}`,
+      );
       return finding;
-
     } catch (error) {
       console.error('❌ Failed to store fetch finding:', error);
       throw error;
@@ -252,7 +252,7 @@ export class WebFindingsManager {
    */
   async searchFindings(options: FindingsSearchOptions = {}): Promise<FindingsSearchResult> {
     const startTime = createUnifiedTimestamp();
-    
+
     try {
       let findings: (WebSearchFinding | WebFetchFinding)[] = [];
 
@@ -281,11 +281,11 @@ export class WebFindingsManager {
 
       const endTime = createUnifiedTimestamp();
       const searchTime = endTime.unix - startTime.unix;
-      
+
       const metadata: FindingsSearchResult['metadata'] = {
         total: findings.length,
         searchTime,
-        cached: findings.length > 0 && findings[0].storage?.cached === true
+        cached: findings.length > 0 && findings[0].storage?.cached === true,
       };
 
       if (options.query) {
@@ -294,9 +294,8 @@ export class WebFindingsManager {
 
       return {
         findings,
-        metadata
+        metadata,
       };
-
     } catch (error) {
       console.error('❌ Failed to search findings:', error);
       throw error;
@@ -317,17 +316,16 @@ export class WebFindingsManager {
           entries: this.searchCache.size + this.fetchCache.size,
           hitRate: this.stats.operations > 0 ? this.stats.cacheHits / this.stats.operations : 0,
           oldestEntry: cacheSize.oldestEntry,
-          newestEntry: cacheSize.newestEntry
+          newestEntry: cacheSize.newestEntry,
         },
         persistent: persistentStats,
         performance: {
           avgClassificationTime: 0, // TODO: Implement timing
           avgStorageTime: 0,
           avgRetrievalTime: 0,
-          totalOperations: this.stats.operations
-        }
+          totalOperations: this.stats.operations,
+        },
       };
-
     } catch (error) {
       console.error('❌ Failed to get storage stats:', error);
       throw error;
@@ -339,7 +337,7 @@ export class WebFindingsManager {
    */
   async cleanupFindings(): Promise<FindingsCleanupResult> {
     const startTime = createUnifiedTimestamp();
-    
+
     try {
       const removed = { expired: 0, lowImportance: 0, duplicates: 0 };
       let retained = 0;
@@ -359,19 +357,20 @@ export class WebFindingsManager {
         spaceSaved += persistentCleanup.spaceSaved;
       }
 
-      retained = (this.searchCache.size + this.fetchCache.size);
+      retained = this.searchCache.size + this.fetchCache.size;
       const endTime = createUnifiedTimestamp();
       const operationTime = endTime.unix - startTime.unix;
 
-      console.log(`🧹 Cleanup completed: removed ${removed.expired + removed.lowImportance + removed.duplicates} findings, retained ${retained}, saved ${spaceSaved}MB in ${operationTime}ms`);
+      console.log(
+        `🧹 Cleanup completed: removed ${removed.expired + removed.lowImportance + removed.duplicates} findings, retained ${retained}, saved ${spaceSaved}MB in ${operationTime}ms`,
+      );
 
       return {
         removed,
         retained,
         spaceSaved,
-        operationTime
+        operationTime,
       };
-
     } catch (error) {
       console.error('❌ Failed to cleanup findings:', error);
       throw error;
@@ -395,17 +394,20 @@ export class WebFindingsManager {
 
   private setupCleanupInterval(): void {
     if (this.config.storage.autoCleanupInterval > 0) {
-  const t = setInterval(() => {
+      const t = setInterval(() => {
         this.cleanupFindings().catch(console.error);
-  }, this.config.storage.autoCleanupInterval);
-  // Avoid holding the process open for background cleanup
-  t.unref?.();
+      }, this.config.storage.autoCleanupInterval);
+      // Avoid holding the process open for background cleanup
+      t.unref?.();
     }
   }
 
   private generateFindingId(type: 'search' | 'fetch', input: string): string {
     const timestamp = createUnifiedTimestamp();
-    const hash = crypto.createHash('sha256').update(input + timestamp.unix).digest('hex');
+    const hash = crypto
+      .createHash('sha256')
+      .update(input + timestamp.unix)
+      .digest('hex');
     return `${type}_${hash.substring(0, 16)}`;
   }
 
@@ -423,7 +425,10 @@ export class WebFindingsManager {
     }
   }
 
-  private async classifySearchFinding(query: string, response: BraveSearchResponse): Promise<WebSearchFinding['classification']> {
+  private async classifySearchFinding(
+    query: string,
+    response: BraveSearchResponse,
+  ): Promise<WebSearchFinding['classification']> {
     // Basic classification based on query patterns
     let category: WebSearchFinding['classification']['category'] = 'general';
     let importance = 0.5;
@@ -432,23 +437,40 @@ export class WebFindingsManager {
     const queryLower = query.toLowerCase();
 
     // Category detection
-    if (queryLower.includes('documentation') || queryLower.includes('docs') || queryLower.includes('api')) {
+    if (
+      queryLower.includes('documentation') ||
+      queryLower.includes('docs') ||
+      queryLower.includes('api')
+    ) {
       category = 'documentation';
       importance += 0.2;
       tags.push('documentation');
-    } else if (queryLower.includes('error') || queryLower.includes('troubleshoot') || queryLower.includes('fix')) {
+    } else if (
+      queryLower.includes('error') ||
+      queryLower.includes('troubleshoot') ||
+      queryLower.includes('fix')
+    ) {
       category = 'troubleshooting';
       importance += 0.2;
       tags.push('troubleshooting');
-    } else if (queryLower.includes('tutorial') || queryLower.includes('guide') || queryLower.includes('how to')) {
+    } else if (
+      queryLower.includes('tutorial') ||
+      queryLower.includes('guide') ||
+      queryLower.includes('how to')
+    ) {
       category = 'research';
       importance += 0.1;
       tags.push('learning');
     }
 
     // DevAgent relevance boost
-    if (queryLower.includes('typescript') || queryLower.includes('react') || queryLower.includes('node') || 
-        queryLower.includes('development') || queryLower.includes('programming')) {
+    if (
+      queryLower.includes('typescript') ||
+      queryLower.includes('react') ||
+      queryLower.includes('node') ||
+      queryLower.includes('development') ||
+      queryLower.includes('programming')
+    ) {
       category = 'devagent';
       importance *= this.config.classification.devAgentRelevanceBoost;
       tags.push('development');
@@ -462,11 +484,15 @@ export class WebFindingsManager {
       category,
       importance: Math.min(1, importance),
       relevanceScore: Math.min(1, resultCount / 20),
-      tags
+      tags,
     };
   }
 
-  private async classifyFetchFinding(url: string, response: WebFetchResponse, extracted: WebFetchFinding['extracted']): Promise<WebFetchFinding['classification']> {
+  private async classifyFetchFinding(
+    url: string,
+    response: WebFetchResponse,
+    extracted: WebFetchFinding['extracted'],
+  ): Promise<WebFetchFinding['classification']> {
     // Basic classification based on URL and content
     let category: WebFetchFinding['classification']['category'] = 'other';
     let importance = 0.5;
@@ -517,7 +543,7 @@ export class WebFindingsManager {
       category,
       importance: Math.min(1, importance),
       relevanceScore: Math.min(1, extracted.wordCount / 2000),
-      topics
+      topics,
     };
 
     if (framework) {
@@ -527,19 +553,21 @@ export class WebFindingsManager {
     return result;
   }
 
-  private async extractContentData(response: WebFetchResponse): Promise<WebFetchFinding['extracted']> {
+  private async extractContentData(
+    response: WebFetchResponse,
+  ): Promise<WebFetchFinding['extracted']> {
     const text = response.content.text || '';
     const wordCount = text.split(/\s+/).length;
 
     // Extract key points (simple implementation)
-    const sentences = text.split(/[.!?]+/).filter(s => s.trim().length > 20);
-    const keyPoints = sentences.slice(0, 5).map(s => s.trim());
+    const sentences = text.split(/[.!?]+/).filter((s) => s.trim().length > 20);
+    const keyPoints = sentences.slice(0, 5).map((s) => s.trim());
 
     // Extract links (simple implementation)
     const linkRegex = /https?:\/\/[^\s<>"]+/g;
     const links = [...(text.match(linkRegex) || [])].slice(0, 10);
 
-    // Extract images (simple implementation) 
+    // Extract images (simple implementation)
     const imgRegex = /\.(jpg|jpeg|png|gif|svg|webp)/gi;
     const images = [...(text.match(imgRegex) || [])].slice(0, 5);
 
@@ -547,7 +575,7 @@ export class WebFindingsManager {
       keyPoints,
       links,
       images,
-      wordCount
+      wordCount,
     };
   }
 
@@ -566,7 +594,7 @@ export class WebFindingsManager {
           query: finding.query,
           resultCount: finding.metadata.totalResults,
           classification: finding.classification.category,
-          importance: finding.classification.importance
+          importance: finding.classification.importance,
         };
       } else {
         // Fetch finding
@@ -577,32 +605,39 @@ export class WebFindingsManager {
           title: finding.metadata.title,
           classification: finding.classification.category,
           importance: finding.classification.importance,
-          framework: finding.classification.framework
+          framework: finding.classification.framework,
         };
       }
 
-      await this.memoryIntelligence.storeMemory(content, finding.metadata.userId || 'system', metadata);
+      await this.memoryIntelligence.storeMemory(
+        content,
+        finding.metadata.userId || 'system',
+        metadata,
+      );
       console.log(`💾 Finding persisted to memory system: ${finding.id}`);
-
-  } catch (error) {
+    } catch (error) {
       console.error('❌ Failed to persist to memory system:', error);
     }
   }
 
-  private async saveToDisk(finding: WebSearchFinding | WebFetchFinding, type: 'search' | 'fetch'): Promise<void> {
+  private async saveToDisk(
+    finding: WebSearchFinding | WebFetchFinding,
+    type: 'search' | 'fetch',
+  ): Promise<void> {
     try {
       const filename = `${finding.id}.json`;
       const filepath = path.join(this.persistentPath, type, filename);
-      
+
       await fs.mkdir(path.dirname(filepath), { recursive: true });
       await fs.writeFile(filepath, JSON.stringify(finding, null, 2));
-
-  } catch (error) {
+    } catch (error) {
       console.error('❌ Failed to save finding to disk:', error);
     }
   }
 
-  private async searchInCache(options: FindingsSearchOptions): Promise<(WebSearchFinding | WebFetchFinding)[]> {
+  private async searchInCache(
+    options: FindingsSearchOptions,
+  ): Promise<(WebSearchFinding | WebFetchFinding)[]> {
     const findings: (WebSearchFinding | WebFetchFinding)[] = [];
 
     // Search in search cache
@@ -622,10 +657,12 @@ export class WebFindingsManager {
     return findings;
   }
 
-  private async searchInPersistentStorage(options: FindingsSearchOptions): Promise<(WebSearchFinding | WebFetchFinding)[]> {
+  private async searchInPersistentStorage(
+    options: FindingsSearchOptions,
+  ): Promise<(WebSearchFinding | WebFetchFinding)[]> {
     try {
       const findings: (WebSearchFinding | WebFetchFinding)[] = [];
-      
+
       // Search in search findings
       const searchDir = path.join(this.persistentPath, 'search');
       try {
@@ -639,12 +676,12 @@ export class WebFindingsManager {
               if (this.matchesSearchOptions(finding, options)) {
                 findings.push(finding);
               }
-    } catch {
+            } catch {
               console.warn(`⚠️ Failed to parse search finding: ${filename}`);
             }
           }
         }
-  } catch {
+      } catch {
         // Directory might not exist yet
       }
 
@@ -661,23 +698,26 @@ export class WebFindingsManager {
               if (this.matchesSearchOptions(finding, options)) {
                 findings.push(finding);
               }
-    } catch {
+            } catch {
               console.warn(`⚠️ Failed to parse fetch finding: ${filename}`);
             }
           }
         }
-  } catch {
+      } catch {
         // Directory might not exist yet
       }
 
       return findings;
-  } catch (error) {
+    } catch (error) {
       console.error('❌ Failed to search persistent storage:', error);
       return [];
     }
   }
 
-  private async semanticSearch(_query: string, _options: FindingsSearchOptions): Promise<(WebSearchFinding | WebFetchFinding)[]> {
+  private async semanticSearch(
+    _query: string,
+    _options: FindingsSearchOptions,
+  ): Promise<(WebSearchFinding | WebFetchFinding)[]> {
     try {
       if (!this.memoryIntelligence) {
         return [];
@@ -692,15 +732,21 @@ export class WebFindingsManager {
     }
   }
 
-  private matchesSearchOptions(finding: WebSearchFinding | WebFetchFinding, options: FindingsSearchOptions): boolean {
+  private matchesSearchOptions(
+    finding: WebSearchFinding | WebFetchFinding,
+    options: FindingsSearchOptions,
+  ): boolean {
     // Basic matching logic
     if (options.query) {
       const query = options.query.toLowerCase();
       if ('query' in finding) {
         if (!finding.query.toLowerCase().includes(query)) return false;
       } else {
-        if (!finding.url.toLowerCase().includes(query) && 
-            !finding.metadata.title?.toLowerCase().includes(query)) return false;
+        if (
+          !finding.url.toLowerCase().includes(query) &&
+          !finding.metadata.title?.toLowerCase().includes(query)
+        )
+          return false;
       }
     }
 
@@ -716,9 +762,9 @@ export class WebFindingsManager {
   }
 
   private sortFindings(
-    findings: (WebSearchFinding | WebFetchFinding)[], 
-    sortBy?: string, 
-    sortOrder: 'asc' | 'desc' = 'desc'
+    findings: (WebSearchFinding | WebFetchFinding)[],
+    sortBy?: string,
+    sortOrder: 'asc' | 'desc' = 'desc',
   ): (WebSearchFinding | WebFetchFinding)[] {
     const multiplier = sortOrder === 'desc' ? -1 : 1;
 
@@ -727,7 +773,10 @@ export class WebFindingsManager {
         case 'importance':
           return (a.classification.importance - b.classification.importance) * multiplier;
         case 'date':
-          return (new Date(a.metadata.timestamp).getTime() - new Date(b.metadata.timestamp).getTime()) * multiplier;
+          return (
+            (new Date(a.metadata.timestamp).getTime() - new Date(b.metadata.timestamp).getTime()) *
+            multiplier
+          );
         case 'access_count':
           return (a.storage.accessCount - b.storage.accessCount) * multiplier;
         default:
@@ -764,12 +813,13 @@ export class WebFindingsManager {
     }
 
     const oldestIso = entries > 0 ? new Date(oldestTime).toISOString() : currentTime.iso;
-    const newestIso = entries > 0 ? new Date((newestTime || oldestTime)).toISOString() : currentTime.iso;
+    const newestIso =
+      entries > 0 ? new Date(newestTime || oldestTime).toISOString() : currentTime.iso;
 
     return {
       sizeInMB: totalSize / (1024 * 1024),
       oldestEntry: oldestIso,
-      newestEntry: newestIso
+      newestEntry: newestIso,
     };
   }
 
@@ -791,17 +841,17 @@ export class WebFindingsManager {
               const filepath = path.join(searchDir, filename);
               const stats = await fs.stat(filepath);
               totalSize += stats.size;
-              
+
               const content = await fs.readFile(filepath, 'utf-8');
               const finding: WebSearchFinding = JSON.parse(content);
               searchFindings++;
               totalImportance += finding.classification.importance;
-    } catch {
+            } catch {
               // Skip corrupted files
             }
           }
         }
-  } catch {
+      } catch {
         // Directory might not exist
       }
 
@@ -815,17 +865,17 @@ export class WebFindingsManager {
               const filepath = path.join(fetchDir, filename);
               const stats = await fs.stat(filepath);
               totalSize += stats.size;
-              
+
               const content = await fs.readFile(filepath, 'utf-8');
               const finding: WebFetchFinding = JSON.parse(content);
               fetchFindings++;
               totalImportance += finding.classification.importance;
-    } catch {
+            } catch {
               // Skip corrupted files
             }
           }
         }
-  } catch {
+      } catch {
         // Directory might not exist
       }
 
@@ -836,16 +886,16 @@ export class WebFindingsManager {
         searchFindings,
         fetchFindings,
         avgImportance: totalFindings > 0 ? totalImportance / totalFindings : 0,
-        storageSize: totalSize / (1024 * 1024) // Convert to MB
+        storageSize: totalSize / (1024 * 1024), // Convert to MB
       };
-  } catch (error) {
+    } catch (error) {
       console.error('❌ Failed to calculate persistent stats:', error);
       return {
         totalFindings: 0,
         searchFindings: 0,
         fetchFindings: 0,
         avgImportance: 0,
-        storageSize: 0
+        storageSize: 0,
       };
     }
   }
@@ -853,11 +903,11 @@ export class WebFindingsManager {
   private async cleanupCache(): Promise<{ expired: number; lowImportance: number }> {
     let expired = 0;
     let lowImportance = 0;
-  const now = createUnifiedTimestamp();
+    const now = createUnifiedTimestamp();
 
     // Clean search cache
     for (const [key, finding] of Array.from(this.searchCache.entries())) {
-  const age = new Date(now.iso).getTime() - new Date(finding.storage.lastAccessed).getTime();
+      const age = new Date(now.iso).getTime() - new Date(finding.storage.lastAccessed).getTime();
       if (age > finding.storage.ttl) {
         this.searchCache.delete(key);
         expired++;
@@ -869,7 +919,7 @@ export class WebFindingsManager {
 
     // Clean fetch cache
     for (const [key, finding] of Array.from(this.fetchCache.entries())) {
-  const age = new Date(now.iso).getTime() - new Date(finding.storage.lastAccessed).getTime();
+      const age = new Date(now.iso).getTime() - new Date(finding.storage.lastAccessed).getTime();
       if (age > finding.storage.ttl) {
         this.fetchCache.delete(key);
         expired++;
@@ -882,12 +932,17 @@ export class WebFindingsManager {
     return { expired, lowImportance };
   }
 
-  private async cleanupPersistentStorage(): Promise<{ expired: number; lowImportance: number; duplicates: number; spaceSaved: number }> {
+  private async cleanupPersistentStorage(): Promise<{
+    expired: number;
+    lowImportance: number;
+    duplicates: number;
+    spaceSaved: number;
+  }> {
     let expired = 0;
     let lowImportance = 0;
     const duplicates = 0;
     let spaceSaved = 0;
-  const now = createUnifiedTimestamp();
+    const now = createUnifiedTimestamp();
 
     try {
       // Cleanup search findings
@@ -901,24 +956,25 @@ export class WebFindingsManager {
               const stats = await fs.stat(filepath);
               const content = await fs.readFile(filepath, 'utf-8');
               const finding: WebSearchFinding = JSON.parse(content);
-              
-              const age = new Date(now.iso).getTime() - new Date(finding.storage.lastAccessed).getTime();
-              const shouldDelete = age > finding.storage.ttl || 
-                                 finding.classification.importance < 0.3;
-              
+
+              const age =
+                new Date(now.iso).getTime() - new Date(finding.storage.lastAccessed).getTime();
+              const shouldDelete =
+                age > finding.storage.ttl || finding.classification.importance < 0.3;
+
               if (shouldDelete) {
                 await fs.unlink(filepath);
                 spaceSaved += stats.size;
-                
+
                 if (age > finding.storage.ttl) expired++;
                 else lowImportance++;
               }
-    } catch {
+            } catch {
               // Skip corrupted files
             }
           }
         }
-  } catch {
+      } catch {
         // Directory might not exist
       }
 
@@ -933,34 +989,35 @@ export class WebFindingsManager {
               const stats = await fs.stat(filepath);
               const content = await fs.readFile(filepath, 'utf-8');
               const finding: WebFetchFinding = JSON.parse(content);
-              
-              const age = new Date(now.iso).getTime() - new Date(finding.storage.lastAccessed).getTime();
-              const shouldDelete = age > finding.storage.ttl || 
-                                 finding.classification.importance < 0.3;
-              
+
+              const age =
+                new Date(now.iso).getTime() - new Date(finding.storage.lastAccessed).getTime();
+              const shouldDelete =
+                age > finding.storage.ttl || finding.classification.importance < 0.3;
+
               if (shouldDelete) {
                 await fs.unlink(filepath);
                 spaceSaved += stats.size;
-                
+
                 if (age > finding.storage.ttl) expired++;
                 else lowImportance++;
               }
-    } catch {
+            } catch {
               // Skip corrupted files
             }
           }
         }
-  } catch {
+      } catch {
         // Directory might not exist
       }
 
-      return { 
-        expired, 
-        lowImportance, 
-        duplicates, 
-        spaceSaved: spaceSaved / (1024 * 1024) // Convert to MB
+      return {
+        expired,
+        lowImportance,
+        duplicates,
+        spaceSaved: spaceSaved / (1024 * 1024), // Convert to MB
       };
-  } catch {
+    } catch {
       console.error('❌ Failed to cleanup persistent storage');
       return { expired: 0, lowImportance: 0, duplicates: 0, spaceSaved: 0 };
     }
@@ -973,7 +1030,7 @@ export class WebFindingsManager {
     try {
       const urlObj = new URL(url);
       return urlObj.hostname;
-  } catch {
+    } catch {
       // If URL parsing fails, return the URL as-is
       return url;
     }

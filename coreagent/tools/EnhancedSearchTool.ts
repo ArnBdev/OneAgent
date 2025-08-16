@@ -17,25 +17,25 @@ export class EnhancedSearchTool extends UnifiedMCPTool {
     const schema: InputSchema = {
       type: 'object',
       properties: {
-        query: { 
-          type: 'string', 
-          description: 'Search query for web content' 
+        query: {
+          type: 'string',
+          description: 'Search query for web content',
         },
-        sources: { 
+        sources: {
           type: 'array',
           items: { type: 'string' },
-          description: 'Preferred sources (optional)' 
+          description: 'Preferred sources (optional)',
         },
-        qualityThreshold: { 
-          type: 'number', 
-          description: 'Minimum quality score for results (0-100, default: 80)' 
+        qualityThreshold: {
+          type: 'number',
+          description: 'Minimum quality score for results (0-100, default: 80)',
         },
-        maxResults: { 
-          type: 'number', 
-          description: 'Maximum number of results (default: 5)' 
-        }
+        maxResults: {
+          type: 'number',
+          description: 'Maximum number of results (default: 5)',
+        },
       },
-      required: ['query']
+      required: ['query'],
     };
 
     super(
@@ -43,18 +43,14 @@ export class EnhancedSearchTool extends UnifiedMCPTool {
       'Web search with quality filtering and Constitutional AI validation',
       schema,
       'critical',
-      'critical'
+      'critical',
     );
   }
 
   public async executeCore(args: EnhancedSearchParams): Promise<ToolExecutionResult> {
     try {
-      const { 
-        query, 
-        qualityThreshold = 80, 
-        maxResults = 5 
-      } = args;
-      
+      const { query, qualityThreshold = 80, maxResults = 5 } = args;
+
       // Placeholder implementation for enhanced search
       const searchResults = {
         query,
@@ -66,13 +62,13 @@ export class EnhancedSearchTool extends UnifiedMCPTool {
             qualityScore: 95,
             source: 'trusted_source',
             timestamp: new Date().toISOString(),
-            constitutionalCompliant: true
-          }
+            constitutionalCompliant: true,
+          },
         ],
         totalResults: 1,
         qualityFiltered: true,
         averageQuality: 95,
-        searchTime: '150ms'
+        searchTime: '150ms',
       };
 
       return {
@@ -88,7 +84,7 @@ export class EnhancedSearchTool extends UnifiedMCPTool {
             'Constitutional AI content validation',
             'Quality-based result filtering',
             'Source preference handling',
-            'Real-time result scoring'
+            'Real-time result scoring',
           ],
           qualityScore: 95,
           toolName: 'oneagent_enhanced_search',
@@ -97,11 +93,10 @@ export class EnhancedSearchTool extends UnifiedMCPTool {
           metadata: {
             searchType: 'enhanced_web',
             toolFramework: 'unified_mcp_v1.0',
-            constitutionalLevel: 'critical'
-          }
-        }
+            constitutionalLevel: 'critical',
+          },
+        },
       };
-
     } catch (error) {
       return {
         success: false,
@@ -109,8 +104,8 @@ export class EnhancedSearchTool extends UnifiedMCPTool {
           success: false,
           error: error instanceof Error ? error.message : 'Unknown error',
           query: args.query,
-          timestamp: new Date().toISOString()
-        }
+          timestamp: new Date().toISOString(),
+        },
       };
     }
   }

@@ -21,13 +21,13 @@ export function loadOneAgentConfig(): OneAgentConfig {
   // Try to load from .env file if available
   const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
   const envConfig: Record<string, string> = {};
-  
+
   if (workspaceFolder) {
     const envPath = path.join(workspaceFolder.uri.fsPath, '.env');
     if (fs.existsSync(envPath)) {
       try {
         const envContent = fs.readFileSync(envPath, 'utf8');
-        envContent.split('\n').forEach(line => {
+        envContent.split('\n').forEach((line) => {
           const [key, value] = line.split('=');
           if (key && value) {
             envConfig[key.trim()] = value.trim();
@@ -38,18 +38,15 @@ export function loadOneAgentConfig(): OneAgentConfig {
       }
     }
   }
-  
+
   // Get configuration from VS Code settings with environment fallbacks
   const config = vscode.workspace.getConfiguration('oneagent');
-  
+
   return {
-    serverUrl: config.get('serverUrl') || 
-               envConfig.ONEAGENT_MCP_URL || 
-               'http://127.0.0.1:8083',
-    memoryUrl: envConfig.ONEAGENT_MEMORY_URL || 
-               'http://127.0.0.1:8001',
+    serverUrl: config.get('serverUrl') || envConfig.ONEAGENT_MCP_URL || 'http://127.0.0.1:8083',
+    memoryUrl: envConfig.ONEAGENT_MEMORY_URL || 'http://127.0.0.1:8001',
     enableConstitutionalAI: config.get('enableConstitutionalAI', true),
-    qualityThreshold: config.get('qualityThreshold', 80)
+    qualityThreshold: config.get('qualityThreshold', 80),
   };
 }
 

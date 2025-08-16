@@ -1,47 +1,47 @@
 # R-T-F Framework (Role-Task-Format)
 # Systematic prompting framework for straightforward, well-defined tasks
 
-name: "R-T-F Framework"
-type: "structured_execution"
-version: "1.0.0"
-description: "Systematic framework for straightforward, well-defined tasks with clear execution patterns"
+name: 'R-T-F Framework'
+type: 'structured_execution'
+version: '1.0.0'
+description: 'Systematic framework for straightforward, well-defined tasks with clear execution patterns'
 
 structure:
   R_role:
     purpose: "Define AI's expertise and perspective for the task"
     questions:
-      - "What specific expertise does this task require?"
-      - "What perspective or domain knowledge is most relevant?"
+      - 'What specific expertise does this task require?'
+      - 'What perspective or domain knowledge is most relevant?'
       - "How should the AI's role be calibrated to the user's needs?"
-    validation: "Role is clearly defined and appropriate for task"
-    
+    validation: 'Role is clearly defined and appropriate for task'
+
   T_task:
-    purpose: "Specify the exact action or analysis required"
+    purpose: 'Specify the exact action or analysis required'
     questions:
-      - "What specific action or analysis is required?"
-      - "What are the key deliverables and success criteria?"
-      - "What constraints or limitations apply to this task?"
-    validation: "Task is precisely specified and achievable"
-    
+      - 'What specific action or analysis is required?'
+      - 'What are the key deliverables and success criteria?'
+      - 'What constraints or limitations apply to this task?'
+    validation: 'Task is precisely specified and achievable'
+
   F_format:
-    purpose: "Define the desired output structure and presentation"
+    purpose: 'Define the desired output structure and presentation'
     questions:
       - "What output format best serves the user's needs?"
-      - "How should information be structured and organized?"
-      - "What level of detail and explanation is appropriate?"
-    validation: "Format is clear and optimized for user consumption"
+      - 'How should information be structured and organized?'
+      - 'What level of detail and explanation is appropriate?'
+    validation: 'Format is clear and optimized for user consumption'
 
 application_contexts:
-  - "code_reviews"
-  - "documentation_creation"
-  - "straightforward_analysis"
-  - "structured_reporting"
+  - 'code_reviews'
+  - 'documentation_creation'
+  - 'straightforward_analysis'
+  - 'structured_reporting'
 
 quality_standards:
-  clarity: "All three components must be clearly defined and actionable"
-  precision: "Task specification must be unambiguous and achievable"
-  usability: "Format must optimize information consumption and action"
-  efficiency: "Framework should streamline task completion"
+  clarity: 'All three components must be clearly defined and actionable'
+  precision: 'Task specification must be unambiguous and achievable'
+  usability: 'Format must optimize information consumption and action'
+  efficiency: 'Framework should streamline task completion'
 
 integration:
   constitutional_ai: true
@@ -50,15 +50,15 @@ integration:
 
 use_cases:
   primary:
-    - "Code reviews and analysis"
-    - "Documentation creation"
-    - "Simple problem-solving tasks"
-    - "Straightforward analysis requests"
-    
+    - 'Code reviews and analysis'
+    - 'Documentation creation'
+    - 'Simple problem-solving tasks'
+    - 'Straightforward analysis requests'
+
   secondary:
-    - "Quick assessments"
-    - "Structured reporting"
-    - "Educational explanations"
+    - 'Quick assessments'
+    - 'Structured reporting'
+    - 'Educational explanations'
 
 effectiveness_metrics:
   clarity_score: 0.90
@@ -68,27 +68,27 @@ effectiveness_metrics:
 
 implementation_guidelines:
   role_definition:
-    - "Be specific about domain expertise"
-    - "Match role to task complexity"
+    - 'Be specific about domain expertise'
+    - 'Match role to task complexity'
     - "Consider user's knowledge level"
-    
+
   task_specification:
-    - "Use clear, actionable language"
-    - "Break down complex tasks into steps"
-    - "Include relevant context and constraints"
-    
+    - 'Use clear, actionable language'
+    - 'Break down complex tasks into steps'
+    - 'Include relevant context and constraints'
+
   format_requirements:
-    - "Choose format that matches task type"
+    - 'Choose format that matches task type'
     - "Consider user's workflow and tools"
-    - "Ensure output is actionable"
+    - 'Ensure output is actionable'
 
 template: |
   **Role**: {role_description}
-  
+
   **Task**: {task_specification}
-  
+
   **Format**: {output_format}
-  
+
   Please proceed with the analysis, ensuring all Constitutional AI principles are followed and the output meets the specified format requirements.
 
 quality_validation:

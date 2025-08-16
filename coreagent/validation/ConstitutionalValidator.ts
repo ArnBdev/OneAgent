@@ -1,9 +1,9 @@
 /**
  * Constitutional Validator Implementation - ALITA Phase 1
- * 
+ *
  * Purpose: Validate content against Constitutional AI principles
  * Why: Safety and compliance are foundational requirements
- * 
+ *
  * @version 1.0.0
  * @date 2025-06-15
  */
@@ -30,7 +30,6 @@ export interface ValidationResult {
  * WHY: Ensures all AI interactions meet safety and ethical standards
  */
 export class ConstitutionalValidator {
-  
   /**
    * Validate content against Constitutional AI principles
    * WHY: Every interaction must meet safety standards
@@ -43,7 +42,7 @@ export class ConstitutionalValidator {
     if (this.containsSpeculation(content)) {
       violations.push('accuracy - contains speculation');
       score -= 20;
-    }    // Transparency Check - Look for reasoning explanations
+    } // Transparency Check - Look for reasoning explanations
     if (!this.containsReasoning(content)) {
       violations.push('transparency - lacks reasoning explanation');
       score -= 15; // Reduced penalty for helpful content
@@ -64,7 +63,7 @@ export class ConstitutionalValidator {
     return {
       passed: violations.length === 0,
       score: Math.max(score, 0),
-      violations
+      violations,
     };
   }
 
@@ -78,16 +77,16 @@ export class ConstitutionalValidator {
       /\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b/, // Email
       /password|secret|confidential/i,
       /\b\d{16}\b/, // Credit card
-      /api[_\s]?key|token|credential/i
+      /api[_\s]?key|token|credential/i,
     ];
 
-    const sensitiveDataDetected = sensitivePatterns.some(pattern => pattern.test(content));
+    const sensitiveDataDetected = sensitivePatterns.some((pattern) => pattern.test(content));
     const riskLevel = sensitiveDataDetected ? 'high' : 'low';
 
     return {
       passed: !sensitiveDataDetected,
       riskLevel,
-      sensitiveDataDetected
+      sensitiveDataDetected,
     };
   }
 
@@ -98,14 +97,16 @@ export class ConstitutionalValidator {
   async validatePattern(pattern: unknown): Promise<ValidationResult> {
     try {
       const p = (pattern as Record<string, unknown>) || {};
-      const constitutionalCompliant = typeof p.constitutionalCompliant === 'boolean' ? p.constitutionalCompliant : false;
-      const userSatisfactionScore = typeof p.userSatisfactionScore === 'number' ? p.userSatisfactionScore : 0;
+      const constitutionalCompliant =
+        typeof p.constitutionalCompliant === 'boolean' ? p.constitutionalCompliant : false;
+      const userSatisfactionScore =
+        typeof p.userSatisfactionScore === 'number' ? p.userSatisfactionScore : 0;
 
       // Check if pattern promotes Constitutional AI principles
       if (!constitutionalCompliant) {
         return {
           passed: false,
-          reason: 'Pattern does not meet Constitutional AI standards'
+          reason: 'Pattern does not meet Constitutional AI standards',
         };
       }
 
@@ -113,7 +114,7 @@ export class ConstitutionalValidator {
       if (userSatisfactionScore < 0.7) {
         return {
           passed: false,
-          reason: 'Pattern does not show sufficient user satisfaction'
+          reason: 'Pattern does not show sufficient user satisfaction',
         };
       }
 
@@ -121,7 +122,7 @@ export class ConstitutionalValidator {
     } catch (error) {
       return {
         passed: false,
-        reason: `Pattern validation error: ${error instanceof Error ? error.message : 'Unknown error'}`
+        reason: `Pattern validation error: ${error instanceof Error ? error.message : 'Unknown error'}`,
       };
     }
   }
@@ -146,8 +147,8 @@ export class ConstitutionalValidator {
     const harmfulPatterns = [
       /kill|murder|suicide|bomb|weapon/i,
       /hack|crack|steal|illegal/i,
-      /hate|discrimination|bias/i
+      /hate|discrimination|bias/i,
     ];
-    return harmfulPatterns.some(pattern => pattern.test(content));
+    return harmfulPatterns.some((pattern) => pattern.test(content));
   }
 }

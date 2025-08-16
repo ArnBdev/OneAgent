@@ -1,11 +1,11 @@
 /**
  * SmartGeminiClient - Hybrid AI Client Implementation
- * 
+ *
  * Implements smart fallback strategy:
  * 1. Try enterprise GeminiClient wrapper first (with retries, monitoring, safety)
  * 2. Fall back to direct @google/generative-ai calls if wrapper fails
  * 3. Provide consistent interface regardless of underlying implementation
- * 
+ *
  * This ensures immediate working AI while preserving enterprise features.
  */
 
@@ -33,24 +33,27 @@ export class SmartGeminiClient {
   private config: SmartGeminiConfig;
   private fallbackActive: boolean = false;
 
-  constructor(config: SmartGeminiConfig = {}) {    const apiKey = config.apiKey || process.env.GOOGLE_API_KEY || process.env.GEMINI_API_KEY;
-      this.config = {
+  constructor(config: SmartGeminiConfig = {}) {
+    const apiKey = config.apiKey || process.env.GOOGLE_API_KEY || process.env.GEMINI_API_KEY;
+    this.config = {
       apiKey: apiKey,
       model: config.model || 'gemini-2.5-flash', // Updated to latest stable model
       useWrapperFirst: config.useWrapperFirst !== false, // Default true
-      enableFallback: config.enableFallback !== false,   // Default true
+      enableFallback: config.enableFallback !== false, // Default true
       maxRetries: config.maxRetries || 2,
-      ...config
+      ...config,
     };
 
     if (!this.config.apiKey) {
-      throw new Error('No Gemini API key found. Please set GOOGLE_API_KEY or GEMINI_API_KEY environment variable.');
+      throw new Error(
+        'No Gemini API key found. Please set GOOGLE_API_KEY or GEMINI_API_KEY environment variable.',
+      );
     }
 
     // Initialize enterprise wrapper client
     this.wrapperClient = new GeminiClient({
       apiKey: this.config.apiKey,
-      model: this.config.model
+      model: this.config.model,
     } as GeminiConfig);
 
     // Initialize direct Google Generative AI client
@@ -58,7 +61,9 @@ export class SmartGeminiClient {
     this.directModel = this.directClient.getGenerativeModel({ model: this.config.model! });
 
     console.log(`🧠 SmartGeminiClient initialized with model: ${this.config.model}`);
-    console.log(`🔧 Wrapper-first: ${this.config.useWrapperFirst}, Fallback enabled: ${this.config.enableFallback}`);
+    console.log(
+      `🔧 Wrapper-first: ${this.config.useWrapperFirst}, Fallback enabled: ${this.config.enableFallback}`,
+    );
   }
 
   /**
@@ -66,21 +71,22 @@ export class SmartGeminiClient {
    */
   async generateContent(prompt: string, options?: ChatOptions): Promise<ChatResponse> {
     const startTime = createUnifiedTimestamp().unix;
-    
+
     // Try enterprise wrapper first (if enabled)
     if (this.config.useWrapperFirst && !this.fallbackActive) {
       try {
         console.log('🏢 Attempting enterprise wrapper approach...');
-        
+
         const response = await this.wrapperClient.chat(prompt, options);
-        
-        console.log(`✅ Enterprise wrapper success (${createUnifiedTimestamp().unix - startTime}ms)`);
+
+        console.log(
+          `✅ Enterprise wrapper success (${createUnifiedTimestamp().unix - startTime}ms)`,
+        );
         return response;
-        
       } catch (error: unknown) {
         const err = error as Error;
         console.log(`⚠️ Enterprise wrapper failed: ${err.message}`);
-        
+
         // Don't retry wrapper if it's clearly in mock mode
         if (err.message?.includes('rate limit') || err.message?.includes('mock mode')) {
           console.log('🔄 Activating permanent fallback mode due to wrapper issues');
@@ -93,20 +99,19 @@ export class SmartGeminiClient {
     if (this.config.enableFallback) {
       try {
         console.log('🚀 Using direct Gemini API approach...');
-        
+
         const result = await this.directModel.generateContent(prompt);
         const response = result.response;
         const text = response.text();
-        
+
         const chatResponse: ChatResponse = {
           response: text,
           finishReason: 'STOP',
-          timestamp: new Date().toISOString()
+          timestamp: new Date().toISOString(),
         };
-        
+
         console.log(`✅ Direct Gemini success (${createUnifiedTimestamp().unix - startTime}ms)`);
         return chatResponse;
-        
       } catch (error: unknown) {
         const err = error as Error;
         console.error('❌ Direct Gemini also failed:', err.message);
@@ -150,19 +155,25 @@ export class SmartGeminiClient {
       enableFallback: this.config.enableFallback,
       fallbackActive: this.fallbackActive,
       hasApiKey: !!this.config.apiKey,
-      wrapperConfig: this.wrapperClient.getConfig()
+      wrapperConfig: this.wrapperClient.getConfig(),
     };
   }
 
   /**
    * Test both approaches to verify functionality
    */
-  async testBothApproaches(): Promise<{wrapper: ChatResponse | {error: string}, direct: ChatResponse | {error: string}}> {
+  async testBothApproaches(): Promise<{
+    wrapper: ChatResponse | { error: string };
+    direct: ChatResponse | { error: string };
+  }> {
     const testPrompt = "Say 'Hello from AI!' in exactly those words.";
-    
-    const results: {wrapper: ChatResponse | {error: string}, direct: ChatResponse | {error: string}} = {
-      wrapper: {error: 'Not tested'},
-      direct: {error: 'Not tested'}
+
+    const results: {
+      wrapper: ChatResponse | { error: string };
+      direct: ChatResponse | { error: string };
+    } = {
+      wrapper: { error: 'Not tested' },
+      direct: { error: 'Not tested' },
     };
 
     // Test wrapper
@@ -183,7 +194,7 @@ export class SmartGeminiClient {
       results.direct = {
         response: result.response.text(),
         finishReason: 'STOP',
-        timestamp: new Date().toISOString()
+        timestamp: new Date().toISOString(),
       };
       console.log('✅ Direct test passed');
     } catch (error: unknown) {

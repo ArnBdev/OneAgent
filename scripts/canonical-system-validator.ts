@@ -2,7 +2,7 @@
 
 /**
  * OneAgent Canonical System Validator
- * 
+ *
  * Validates the canonical system integrity including:
  * - Canonical type system compliance
  * - Agent architecture conformity
@@ -40,7 +40,7 @@ class CanonicalSystemValidator {
 
   async validate(): Promise<void> {
     console.log('🔍 OneAgent Canonical System Validation');
-    console.log('=' .repeat(60));
+    console.log('='.repeat(60));
 
     // Core validation categories
     await this.validateCanonicalTypes();
@@ -59,25 +59,32 @@ class CanonicalSystemValidator {
     const category = 'Canonical Type System';
 
     // Check backbone types file exists
-    const backboneTypesPath = join(this.projectRoot, 'coreagent', 'types', 'oneagent-backbone-types.ts');
+    const backboneTypesPath = join(
+      this.projectRoot,
+      'coreagent',
+      'types',
+      'oneagent-backbone-types.ts',
+    );
     if (existsSync(backboneTypesPath)) {
       const content = readFileSync(backboneTypesPath, 'utf-8');
-      
+
       // Check for required interfaces
       const requiredInterfaces = [
         'MemoryRecord',
-        'MemoryMetadata', 
+        'MemoryMetadata',
         'AgentResponse',
-        'AgentHealthStatus'
+        'AgentHealthStatus',
       ];
 
       for (const interface_name of requiredInterfaces) {
-        const hasInterface = content.includes(`interface ${interface_name}`) || content.includes(`export interface ${interface_name}`);
+        const hasInterface =
+          content.includes(`interface ${interface_name}`) ||
+          content.includes(`export interface ${interface_name}`);
         checks.push({
           name: `${interface_name} interface present`,
           passed: hasInterface,
           message: hasInterface ? `✅ ${interface_name} defined` : `❌ ${interface_name} missing`,
-          severity: 'critical' as const
+          severity: 'critical' as const,
         });
       }
 
@@ -85,14 +92,14 @@ class CanonicalSystemValidator {
         name: 'Canonical types file exists',
         passed: true,
         message: '✅ oneagent-backbone-types.ts found',
-        severity: 'critical' as const
+        severity: 'critical' as const,
       });
     } else {
       checks.push({
         name: 'Canonical types file exists',
         passed: false,
         message: '❌ oneagent-backbone-types.ts missing',
-        severity: 'critical' as const
+        severity: 'critical' as const,
       });
     }
 
@@ -110,48 +117,54 @@ class CanonicalSystemValidator {
       name: 'BaseAgent foundation',
       passed: baseAgentExists,
       message: baseAgentExists ? '✅ BaseAgent.ts found' : '❌ BaseAgent.ts missing',
-      severity: 'critical' as const
+      severity: 'critical' as const,
     });
 
     // Check ISpecializedAgent interface
-    const specializedAgentPath = join(this.projectRoot, 'coreagent', 'agents', 'base', 'ISpecializedAgent.ts');
+    const specializedAgentPath = join(
+      this.projectRoot,
+      'coreagent',
+      'agents',
+      'base',
+      'ISpecializedAgent.ts',
+    );
     const specializedAgentExists = existsSync(specializedAgentPath);
     checks.push({
       name: 'ISpecializedAgent interface',
       passed: specializedAgentExists,
-      message: specializedAgentExists ? '✅ ISpecializedAgent.ts found' : '❌ ISpecializedAgent.ts missing',
-      severity: 'critical' as const
+      message: specializedAgentExists
+        ? '✅ ISpecializedAgent.ts found'
+        : '❌ ISpecializedAgent.ts missing',
+      severity: 'critical' as const,
     });
 
     // Check core agents
-    const coreAgents = [
-      'TriageAgent.ts',
-      'ValidationAgent.ts'
-    ];
+    const coreAgents = ['TriageAgent.ts', 'ValidationAgent.ts'];
 
     for (const agentFile of coreAgents) {
       const agentPath = join(this.projectRoot, 'coreagent', 'agents', 'specialized', agentFile);
       const agentExists = existsSync(agentPath);
-      
+
       if (agentExists) {
         const content = readFileSync(agentPath, 'utf-8');
         const extendsBaseAgent = content.includes('extends BaseAgent');
         const implementsSpecialized = content.includes('implements ISpecializedAgent');
-        
+
         checks.push({
           name: `${agentFile} architecture compliance`,
           passed: extendsBaseAgent && implementsSpecialized,
-          message: extendsBaseAgent && implementsSpecialized ? 
-            `✅ ${agentFile} follows canonical architecture` : 
-            `⚠️ ${agentFile} architecture needs review`,
-          severity: 'warning' as const
+          message:
+            extendsBaseAgent && implementsSpecialized
+              ? `✅ ${agentFile} follows canonical architecture`
+              : `⚠️ ${agentFile} architecture needs review`,
+          severity: 'warning' as const,
         });
       } else {
         checks.push({
           name: `${agentFile} exists`,
           passed: false,
           message: `❌ ${agentFile} missing`,
-          severity: 'critical' as const
+          severity: 'critical' as const,
         });
       }
     }
@@ -166,7 +179,7 @@ class CanonicalSystemValidator {
     // Check for actual memory integration (your real system)
     const memoryFiles = [
       'coreagent/memory/OneAgentMemory.ts',
-      'coreagent/memory/BatchMemoryOperations.ts'
+      'coreagent/memory/BatchMemoryOperations.ts',
     ];
 
     for (const memoryFile of memoryFiles) {
@@ -176,27 +189,35 @@ class CanonicalSystemValidator {
         name: `${memoryFile.split('/').pop()} exists`,
         passed: memoryExists,
         message: memoryExists ? `✅ ${memoryFile} found` : `❌ ${memoryFile} missing`,
-        severity: memoryExists ? 'info' : 'critical'
+        severity: memoryExists ? 'info' : 'critical',
       });
     }
 
     // Check MemoryRecord usage in agents (canonical compliance)
-    const triageAgentPath = join(this.projectRoot, 'coreagent', 'agents', 'specialized', 'TriageAgent.ts');
+    const triageAgentPath = join(
+      this.projectRoot,
+      'coreagent',
+      'agents',
+      'specialized',
+      'TriageAgent.ts',
+    );
     if (existsSync(triageAgentPath)) {
       const content = readFileSync(triageAgentPath, 'utf-8');
       const usesMemoryRecord = content.includes('MemoryRecord');
       checks.push({
         name: 'Canonical MemoryRecord integration',
         passed: usesMemoryRecord,
-        message: usesMemoryRecord ? '✅ MemoryRecord used in agents' : '⚠️ MemoryRecord integration needed',
-        severity: 'info'
+        message: usesMemoryRecord
+          ? '✅ MemoryRecord used in agents'
+          : '⚠️ MemoryRecord integration needed',
+        severity: 'info',
       });
     }
 
     // Check for memory tools (MCP integration)
     const memoryTools = [
       'coreagent/tools/OneAgentMemorySearchTool.ts',
-      'coreagent/tools/OneAgentMemoryAddTool.ts'
+      'coreagent/tools/OneAgentMemoryAddTool.ts',
     ];
 
     for (const toolFile of memoryTools) {
@@ -206,7 +227,7 @@ class CanonicalSystemValidator {
         name: `${toolFile.split('/').pop()} exists`,
         passed: toolExists,
         message: toolExists ? `✅ ${toolFile} found` : `⚠️ ${toolFile} missing`,
-        severity: 'info'
+        severity: 'info',
       });
     }
 
@@ -220,7 +241,7 @@ class CanonicalSystemValidator {
     // Check Constitutional AI components
     const constitutionalFiles = [
       'coreagent/agents/base/ConstitutionalAI.ts',
-      'coreagent/validation/ConstitutionalValidator.ts'
+      'coreagent/validation/ConstitutionalValidator.ts',
     ];
 
     for (const constitutionalFile of constitutionalFiles) {
@@ -229,8 +250,10 @@ class CanonicalSystemValidator {
       checks.push({
         name: `${constitutionalFile.split('/').pop()} exists`,
         passed: constitutionalExists,
-        message: constitutionalExists ? `✅ ${constitutionalFile} found` : `⚠️ ${constitutionalFile} missing`,
-        severity: 'warning' as const
+        message: constitutionalExists
+          ? `✅ ${constitutionalFile} found`
+          : `⚠️ ${constitutionalFile} missing`,
+        severity: 'warning' as const,
       });
     }
 
@@ -247,8 +270,10 @@ class CanonicalSystemValidator {
     checks.push({
       name: 'Unified MCP Server',
       passed: mcpServerExists,
-      message: mcpServerExists ? '✅ unified-mcp-server.ts found' : '❌ unified-mcp-server.ts missing',
-      severity: 'critical' as const
+      message: mcpServerExists
+        ? '✅ unified-mcp-server.ts found'
+        : '❌ unified-mcp-server.ts missing',
+      severity: 'critical' as const,
     });
 
     // Check OneAgent Engine
@@ -258,7 +283,7 @@ class CanonicalSystemValidator {
       name: 'OneAgent Engine',
       passed: engineExists,
       message: engineExists ? '✅ OneAgentEngine.ts found' : '❌ OneAgentEngine.ts missing',
-      severity: 'critical' as const
+      severity: 'critical' as const,
     });
 
     this.results.push({ category, checks });
@@ -275,14 +300,14 @@ class CanonicalSystemValidator {
         name: 'TypeScript compilation',
         passed: true,
         message: '✅ TypeScript compilation clean',
-        severity: 'critical'
+        severity: 'critical',
       });
     } catch {
       checks.push({
         name: 'TypeScript compilation',
         passed: false,
         message: '❌ TypeScript compilation errors',
-        severity: 'critical'
+        severity: 'critical',
       });
     }
 
@@ -291,14 +316,14 @@ class CanonicalSystemValidator {
     if (existsSync(packageJsonPath)) {
       const packageJson = JSON.parse(readFileSync(packageJsonPath, 'utf-8'));
       const requiredScripts = ['server:unified', 'build', 'dev'];
-      
+
       for (const script of requiredScripts) {
         const hasScript = packageJson.scripts && packageJson.scripts[script];
         checks.push({
           name: `${script} script`,
           passed: !!hasScript,
           message: hasScript ? `✅ ${script} script configured` : `⚠️ ${script} script missing`,
-          severity: 'warning' as const
+          severity: 'warning' as const,
         });
       }
     }
@@ -308,7 +333,7 @@ class CanonicalSystemValidator {
 
   private generateReport(): void {
     console.log('\n📊 Canonical System Validation Report');
-    console.log('=' .repeat(60));
+    console.log('='.repeat(60));
 
     let totalChecks = 0;
     let passedChecks = 0;
@@ -335,7 +360,7 @@ class CanonicalSystemValidator {
     }
 
     console.log('\n🏆 Summary');
-    console.log('=' .repeat(60));
+    console.log('='.repeat(60));
     console.log(`Total Checks: ${totalChecks}`);
     console.log(`Passed: ${passedChecks}`);
     console.log(`Critical Issues: ${criticalIssues}`);

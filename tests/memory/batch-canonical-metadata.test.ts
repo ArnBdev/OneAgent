@@ -10,24 +10,27 @@ async function main() {
   const legacyLike = [
     { content: 'Batch Test A', userId: 'tester', metadata: { type: 'legacy_a', extra: 'x' } },
     { text: 'Batch Test B (text alias)', user_id: 'tester', metadata: { tags: ['b'] } },
-    { content: 'Batch Test C', metadata: { unrelated: { nested: true } } }
+    { content: 'Batch Test C', metadata: { unrelated: { nested: true } } },
   ];
 
   for (const op of legacyLike) {
     await memory.addMemoryBatch(op as unknown as Record<string, unknown>);
   }
 
-  const result = await memory.flushBatch() as unknown as { results: Array<{ type: string; result: unknown; id?: string }>; errors: Array<{ type: string; error: string; id?: string }> };
+  const result = (await memory.flushBatch()) as unknown as {
+    results: Array<{ type: string; result: unknown; id?: string }>;
+    errors: Array<{ type: string; error: string; id?: string }>;
+  };
 
   // Basic assertions
-  const addResults = result.results.filter(r => r.type === 'add');
-  const errors = result.errors.filter(e => e.type === 'add');
+  const addResults = result.results.filter((r) => r.type === 'add');
+  const errors = result.errors.filter((e) => e.type === 'add');
 
   console.log('Batch Canonical Metadata Test:', {
     queued: legacyLike.length,
     addResults: addResults.length,
     errors: errors.length,
-    sample: addResults.slice(0, 2)
+    sample: addResults.slice(0, 2),
   });
 
   if (addResults.length !== legacyLike.length) {
@@ -44,9 +47,11 @@ async function main() {
   }
 
   // Create an expected partial unified metadata to compare shape (synthetic example)
-  const synthetic = unifiedMetadataService.create('batch_memory', 'TestHarness', { system: { userId: 'tester', source: 'TestHarness', component: 'batch-test' } });
+  const synthetic = unifiedMetadataService.create('batch_memory', 'TestHarness', {
+    system: { userId: 'tester', source: 'TestHarness', component: 'batch-test' },
+  });
   const requiredKeys = ['system', 'content', 'temporal'];
-  const hasKeys = requiredKeys.every(k => Object.prototype.hasOwnProperty.call(synthetic, k));
+  const hasKeys = requiredKeys.every((k) => Object.prototype.hasOwnProperty.call(synthetic, k));
   if (!hasKeys) {
     console.error('❌ Unified metadata shape unexpected');
     process.exitCode = 1;
@@ -55,7 +60,7 @@ async function main() {
   }
 }
 
-main().catch(err => {
+main().catch((err) => {
   console.error('Batch metadata test execution error', err);
   process.exit(1);
 });

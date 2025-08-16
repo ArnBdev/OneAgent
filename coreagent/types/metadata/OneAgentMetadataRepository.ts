@@ -1,11 +1,11 @@
 /**
  * OneAgent Unified Metadata Repository
  * Core Implementation of Metadata Management System
- * 
+ *
  * This repository provides the central hub for all metadata operations
  * across the OneAgent ecosystem, ensuring Constitutional AI compliance,
  * quality standards, and cross-system synchronization.
- * 
+ *
  * Version: 1.0.0
  * Created: 2024-06-18
  */
@@ -22,7 +22,7 @@ import {
   SyncResult,
   ConstitutionalAIMetadata,
   QualityMetadata,
-  SemanticMetadata
+  SemanticMetadata,
 } from './OneAgentUnifiedMetadata.js';
 import { OneAgentUnifiedBackbone } from '../../utils/UnifiedBackboneService.js';
 
@@ -39,18 +39,18 @@ export class OneAgentMetadataRepository implements MetadataRepository {
     bySystem: Map<string, Set<string>>;
     byQuality: Map<string, Set<string>>; // quality grade -> ids
   };
-    constructor(
+  constructor(
     private constitutionalValidator?: ConstitutionalValidator,
     private qualityScorer?: QualityScorer,
     private semanticAnalyzer?: SemanticAnalyzer,
-    private syncManager?: SyncManager
+    private syncManager?: SyncManager,
   ) {
     this.unifiedBackbone = OneAgentUnifiedBackbone.getInstance();
     this.indices = {
       byType: new Map(),
       byTags: new Map(),
       bySystem: new Map(),
-      byQuality: new Map()
+      byQuality: new Map(),
     };
   }
 
@@ -70,79 +70,73 @@ export class OneAgentMetadataRepository implements MetadataRepository {
       const constitutionalResult = await this.validateConstitutional(metadata);
       metadata.constitutional = this.mergeConstitutionalMetadata(
         metadata.constitutional,
-        constitutionalResult
+        constitutionalResult,
       );
     }
 
     // Enhance with quality scoring
     if (this.qualityScorer) {
       const qualityResult = await this.scoreQuality(metadata);
-      metadata.quality = this.mergeQualityMetadata(
-        metadata.quality,
-        qualityResult
-      );
+      metadata.quality = this.mergeQualityMetadata(metadata.quality, qualityResult);
     }
 
     // Enhance with semantic analysis
     if (this.semanticAnalyzer) {
       const semanticEnhancements = await this.semanticAnalyzer.analyze(metadata);
-      metadata.semantic = this.mergeSemanticMetadata(
-        metadata.semantic,
-        semanticEnhancements
-      );
-    }    // Use unified backbone for enhanced time awareness
+      metadata.semantic = this.mergeSemanticMetadata(metadata.semantic, semanticEnhancements);
+    } // Use unified backbone for enhanced time awareness
     const unifiedBackbone = OneAgentUnifiedBackbone.getInstance();
     const timeContext = unifiedBackbone.getServices().timeService.getContext();
     const timestamp = unifiedBackbone.getServices().timeService.now();
-    
+
     metadata.updatedAt = new Date(timeContext.realTime.utc);
     if (!metadata.createdAt) {
       metadata.createdAt = new Date(timeContext.realTime.utc);
-    }    // Create enhanced temporal metadata using unified backbone
+    } // Create enhanced temporal metadata using unified backbone
     if (!metadata.temporal) {
       metadata.temporal = {
         realTime: {
           createdAtUnix: timestamp.unix,
           updatedAtUnix: timestamp.unix,
           timezoneCaptured: timestamp.timezone,
-          utcOffset: timeContext.realTime.offset
+          utcOffset: timeContext.realTime.offset,
         },
         contextSnapshot: {
           timeOfDay: timeContext.context.timeOfDay,
           dayOfWeek: timeContext.context.dayOfWeek,
           businessContext: timeContext.context.businessDay,
           seasonalContext: timeContext.context.seasonalContext,
-          userEnergyContext: timeContext.intelligence.energyLevel
+          userEnergyContext: timeContext.intelligence.energyLevel,
         },
         relevance: {
           isTimeDependent: metadata.type === 'conversation' || metadata.type === 'memory',
           relevanceDecay: metadata.type === 'documentation' ? 'slow' : 'medium',
-          temporalTags: []
+          temporalTags: [],
         },
         lifeCoaching: {
           habitTimestamp: false,
           goalTimeline: {
             isGoalRelated: false,
-            timeframe: 'daily'
+            timeframe: 'daily',
           },
           emotionalTiming: {
             energyAlignment: timeContext.intelligence.optimalFocusTime,
-            reflectionTiming: timeContext.context.timeOfDay === 'evening'
-          }
+            reflectionTiming: timeContext.context.timeOfDay === 'evening',
+          },
         },
         professional: {
           projectPhase: 'execution',
           urgencyLevel: 'medium',
           deadlineAwareness: {
             hasDeadline: false,
-            criticalPath: false
+            criticalPath: false,
           },
           collaborationTiming: {
             requiresRealTime: false,
             asyncFriendly: true,
-            timezoneSensitive: false
-          }
-        }
+            timezoneSensitive: false,
+          },
+        },
       };
     }
 
@@ -160,12 +154,13 @@ export class OneAgentMetadataRepository implements MetadataRepository {
 
   async read<T extends AnyMetadata>(id: string): Promise<T | null> {
     const metadata = this.storage.get(id) as T;
-    if (metadata) {      // Update access tracking with enhanced time
+    if (metadata) {
+      // Update access tracking with enhanced time
       const timeContext = this.unifiedBackbone.getServices().timeService.getContext();
       metadata.lastAccessedAt = new Date(timeContext.realTime.utc);
       metadata.context.usage.lastAccessed = new Date(timeContext.realTime.utc);
       metadata.context.usage.frequencyAccessed += 1;
-      
+
       // Update temporal tracking
       if (metadata.temporal?.realTime) {
         metadata.temporal.realTime.lastAccessedUnix = timeContext.realTime.unix;
@@ -178,10 +173,10 @@ export class OneAgentMetadataRepository implements MetadataRepository {
     const existing = await this.read<T>(id);
     if (!existing) {
       throw new Error(`Metadata with id ${id} not found`);
-    }    // Merge updates with enhanced time
+    } // Merge updates with enhanced time
     const timeContext = this.unifiedBackbone.getServices().timeService.getContext();
     const updated = { ...existing, ...updates, updatedAt: new Date(timeContext.realTime.utc) } as T;
-    
+
     // Update temporal metadata
     if (updated.temporal?.realTime) {
       updated.temporal.realTime.updatedAtUnix = timeContext.realTime.unix;
@@ -190,7 +185,9 @@ export class OneAgentMetadataRepository implements MetadataRepository {
     // Re-validate
     const validation = await this.validate(updated);
     if (!validation.isValid) {
-      throw new Error(`Invalid metadata updates: ${validation.errors.map((e) => e.message).join(', ')}`);
+      throw new Error(
+        `Invalid metadata updates: ${validation.errors.map((e) => e.message).join(', ')}`,
+      );
     }
 
     // Re-analyze if significant changes
@@ -199,16 +196,13 @@ export class OneAgentMetadataRepository implements MetadataRepository {
         const constitutionalResult = await this.validateConstitutional(updated);
         updated.constitutional = this.mergeConstitutionalMetadata(
           updated.constitutional,
-          constitutionalResult
+          constitutionalResult,
         );
       }
 
       if (this.qualityScorer) {
         const qualityResult = await this.scoreQuality(updated);
-        updated.quality = this.mergeQualityMetadata(
-          updated.quality,
-          qualityResult
-        );
+        updated.quality = this.mergeQualityMetadata(updated.quality, qualityResult);
       }
     }
 
@@ -227,7 +221,7 @@ export class OneAgentMetadataRepository implements MetadataRepository {
 
     // Remove from indices
     this.removeFromIndices(metadata);
-    
+
     // Remove from storage
     this.storage.delete(id);
 
@@ -258,9 +252,9 @@ export class OneAgentMetadataRepository implements MetadataRepository {
       const tagIds = new Set<string>();
       criteria.tags.forEach((tag: string) => {
         const ids = this.indices.byTags.get(tag) || new Set();
-        ids.forEach(id => tagIds.add(id));
+        ids.forEach((id) => tagIds.add(id));
       });
-      
+
       if (firstFilter) {
         candidateIds = tagIds;
         firstFilter = false;
@@ -272,11 +266,11 @@ export class OneAgentMetadataRepository implements MetadataRepository {
     // Filter by quality
     if (criteria.qualityRange) {
       const qualityIds = new Set<string>();
-      ['A', 'B', 'C', 'D', 'F'].forEach(grade => {
+      ['A', 'B', 'C', 'D', 'F'].forEach((grade) => {
         const gradeScore = this.gradeToScore(grade);
         if (gradeScore >= criteria.qualityRange!.min && gradeScore <= criteria.qualityRange!.max) {
           const ids = this.indices.byQuality.get(grade) || new Set();
-          ids.forEach(id => qualityIds.add(id));
+          ids.forEach((id) => qualityIds.add(id));
         }
       });
 
@@ -304,7 +298,9 @@ export class OneAgentMetadataRepository implements MetadataRepository {
 
     // Apply sorting
     if (criteria.sortBy) {
-      results.sort((a, b) => this.compareMetadata(a, b, criteria.sortBy!, criteria.sortOrder || 'asc'));
+      results.sort((a, b) =>
+        this.compareMetadata(a, b, criteria.sortBy!, criteria.sortOrder || 'asc'),
+      );
     }
 
     // Apply pagination
@@ -321,7 +317,7 @@ export class OneAgentMetadataRepository implements MetadataRepository {
   async search<T extends AnyMetadata>(query: string, options: SearchOptions = {}): Promise<T[]> {
     const results: Array<{ metadata: T; score: number }> = [];
 
-  for (const [, metadata] of this.storage) {
+    for (const [, metadata] of this.storage) {
       let score = 0;
 
       // Basic text search
@@ -336,8 +332,11 @@ export class OneAgentMetadataRepository implements MetadataRepository {
       }
 
       // Tag matching
-      if (metadata.semantic.semanticTags.primary.some((tag: string) => 
-        tag.toLowerCase().includes(query.toLowerCase()))) {
+      if (
+        metadata.semantic.semanticTags.primary.some((tag: string) =>
+          tag.toLowerCase().includes(query.toLowerCase()),
+        )
+      ) {
         score += 15;
       }
 
@@ -350,7 +349,7 @@ export class OneAgentMetadataRepository implements MetadataRepository {
       }
 
       // Quality boost
-      score *= (metadata.quality.qualityScore.overall / 100);
+      score *= metadata.quality.qualityScore.overall / 100;
 
       // Constitutional compliance boost
       if (metadata.constitutional.overallCompliance.score >= 80) {
@@ -367,7 +366,7 @@ export class OneAgentMetadataRepository implements MetadataRepository {
 
     // Apply limit
     const limit = options.maxResults || 50;
-    return results.slice(0, limit).map(r => r.metadata);
+    return results.slice(0, limit).map((r) => r.metadata);
   }
 
   // =====================================
@@ -408,10 +407,10 @@ export class OneAgentMetadataRepository implements MetadataRepository {
   }
 
   async createRelationship(
-    fromId: string, 
-    toId: string, 
-    relationshipType: string, 
-    strength: number = 0.5
+    fromId: string,
+    toId: string,
+    relationshipType: string,
+    strength: number = 0.5,
   ): Promise<boolean> {
     const fromMetadata = await this.read(fromId);
     const toMetadata = await this.read(toId);
@@ -422,11 +421,18 @@ export class OneAgentMetadataRepository implements MetadataRepository {
 
     // Add relationship in both directions
     fromMetadata.semantic.relationships.relatedIds.push(toId);
-  fromMetadata.semantic.relationships.relationshipTypes[toId] = relationshipType as 'parent' | 'child' | 'sibling' | 'reference' | 'similar';
+    fromMetadata.semantic.relationships.relationshipTypes[toId] = relationshipType as
+      | 'parent'
+      | 'child'
+      | 'sibling'
+      | 'reference'
+      | 'similar';
     fromMetadata.semantic.relationships.strength[toId] = strength;
 
     toMetadata.semantic.relationships.relatedIds.push(fromId);
-  toMetadata.semantic.relationships.relationshipTypes[fromId] = (this.getInverseRelationship(relationshipType) as 'parent' | 'child' | 'sibling' | 'reference' | 'similar');
+    toMetadata.semantic.relationships.relationshipTypes[fromId] = this.getInverseRelationship(
+      relationshipType,
+    ) as 'parent' | 'child' | 'sibling' | 'reference' | 'similar';
     toMetadata.semantic.relationships.strength[fromId] = strength;
 
     // Update both metadata objects
@@ -441,18 +447,34 @@ export class OneAgentMetadataRepository implements MetadataRepository {
   // =====================================
 
   async validate<T extends AnyMetadata>(metadata: T): Promise<ValidationResult> {
-    const errors: Array<{ field: string; message: string; severity: 'error' | 'warning' | 'info' }> = [];
+    const errors: Array<{
+      field: string;
+      message: string;
+      severity: 'error' | 'warning' | 'info';
+    }> = [];
     const warnings: string[] = [];
     const suggestions: string[] = [];
 
     // Required field validation
     if (!metadata.id) errors.push({ field: 'id', message: 'ID is required', severity: 'error' });
-    if (!metadata.type) errors.push({ field: 'type', message: 'Type is required', severity: 'error' });
-    if (!metadata.title) errors.push({ field: 'title', message: 'Title is required', severity: 'error' });
+    if (!metadata.type)
+      errors.push({ field: 'type', message: 'Type is required', severity: 'error' });
+    if (!metadata.title)
+      errors.push({ field: 'title', message: 'Title is required', severity: 'error' });
 
     // Timestamp validation
-    if (!metadata.createdAt) errors.push({ field: 'createdAt', message: 'Created timestamp is required', severity: 'error' });
-    if (!metadata.updatedAt) errors.push({ field: 'updatedAt', message: 'Updated timestamp is required', severity: 'error' });
+    if (!metadata.createdAt)
+      errors.push({
+        field: 'createdAt',
+        message: 'Created timestamp is required',
+        severity: 'error',
+      });
+    if (!metadata.updatedAt)
+      errors.push({
+        field: 'updatedAt',
+        message: 'Updated timestamp is required',
+        severity: 'error',
+      });
 
     // Constitutional AI validation
     if (metadata.constitutional.overallCompliance.score < 80) {
@@ -472,10 +494,10 @@ export class OneAgentMetadataRepository implements MetadataRepository {
     }
 
     return {
-      isValid: errors.filter(e => e.severity === 'error').length === 0,
+      isValid: errors.filter((e) => e.severity === 'error').length === 0,
       errors,
       warnings,
-      suggestions
+      suggestions,
     };
   }
 
@@ -491,20 +513,23 @@ export class OneAgentMetadataRepository implements MetadataRepository {
       relevance: Math.min(metadata.semantic.semanticTags.primary.length * 20, 100),
       clarity: metadata.title.length > 10 ? 80 : 60,
       maintainability: metadata.validation.schemaCompliant ? 90 : 50,
-      performance: 75 // Default
+      performance: 75, // Default
     };
 
-    const overall = Object.values(scores).reduce((sum, score) => sum + score, 0) / Object.keys(scores).length;
-    
+    const overall =
+      Object.values(scores).reduce((sum, score) => sum + score, 0) / Object.keys(scores).length;
+
     return {
       overall,
       breakdown: scores,
       grade: this.scoreToGrade(overall),
-      improvements: this.generateImprovements(scores)
+      improvements: this.generateImprovements(scores),
     };
   }
 
-  async validateConstitutional<T extends AnyMetadata>(metadata: T): Promise<ConstitutionalValidationResult> {
+  async validateConstitutional<T extends AnyMetadata>(
+    metadata: T,
+  ): Promise<ConstitutionalValidationResult> {
     if (this.constitutionalValidator) {
       return await this.constitutionalValidator.validate(metadata);
     }
@@ -514,7 +539,7 @@ export class OneAgentMetadataRepository implements MetadataRepository {
       accuracy: metadata.constitutional.accuracy.score,
       transparency: metadata.constitutional.transparency.score,
       helpfulness: metadata.constitutional.helpfulness.score,
-      safety: metadata.constitutional.safety.score
+      safety: metadata.constitutional.safety.score,
     };
 
     const score = Object.values(breakdown).reduce((sum, s) => sum + s, 0) / 4;
@@ -525,7 +550,7 @@ export class OneAgentMetadataRepository implements MetadataRepository {
       grade: this.scoreToGrade(score),
       breakdown,
       violations: score < 80 ? ['Overall compliance below threshold'] : [],
-      recommendations: score < 80 ? ['Improve content to meet Constitutional AI standards'] : []
+      recommendations: score < 80 ? ['Improve content to meet Constitutional AI standards'] : [],
     };
   }
 
@@ -561,7 +586,7 @@ export class OneAgentMetadataRepository implements MetadataRepository {
     this.indices.byType.get(metadata.type as MetadataType)!.add(metadata.id);
 
     // Tag index
-    metadata.semantic.semanticTags.primary.forEach(tag => {
+    metadata.semantic.semanticTags.primary.forEach((tag) => {
       if (!this.indices.byTags.has(tag)) {
         this.indices.byTags.set(tag, new Set());
       }
@@ -569,12 +594,12 @@ export class OneAgentMetadataRepository implements MetadataRepository {
     });
 
     // System index
-    Object.keys(metadata.integration.systemIds).forEach(system => {
+    Object.keys(metadata.integration.systemIds).forEach((system) => {
       if (!this.indices.bySystem.has(system)) {
         this.indices.bySystem.set(system, new Set());
       }
       this.indices.bySystem.get(system)!.add(metadata.id);
-    });    // Quality index
+    }); // Quality index
     const grade = this.scoreToGrade(metadata.quality.qualityScore.overall);
     if (!this.indices.byQuality.has(grade)) {
       this.indices.byQuality.set(grade, new Set());
@@ -585,19 +610,20 @@ export class OneAgentMetadataRepository implements MetadataRepository {
   private removeFromIndices(metadata: AnyMetadata): void {
     // Remove from all indices
     this.indices.byType.get(metadata.type as MetadataType)?.delete(metadata.id);
-    
-    metadata.semantic.semanticTags.primary.forEach(tag => {
+
+    metadata.semantic.semanticTags.primary.forEach((tag) => {
       this.indices.byTags.get(tag)?.delete(metadata.id);
     });
 
-    Object.keys(metadata.integration.systemIds).forEach(system => {
+    Object.keys(metadata.integration.systemIds).forEach((system) => {
       this.indices.bySystem.get(system)?.delete(metadata.id);
-    });    const grade = this.scoreToGrade(metadata.quality.qualityScore.overall);
+    });
+    const grade = this.scoreToGrade(metadata.quality.qualityScore.overall);
     this.indices.byQuality.get(grade)?.delete(metadata.id);
   }
 
   private intersection<T>(set1: Set<T>, set2: Set<T>): Set<T> {
-    return new Set([...set1].filter(x => set2.has(x)));
+    return new Set([...set1].filter((x) => set2.has(x)));
   }
 
   private matchesTextSearch(metadata: AnyMetadata, query: string): boolean {
@@ -605,8 +631,10 @@ export class OneAgentMetadataRepository implements MetadataRepository {
       metadata.title,
       metadata.description || '',
       ...metadata.semantic.semanticTags.primary,
-      ...metadata.semantic.searchability.searchTerms
-    ].join(' ').toLowerCase();
+      ...metadata.semantic.searchability.searchTerms,
+    ]
+      .join(' ')
+      .toLowerCase();
 
     return searchText.includes(query.toLowerCase());
   }
@@ -621,12 +649,18 @@ export class OneAgentMetadataRepository implements MetadataRepository {
 
   private gradeToScore(grade: string): number {
     switch (grade) {
-      case 'A': return 95;
-      case 'B': return 85;
-      case 'C': return 75;
-      case 'D': return 65;
-      case 'F': return 50;
-      default: return 0;
+      case 'A':
+        return 95;
+      case 'B':
+        return 85;
+      case 'C':
+        return 75;
+      case 'D':
+        return 65;
+      case 'F':
+        return 50;
+      default:
+        return 0;
     }
   }
 
@@ -655,7 +689,7 @@ export class OneAgentMetadataRepository implements MetadataRepository {
 
   private generateImprovements(scores: Record<string, number>): string[] {
     const improvements: string[] = [];
-    
+
     Object.entries(scores).forEach(([category, score]) => {
       if (score < 80) {
         switch (category) {
@@ -695,17 +729,20 @@ export class OneAgentMetadataRepository implements MetadataRepository {
 
   private getInverseRelationship(relationshipType: string): string {
     const inverses: Record<string, string> = {
-      'parent': 'child',
-      'child': 'parent',
-      'similar': 'similar',
-      'reference': 'referenced-by',
+      parent: 'child',
+      child: 'parent',
+      similar: 'similar',
+      reference: 'referenced-by',
       'referenced-by': 'reference',
-      'sibling': 'sibling'
+      sibling: 'sibling',
     };
     return inverses[relationshipType] || relationshipType;
   }
 
-  private matchesAdditionalCriteria(metadata: AnyMetadata, criteria: MetadataQueryCriteria): boolean {
+  private matchesAdditionalCriteria(
+    metadata: AnyMetadata,
+    criteria: MetadataQueryCriteria,
+  ): boolean {
     // Date range filtering
     if (criteria.dateRange) {
       const date = metadata.createdAt;
@@ -724,8 +761,8 @@ export class OneAgentMetadataRepository implements MetadataRepository {
 
     // System filtering
     if (criteria.systems && criteria.systems.length > 0) {
-      const hasSystem = criteria.systems.some(system => 
-        Object.keys(metadata.integration.systemIds).includes(system)
+      const hasSystem = criteria.systems.some((system) =>
+        Object.keys(metadata.integration.systemIds).includes(system),
       );
       if (!hasSystem) {
         return false;
@@ -742,7 +779,12 @@ export class OneAgentMetadataRepository implements MetadataRepository {
     return true;
   }
 
-  private compareMetadata(a: AnyMetadata, b: AnyMetadata, sortBy: string, order: 'asc' | 'desc'): number {
+  private compareMetadata(
+    a: AnyMetadata,
+    b: AnyMetadata,
+    sortBy: string,
+    order: 'asc' | 'desc',
+  ): number {
     let comparison = 0;
 
     switch (sortBy) {
@@ -756,7 +798,8 @@ export class OneAgentMetadataRepository implements MetadataRepository {
         comparison = a.quality.qualityScore.overall - b.quality.qualityScore.overall;
         break;
       case 'constitutional':
-        comparison = a.constitutional.overallCompliance.score - b.constitutional.overallCompliance.score;
+        comparison =
+          a.constitutional.overallCompliance.score - b.constitutional.overallCompliance.score;
         break;
       case 'title':
         comparison = a.title.localeCompare(b.title);
@@ -770,27 +813,25 @@ export class OneAgentMetadataRepository implements MetadataRepository {
 
   private mergeConstitutionalMetadata(
     existing: ConstitutionalAIMetadata,
-    validation: ConstitutionalValidationResult
+    validation: ConstitutionalValidationResult,
   ): ConstitutionalAIMetadata {
     return {
       ...existing,
       accuracy: { ...existing.accuracy, score: validation.breakdown.accuracy },
       transparency: { ...existing.transparency, score: validation.breakdown.transparency },
       helpfulness: { ...existing.helpfulness, score: validation.breakdown.helpfulness },
-      safety: { ...existing.safety, score: validation.breakdown.safety },      overallCompliance: {
+      safety: { ...existing.safety, score: validation.breakdown.safety },
+      overallCompliance: {
         ...existing.overallCompliance,
         score: validation.score,
         grade: validation.grade,
         lastValidated: new Date(this.unifiedBackbone.getServices().timeService.now().utc),
-        validatedBy: 'OneAgentMetadataRepository'
-      }
+        validatedBy: 'OneAgentMetadataRepository',
+      },
     };
   }
 
-  private mergeQualityMetadata(
-    existing: QualityMetadata,
-    quality: QualityScore
-  ): QualityMetadata {
+  private mergeQualityMetadata(existing: QualityMetadata, quality: QualityScore): QualityMetadata {
     return {
       ...existing,
       qualityScore: {
@@ -800,29 +841,34 @@ export class OneAgentMetadataRepository implements MetadataRepository {
         relevance: quality.breakdown.relevance || existing.qualityScore.relevance,
         clarity: quality.breakdown.clarity || existing.qualityScore.clarity,
         maintainability: quality.breakdown.maintainability || existing.qualityScore.maintainability,
-        performance: quality.breakdown.performance || existing.qualityScore.performance
+        performance: quality.breakdown.performance || existing.qualityScore.performance,
       },
       standards: {
         ...existing.standards,
-        currentStatus: quality.overall >= 90 ? 'exceeds-target' : 
-                      quality.overall >= 80 ? 'meets-target' :
-                      quality.overall >= 60 ? 'meets-minimum' : 'below-minimum',
-        improvementSuggestions: quality.improvements
-      }
+        currentStatus:
+          quality.overall >= 90
+            ? 'exceeds-target'
+            : quality.overall >= 80
+              ? 'meets-target'
+              : quality.overall >= 60
+                ? 'meets-minimum'
+                : 'below-minimum',
+        improvementSuggestions: quality.improvements,
+      },
     };
   }
 
   private mergeSemanticMetadata(
     existing: SemanticMetadata,
-    enhancements: Partial<SemanticMetadata>
+    enhancements: Partial<SemanticMetadata>,
   ): SemanticMetadata {
     return {
       ...existing,
       ...enhancements,
       semanticTags: {
         ...existing.semanticTags,
-        ...enhancements.semanticTags
-      }
+        ...enhancements.semanticTags,
+      },
     };
   }
 }
@@ -852,7 +898,7 @@ export interface SyncManager {
 
 /**
  * This metadata repository provides:
- * 
+ *
  * 1. **Complete CRUD Operations**: Full metadata lifecycle management
  * 2. **Advanced Querying**: Type-safe queries with multiple filter options
  * 3. **Semantic Search**: AI-powered search with relevance scoring
@@ -861,7 +907,7 @@ export interface SyncManager {
  * 6. **Constitutional AI**: Built-in compliance checking and enhancement
  * 7. **Cross-System Sync**: Unified synchronization across OneAgent systems
  * 8. **Performance Optimization**: Efficient indexing and caching strategies
- * 
+ *
  * The repository serves as the central hub for all metadata operations,
  * ensuring consistency, quality, and intelligence across the entire
  * OneAgent ecosystem.

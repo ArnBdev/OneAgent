@@ -4,8 +4,18 @@
 import { UnifiedMCPTool, ToolExecutionResult } from './UnifiedMCPTool';
 import { OneAgentMemory } from '../memory/OneAgentMemory';
 
-interface PatchResultDataShape { id?: string; userId?: string; metadata?: Record<string, unknown>; updatedAt?: string; }
-interface PatchResultShape { data?: PatchResultDataShape; message?: string; error?: string; timestamp?: string }
+interface PatchResultDataShape {
+  id?: string;
+  userId?: string;
+  metadata?: Record<string, unknown>;
+  updatedAt?: string;
+}
+interface PatchResultShape {
+  data?: PatchResultDataShape;
+  message?: string;
+  error?: string;
+  timestamp?: string;
+}
 
 interface MemoryEditArgs {
   memoryId: string;
@@ -25,26 +35,40 @@ export class OneAgentMemoryEditTool extends UnifiedMCPTool {
         properties: {
           memoryId: { type: 'string', description: 'ID of the memory item to update (required)' },
           userId: { type: 'string', description: 'User ID (optional)' },
-          update: { type: 'object', description: 'Partial update object for the memory item (required)' }
+          update: {
+            type: 'object',
+            description: 'Partial update object for the memory item (required)',
+          },
         },
-        required: ['memoryId', 'update']
+        required: ['memoryId', 'update'],
       },
       'memory_context',
-      'critical'
+      'critical',
     );
     this.memoryClient = memoryClient;
   }
 
   async executeCore(args: MemoryEditArgs): Promise<ToolExecutionResult> {
     // Runtime input validation
-    if (!args || typeof args.memoryId !== 'string' || !args.memoryId.trim() || typeof args.update !== 'object' || !args.update) {
-      return { success: false, data: { error: 'Invalid input: memoryId (string) and update (object) are required' } };
+    if (
+      !args ||
+      typeof args.memoryId !== 'string' ||
+      !args.memoryId.trim() ||
+      typeof args.update !== 'object' ||
+      !args.update
+    ) {
+      return {
+        success: false,
+        data: { error: 'Invalid input: memoryId (string) and update (object) are required' },
+      };
     }
     try {
       const { memoryId, userId, update } = args;
       const patch: Record<string, unknown> = { ...update };
       if (userId) patch.userId = userId;
-  const result = await this.memoryClient.patchMemory(memoryId, patch) as unknown as PatchResultShape | undefined;
+      const result = (await this.memoryClient.patchMemory(memoryId, patch)) as unknown as
+        | PatchResultShape
+        | undefined;
       // Structured, typed output
       return {
         success: true,
@@ -56,11 +80,14 @@ export class OneAgentMemoryEditTool extends UnifiedMCPTool {
           updatedAt: result?.data?.updatedAt,
           message: result?.message || 'Memory updated successfully',
           error: result?.error || null,
-          timestamp: result?.timestamp || new Date().toISOString()
-        }
+          timestamp: result?.timestamp || new Date().toISOString(),
+        },
       };
     } catch (error) {
-      return { success: false, data: { error: error instanceof Error ? error.message : String(error) } };
+      return {
+        success: false,
+        data: { error: error instanceof Error ? error.message : String(error) },
+      };
     }
   }
 }

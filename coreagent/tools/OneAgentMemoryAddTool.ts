@@ -23,12 +23,12 @@ export class OneAgentMemoryAddTool extends UnifiedMCPTool {
         properties: {
           content: { type: 'string', description: 'Content to store (required, non-empty string)' },
           userId: { type: 'string', description: 'User ID (optional)' },
-          metadata: { type: 'object', description: 'Metadata (optional)' }
+          metadata: { type: 'object', description: 'Metadata (optional)' },
         },
-        required: ['content']
+        required: ['content'],
       },
       'memory_context',
-      'critical'
+      'critical',
     );
     this.memoryClient = memoryClient;
   }
@@ -36,24 +36,37 @@ export class OneAgentMemoryAddTool extends UnifiedMCPTool {
   async executeCore(args: MemoryAddArgs): Promise<ToolExecutionResult> {
     // Runtime input validation
     if (!args || typeof args.content !== 'string' || !args.content.trim()) {
-      return { success: false, data: { error: 'Invalid input: content must be a non-empty string' } };
+      return {
+        success: false,
+        data: { error: 'Invalid input: content must be a non-empty string' },
+      };
     }
-    
+
     try {
       const { content, userId, metadata } = args;
-      
+
       // Use optimized add method for better quota management
       const useBatch = content.length < 100; // Use batching for smaller content
-      
+
       let memoryId: string | undefined;
       if (useBatch) {
         await this.memoryClient.addMemoryBatch({ content, userId, metadata });
       } else {
         // Always prefer canonical path; build minimal partial unified metadata if caller passed simple object
-        const meta = (metadata as Partial<UnifiedMetadata>) || { content: { category: 'general', tags: ['tool'], sensitivity: 'internal', relevanceScore: 0.5, contextDependency: 'session' } } as Partial<UnifiedMetadata>;
+        const meta =
+          (metadata as Partial<UnifiedMetadata>) ||
+          ({
+            content: {
+              category: 'general',
+              tags: ['tool'],
+              sensitivity: 'internal',
+              relevanceScore: 0.5,
+              contextDependency: 'session',
+            },
+          } as Partial<UnifiedMetadata>);
         memoryId = await this.memoryClient.addMemoryCanonical(content, meta, userId);
       }
-      
+
       // Structured, typed output
       return {
         success: true,
@@ -64,14 +77,19 @@ export class OneAgentMemoryAddTool extends UnifiedMCPTool {
           metadata: metadata || {},
           createdAt: new Date().toISOString(),
           updatedAt: new Date().toISOString(),
-          message: useBatch ? 'Memory queued for batch processing' : 'Memory created successfully (canonical)',
+          message: useBatch
+            ? 'Memory queued for batch processing'
+            : 'Memory created successfully (canonical)',
           error: null,
           timestamp: new Date().toISOString(),
-          batched: useBatch
-        }
+          batched: useBatch,
+        },
       };
     } catch (error) {
-      return { success: false, data: { error: error instanceof Error ? error.message : String(error) } };
+      return {
+        success: false,
+        data: { error: error instanceof Error ? error.message : String(error) },
+      };
     }
   }
 }

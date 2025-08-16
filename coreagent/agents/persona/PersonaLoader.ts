@@ -1,6 +1,6 @@
 /**
  * PersonaLoader.ts - Dynamic YAML Persona Loading System
- * 
+ *
  * Provides enterprise-grade persona loading with:
  * - YAML parsing and validation
  * - File system watching for hot-reload
@@ -78,9 +78,9 @@ export class PersonaLoader extends EventEmitter {
     this.personasPath = path.resolve(personasPath);
     const memoryConfig: OneAgentMemoryConfig = {
       apiKey: process.env.MEM0_API_KEY || 'demo-key',
-      apiUrl: process.env.MEM0_API_URL
+      apiUrl: process.env.MEM0_API_URL,
     };
-  this.memorySystem = OneAgentMemory.getInstance(memoryConfig);
+    this.memorySystem = OneAgentMemory.getInstance(memoryConfig);
   }
 
   /**
@@ -103,19 +103,24 @@ export class PersonaLoader extends EventEmitter {
 
     try {
       console.log(`[PersonaLoader] Initializing with path: ${this.personasPath}`);
-      
+
       // Load all existing personas
       await this.loadAllPersonas();
-      
+
       // Setup file system watching for hot-reload
       await this.setupFileWatching();
-      
+
       this.isInitialized = true;
       this.emit('initialized');
-      
-      console.log(`[PersonaLoader] Initialized successfully. Loaded ${this.personas.size} personas.`);    } catch (error) {
+
+      console.log(
+        `[PersonaLoader] Initialized successfully. Loaded ${this.personas.size} personas.`,
+      );
+    } catch (error) {
       console.error('[PersonaLoader] Initialization failed:', error);
-      throw new Error(`PersonaLoader initialization failed: ${error instanceof Error ? error.message : String(error)}`);
+      throw new Error(
+        `PersonaLoader initialization failed: ${error instanceof Error ? error.message : String(error)}`,
+      );
     }
   }
 
@@ -128,7 +133,7 @@ export class PersonaLoader extends EventEmitter {
     }
 
     const files = fs.readdirSync(this.personasPath);
-    const yamlFiles = files.filter(file => file.endsWith('.yaml') || file.endsWith('.yml'));
+    const yamlFiles = files.filter((file) => file.endsWith('.yaml') || file.endsWith('.yml'));
 
     console.log(`[PersonaLoader] Found ${yamlFiles.length} YAML files to load`);
 
@@ -146,27 +151,28 @@ export class PersonaLoader extends EventEmitter {
    */
   private async loadPersonaFile(filename: string): Promise<void> {
     const filePath = path.join(this.personasPath, filename);
-    
+
     try {
       const fileContent = fs.readFileSync(filePath, 'utf8');
       const personaData = yaml.load(fileContent) as PersonaConfig;
-      
+
       // Validate persona structure
       this.validatePersonaConfig(personaData, filename);
-      
+
       // Generate prompt template from persona
       const promptTemplate = this.generatePromptTemplate(personaData);
-      
+
       // Store persona and template
       this.personas.set(personaData.id, personaData);
       this.promptTemplates.set(personaData.id, promptTemplate);
-      
+
       console.log(`[PersonaLoader] Loaded persona: ${personaData.id} (${personaData.name})`);
-      
+
       // Store in memory for persistence and learning
       await this.storePersonaInMemory(personaData, promptTemplate);
-      
-      this.emit('personaLoaded', personaData.id, personaData);    } catch (error) {
+
+      this.emit('personaLoaded', personaData.id, personaData);
+    } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
       throw new Error(`Failed to load persona from ${filename}: ${errorMessage}`);
     }
@@ -177,24 +183,42 @@ export class PersonaLoader extends EventEmitter {
    */
   private validatePersonaConfig(persona: Partial<PersonaConfig>, filename: string): void {
     const requiredFields: (keyof PersonaConfig)[] = [
-      'id', 'name', 'type', 'version', 'role', 'style',
-      'constitutionalPrinciples', 'capabilities', 'quality_standards'
+      'id',
+      'name',
+      'type',
+      'version',
+      'role',
+      'style',
+      'constitutionalPrinciples',
+      'capabilities',
+      'quality_standards',
     ];
 
     for (const field of requiredFields) {
-      if ((persona as Record<string, unknown>)[field as string] === undefined || (persona as Record<string, unknown>)[field as string] === null) {
+      if (
+        (persona as Record<string, unknown>)[field as string] === undefined ||
+        (persona as Record<string, unknown>)[field as string] === null
+      ) {
         throw new Error(`Missing required field '${field as string}' in ${filename}`);
       }
     }
 
     // Validate Constitutional AI principles
-    if (!Array.isArray(persona.constitutionalPrinciples) || persona.constitutionalPrinciples.length === 0) {
+    if (
+      !Array.isArray(persona.constitutionalPrinciples) ||
+      persona.constitutionalPrinciples.length === 0
+    ) {
       throw new Error(`Invalid constitutionalPrinciples in ${filename}`);
     }
 
     // Validate quality standards
     const qs = persona.quality_standards;
-    if (!qs || typeof qs.minimum_score !== 'number' || qs.minimum_score < 0 || qs.minimum_score > 100) {
+    if (
+      !qs ||
+      typeof qs.minimum_score !== 'number' ||
+      qs.minimum_score < 0 ||
+      qs.minimum_score > 100
+    ) {
       throw new Error(`Invalid quality_standards.minimum_score in ${filename}`);
     }
   }
@@ -212,7 +236,7 @@ export class PersonaLoader extends EventEmitter {
       systemPrompt,
       userPromptTemplate,
       responseInstructions,
-      qualityChecks
+      qualityChecks,
     };
   }
 
@@ -220,21 +244,24 @@ export class PersonaLoader extends EventEmitter {
    * Build system prompt from persona configuration
    */
   private buildSystemPrompt(persona: PersonaConfig): string {
-    const frameworkSection = persona.frameworks 
+    const frameworkSection = persona.frameworks
       ? `\nFramework Integration:\n- Primary: ${persona.frameworks.primary}\n- Secondary: ${persona.frameworks.secondary || 'N/A'}`
       : '';
 
-    const principlesSection = persona.constitutionalPrinciples.length > 0
-      ? `\nConstitutional AI Principles:\n${persona.constitutionalPrinciples.map(p => `- ${p}: ${persona.constitutional_details?.[p] || 'Apply with care and transparency'}`).join('\n')}`
-      : '';
+    const principlesSection =
+      persona.constitutionalPrinciples.length > 0
+        ? `\nConstitutional AI Principles:\n${persona.constitutionalPrinciples.map((p) => `- ${p}: ${persona.constitutional_details?.[p] || 'Apply with care and transparency'}`).join('\n')}`
+        : '';
 
-    const capabilitiesSection = persona.capabilities.primary.length > 0
-      ? `\nCore Capabilities:\n${persona.capabilities.primary.map(c => `- ${c}`).join('\n')}`
-      : '';
+    const capabilitiesSection =
+      persona.capabilities.primary.length > 0
+        ? `\nCore Capabilities:\n${persona.capabilities.primary.map((c) => `- ${c}`).join('\n')}`
+        : '';
 
-    const principlesListSection = persona.core_principles?.length > 0
-      ? `\nCore Principles:\n${persona.core_principles.map(p => `- ${p}`).join('\n')}`
-      : '';
+    const principlesListSection =
+      persona.core_principles?.length > 0
+        ? `\nCore Principles:\n${persona.core_principles.map((p) => `- ${p}`).join('\n')}`
+        : '';
 
     return `You are ${persona.name} (${persona.id}).
 
@@ -290,7 +317,7 @@ Please respond according to your persona configuration and quality standards.`;
       'Accuracy and factual correctness',
       'Transparency in reasoning',
       'Helpfulness and actionability',
-      'Safety and best practices'
+      'Safety and best practices',
     ];
 
     if (persona.quality_standards.constitutional_check) {
@@ -311,7 +338,7 @@ Please respond according to your persona configuration and quality standards.`;
     const watcher = watch(this.personasPath, {
       ignored: /^\./,
       persistent: true,
-      ignoreInitial: true
+      ignoreInitial: true,
     });
 
     watcher.on('change', async (filePath) => {
@@ -346,7 +373,10 @@ Please respond according to your persona configuration and quality standards.`;
   /**
    * Store persona in memory for persistence and learning
    */
-  private async storePersonaInMemory(persona: PersonaConfig, template: PromptTemplate): Promise<void> {
+  private async storePersonaInMemory(
+    persona: PersonaConfig,
+    template: PromptTemplate,
+  ): Promise<void> {
     try {
       const content = `Persona Configuration Registered: ${persona.name} (${persona.id}) - Role: ${persona.role} - Version: ${persona.version}`;
       const metadata = unifiedMetadataService.create('persona_config', 'PersonaLoader', {
@@ -354,25 +384,27 @@ Please respond according to your persona configuration and quality standards.`;
           source: 'persona_loader',
           component: 'PersonaLoader',
           sessionId: this.generateUnifiedId('persona_config'),
-          userId: 'oneagent_system'
+          userId: 'oneagent_system',
         },
         content: {
           category: 'persona_config',
           tags: ['persona', persona.type, persona.version],
           sensitivity: 'internal',
           relevanceScore: persona.quality_standards.minimum_score / 100,
-          contextDependency: 'session'
-        }
+          contextDependency: 'session',
+        },
       });
       // Attach additional domain-specific fields under extensions/custom block
-  interface MetadataWithCustom { custom?: Record<string, unknown>; }
-  (metadata as MetadataWithCustom).custom = {
+      interface MetadataWithCustom {
+        custom?: Record<string, unknown>;
+      }
+      (metadata as MetadataWithCustom).custom = {
         agentId: persona.id,
         version: persona.version,
         qualityScore: persona.quality_standards.minimum_score,
         constitutionalPrinciples: persona.constitutionalPrinciples,
         capabilities: persona.capabilities.primary,
-        systemPrompt: template.systemPrompt
+        systemPrompt: template.systemPrompt,
       };
       await this.memorySystem.addMemoryCanonical(content, metadata, 'oneagent_system');
     } catch (error) {
@@ -404,15 +436,21 @@ Please respond according to your persona configuration and quality standards.`;
   /**
    * Generate dynamic prompt for agent
    */
-  public generatePrompt(agentId: string, userMessage: string, context: Record<string, unknown> = {}, memoryContext: { content: string }[] = []): string {
+  public generatePrompt(
+    agentId: string,
+    userMessage: string,
+    context: Record<string, unknown> = {},
+    memoryContext: { content: string }[] = [],
+  ): string {
     const template = this.promptTemplates.get(agentId);
     if (!template) {
       throw new Error(`No prompt template found for agent: ${agentId}`);
     }
 
-    const memoryText = memoryContext.length > 0 
-      ? memoryContext.map(m => `- ${m.content}`).join('\n')
-      : 'No relevant past context';
+    const memoryText =
+      memoryContext.length > 0
+        ? memoryContext.map((m) => `- ${m.content}`).join('\n')
+        : 'No relevant past context';
     const ctx = context as Record<string, unknown> & { requestType?: string };
     const userPrompt = template.userPromptTemplate
       .replace('{requestType}', ctx.requestType ?? 'general')
@@ -433,20 +471,20 @@ Please respond according to your persona configuration and quality standards.`;
     }
 
     const updatedPersona = { ...currentPersona, ...updates };
-    
+
     // Validate updated configuration
     this.validatePersonaConfig(updatedPersona, `${agentId}-update`);
-    
+
     // Generate new template
     const newTemplate = this.generatePromptTemplate(updatedPersona);
-    
+
     // Update in memory
     this.personas.set(agentId, updatedPersona);
     this.promptTemplates.set(agentId, newTemplate);
-    
+
     // Store update in memory for learning
     await this.storePersonaInMemory(updatedPersona, newTemplate);
-    
+
     console.log(`[PersonaLoader] Updated persona: ${agentId}`);
     this.emit('personaUpdated', agentId, updatedPersona);
   }
@@ -473,7 +511,7 @@ Please respond according to your persona configuration and quality standards.`;
     const prefix = context ? `${type}_${context}` : type;
     return `${prefix}_${timestamp}_${randomSuffix}`;
   }
-  
+
   private generateSecureRandomSuffix(): string {
     // Use crypto.randomUUID() for better randomness, fallback to Math.random()
     if (typeof crypto !== 'undefined' && crypto.randomUUID) {

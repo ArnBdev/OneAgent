@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /**
  * OneAgent v4.0.0 - Production Deployment Verification
- * 
+ *
  * Verifies that OneAgent is ready for production deployment as:
  * - MCP Server for VS Code Copilot
  * - Standalone Multi-Agent System
@@ -19,18 +19,18 @@ class ProductionVerifier {
 
   async verify(): Promise<void> {
     console.log('🚀 OneAgent v4.0.0 - Production Deployment Verification');
-    console.log('=' .repeat(60));
-    
+    console.log('='.repeat(60));
+
     const checks = [
       this.verifyTypeScriptCompilation(),
       this.verifyCanonicalTypes(),
       this.verifyAgentCompliance(),
       this.verifyMCPServer(),
-      this.verifyPackageConfiguration()
+      this.verifyPackageConfiguration(),
     ];
 
     const results = await Promise.allSettled(checks);
-    
+
     let allPassed = true;
     results.forEach((result, index) => {
       if (result.status === 'rejected') {
@@ -41,7 +41,7 @@ class ProductionVerifier {
       }
     });
 
-    console.log('\n' + '=' .repeat(60));
+    console.log('\n' + '='.repeat(60));
     if (allPassed) {
       console.log('🎉 PRODUCTION READY - OneAgent v4.0.0 is ready for deployment!');
       console.log('\n📋 Deployment Commands:');
@@ -77,8 +77,13 @@ class ProductionVerifier {
   }
 
   private async verifyCanonicalTypes(): Promise<string> {
-    const backboneTypesPath = join(this.projectRoot, 'coreagent', 'types', 'oneagent-backbone-types.ts');
-    
+    const backboneTypesPath = join(
+      this.projectRoot,
+      'coreagent',
+      'types',
+      'oneagent-backbone-types.ts',
+    );
+
     if (!existsSync(backboneTypesPath)) {
       throw new Error('oneagent-backbone-types.ts not found');
     }
@@ -86,14 +91,14 @@ class ProductionVerifier {
     const content = readFileSync(backboneTypesPath, 'utf-8');
     const requiredTypes = [
       'MemoryRecord',
-      'MemoryMetadata', 
+      'MemoryMetadata',
       'AgentResponse',
       'UnifiedTimeContext',
-      'AgentHealthStatus'
+      'AgentHealthStatus',
     ];
 
-    const missingTypes = requiredTypes.filter(type => !content.includes(`interface ${type}`));
-    
+    const missingTypes = requiredTypes.filter((type) => !content.includes(`interface ${type}`));
+
     if (missingTypes.length > 0) {
       throw new Error(`Missing canonical types: ${missingTypes.join(', ')}`);
     }
@@ -105,12 +110,12 @@ class ProductionVerifier {
     const agentFiles = [
       'coreagent/agents/specialized/ValidationAgent.ts',
       'coreagent/agents/specialized/TriageAgent.ts',
-      'coreagent/agents/templates/TemplateAgent.ts'
+      'coreagent/agents/templates/TemplateAgent.ts',
     ];
 
     for (const agentFile of agentFiles) {
       const fullPath = join(this.projectRoot, agentFile);
-      
+
       if (!existsSync(fullPath)) {
         throw new Error(`Agent file not found: ${agentFile}`);
       }
@@ -119,7 +124,7 @@ class ProductionVerifier {
       const hasBaseAgent = content.includes('extends BaseAgent');
       const hasISpecializedAgent = content.includes('implements ISpecializedAgent');
       const hasAgentResponse = content.includes('AgentResponse');
-      
+
       // ValidationAgent doesn't use MemoryRecord yet (has TODO comments)
       // TriageAgent and other specialized agents should use MemoryRecord
       const requiresMemoryRecord = !agentFile.includes('ValidationAgent');
@@ -128,7 +133,7 @@ class ProductionVerifier {
       if (!hasBaseAgent || !hasISpecializedAgent || !hasAgentResponse) {
         throw new Error(`Agent ${agentFile} not fully compliant with canonical interfaces`);
       }
-      
+
       if (requiresMemoryRecord && !hasMemoryRecord) {
         throw new Error(`Agent ${agentFile} should use MemoryRecord for canonical compliance`);
       }
@@ -139,7 +144,7 @@ class ProductionVerifier {
 
   private async verifyMCPServer(): Promise<string> {
     const mcpServerPath = join(this.projectRoot, 'coreagent', 'server', 'unified-mcp-server.ts');
-    
+
     if (!existsSync(mcpServerPath)) {
       throw new Error('MCP server file not found');
     }
@@ -149,16 +154,16 @@ class ProductionVerifier {
 
   private async verifyPackageConfiguration(): Promise<string> {
     const packageJsonPath = join(this.projectRoot, 'package.json');
-    
+
     if (!existsSync(packageJsonPath)) {
       throw new Error('package.json not found');
     }
 
     const packageJson = JSON.parse(readFileSync(packageJsonPath, 'utf-8'));
-    
+
     const requiredScripts = ['build', 'server:unified', 'verify'];
-    const missingScripts = requiredScripts.filter(script => !packageJson.scripts?.[script]);
-    
+    const missingScripts = requiredScripts.filter((script) => !packageJson.scripts?.[script]);
+
     if (missingScripts.length > 0) {
       throw new Error(`Missing required scripts: ${missingScripts.join(', ')}`);
     }
@@ -169,7 +174,7 @@ class ProductionVerifier {
 
 // Run verification
 const verifier = new ProductionVerifier();
-verifier.verify().catch(error => {
+verifier.verify().catch((error) => {
   console.error('Verification failed:', error);
   process.exit(1);
 });

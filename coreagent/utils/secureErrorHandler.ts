@@ -1,7 +1,7 @@
 /**
  * SecureErrorHandler - Sanitized error responses for OneAgent
  * Part of Level 2.5 Security Foundation (Phase 1a)
- * 
+ *
  * Provides secure error handling that prevents information leakage while maintaining debugging capabilities.
  */
 
@@ -22,13 +22,19 @@ export interface SecureErrorResponse {
   error: {
     code: string;
     message: string;
-    category: 'VALIDATION' | 'AUTHENTICATION' | 'AUTHORIZATION' | 'INTERNAL' | 'NETWORK' | 'TIMEOUT';
+    category:
+      | 'VALIDATION'
+      | 'AUTHENTICATION'
+      | 'AUTHORIZATION'
+      | 'INTERNAL'
+      | 'NETWORK'
+      | 'TIMEOUT';
     requestId?: string;
     timestamp: string;
   };
   debug?: {
     stack?: string;
-  details?: Record<string, unknown>;
+    details?: Record<string, unknown>;
   };
 }
 
@@ -43,37 +49,33 @@ export class SecureErrorHandler {
   private config: ErrorHandlerConfig;
   private auditLogger: SimpleAuditLogger;
 
-  constructor(
-    config?: Partial<ErrorHandlerConfig>,
-    auditLogger?: SimpleAuditLogger
-  ) {
+  constructor(config?: Partial<ErrorHandlerConfig>, auditLogger?: SimpleAuditLogger) {
     this.config = {
       includeDebugInfo: process.env.NODE_ENV === 'development',
       sanitizeStackTraces: true,
       maxErrorMessageLength: 500,
       enableDetailedLogging: true,
-      ...config
+      ...config,
     };
-    
+
     this.auditLogger = auditLogger || defaultAuditLogger;
   }
 
   /**
    * Handles and formats errors securely
    */
-  async handleError(
-  error: unknown,
-    context: ErrorContext = {}
-  ): Promise<SecureErrorResponse> {
+  async handleError(error: unknown, context: ErrorContext = {}): Promise<SecureErrorResponse> {
     const timestamp = createUnifiedTimestamp();
     const requestId = context.requestId || this.generateRequestId();
 
     // Determine error category and code
-  const { category, code } = this.categorizeError(error);
-  const errInfo = this.toErrorInfo(error);
-    
+    const { category, code } = this.categorizeError(error);
+    const errInfo = this.toErrorInfo(error);
+
     // Sanitize error message
-  const sanitizedMessage = this.sanitizeErrorMessage(errInfo.message || 'An unexpected error occurred');
+    const sanitizedMessage = this.sanitizeErrorMessage(
+      errInfo.message || 'An unexpected error occurred',
+    );
 
     // Log the error for internal tracking
     if (this.config.enableDetailedLogging) {
@@ -83,11 +85,13 @@ export class SecureErrorHandler {
         {
           ...context,
           requestId,
-      originalError: errInfo.message,
-      stack: this.config.sanitizeStackTraces ? this.sanitizeStackTrace(errInfo.stack) : errInfo.stack,
-      errorName: errInfo.name,
-      errorCode: errInfo.code
-        }
+          originalError: errInfo.message,
+          stack: this.config.sanitizeStackTraces
+            ? this.sanitizeStackTrace(errInfo.stack)
+            : errInfo.stack,
+          errorName: errInfo.name,
+          errorCode: errInfo.code,
+        },
       );
     }
 
@@ -99,21 +103,21 @@ export class SecureErrorHandler {
         message: sanitizedMessage,
         category,
         requestId,
-        timestamp: timestamp.iso
-      }
+        timestamp: timestamp.iso,
+      },
     };
 
     // Add debug info in development mode
     if (this.config.includeDebugInfo) {
       response.debug = {
-        stack: this.config.sanitizeStackTraces 
+        stack: this.config.sanitizeStackTraces
           ? this.sanitizeStackTrace(errInfo.stack)
           : errInfo.stack,
         details: {
           name: errInfo.name,
           code: errInfo.code,
-          ...context
-        }
+          ...context,
+        },
       };
     }
 
@@ -126,11 +130,11 @@ export class SecureErrorHandler {
   async handleValidationError(
     errors: string[],
     warnings: string[],
-    context: ErrorContext = {}
+    context: ErrorContext = {},
   ): Promise<SecureErrorResponse> {
     const validationError = new Error(`Validation failed: ${errors.join(', ')}`);
     validationError.name = 'ValidationError';
-  this.attachProps(validationError, { code: 'VALIDATION_FAILED', errors, warnings });
+    this.attachProps(validationError, { code: 'VALIDATION_FAILED', errors, warnings });
 
     return this.handleError(validationError, context);
   }
@@ -140,11 +144,11 @@ export class SecureErrorHandler {
    */
   async handleAuthError(
     message: string = 'Authentication required',
-    context: ErrorContext = {}
+    context: ErrorContext = {},
   ): Promise<SecureErrorResponse> {
     const authError = new Error(message);
     authError.name = 'AuthenticationError';
-  this.attachProps(authError, { code: 'AUTH_REQUIRED' });
+    this.attachProps(authError, { code: 'AUTH_REQUIRED' });
 
     return this.handleError(authError, context);
   }
@@ -155,11 +159,15 @@ export class SecureErrorHandler {
   async handleNetworkError(
     serviceName: string,
     originalError: Error,
-    context: ErrorContext = {}
+    context: ErrorContext = {},
   ): Promise<SecureErrorResponse> {
     const networkError = new Error(`Service ${serviceName} is temporarily unavailable`);
     networkError.name = 'NetworkError';
-  this.attachProps(networkError, { code: 'SERVICE_UNAVAILABLE', serviceName, originalError: originalError.message });
+    this.attachProps(networkError, {
+      code: 'SERVICE_UNAVAILABLE',
+      serviceName,
+      originalError: originalError.message,
+    });
 
     return this.handleError(networkError, context);
   }
@@ -167,24 +175,27 @@ export class SecureErrorHandler {
   /**
    * Categorizes errors for appropriate handling
    */
-  private categorizeError(error: unknown): { category: SecureErrorResponse['error']['category']; code: string } {
+  private categorizeError(error: unknown): {
+    category: SecureErrorResponse['error']['category'];
+    code: string;
+  } {
     const { name, code } = this.toBasicErrorInfo(error);
     if (name === 'ValidationError' || code === 'VALIDATION_FAILED') {
       return { category: 'VALIDATION', code: 'VALIDATION_FAILED' };
     }
-    
+
     if (name === 'AuthenticationError' || code === 'AUTH_REQUIRED') {
       return { category: 'AUTHENTICATION', code: 'AUTH_REQUIRED' };
     }
-    
+
     if (name === 'AuthorizationError' || code === 'ACCESS_DENIED') {
       return { category: 'AUTHORIZATION', code: 'ACCESS_DENIED' };
     }
-    
+
     if (name === 'NetworkError' || code === 'SERVICE_UNAVAILABLE') {
       return { category: 'NETWORK', code: 'SERVICE_UNAVAILABLE' };
     }
-    
+
     if (name === 'TimeoutError' || code === 'TIMEOUT') {
       return { category: 'TIMEOUT', code: 'REQUEST_TIMEOUT' };
     }
@@ -202,9 +213,10 @@ export class SecureErrorHandler {
     }
 
     // Truncate long messages
-    let sanitized = message.length > this.config.maxErrorMessageLength
-      ? message.substring(0, this.config.maxErrorMessageLength) + '...'
-      : message;
+    let sanitized =
+      message.length > this.config.maxErrorMessageLength
+        ? message.substring(0, this.config.maxErrorMessageLength) + '...'
+        : message;
 
     // Remove potentially sensitive information
     sanitized = sanitized
@@ -228,7 +240,7 @@ export class SecureErrorHandler {
 
     return stack
       .split('\n')
-      .map(line => {
+      .map((line) => {
         // Remove full file paths, keep only filename and line number
         return line.replace(/\s+at\s+.*[\\/]([^\\/]+:\d+:\d+)/g, '    at [SANITIZED]/$1');
       })
@@ -246,18 +258,21 @@ export class SecureErrorHandler {
   /**
    * Creates a simple success response
    */
-  createSuccessResponse<T>(data: T, requestId?: string): { success: true; data: T; requestId?: string; timestamp: string } {
+  createSuccessResponse<T>(
+    data: T,
+    requestId?: string,
+  ): { success: true; data: T; requestId?: string; timestamp: string } {
     const timestamp = createUnifiedTimestamp();
     const response: { success: true; data: T; requestId?: string; timestamp: string } = {
       success: true,
       data,
-      timestamp: timestamp.iso
+      timestamp: timestamp.iso,
     };
-    
+
     if (requestId !== undefined) {
       response.requestId = requestId;
     }
-    
+
     return response;
   }
 
@@ -276,12 +291,20 @@ export class SecureErrorHandler {
   }
 
   // Helper: attach typed properties to Error without using 'any'
-  private attachProps<T extends Record<string, unknown>>(err: Error, props: T): asserts err is Error & T {
+  private attachProps<T extends Record<string, unknown>>(
+    err: Error,
+    props: T,
+  ): asserts err is Error & T {
     Object.assign(err, props);
   }
 
   // Helper: normalize unknown error into a consistent shape
-  private toErrorInfo(error: unknown): { name?: string; message?: string; stack?: string; code?: unknown } {
+  private toErrorInfo(error: unknown): {
+    name?: string;
+    message?: string;
+    stack?: string;
+    code?: unknown;
+  } {
     if (error instanceof Error) {
       const code = this.hasCode(error) ? error.code : undefined;
       return { name: error.name, message: error.message, stack: error.stack, code };
@@ -292,7 +315,7 @@ export class SecureErrorHandler {
         name: typeof maybe.name === 'string' ? maybe.name : undefined,
         message: typeof maybe.message === 'string' ? maybe.message : JSON.stringify(error),
         stack: typeof maybe.stack === 'string' ? maybe.stack : undefined,
-        code: maybe.code
+        code: maybe.code,
       };
     }
     return { message: String(error) };

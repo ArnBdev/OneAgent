@@ -1,6 +1,6 @@
 /**
  * IIntelligenceProvider - Interface for Intelligence and Validation Providers
- * 
+ *
  * This interface defines the contract for intelligence providers in the OneAgent ecosystem.
  * Intelligence providers are responsible for validating system integrity, detecting
  * deceptive implementations, and ensuring transparency in system capabilities.
@@ -8,9 +8,10 @@
 
 import { MemoryValidationResult } from '../intelligence/MemorySystemValidator';
 
-export interface IIntelligenceProvider {  /**
+export interface IIntelligenceProvider {
+  /**
    * Validate a memory system for authenticity and capabilities
-   * 
+   *
    * @param endpoint - The endpoint URL to validate (default: from oneAgentConfig.memoryUrl)
    * @returns Promise containing comprehensive validation results including:
    *   - System type identification (Gemini-ChromaDB, Mem0-Local, MockMemory, Unknown)

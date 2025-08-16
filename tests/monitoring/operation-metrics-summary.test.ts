@@ -10,8 +10,12 @@ import { createUnifiedTimestamp } from '../../coreagent/utils/UnifiedBackboneSer
   const monitoring = new UnifiedMonitoringService();
 
   // Emit mixed success/error events across two components
-  monitoring.trackOperation('TestComponentA', 'discoverAgents', 'success', { ts: createUnifiedTimestamp().iso });
-  monitoring.trackOperation('TestComponentA', 'discoverAgents', 'error', { ts: createUnifiedTimestamp().iso });
+  monitoring.trackOperation('TestComponentA', 'discoverAgents', 'success', {
+    ts: createUnifiedTimestamp().iso,
+  });
+  monitoring.trackOperation('TestComponentA', 'discoverAgents', 'error', {
+    ts: createUnifiedTimestamp().iso,
+  });
   monitoring.trackOperation('TestComponentA', 'leaveSession', 'error', { forced: true });
   monitoring.trackOperation('TestComponentB', 'synchronize', 'success', {});
   monitoring.trackOperation('TestComponentB', 'synchronize', 'success', {});
@@ -30,7 +34,10 @@ import { createUnifiedTimestamp } from '../../coreagent/utils/UnifiedBackboneSer
 
   const aOps = summary.components['TestComponentA'].operations;
   if (!aOps['discoverAgents'] || aOps['discoverAgents'].total !== 2) {
-    console.error('❌ discoverAgents aggregation incorrect for component A', aOps['discoverAgents']);
+    console.error(
+      '❌ discoverAgents aggregation incorrect for component A',
+      aOps['discoverAgents'],
+    );
     process.exit(1);
   }
   if (!aOps['leaveSession'] || aOps['leaveSession'].error !== 1) {

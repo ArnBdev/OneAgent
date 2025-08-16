@@ -6,7 +6,7 @@
  */
 
 console.log('🚀 OneAgent Tools Enhancement - COMPREHENSIVE SUMMARY');
-console.log('=' .repeat(80));
+console.log('='.repeat(80));
 
 console.log('\n📊 BUILD STATUS:');
 console.log('✅ TypeScript compilation: PASSED');
@@ -133,8 +133,8 @@ console.log('4. 🔄 Add comprehensive integration testing');
 console.log('5. 📚 Create detailed API documentation');
 console.log('6. 🛡️ Enhance security validation measures');
 
-console.log('\n' + '=' .repeat(80));
+console.log('\n' + '='.repeat(80));
 console.log('🎉 ONEAGENT TOOLS ENHANCEMENT: MISSION ACCOMPLISHED');
 console.log('🚀 All core tools now feature canonical memory integration,');
 console.log('   enterprise-grade error handling, and advanced capabilities!');
-console.log('=' .repeat(80));
+console.log('='.repeat(80));

@@ -1,6 +1,6 @@
 /**
  * ErrorMonitoringService - Centralized Error Monitoring and TriageAgent Integration
- * 
+ *
  * Provides comprehensive error monitoring, classification, and automatic
  * escalation to TriageAgent for systematic error recovery.
  */
@@ -9,7 +9,10 @@ import { ConstitutionalAI } from '../agents/base/ConstitutionalAI';
 import { TriageAgent } from '../agents/specialized/TriageAgent';
 import { SimpleAuditLogger } from '../audit/auditLogger';
 import { createUnifiedId } from '../utils/UnifiedBackboneService';
-import { OneAgentUnifiedBackbone, createUnifiedTimestamp } from '../utils/UnifiedBackboneService.js';
+import {
+  OneAgentUnifiedBackbone,
+  createUnifiedTimestamp,
+} from '../utils/UnifiedBackboneService.js';
 
 export interface ErrorContext {
   agentId?: string;
@@ -54,11 +57,11 @@ export class ErrorMonitoringService {
   private errorReports: Map<string, ErrorReport> = new Map();
   private errorPatterns: Map<string, number> = new Map();
   private unifiedBackbone: OneAgentUnifiedBackbone;
-  
+
   constructor(
     constitutionalAI: ConstitutionalAI,
     auditLogger: SimpleAuditLogger,
-    triageAgent?: TriageAgent
+    triageAgent?: TriageAgent,
   ) {
     this.constitutionalAI = constitutionalAI;
     this.auditLogger = auditLogger;
@@ -69,14 +72,11 @@ export class ErrorMonitoringService {
   /**
    * Report and process error with Constitutional AI classification
    */
-  async reportError(
-    error: Error,
-    context: ErrorContext = {}
-  ): Promise<ErrorReport> {
+  async reportError(error: Error, context: ErrorContext = {}): Promise<ErrorReport> {
     const errorId = this.generateErrorId();
     const classification = await this.classifyError(error, context);
     const timestamp = createUnifiedTimestamp();
-    
+
     // Create error report
     const report: ErrorReport = {
       id: errorId,
@@ -84,46 +84,43 @@ export class ErrorMonitoringService {
       context: {
         ...context,
         timestamp: new Date(timestamp.utc),
-        severity: classification.severity
+        severity: classification.severity,
       },
       classification,
       triageTriggered: false,
       recoveryAttempts: 0,
       resolved: false,
-      timestamp: new Date(timestamp.utc)
+      timestamp: new Date(timestamp.utc),
     };
 
     // Store error report
     this.errorReports.set(errorId, report);
-    
+
     // Update error patterns
     this.updateErrorPatterns(error, classification);
-    
+
     // Log error with Constitutional AI compliance
     await this.logErrorWithCompliance(report);
-    
+
     // Trigger TriageAgent if required
     if (classification.requiresTriage && this.triageAgent) {
       report.triageTriggered = await this.triggerTriageIntervention(report);
     }
-    
+
     // Attempt automatic recovery
     if (classification.recoveryStrategy !== 'ignore') {
       await this.attemptRecovery(report);
     }
-    
+
     return report;
   }
 
   /**
    * Classify error using Constitutional AI principles
    */
-  private async classifyError(
-    error: Error,
-    context: ErrorContext
-  ): Promise<ErrorClassification> {
+  private async classifyError(error: Error, context: ErrorContext): Promise<ErrorClassification> {
     const errorMessage = error.message || error.toString();
-    
+
     // Basic category classification
     let category: ErrorClassification['category'] = 'unknown';
     if (errorMessage.includes('ECONNREFUSED') || errorMessage.includes('connection')) {
@@ -135,20 +132,25 @@ export class ErrorMonitoringService {
     } else if (errorMessage.includes('processing') || errorMessage.includes('timeout')) {
       category = 'processing';
     }
-      // Severity assessment based on context and error type
+    // Severity assessment based on context and error type
     let severity: ErrorClassification['severity'] = 'medium';
-    if (category === 'connection' && (errorMessage.includes('memory') || errorMessage.includes('8000') || errorMessage.includes('8001'))) {
+    if (
+      category === 'connection' &&
+      (errorMessage.includes('memory') ||
+        errorMessage.includes('8000') ||
+        errorMessage.includes('8001'))
+    ) {
       severity = 'medium'; // Memory fallback available
     } else if (context.taskType === 'critical' || category === 'validation') {
       severity = 'high';
     } else if (errorMessage.includes('fatal') || errorMessage.includes('critical')) {
       severity = 'critical';
     }
-    
+
     // Determine if TriageAgent intervention required
-    const requiresTriage = severity === 'high' || severity === 'critical' ||
-                          this.getErrorPatternCount(errorMessage) > 3;
-    
+    const requiresTriage =
+      severity === 'high' || severity === 'critical' || this.getErrorPatternCount(errorMessage) > 3;
+
     // Recovery strategy selection
     let recoveryStrategy: ErrorClassification['recoveryStrategy'] = 'retry';
     if (category === 'connection') {
@@ -158,16 +160,16 @@ export class ErrorMonitoringService {
     } else if (category === 'validation') {
       recoveryStrategy = 'retry';
     }
-    
+
     // Constitutional AI compliance assessment
     const constitutionalCompliance = await this.assessConstitutionalCompliance(error, context);
-    
+
     return {
       category,
       severity,
       requiresTriage,
       recoveryStrategy,
-      constitutionalCompliance
+      constitutionalCompliance,
     };
   }
 
@@ -176,7 +178,7 @@ export class ErrorMonitoringService {
    */
   private async assessConstitutionalCompliance(
     error: Error,
-    context: ErrorContext
+    context: ErrorContext,
   ): Promise<boolean> {
     try {
       // Only validate user-facing errors, not canonical memory tool errors
@@ -184,7 +186,7 @@ export class ErrorMonitoringService {
         'oneagent_memory_add',
         'oneagent_memory_edit',
         'oneagent_memory_delete',
-        'oneagent_memory_search'
+        'oneagent_memory_search',
       ];
       if (context && context.toolName && canonicalMemoryTools.includes(context.toolName)) {
         return true; // Always compliant for canonical memory tools
@@ -193,11 +195,11 @@ export class ErrorMonitoringService {
       const validation = await this.constitutionalAI.validateResponse(
         errorResponse,
         'System error assessment',
-        context as Record<string, unknown>
+        context as Record<string, unknown>,
       );
       // Check if error handling meets Constitutional AI principles
       return validation.isValid && validation.score >= 75;
-  } catch {
+    } catch {
       return false; // Default to non-compliant if validation fails
     }
   }
@@ -217,10 +219,10 @@ export class ErrorMonitoringService {
           id: report.context.userId || 'system',
           name: 'System Error Handler',
           createdAt: timestamp.iso,
-          lastActiveAt: timestamp.iso
+          lastActiveAt: timestamp.iso,
         },
         sessionId: report.context.sessionId || `error_${report.id}`,
-        conversationHistory: []
+        conversationHistory: [],
       };
 
       const triageTask = `System error requiring intervention: ${report.error.message}. 
@@ -229,23 +231,27 @@ export class ErrorMonitoringService {
                          Context: ${JSON.stringify(report.context)}`;
 
       await this.triageAgent.processMessage(triageContext, triageTask);
-        // Log successful TriageAgent intervention
+      // Log successful TriageAgent intervention
       await this.auditLogger.logInfo('triage_intervention', 'TriageAgent intervention completed', {
         errorId: report.id,
         category: report.classification.category,
         severity: report.classification.severity,
-        success: true
+        success: true,
       });
-      
+
       return true;
     } catch (triageError) {
       console.error('TriageAgent intervention failed:', triageError);
-        // Log failed intervention
-      await this.auditLogger.logError('triage_intervention_failed', 'TriageAgent intervention failed', {
-        errorId: report.id,
-        triageError: triageError instanceof Error ? triageError.message : 'Unknown error'
-      });
-      
+      // Log failed intervention
+      await this.auditLogger.logError(
+        'triage_intervention_failed',
+        'TriageAgent intervention failed',
+        {
+          errorId: report.id,
+          triageError: triageError instanceof Error ? triageError.message : 'Unknown error',
+        },
+      );
+
       return false;
     }
   }
@@ -255,7 +261,7 @@ export class ErrorMonitoringService {
    */
   private async attemptRecovery(report: ErrorReport): Promise<void> {
     report.recoveryAttempts++;
-    
+
     try {
       switch (report.classification.recoveryStrategy) {
         case 'retry':
@@ -271,22 +277,25 @@ export class ErrorMonitoringService {
           // No automatic recovery
           break;
       }
-      
-      report.resolved = true;        // Log successful recovery
-        await this.auditLogger.logInfo('error_recovery_success', 'Error recovery completed successfully', {
+
+      report.resolved = true; // Log successful recovery
+      await this.auditLogger.logInfo(
+        'error_recovery_success',
+        'Error recovery completed successfully',
+        {
           errorId: report.id,
           strategy: report.classification.recoveryStrategy,
-          attempts: report.recoveryAttempts
-        });
-      
+          attempts: report.recoveryAttempts,
+        },
+      );
     } catch (recoveryError) {
       console.error('Error recovery failed:', recoveryError);
-        // Log failed recovery
+      // Log failed recovery
       await this.auditLogger.logError('error_recovery_failed', 'Error recovery attempt failed', {
         errorId: report.id,
         strategy: report.classification.recoveryStrategy,
         attempts: report.recoveryAttempts,
-        error: recoveryError instanceof Error ? recoveryError.message : 'Unknown error'
+        error: recoveryError instanceof Error ? recoveryError.message : 'Unknown error',
       });
     }
   }
@@ -294,15 +303,19 @@ export class ErrorMonitoringService {
    * Log error with Constitutional AI compliance
    */
   private async logErrorWithCompliance(report: ErrorReport): Promise<void> {
-    await this.auditLogger.logError('system_error', 'System error reported with Constitutional AI compliance assessment', {
-      errorId: report.id,
-      message: report.error.message,
-      category: report.classification.category,
-      severity: report.classification.severity,
-      constitutionalCompliance: report.classification.constitutionalCompliance,
-      context: report.context,
-      timestamp: report.timestamp.toISOString()
-    });
+    await this.auditLogger.logError(
+      'system_error',
+      'System error reported with Constitutional AI compliance assessment',
+      {
+        errorId: report.id,
+        message: report.error.message,
+        category: report.classification.category,
+        severity: report.classification.severity,
+        constitutionalCompliance: report.classification.constitutionalCompliance,
+        context: report.context,
+        timestamp: report.timestamp.toISOString(),
+      },
+    );
   }
 
   /**
@@ -318,8 +331,9 @@ export class ErrorMonitoringService {
    * Get error pattern count for pattern recognition
    */
   private getErrorPatternCount(errorMessage: string): number {
-    const patternKey = Array.from(this.errorPatterns.keys())
-      .find(key => key.includes(errorMessage.substring(0, 20)));
+    const patternKey = Array.from(this.errorPatterns.keys()).find((key) =>
+      key.includes(errorMessage.substring(0, 20)),
+    );
     return patternKey ? this.errorPatterns.get(patternKey) || 0 : 0;
   }
 
@@ -351,12 +365,16 @@ export class ErrorMonitoringService {
    */
   private async escalateError(report: ErrorReport): Promise<void> {
     console.log(`Escalating critical error ${report.id} for human intervention`);
-      // Log escalation
-    await this.auditLogger.logError('error_escalation', 'Critical error escalated for human intervention', {
-      errorId: report.id,
-      severity: report.classification.severity,
-      escalationReason: 'Critical error requiring human intervention'
-    });
+    // Log escalation
+    await this.auditLogger.logError(
+      'error_escalation',
+      'Critical error escalated for human intervention',
+      {
+        errorId: report.id,
+        severity: report.classification.severity,
+        escalationReason: 'Critical error requiring human intervention',
+      },
+    );
   }
 
   /**
@@ -370,23 +388,23 @@ export class ErrorMonitoringService {
     recoveryRate: number;
   } {
     const reports = Array.from(this.errorReports.values());
-    
+
     const errorsByCategory: Record<string, number> = {};
     const errorsBySeverity: Record<string, number> = {};
     let triageInterventions = 0;
     let resolvedErrors = 0;
 
-    reports.forEach(report => {
-      errorsByCategory[report.classification.category] = 
+    reports.forEach((report) => {
+      errorsByCategory[report.classification.category] =
         (errorsByCategory[report.classification.category] || 0) + 1;
-      
-      errorsBySeverity[report.classification.severity] = 
+
+      errorsBySeverity[report.classification.severity] =
         (errorsBySeverity[report.classification.severity] || 0) + 1;
-      
+
       if (report.triageTriggered) {
         triageInterventions++;
       }
-      
+
       if (report.resolved) {
         resolvedErrors++;
       }
@@ -397,7 +415,7 @@ export class ErrorMonitoringService {
       errorsByCategory,
       errorsBySeverity,
       triageInterventions,
-      recoveryRate: reports.length > 0 ? resolvedErrors / reports.length : 0
+      recoveryRate: reports.length > 0 ? resolvedErrors / reports.length : 0,
     };
   }
 
@@ -407,7 +425,7 @@ export class ErrorMonitoringService {
   clearOldReports(olderThan: number = 24 * 60 * 60 * 1000): void {
     const timestamp = createUnifiedTimestamp();
     const cutoffTime = timestamp.unix - olderThan;
-    
+
     for (const [id, report] of this.errorReports.entries()) {
       if (report.timestamp.getTime() < cutoffTime) {
         this.errorReports.delete(id);

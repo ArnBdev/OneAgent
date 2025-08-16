@@ -2,99 +2,100 @@ import * as vscode from 'vscode';
 import { OneAgentClient } from '../connection/oneagent-client';
 
 export class OneAgentPanel implements vscode.WebviewViewProvider {
-    public static readonly viewType = 'oneagent.dashboard';
-    
-    private _view?: vscode.WebviewView;
-    
-    constructor(
-        private readonly _extensionUri: vscode.Uri,
-        private client: OneAgentClient
-    ) {}
-    
-    public resolveWebviewView(
-        webviewView: vscode.WebviewView,
-        _context: vscode.WebviewViewResolveContext,
-        _token: vscode.CancellationToken,
-    ) {
-        this._view = webviewView;
-        
-        webviewView.webview.options = {
-            enableScripts: true,
-            localResourceRoots: [this._extensionUri]
-        };
-        
+  public static readonly viewType = 'oneagent.dashboard';
+
+  private _view?: vscode.WebviewView;
+
+  constructor(
+    private readonly _extensionUri: vscode.Uri,
+    private client: OneAgentClient,
+  ) {}
+
+  public resolveWebviewView(
+    webviewView: vscode.WebviewView,
+    _context: vscode.WebviewViewResolveContext,
+    _token: vscode.CancellationToken,
+  ) {
+    this._view = webviewView;
+
+    webviewView.webview.options = {
+      enableScripts: true,
+      localResourceRoots: [this._extensionUri],
+    };
+
+    this.updateWebview();
+
+    // Handle messages from the webview
+    webviewView.webview.onDidReceiveMessage((message) => {
+      switch (message.type) {
+        case 'refresh':
+          this.updateWebview();
+          break;
+        case 'openCommand':
+          vscode.commands.executeCommand(message.command);
+          break;
+        case 'showHealth':
+          vscode.commands.executeCommand('oneagent.systemHealth');
+          break;
+      }
+    });
+
+    // Update every 60 seconds (non-critical timer, unref to not hold process open)
+    const refreshTimer = setInterval(() => {
+      if (this._view?.visible) {
         this.updateWebview();
-        
-        // Handle messages from the webview
-        webviewView.webview.onDidReceiveMessage(
-            message => {
-                switch (message.type) {
-                    case 'refresh':
-                        this.updateWebview();
-                        break;
-                    case 'openCommand':
-                        vscode.commands.executeCommand(message.command);
-                        break;
-                    case 'showHealth':
-                        vscode.commands.executeCommand('oneagent.systemHealth');
-                        break;
-                }
-            }
-        );
-        
-        // Update every 60 seconds (non-critical timer, unref to not hold process open)
-        const refreshTimer = setInterval(() => {
-            if (this._view?.visible) {
-                this.updateWebview();
-            }
-        }, 60000);
-        // Prevent this timer from blocking shutdown
-        if (typeof (refreshTimer as unknown as { unref?: () => void }).unref === 'function') {
-            (refreshTimer as unknown as { unref: () => void }).unref();
-        }
+      }
+    }, 60000);
+    // Prevent this timer from blocking shutdown
+    if (typeof (refreshTimer as unknown as { unref?: () => void }).unref === 'function') {
+      (refreshTimer as unknown as { unref: () => void }).unref();
     }
-    
-    private async updateWebview() {
-        if (!this._view) {
-            return;
-        }
-        
-        try {
-            const isConnected = await this.client.healthCheck();
-            let healthData = null;
-            
-            if (isConnected) {
-                const healthResult = await this.client.systemHealth();
-                if (healthResult.success) {
-                    healthData = healthResult.data;
-                }
-            }
-            
-            this._view.webview.html = this.getWebviewContent(isConnected, healthData);
-        } catch (error) {
-            console.error('Error updating OneAgent dashboard:', error);
-            this._view.webview.html = this.getErrorWebviewContent(error);
-        }
+  }
+
+  private async updateWebview() {
+    if (!this._view) {
+      return;
     }
-    
-    private getWebviewContent(isConnected: boolean, healthData: unknown): string {
-        const config = this.client.getConfiguration();
-        
-        if (!isConnected) {
-            return this.getOfflineWebviewContent(config);
+
+    try {
+      const isConnected = await this.client.healthCheck();
+      let healthData = null;
+
+      if (isConnected) {
+        const healthResult = await this.client.systemHealth();
+        if (healthResult.success) {
+          healthData = healthResult.data;
         }
+      }
+
+      this._view.webview.html = this.getWebviewContent(isConnected, healthData);
+    } catch (error) {
+      console.error('Error updating OneAgent dashboard:', error);
+      this._view.webview.html = this.getErrorWebviewContent(error);
+    }
+  }
+
+  private getWebviewContent(isConnected: boolean, healthData: unknown): string {
+    const config = this.client.getConfiguration();
+
+    if (!isConnected) {
+      return this.getOfflineWebviewContent(config);
+    }
     const hd = (healthData as Record<string, unknown>) || {};
     const metrics = (hd.metrics as Record<string, unknown>) || {};
-        const components = (hd.components as Record<string, { status?: string }>) || {} as Record<string, { status?: string }>;
-        const capabilities = Array.isArray(hd.capabilities) ? (hd.capabilities as string[]) : [];
+    const components =
+      (hd.components as Record<string, { status?: string }>) ||
+      ({} as Record<string, { status?: string }>);
+    const capabilities = Array.isArray(hd.capabilities) ? (hd.capabilities as string[]) : [];
 
     const version = typeof hd.version === 'string' ? hd.version : '1.0.0';
     const qualityScore = typeof metrics.qualityScore === 'number' ? metrics.qualityScore : 0;
-    const totalOperations = typeof metrics.totalOperations === 'number' ? metrics.totalOperations : 0;
+    const totalOperations =
+      typeof metrics.totalOperations === 'number' ? metrics.totalOperations : 0;
     const averageLatency = typeof metrics.averageLatency === 'number' ? metrics.averageLatency : 0;
     const errorRate = typeof metrics.errorRate === 'number' ? metrics.errorRate : 0;
-        
-        return `
+
+    return `
         <!DOCTYPE html>
         <html lang="en">
         <head>
@@ -256,12 +257,16 @@ export class OneAgentPanel implements vscode.WebviewViewProvider {
             
             <div class="section">
                 <div class="section-title">🔧 Components</div>
-                ${Object.entries(components).map(([name, comp]: [string, { status?: string }]) => `
+                ${Object.entries(components)
+                  .map(
+                    ([name, comp]: [string, { status?: string }]) => `
                     <div class="component">
                         <span class="component-name">${this.formatComponentName(name)}</span>
                         <span class="component-status">${comp.status || 'unknown'}</span>
                     </div>
-                `).join('')}
+                `,
+                  )
+                  .join('')}
             </div>
             
             <div class="section">
@@ -318,11 +323,19 @@ export class OneAgentPanel implements vscode.WebviewViewProvider {
             </script>
         </body>
         </html>`;
-    }
-    
-    private getOfflineWebviewContent(config: { serverUrl: string; enableConstitutionalAI?: boolean; qualityThreshold?: number } | unknown): string {
-        const cfg = (config as { serverUrl: string; enableConstitutionalAI?: boolean; qualityThreshold?: number }) || { serverUrl: '' };
-        return `
+  }
+
+  private getOfflineWebviewContent(
+    config:
+      | { serverUrl: string; enableConstitutionalAI?: boolean; qualityThreshold?: number }
+      | unknown,
+  ): string {
+    const cfg = (config as {
+      serverUrl: string;
+      enableConstitutionalAI?: boolean;
+      qualityThreshold?: number;
+    }) || { serverUrl: '' };
+    return `
         <!DOCTYPE html>
         <html lang="en">
         <head>
@@ -435,10 +448,10 @@ export class OneAgentPanel implements vscode.WebviewViewProvider {
             </script>
         </body>
         </html>`;
-    }
-    
-    private getErrorWebviewContent(error: unknown): string {
-        return `
+  }
+
+  private getErrorWebviewContent(error: unknown): string {
+    return `
         <!DOCTYPE html>
         <html lang="en">
         <head>
@@ -494,13 +507,13 @@ export class OneAgentPanel implements vscode.WebviewViewProvider {
             </script>
         </body>
         </html>`;
-    }
-    
-    private formatComponentName(name: string): string {
-        // Convert camelCase to readable format
-        return name
-            .replace(/([A-Z])/g, ' $1')
-            .replace(/^./, str => str.toUpperCase())
-            .trim();
-    }
+  }
+
+  private formatComponentName(name: string): string {
+    // Convert camelCase to readable format
+    return name
+      .replace(/([A-Z])/g, ' $1')
+      .replace(/^./, (str) => str.toUpperCase())
+      .trim();
+  }
 }

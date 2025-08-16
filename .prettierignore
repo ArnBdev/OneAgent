@@ -1,0 +1,2 @@
+# Exclude legacy TS-syntax-in-MJS script from Prettier parsing
+scripts/final-verification.mjs

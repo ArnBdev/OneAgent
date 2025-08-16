@@ -1,9 +1,9 @@
 /**
  * Unified Backbone Service for VS Code Extension
- * 
+ *
  * This is a lightweight version of the core UnifiedBackboneService specifically for the VS Code extension.
  * It provides the same interface and functionality while respecting the extension's module boundaries.
- * 
+ *
  * ARCHITECTURAL PRINCIPLE: Maintains compatibility with core OneAgent canonical systems
  */
 
@@ -20,12 +20,12 @@ export interface UnifiedTimestamp {
 export function createUnifiedTimestamp(): UnifiedTimestamp {
   const now = new Date();
   const unix = Math.floor(now.getTime() / 1000);
-  
+
   return {
     unix,
     utc: now.toISOString(),
     iso: now.toISOString(),
-    human: now.toLocaleString()
+    human: now.toLocaleString(),
   };
 }
 
@@ -37,6 +37,6 @@ export function generateUnifiedId(type: string, context?: string): string {
   const timestamp = createUnifiedTimestamp().unix;
   const randomSuffix = crypto.randomUUID().split('-')[0]; // Use crypto for better randomness
   const contextSuffix = context ? `_${context}` : '';
-  
+
   return `${type}_${timestamp}_${randomSuffix}${contextSuffix}`;
 }

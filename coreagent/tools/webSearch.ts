@@ -62,14 +62,14 @@ export class WebSearchTool {
   private readonly defaultRetries: number = 3;
   private searchCount: number = 0;
   private totalSearchTime: number = 0;
-  
+
   // Canonical OneAgent Memory Integration
   private memorySystem?: OneAgentMemory;
   private enableMemoryLearning: boolean = true;
 
   constructor(braveClient: BraveSearchClient, memorySystem?: OneAgentMemory) {
     this.braveClient = braveClient;
-    
+
     if (memorySystem) {
       this.memorySystem = memorySystem;
       console.log('🧠 WebSearchTool: Canonical memory integration enabled');
@@ -81,19 +81,19 @@ export class WebSearchTool {
    */
   async search(options: WebSearchOptions): Promise<WebSearchResponse> {
     const startTime = createUnifiedTimestamp().unix;
-    
+
     try {
       console.log(`🔍 WebSearchTool: Searching for "${options.query}"`);
 
       const searchOptions = {
         count: options.count || 5,
         safesearch: options.safesearch || 'moderate',
-        country: options.country || 'US'
+        country: options.country || 'US',
       };
 
       // Perform main search
       const results = await this.braveClient.quickSearch(options.query, searchOptions);
-      
+
       // Optionally include recent results
       let recentResults: BraveSearchResult[] = [];
       if (options.includeRecent) {
@@ -106,7 +106,7 @@ export class WebSearchTool {
 
       // Combine and deduplicate results
       const allResults = this.combineAndDeduplicateResults(results, recentResults);
-      
+
       // Format results with enhanced canonical processing
       const formattedResults = allResults.slice(0, options.count || 5).map((result, index) => ({
         title: result.title,
@@ -115,12 +115,12 @@ export class WebSearchTool {
         domain: this.extractDomain(result.url),
         snippet: this.createEnhancedSnippet(result.description, options.query),
         ...(result.age && { age: result.age }),
-        relevanceScore: this.calculateRelevanceScore(result, options.query, index)
+        relevanceScore: this.calculateRelevanceScore(result, options.query, index),
       }));
 
       const searchTime = createUnifiedTimestamp().unix - startTime;
       this.updateStats(searchTime);
-      
+
       const response: WebSearchResponse = {
         query: options.query,
         totalResults: formattedResults.length,
@@ -131,13 +131,13 @@ export class WebSearchTool {
           searchType: options.includeRecent ? 'comprehensive' : 'standard',
           safesearch: searchOptions.safesearch,
           country: searchOptions.country,
-          totalAvailable: allResults.length
+          totalAvailable: allResults.length,
         },
-        success: true
+        success: true,
       };
 
       console.log(`🔍 WebSearchTool: Found ${response.totalResults} results in ${searchTime}ms`);
-      
+
       // Canonical Memory Integration: Store successful search patterns and results
       if (this.memorySystem && this.enableMemoryLearning && response.totalResults > 0) {
         try {
@@ -147,15 +147,17 @@ export class WebSearchTool {
           console.warn('⚠️ Memory integration error:', error);
         }
       }
-      
-      return response;
 
+      return response;
     } catch (error: unknown) {
       const searchTime = createUnifiedTimestamp().unix - startTime;
       const errorClassification = this.classifySearchError(error);
-      
-      console.error(`❌ WebSearchTool error (${errorClassification.code}):`, errorClassification.technicalDetails || errorClassification.message);
-      
+
+      console.error(
+        `❌ WebSearchTool error (${errorClassification.code}):`,
+        errorClassification.technicalDetails || errorClassification.message,
+      );
+
       // Enhanced error response with canonical structure
       const errorResponse: WebSearchResponse = {
         query: options.query,
@@ -166,10 +168,10 @@ export class WebSearchTool {
         metadata: {
           searchType: 'error',
           ...(options.safesearch && { safesearch: options.safesearch }),
-          ...(options.country && { country: options.country })
+          ...(options.country && { country: options.country }),
         },
         success: false,
-        error: errorClassification.message
+        error: errorClassification.message,
       };
 
       return errorResponse;
@@ -187,17 +189,21 @@ export class WebSearchTool {
    * Search for news/recent information
    */
   async searchNews(query: string, count: number = 5): Promise<WebSearchResponse> {
-    return this.search({ 
-      query: `${query} news`, 
-      count, 
-      includeRecent: true 
+    return this.search({
+      query: `${query} news`,
+      count,
+      includeRecent: true,
     });
   }
 
   /**
    * Search with specific country/region
    */
-  async searchByRegion(query: string, country: string, count: number = 5): Promise<WebSearchResponse> {
+  async searchByRegion(
+    query: string,
+    country: string,
+    count: number = 5,
+  ): Promise<WebSearchResponse> {
     return this.search({ query, country, count });
   }
 
@@ -220,11 +226,11 @@ export class WebSearchTool {
       query: options.query,
       count: (options.count || 5) + 10, // Get extra results for filtering
     };
-    
+
     if (options.language) searchOptions.language = options.language;
     if (options.safesearch) searchOptions.safesearch = options.safesearch;
     if (options.country) searchOptions.country = options.country;
-    
+
     const searchResult = await this.search(searchOptions);
 
     if (!searchResult.success) {
@@ -235,26 +241,25 @@ export class WebSearchTool {
 
     // Apply domain filtering
     if (options.filterDomains && options.filterDomains.length > 0) {
-      filteredResults = filteredResults.filter(result => 
-        result.domain && options.filterDomains!.some(domain => 
-          result.domain!.includes(domain)
-        )
+      filteredResults = filteredResults.filter(
+        (result) =>
+          result.domain && options.filterDomains!.some((domain) => result.domain!.includes(domain)),
       );
     }
 
     // Apply domain exclusion
     if (options.excludeDomains && options.excludeDomains.length > 0) {
-      filteredResults = filteredResults.filter(result => 
-        !result.domain || !options.excludeDomains!.some(domain => 
-          result.domain!.includes(domain)
-        )
+      filteredResults = filteredResults.filter(
+        (result) =>
+          !result.domain ||
+          !options.excludeDomains!.some((domain) => result.domain!.includes(domain)),
       );
     }
 
     // Apply relevance score filtering
     if (options.minRelevanceScore !== undefined) {
-      filteredResults = filteredResults.filter(result => 
-        (result.relevanceScore || 0) >= options.minRelevanceScore!
+      filteredResults = filteredResults.filter(
+        (result) => (result.relevanceScore || 0) >= options.minRelevanceScore!,
       );
     }
 
@@ -289,21 +294,24 @@ export class WebSearchTool {
       metadata: {
         ...searchResult.metadata,
         searchType: 'advanced',
-        filtersApplied: true
-      }
+        filtersApplied: true,
+      },
     };
   }
 
   /**
    * Search with automatic query enhancement
    */
-  async intelligentSearch(query: string, options?: {
-    count?: number;
-    enhanceQuery?: boolean;
-    includeRelated?: boolean;
-    language?: string;
-    country?: string;
-  }): Promise<WebSearchResponse> {
+  async intelligentSearch(
+    query: string,
+    options?: {
+      count?: number;
+      enhanceQuery?: boolean;
+      includeRelated?: boolean;
+      language?: string;
+      country?: string;
+    },
+  ): Promise<WebSearchResponse> {
     let enhancedQuery = query;
 
     // Enhance query with common search operators if requested
@@ -314,12 +322,12 @@ export class WebSearchTool {
     const searchOptions: WebSearchOptions = {
       query: enhancedQuery,
       count: options?.count || 5,
-      includeRecent: true
+      includeRecent: true,
     };
-    
+
     if (options?.language) searchOptions.language = options.language;
     if (options?.country) searchOptions.country = options.country;
-    
+
     const searchResult = await this.search(searchOptions);
 
     // Add related search suggestions if requested
@@ -336,8 +344,8 @@ export class WebSearchTool {
         ...searchResult.metadata,
         searchType: 'intelligent',
         originalQuery: query,
-        ...(enhancedQuery !== query && { enhancedQuery })
-      }
+        ...(enhancedQuery !== query && { enhancedQuery }),
+      },
     };
   }
 
@@ -347,16 +355,16 @@ export class WebSearchTool {
   async testSearch(): Promise<boolean> {
     try {
       console.log('🔍 Testing web search functionality...');
-      
+
       const testResult = await this.quickSearch('OpenAI GPT-4', 1);
       const isWorking = testResult.totalResults > 0 || testResult.results.length >= 0;
-      
+
       if (isWorking) {
         console.log('✅ Web search test passed');
       } else {
         console.log('⚠️ Web search test returned no results');
       }
-      
+
       return isWorking;
     } catch (error) {
       console.error('❌ Web search test failed:', error);
@@ -367,9 +375,12 @@ export class WebSearchTool {
   /**
    * Combine results from multiple searches and remove duplicates
    */
-  private combineAndDeduplicateResults(mainResults: BraveSearchResult[], recentResults: BraveSearchResult[]): BraveSearchResult[] {
+  private combineAndDeduplicateResults(
+    mainResults: BraveSearchResult[],
+    recentResults: BraveSearchResult[],
+  ): BraveSearchResult[] {
     const combined = [...mainResults];
-    const existingUrls = new Set(mainResults.map(r => r.url));
+    const existingUrls = new Set(mainResults.map((r) => r.url));
 
     // Add recent results if they're not duplicates
     for (const recentResult of recentResults) {
@@ -385,13 +396,17 @@ export class WebSearchTool {
   /**
    * Calculate a simple relevance score for results
    */
-  private calculateRelevanceScore(result: BraveSearchResult, query: string, position: number): number {
-    let score = 100 - (position * 10); // Base score decreases with position
-    
+  private calculateRelevanceScore(
+    result: BraveSearchResult,
+    query: string,
+    position: number,
+  ): number {
+    let score = 100 - position * 10; // Base score decreases with position
+
     const queryTerms = query.toLowerCase().split(' ');
     const titleLower = result.title.toLowerCase();
     const descLower = result.description.toLowerCase();
-    
+
     // Boost score for query terms in title
     for (const term of queryTerms) {
       if (titleLower.includes(term)) {
@@ -401,12 +416,12 @@ export class WebSearchTool {
         score += 10;
       }
     }
-    
+
     // Boost for recent results
     if (result.age && (result.age.includes('hour') || result.age.includes('minute'))) {
       score += 15;
     }
-    
+
     return Math.max(0, Math.min(100, score));
   }
 
@@ -416,7 +431,7 @@ export class WebSearchTool {
   getConfig() {
     return {
       provider: 'Brave Search',
-      clientConfig: this.braveClient.getConfig()
+      clientConfig: this.braveClient.getConfig(),
     };
   }
 
@@ -431,7 +446,7 @@ export class WebSearchTool {
     return {
       searchCount: this.searchCount,
       averageSearchTime: this.searchCount > 0 ? this.totalSearchTime / this.searchCount : 0,
-      totalSearchTime: this.totalSearchTime
+      totalSearchTime: this.totalSearchTime,
     };
   }
 
@@ -464,32 +479,31 @@ export class WebSearchTool {
         return {
           status: 'unhealthy',
           message: 'Search client not available',
-          details: { searchClientAvailable: false }
+          details: { searchClientAvailable: false },
         };
       }
 
       // Perform a simple test search
       const testPassed = await this.testSearch();
-      
+
       return {
         status: testPassed ? 'healthy' : 'degraded',
-        message: testPassed 
+        message: testPassed
           ? 'WebSearchTool is healthy and search functionality confirmed'
           : 'WebSearchTool is available but search test failed',
-        details: { 
-          searchClientAvailable: true, 
-          testPassed 
-        }
+        details: {
+          searchClientAvailable: true,
+          testPassed,
+        },
       };
-
     } catch (error) {
       return {
         status: 'unhealthy',
         message: 'WebSearchTool health check failed',
-        details: { 
+        details: {
           searchClientAvailable: false,
-          error: error instanceof Error ? error.message : 'Unknown error'
-        }
+          error: error instanceof Error ? error.message : 'Unknown error',
+        },
       };
     }
   }
@@ -500,34 +514,41 @@ export class WebSearchTool {
    * Perform search with retry logic
    */
   private async performSearchWithRetry(
-    query: string, 
-    options: { count: number; safesearch: 'strict' | 'moderate' | 'off'; country: string; timeout: number }, 
-    maxRetries: number
+    query: string,
+    options: {
+      count: number;
+      safesearch: 'strict' | 'moderate' | 'off';
+      country: string;
+      timeout: number;
+    },
+    maxRetries: number,
   ): Promise<BraveSearchResult[]> {
     let lastError: unknown;
-    
+
     for (let attempt = 1; attempt <= maxRetries; attempt++) {
       try {
         // Create search options without timeout property
         const searchOptions = {
           count: options.count,
           safesearch: options.safesearch,
-          country: options.country
+          country: options.country,
         };
         return await this.braveClient.quickSearch(query, searchOptions);
       } catch (error) {
         lastError = error;
         const errorClassification = this.classifySearchError(error);
-        
+
         if (!errorClassification.isRetryable || attempt === maxRetries) {
           throw error;
         }
-        
-        console.log(`⚠️ WebSearchTool: Attempt ${attempt}/${maxRetries} failed (retryable), waiting before retry...`);
+
+        console.log(
+          `⚠️ WebSearchTool: Attempt ${attempt}/${maxRetries} failed (retryable), waiting before retry...`,
+        );
         await this.sleep(1000 * attempt); // Exponential backoff
       }
     }
-    
+
     throw lastError;
   }
 
@@ -549,13 +570,13 @@ export class WebSearchTool {
   private createEnhancedSnippet(description: string, query: string): string {
     const queryTerms = query.toLowerCase().split(' ');
     let snippet = description;
-    
+
     // Highlight query terms (for display purposes)
     for (const term of queryTerms) {
       const regex = new RegExp(`\\b${term}\\b`, 'gi');
       snippet = snippet.replace(regex, `**${term}**`);
     }
-    
+
     return snippet.length > 200 ? snippet.substring(0, 200) + '...' : snippet;
   }
 
@@ -572,7 +593,7 @@ export class WebSearchTool {
    */
   private classifySearchError(error: unknown): WebSearchError {
     const errorMsg = error instanceof Error ? error.message : 'Unknown error';
-    
+
     // Network/connectivity errors
     if (errorMsg.includes('ENOTFOUND') || errorMsg.includes('ECONNREFUSED')) {
       return {
@@ -580,7 +601,7 @@ export class WebSearchTool {
         message: 'Unable to connect to search service. Please check your internet connection.',
         query: '',
         isRetryable: true,
-        technicalDetails: errorMsg
+        technicalDetails: errorMsg,
       };
     }
 
@@ -591,7 +612,7 @@ export class WebSearchTool {
         message: 'Search request timed out. Please try again.',
         query: '',
         isRetryable: true,
-        technicalDetails: errorMsg
+        technicalDetails: errorMsg,
       };
     }
 
@@ -602,7 +623,7 @@ export class WebSearchTool {
         message: 'Search rate limit exceeded. Please wait before searching again.',
         query: '',
         isRetryable: true,
-        technicalDetails: errorMsg
+        technicalDetails: errorMsg,
       };
     }
 
@@ -613,7 +634,7 @@ export class WebSearchTool {
         message: 'Search service authentication failed. Please check API credentials.',
         query: '',
         isRetryable: false,
-        technicalDetails: errorMsg
+        technicalDetails: errorMsg,
       };
     }
 
@@ -623,7 +644,7 @@ export class WebSearchTool {
       message: 'An unexpected search error occurred. Please try again.',
       query: '',
       isRetryable: false,
-      technicalDetails: errorMsg
+      technicalDetails: errorMsg,
     };
   }
 
@@ -631,7 +652,7 @@ export class WebSearchTool {
    * Sleep utility for retry delays
    */
   private sleep(ms: number): Promise<void> {
-    return new Promise(resolve => setTimeout(resolve, ms));
+    return new Promise((resolve) => setTimeout(resolve, ms));
   }
 
   /**
@@ -655,9 +676,9 @@ export class WebSearchTool {
       `${baseQuery} guide`,
       `${baseQuery} examples`,
       `${baseQuery} best practices`,
-      `how to ${baseQuery}`
+      `how to ${baseQuery}`,
     ];
-    
+
     return relatedTerms.slice(0, 3); // Return top 3 related queries
   }
 
@@ -673,18 +694,31 @@ export class WebSearchTool {
       // Store successful search pattern with canonical metadata
       const unified = unifiedMetadataService.create('search_pattern', 'WebSearchTool', {
         system: { userId: 'system', component: 'web-search', source: 'WebSearchTool' },
-        content: { category: 'web_search', tags: ['search', 'query_pattern', 'performance'], sensitivity: 'internal', relevanceScore: 0.75, contextDependency: 'session' },
+        content: {
+          category: 'web_search',
+          tags: ['search', 'query_pattern', 'performance'],
+          sensitivity: 'internal',
+          relevanceScore: 0.75,
+          contextDependency: 'session',
+        },
         custom: {
           query,
           timestamp: response.timestamp,
           query_length: query.length,
           result_count: response.totalResults,
           search_time_ms: response.searchTime,
-          domains: response.results.map(r => r.domain).filter(Boolean),
-          relevance_scores: response.results.map(r => r.relevanceScore).filter(Boolean)
-        }
+          domains: response.results.map((r) => r.domain).filter(Boolean),
+          relevance_scores: response.results.map((r) => r.relevanceScore).filter(Boolean),
+        },
       });
-      await this.memorySystem.addMemoryCanonical(`Search Query: "${query}" | Results: ${response.totalResults} found in ${response.searchTime}ms | Top domains: ${response.results.slice(0, 3).map(r => r.domain).join(', ')}`, unified, 'system');
+      await this.memorySystem.addMemoryCanonical(
+        `Search Query: "${query}" | Results: ${response.totalResults} found in ${response.searchTime}ms | Top domains: ${response.results
+          .slice(0, 3)
+          .map((r) => r.domain)
+          .join(', ')}`,
+        unified,
+        'system',
+      );
       console.log(`🧠 Stored search learning for query: "${query}"`);
     } catch (error) {
       console.warn('⚠️ Failed to store search learning:', error);
@@ -699,9 +733,9 @@ export class WebSearchTool {
 
     try {
       const searchResults = await this.memorySystem.searchMemory(
-        `search query similar to: ${query}`
+        `search query similar to: ${query}`,
       );
-      
+
       return Array.isArray(searchResults) ? searchResults : [];
     } catch (error) {
       console.warn('⚠️ Failed to retrieve similar search patterns:', error);
@@ -712,25 +746,38 @@ export class WebSearchTool {
   /**
    * Store high-quality search results for future reference
    */
-  private async storeQualityResults(query: string, results: WebSearchResponse['results']): Promise<void> {
+  private async storeQualityResults(
+    query: string,
+    results: WebSearchResponse['results'],
+  ): Promise<void> {
     if (!this.memorySystem || results.length === 0) return;
 
     try {
       // Store only high-relevance results
-      const qualityResults = results.filter(r => (r.relevanceScore || 0) > 70);
-      
+      const qualityResults = results.filter((r) => (r.relevanceScore || 0) > 70);
+
       if (qualityResults.length > 0) {
         const unified = unifiedMetadataService.create('quality_search_results', 'WebSearchTool', {
           system: { userId: 'system', component: 'web-search', source: 'WebSearchTool' },
-          content: { category: 'web_search', tags: ['search_results', 'high_quality', 'reference'], sensitivity: 'internal', relevanceScore: 0.8, contextDependency: 'session' },
+          content: {
+            category: 'web_search',
+            tags: ['search_results', 'high_quality', 'reference'],
+            sensitivity: 'internal',
+            relevanceScore: 0.8,
+            contextDependency: 'session',
+          },
           custom: {
             original_query: query,
             result_count: qualityResults.length,
-            domains: qualityResults.map(r => r.domain),
-            urls: qualityResults.map(r => r.url)
-          }
+            domains: qualityResults.map((r) => r.domain),
+            urls: qualityResults.map((r) => r.url),
+          },
         });
-        await this.memorySystem.addMemoryCanonical(`High-quality search results for "${query}": ${qualityResults.map(r => `${r.title} (${r.domain}) - ${r.description.substring(0, 100)}`).join(' | ')}`, unified, 'system');
+        await this.memorySystem.addMemoryCanonical(
+          `High-quality search results for "${query}": ${qualityResults.map((r) => `${r.title} (${r.domain}) - ${r.description.substring(0, 100)}`).join(' | ')}`,
+          unified,
+          'system',
+        );
         console.log(`🧠 Stored ${qualityResults.length} quality results for: "${query}"`);
       }
     } catch (error) {
@@ -752,32 +799,40 @@ export class WebSearchTool {
         similarQueries: [],
         commonDomains: [],
         avgResponseTime: 0,
-        recommendedFilters: []
+        recommendedFilters: [],
       };
     }
 
     try {
       const patterns = await this.getSimilarSearchPatterns(query);
-      
+
       // Analyze patterns to provide insights with proper type handling
-      const domains = patterns.flatMap(p => {
+      const domains = patterns.flatMap((p) => {
         const pattern = p as { metadata?: { domains?: string[] } };
         return pattern.metadata?.domains || [];
       });
-      
-      const responseTimes = patterns.map(p => {
-        const pattern = p as { metadata?: { search_time_ms?: number } };
-        return pattern.metadata?.search_time_ms || 0;
-      }).filter(t => t > 0);
-      
+
+      const responseTimes = patterns
+        .map((p) => {
+          const pattern = p as { metadata?: { search_time_ms?: number } };
+          return pattern.metadata?.search_time_ms || 0;
+        })
+        .filter((t) => t > 0);
+
       return {
-        similarQueries: patterns.map(p => {
-          const pattern = p as { metadata?: { original_query?: string } };
-          return pattern.metadata?.original_query;
-        }).filter((q): q is string => Boolean(q)).slice(0, 3),
-  commonDomains: Array.from(new Set(domains)).slice(0, 5),
-        avgResponseTime: responseTimes.length > 0 ? responseTimes.reduce((a, b) => a + b, 0) / responseTimes.length : 0,
-        recommendedFilters: this.generateRecommendedFilters(domains)
+        similarQueries: patterns
+          .map((p) => {
+            const pattern = p as { metadata?: { original_query?: string } };
+            return pattern.metadata?.original_query;
+          })
+          .filter((q): q is string => Boolean(q))
+          .slice(0, 3),
+        commonDomains: Array.from(new Set(domains)).slice(0, 5),
+        avgResponseTime:
+          responseTimes.length > 0
+            ? responseTimes.reduce((a, b) => a + b, 0) / responseTimes.length
+            : 0,
+        recommendedFilters: this.generateRecommendedFilters(domains),
       };
     } catch (error) {
       console.warn('⚠️ Failed to get search insights:', error);
@@ -785,7 +840,7 @@ export class WebSearchTool {
         similarQueries: [],
         commonDomains: [],
         avgResponseTime: 0,
-        recommendedFilters: []
+        recommendedFilters: [],
       };
     }
   }
@@ -795,12 +850,12 @@ export class WebSearchTool {
    */
   private generateRecommendedFilters(domains: string[]): string[] {
     const domainCounts: Record<string, number> = {};
-    domains.forEach(domain => {
+    domains.forEach((domain) => {
       domainCounts[domain] = (domainCounts[domain] || 0) + 1;
     });
 
     return Object.entries(domainCounts)
-      .sort(([,a], [,b]) => b - a)
+      .sort(([, a], [, b]) => b - a)
       .slice(0, 3)
       .map(([domain]) => domain);
   }

@@ -1,7 +1,7 @@
 /**
  * Evolution Validator for ALITA Evolution Engine
  * Ensures evolution plans are safe, effective, and constitutionally compliant
- * 
+ *
  * @version 1.0.0
  * @date 2025-06-15
  */
@@ -44,7 +44,7 @@ export interface RegressionAnalysis {
 export class EvolutionValidator {
   constructor(
     private constitutionalValidator: ConstitutionalValidator,
-    private performanceMonitor: PerformanceMonitor
+    private performanceMonitor: PerformanceMonitor,
   ) {}
 
   /**
@@ -62,17 +62,25 @@ export class EvolutionValidator {
       // Check for high-risk changes
       for (const improvement of plan.targetImprovements) {
         // Large improvements are inherently risky
-        const improvementPercentage = (improvement.targetValue - improvement.currentValue) / improvement.currentValue;
-        
-        if (improvementPercentage > 0.5) { // >50% improvement
-          riskFactors.push(`Large improvement target: ${improvement.metric} (+${Math.round(improvementPercentage * 100)}%)`);
+        const improvementPercentage =
+          (improvement.targetValue - improvement.currentValue) / improvement.currentValue;
+
+        if (improvementPercentage > 0.5) {
+          // >50% improvement
+          riskFactors.push(
+            `Large improvement target: ${improvement.metric} (+${Math.round(improvementPercentage * 100)}%)`,
+          );
           requiredSafeguards.push(`Gradual rollout for ${improvement.metric}`);
-          mitigations.push(`Phase ${improvement.metric} improvement over multiple evolution cycles`);
+          mitigations.push(
+            `Phase ${improvement.metric} improvement over multiple evolution cycles`,
+          );
         }
 
         // Low confidence improvements are risky
         if (improvement.confidence < 0.7) {
-          riskFactors.push(`Low confidence improvement: ${improvement.metric} (${improvement.confidence})`);
+          riskFactors.push(
+            `Low confidence improvement: ${improvement.metric} (${improvement.confidence})`,
+          );
           requiredSafeguards.push(`Enhanced monitoring for ${improvement.metric}`);
           mitigations.push(`A/B testing for ${improvement.metric} changes`);
         }
@@ -80,7 +88,7 @@ export class EvolutionValidator {
 
       // Constitutional safety check
       const constitutionalValidation = await this.constitutionalValidator.validate(
-        `Evolution plan targeting improvements: ${plan.targetImprovements.map(i => `${i.metric}: ${i.improvementStrategy}`).join(', ')}`
+        `Evolution plan targeting improvements: ${plan.targetImprovements.map((i) => `${i.metric}: ${i.improvementStrategy}`).join(', ')}`,
       );
 
       if (!constitutionalValidation.passed) {
@@ -107,12 +115,14 @@ export class EvolutionValidator {
         score: safetyScore,
         requiredSafeguards,
         riskFactors,
-        mitigations
+        mitigations,
       };
 
-      await this.performanceMonitor.recordLatency('safety_validation', createUnifiedTimestamp().unix - startTime);
+      await this.performanceMonitor.recordLatency(
+        'safety_validation',
+        createUnifiedTimestamp().unix - startTime,
+      );
       return validation;
-
     } catch (error) {
       await this.performanceMonitor.recordError('safety_validation', error as Error);
       throw error;
@@ -129,27 +139,30 @@ export class EvolutionValidator {
     try {
       // Formulate hypothesis
       const hypothesis = this.formulateHypothesis(plan);
-      
+
       // Estimate statistical significance based on plan characteristics
       const statisticalSignificance = this.estimateStatisticalSignificance(plan);
-      
+
       // Project performance improvements
       const projectedPerformance = await this.projectPerformanceImprovement(plan);
-      
+
       // Determine test result based on statistical significance and projected impact
-      const testResult = statisticalSignificance >= 0.8 && projectedPerformance.expectedImprovement >= 0.05;
+      const testResult =
+        statisticalSignificance >= 0.8 && projectedPerformance.expectedImprovement >= 0.05;
 
       const hypothesisTest: HypothesisTest = {
         hypothesis,
         testResult,
         projectedPerformance,
         statisticalSignificance,
-        testMethod: 'Confidence interval analysis with impact projection'
+        testMethod: 'Confidence interval analysis with impact projection',
       };
 
-      await this.performanceMonitor.recordLatency('hypothesis_testing', createUnifiedTimestamp().unix - startTime);
+      await this.performanceMonitor.recordLatency(
+        'hypothesis_testing',
+        createUnifiedTimestamp().unix - startTime,
+      );
       return hypothesisTest;
-
     } catch (error) {
       await this.performanceMonitor.recordError('hypothesis_testing', error as Error);
       throw error;
@@ -171,9 +184,11 @@ export class EvolutionValidator {
       // Analyze each improvement for regression risk
       for (const improvement of plan.targetImprovements) {
         // High-impact changes have higher regression risk
-        const impactMagnitude = Math.abs(improvement.targetValue - improvement.currentValue) / improvement.currentValue;
-        
-        if (impactMagnitude > 0.3) { // >30% change
+        const impactMagnitude =
+          Math.abs(improvement.targetValue - improvement.currentValue) / improvement.currentValue;
+
+        if (impactMagnitude > 0.3) {
+          // >30% change
           riskFactors.push(`High-impact change in ${improvement.metric}`);
           mitigations.push(`Gradual rollout of ${improvement.metric} changes`);
           rollbackTriggers.push(`${improvement.metric} degradation >10%`);
@@ -196,19 +211,21 @@ export class EvolutionValidator {
 
       // Calculate overall regression risk
       const baseRisk = 0.1; // 10% baseline risk
-      const riskMultiplier = 1 + (riskFactors.length * 0.15); // Each risk factor adds 15%
+      const riskMultiplier = 1 + riskFactors.length * 0.15; // Each risk factor adds 15%
       const riskLevel = Math.min(baseRisk * riskMultiplier, 0.8); // Cap at 80% risk
 
       const analysis: RegressionAnalysis = {
         riskLevel,
         riskFactors,
         mitigations,
-        rollbackTriggers
+        rollbackTriggers,
       };
 
-      await this.performanceMonitor.recordLatency('regression_analysis', createUnifiedTimestamp().unix - startTime);
+      await this.performanceMonitor.recordLatency(
+        'regression_analysis',
+        createUnifiedTimestamp().unix - startTime,
+      );
       return analysis;
-
     } catch (error) {
       await this.performanceMonitor.recordError('regression_analysis', error as Error);
       throw error;
@@ -219,48 +236,58 @@ export class EvolutionValidator {
   // Private Helper Methods
   // ========================================
 
-  private detectMetricConflicts(improvements: Array<{ metric: string; currentValue: number; targetValue: number; confidence: number }>): string[] {
+  private detectMetricConflicts(
+    improvements: Array<{
+      metric: string;
+      currentValue: number;
+      targetValue: number;
+      confidence: number;
+    }>,
+  ): string[] {
     const conflicts: string[] = [];
-    
+
     // Check for known conflicting metrics
-    const hasSpeedImprovement = improvements.some(i => i.metric === 'response_time');
-    const hasQualityImprovement = improvements.some(i => i.metric === 'response_quality');
-    
+    const hasSpeedImprovement = improvements.some((i) => i.metric === 'response_time');
+    const hasQualityImprovement = improvements.some((i) => i.metric === 'response_quality');
+
     if (hasSpeedImprovement && hasQualityImprovement) {
       conflicts.push('speed_vs_quality');
     }
-    
+
     return conflicts;
   }
 
   private formulateHypothesis(plan: EvolutionPlan): string {
-    const improvements = plan.targetImprovements.map(i => 
-      `${i.metric} from ${i.currentValue} to ${i.targetValue}`
-    ).join(', ');
-    
+    const improvements = plan.targetImprovements
+      .map((i) => `${i.metric} from ${i.currentValue} to ${i.targetValue}`)
+      .join(', ');
+
     return `Implementing evolution plan will improve ${improvements} with ${plan.estimatedImpact.confidenceInterval[0]}% to ${plan.estimatedImpact.confidenceInterval[1]}% confidence`;
   }
 
   private estimateStatisticalSignificance(plan: EvolutionPlan): number {
     // Simplified significance calculation based on plan characteristics
     let significance = 0.5; // Base significance
-    
+
     // Higher confidence improvements increase significance
-    const avgConfidence = plan.targetImprovements.reduce((sum, i) => sum + i.confidence, 0) / plan.targetImprovements.length;
+    const avgConfidence =
+      plan.targetImprovements.reduce((sum, i) => sum + i.confidence, 0) /
+      plan.targetImprovements.length;
     significance += avgConfidence * 0.3;
-    
+
     // More safeguards increase significance
     significance += Math.min(plan.constitutionalSafeguards.length * 0.05, 0.2);
-    
+
     return Math.min(significance, 0.95); // Cap at 95%
   }
 
   private async projectPerformanceImprovement(plan: EvolutionPlan): Promise<PerformanceProjection> {
     // Calculate expected improvement based on target improvements
-    const avgImprovement = plan.targetImprovements.reduce((sum, i) => {
-      const improvement = (i.targetValue - i.currentValue) / i.currentValue;
-      return sum + improvement * i.confidence;
-    }, 0) / plan.targetImprovements.length;
+    const avgImprovement =
+      plan.targetImprovements.reduce((sum, i) => {
+        const improvement = (i.targetValue - i.currentValue) / i.currentValue;
+        return sum + improvement * i.confidence;
+      }, 0) / plan.targetImprovements.length;
 
     // Project individual metrics
     const projectedMetrics: Record<string, number> = {};
@@ -269,18 +296,20 @@ export class EvolutionValidator {
     }
 
     // Calculate uncertainty range based on confidence levels
-    const avgConfidence = plan.targetImprovements.reduce((sum, i) => sum + i.confidence, 0) / plan.targetImprovements.length;
+    const avgConfidence =
+      plan.targetImprovements.reduce((sum, i) => sum + i.confidence, 0) /
+      plan.targetImprovements.length;
     const uncertaintyFactor = 1 - avgConfidence;
     const uncertaintyRange: [number, number] = [
       avgImprovement * (1 - uncertaintyFactor),
-      avgImprovement * (1 + uncertaintyFactor)
+      avgImprovement * (1 + uncertaintyFactor),
     ];
 
     return {
       expectedImprovement: avgImprovement,
       confidenceLevel: avgConfidence,
       projectedMetrics,
-      uncertaintyRange
+      uncertaintyRange,
     };
   }
 }

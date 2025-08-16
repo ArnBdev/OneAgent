@@ -1,22 +1,22 @@
 /**
  * Canonical AgentCard Interface - Single Source of Truth
- * 
+ *
  * This is the ONE and ONLY AgentCard interface used throughout OneAgent.
  * All other AgentCard interfaces should be removed and imports redirected here.
- * 
+ *
  * Supports both A2A Protocol and Registry requirements.
- * 
+ *
  * INTEGRATED WITH CANONICAL SYSTEMS:
  * - UnifiedBackboneService for temporal metadata
  * - UnifiedTimeService for consistent timestamps
  * - Constitutional AI validation
  */
 
-import { 
-  UnifiedTimestamp, 
-  UnifiedMetadata, 
+import {
+  UnifiedTimestamp,
+  UnifiedMetadata,
   UnifiedTimeService,
-  UnifiedMetadataService 
+  UnifiedMetadataService,
 } from './oneagent-backbone-types';
 import { createUnifiedTimestamp } from '../utils/UnifiedBackboneService';
 import { environmentConfig } from '../config/EnvironmentConfig';
@@ -75,7 +75,7 @@ export interface AgentInterface {
 
 /**
  * Canonical AgentCard - ONE interface for all purposes
- * 
+ *
  * This interface serves both:
  * - A2A Protocol requirements (Google specification)
  * - Registry/Discovery requirements (internal OneAgent)
@@ -84,60 +84,60 @@ export interface AgentInterface {
 export interface AgentCard {
   // Core Identity (A2A Protocol required)
   protocolVersion: string;
-  name: string;                    // A2A Protocol uses "name"
-  agentId: string;                 // Registry uses "agentId" - both supported
-  displayName?: string;            // Optional display name for UI
+  name: string; // A2A Protocol uses "name"
+  agentId: string; // Registry uses "agentId" - both supported
+  displayName?: string; // Optional display name for UI
   description: string;
   version: string;
   url: string;
-  
+
   // Legacy compatibility fields
-  agentType: string;               // Legacy field for agent type classification
-  
+  agentType: string; // Legacy field for agent type classification
+
   // Status and Health (Registry required)
   status: 'active' | 'inactive' | 'pending' | 'retired' | 'error';
   health: 'healthy' | 'degraded' | 'offline' | 'error';
   lastHeartbeat: number;
-  
+
   // CANONICAL BACKBONE INTEGRATION
   // Unified temporal metadata using UnifiedTimestamp
-  createdAt: UnifiedTimestamp;     // Creation time with full context
-  updatedAt: UnifiedTimestamp;     // Last update with context
+  createdAt: UnifiedTimestamp; // Creation time with full context
+  updatedAt: UnifiedTimestamp; // Last update with context
   lastAccessedAt?: UnifiedTimestamp; // Last access time
-  
+
   // Unified metadata for traceability and intelligence
-  metadata: UnifiedMetadata;       // Full metadata with constitutional compliance
-  
+  metadata: UnifiedMetadata; // Full metadata with constitutional compliance
+
   // Capabilities (hybrid approach for compatibility)
-  capabilities: AgentCapabilities;  // A2A Protocol format
-  capabilityList?: string[];       // Registry format (auto-generated)
-  
+  capabilities: AgentCapabilities; // A2A Protocol format
+  capabilityList?: string[]; // Registry format (auto-generated)
+
   // Skills (hybrid approach for compatibility)
-  skills: AgentSkill[];            // A2A Protocol format (required)
-  skillList?: string[];            // Registry format (auto-generated)
-  
+  skills: AgentSkill[]; // A2A Protocol format (required)
+  skillList?: string[]; // Registry format (auto-generated)
+
   // Transport and Communication (A2A Protocol)
   preferredTransport?: string;
   additionalInterfaces?: AgentInterface[];
   defaultInputModes: string[];
   defaultOutputModes: string[];
-  
+
   // Security (A2A Protocol)
   securitySchemes?: { [scheme: string]: SecurityScheme };
   security?: { [scheme: string]: string[] }[];
   supportsAuthenticatedExtendedCard?: boolean;
-  
+
   // Registry-specific fields
   qualityScore?: number;
   endpoint?: string;
   loadLevel?: number;
   lastSeen?: Date;
-  
+
   // Provider and Documentation (A2A Protocol)
   provider?: AgentProvider;
   iconUrl?: string;
   documentationUrl?: string;
-  
+
   // Flexible additional data
   credentials?: Record<string, unknown>;
   authorization?: Record<string, unknown>;
@@ -153,7 +153,7 @@ export interface AgentCard {
  * (For backward compatibility with existing registry code)
  */
 export interface AgentRegistration extends AgentCard {
-  qualityScore: number;  // Override to make required
+  qualityScore: number; // Override to make required
   endpoint?: string;
   loadLevel?: number;
   lastSeen?: Date;
@@ -185,22 +185,24 @@ export function toA2AFormat(card: AgentCard): AgentCard {
   return {
     ...card,
     // Ensure A2A required fields are present
-  protocolVersion: card.protocolVersion || DEFAULT_A2A_PROTOCOL_VERSION,
+    protocolVersion: card.protocolVersion || DEFAULT_A2A_PROTOCOL_VERSION,
     defaultInputModes: card.defaultInputModes || ['text/plain'],
     defaultOutputModes: card.defaultOutputModes || ['text/plain'],
     skills: card.skills || [],
-    capabilities: card.capabilities || {}
+    capabilities: card.capabilities || {},
   };
 }
 
 /**
  * Convert AgentCard to Registry format (for backward compatibility)
  */
-export function toRegistryFormat(card: AgentCard): AgentCard & { capabilityList: string[]; skillList: string[] } {
+export function toRegistryFormat(
+  card: AgentCard,
+): AgentCard & { capabilityList: string[]; skillList: string[] } {
   return {
     ...card,
     capabilityList: card.capabilityList || Object.keys(card.capabilities || {}),
-    skillList: card.skillList || (card.skills || []).map(skill => skill.id)
+    skillList: card.skillList || (card.skills || []).map((skill) => skill.id),
   };
 }
 
@@ -211,7 +213,7 @@ export function toRegistryFormat(card: AgentCard): AgentCard & { capabilityList:
 export function createTestAgentCard(overrides: Partial<AgentCard> = {}): AgentCard {
   // WARNING: This is a legacy function that doesn't use canonical backbone
   // For production code, use createAgentCard() with UnifiedBackboneService
-  
+
   // Create minimal timestamps (NOT canonical)
   const now = createUnifiedTimestamp().unix;
   const basicTimestamp = {
@@ -224,15 +226,15 @@ export function createTestAgentCard(overrides: Partial<AgentCard> = {}): AgentCa
     contextual: {
       timeOfDay: 'morning',
       energyLevel: 'medium',
-      optimalFor: ['testing']
+      optimalFor: ['testing'],
     },
     metadata: {
       source: 'TestFunction',
       precision: 'second' as const,
-      timezone: 'UTC'
-    }
+      timezone: 'UTC',
+    },
   };
-  
+
   // Create minimal metadata (NOT canonical)
   const basicMetadata = {
     id: 'test-metadata-id',
@@ -245,37 +247,37 @@ export function createTestAgentCard(overrides: Partial<AgentCard> = {}): AgentCa
         timeOfDay: 'morning',
         dayOfWeek: 'monday',
         businessContext: false,
-        energyContext: 'medium'
-      }
+        energyContext: 'medium',
+      },
     },
     system: {
       source: 'test_system',
       component: 'test_component',
-      agent: 'test-agent'
+      agent: 'test-agent',
     },
     quality: {
       score: 85,
       constitutionalCompliant: true,
       validationLevel: 'basic' as const,
-      confidence: 0.85
+      confidence: 0.85,
     },
     content: {
       category: 'test',
       tags: ['test', 'agent'],
       sensitivity: 'internal' as const,
       relevanceScore: 0.8,
-      contextDependency: 'session' as const
+      contextDependency: 'session' as const,
     },
     relationships: {
       children: [],
       related: [],
-      dependencies: []
+      dependencies: [],
     },
     analytics: {
       accessCount: 0,
       lastAccessPattern: 'created',
-      usageContext: []
-    }
+      usageContext: [],
+    },
   };
 
   return {
@@ -285,21 +287,21 @@ export function createTestAgentCard(overrides: Partial<AgentCard> = {}): AgentCa
     agentType: 'test',
     description: 'Test agent for development',
     version: '1.0.0',
-  url: environmentConfig.endpoints.ui.url,
+    url: environmentConfig.endpoints.ui.url,
     status: 'active',
     health: 'healthy',
     lastHeartbeat: now,
-    
+
     // Required canonical fields
     createdAt: basicTimestamp,
     updatedAt: basicTimestamp,
     metadata: basicMetadata,
-    
+
     capabilities: {},
     skills: [],
     defaultInputModes: ['text/plain'],
     defaultOutputModes: ['text/plain'],
-    ...overrides
+    ...overrides,
   };
 }
 
@@ -320,13 +322,13 @@ export function createAgentCard(
     status?: 'active' | 'inactive' | 'pending' | 'retired' | 'error';
     health?: 'healthy' | 'degraded' | 'offline' | 'error';
   },
-  backboneService: { 
+  backboneService: {
     timeService: UnifiedTimeService;
     metadataService: UnifiedMetadataService;
-  }
+  },
 ): AgentCard {
   const timestamp = backboneService.timeService.now();
-  
+
   // Create unified metadata for the agent
   const metadata = backboneService.metadataService.create('agent_card', 'agent_system', {
     content: {
@@ -334,20 +336,20 @@ export function createAgentCard(
       tags: [`agent:${config.agentId}`, `type:${config.agentType}`],
       sensitivity: 'internal' as const,
       relevanceScore: 0.9,
-      contextDependency: 'global' as const
+      contextDependency: 'global' as const,
     },
     system: {
       source: 'agent_system',
       component: 'agent_registry',
       agent: {
         id: config.agentId,
-        type: config.agentType
-      }
-    }
+        type: config.agentType,
+      },
+    },
   });
 
   return {
-  protocolVersion: DEFAULT_A2A_PROTOCOL_VERSION,
+    protocolVersion: DEFAULT_A2A_PROTOCOL_VERSION,
     name: config.name,
     agentId: config.agentId,
     agentType: config.agentType,
@@ -357,12 +359,12 @@ export function createAgentCard(
     status: config.status || 'active',
     health: config.health || 'healthy',
     lastHeartbeat: timestamp.unix,
-    
+
     // CANONICAL BACKBONE INTEGRATION
     createdAt: timestamp,
     updatedAt: timestamp,
     metadata: metadata,
-    
+
     capabilities: config.capabilities || {},
     skills: config.skills || [],
     defaultInputModes: ['text/plain', 'application/json'],
@@ -377,19 +379,19 @@ export function createAgentCard(
 export function updateAgentCard(
   existing: AgentCard,
   updates: Partial<AgentCard>,
-  backboneService: { 
+  backboneService: {
     timeService: UnifiedTimeService;
     metadataService: UnifiedMetadataService;
-  }
+  },
 ): AgentCard {
   const timestamp = backboneService.timeService.now();
-  
+
   // Update unified metadata
   const updatedMetadata = backboneService.metadataService.update(existing.metadata.id, {
     temporal: {
       ...existing.metadata.temporal,
-      updated: timestamp
-    }
+      updated: timestamp,
+    },
   });
 
   return {
@@ -397,6 +399,6 @@ export function updateAgentCard(
     ...updates,
     updatedAt: timestamp,
     metadata: updatedMetadata,
-    lastHeartbeat: timestamp.unix
+    lastHeartbeat: timestamp.unix,
   };
 }

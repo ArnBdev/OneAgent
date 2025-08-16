@@ -24,31 +24,64 @@ const mcpHealth = `http://127.0.0.1:${mcpPort}/health`;
 const mcpInfo = `http://127.0.0.1:${mcpPort}/info`;
 const mcpUrl = `http://127.0.0.1:${mcpPort}/mcp`;
 
-function httpGet(url: string, timeoutMs = 4000): Promise<{ status: number; body: string; headers: http.IncomingHttpHeaders }>{
+function httpGet(
+  url: string,
+  timeoutMs = 4000,
+): Promise<{ status: number; body: string; headers: http.IncomingHttpHeaders }> {
   return new Promise((resolve, reject) => {
     const u = new URL(url);
-    const req = http.request({ hostname: u.hostname, port: u.port, path: u.pathname, method: 'GET', timeout: timeoutMs }, res => {
-      res.setEncoding('utf8');
-      let raw = '';
-      res.on('data', (d: string) => { raw += d; });
-      res.on('end', () => resolve({ status: res.statusCode || 0, body: raw, headers: res.headers }));
-    });
+    const req = http.request(
+      { hostname: u.hostname, port: u.port, path: u.pathname, method: 'GET', timeout: timeoutMs },
+      (res) => {
+        res.setEncoding('utf8');
+        let raw = '';
+        res.on('data', (d: string) => {
+          raw += d;
+        });
+        res.on('end', () =>
+          resolve({ status: res.statusCode || 0, body: raw, headers: res.headers }),
+        );
+      },
+    );
     req.on('error', reject);
     req.end();
   });
 }
 
-interface JsonRpcResponse { jsonrpc?: string; id?: number | string | null; result?: Record<string, unknown> | undefined; error?: Record<string, unknown> | undefined }
+interface JsonRpcResponse {
+  jsonrpc?: string;
+  id?: number | string | null;
+  result?: Record<string, unknown> | undefined;
+  error?: Record<string, unknown> | undefined;
+}
 function httpPostJson(url: string, body: unknown, timeoutMs = 5000): Promise<JsonRpcResponse> {
   return new Promise((resolve, reject) => {
     const u = new URL(url);
     const payload = Buffer.from(JSON.stringify(body));
-    const req = http.request({ hostname: u.hostname, port: u.port, path: u.pathname, method: 'POST', timeout: timeoutMs, headers: { 'Content-Type': 'application/json', 'Content-Length': payload.length } }, res => {
-      res.setEncoding('utf8');
-      let raw = '';
-      res.on('data', (d: string) => { raw += d; });
-      res.on('end', () => { try { resolve(JSON.parse(raw)); } catch (e) { reject(e); } });
-    });
+    const req = http.request(
+      {
+        hostname: u.hostname,
+        port: u.port,
+        path: u.pathname,
+        method: 'POST',
+        timeout: timeoutMs,
+        headers: { 'Content-Type': 'application/json', 'Content-Length': payload.length },
+      },
+      (res) => {
+        res.setEncoding('utf8');
+        let raw = '';
+        res.on('data', (d: string) => {
+          raw += d;
+        });
+        res.on('end', () => {
+          try {
+            resolve(JSON.parse(raw));
+          } catch (e) {
+            reject(e);
+          }
+        });
+      },
+    );
     req.on('error', reject);
     req.write(payload);
     req.end();
@@ -58,35 +91,48 @@ function httpPostJson(url: string, body: unknown, timeoutMs = 5000): Promise<Jso
 function sseProbe(url: string, timeoutMs = 6000): Promise<boolean> {
   return new Promise((resolve, reject) => {
     const u = new URL(url);
-    const req = http.request({ hostname: u.hostname, port: u.port, path: u.pathname, method: 'GET', headers: { Accept: 'text/event-stream' } }, res => {
-      const ct = String(res.headers['content-type'] || '');
-      if (res.statusCode !== 200 || !ct.includes('text/event-stream')) {
-        res.resume();
-        return reject(new Error(`SSE probe failed: status=${res.statusCode} content-type=${ct}`));
-      }
-      let resolved = false;
-      res.setEncoding('utf8');
-      const onData = (chunk: string) => {
-        if (chunk.includes(':heartbeat') || chunk.includes('event:')) {
-          resolved = true;
-          cleanup();
-          resolve(true);
+    const req = http.request(
+      {
+        hostname: u.hostname,
+        port: u.port,
+        path: u.pathname,
+        method: 'GET',
+        headers: { Accept: 'text/event-stream' },
+      },
+      (res) => {
+        const ct = String(res.headers['content-type'] || '');
+        if (res.statusCode !== 200 || !ct.includes('text/event-stream')) {
+          res.resume();
+          return reject(new Error(`SSE probe failed: status=${res.statusCode} content-type=${ct}`));
         }
-      };
-      const cleanup = () => {
-        res.removeListener('data', onData);
-        clearTimeout(timer);
-        try { req.destroy(); } catch { /* ignore */ }
-      };
-      res.on('data', onData);
-      const timer = setTimeout(() => {
-        if (!resolved) {
-          cleanup();
-          reject(new Error('SSE probe timeout'));
-        }
-      }, timeoutMs);
-      (timer as unknown as NodeJS.Timer).unref?.();
-    });
+        let resolved = false;
+        res.setEncoding('utf8');
+        const onData = (chunk: string) => {
+          if (chunk.includes(':heartbeat') || chunk.includes('event:')) {
+            resolved = true;
+            cleanup();
+            resolve(true);
+          }
+        };
+        const cleanup = () => {
+          res.removeListener('data', onData);
+          clearTimeout(timer);
+          try {
+            req.destroy();
+          } catch {
+            /* ignore */
+          }
+        };
+        res.on('data', onData);
+        const timer = setTimeout(() => {
+          if (!resolved) {
+            cleanup();
+            reject(new Error('SSE probe timeout'));
+          }
+        }, timeoutMs);
+        (timer as unknown as NodeJS.Timer).unref?.();
+      },
+    );
     req.on('error', reject);
     req.end();
   });
@@ -100,12 +146,19 @@ async function main() {
     try {
       const h = await httpGet(mcpHealth);
       if (h.status === 200) return; // already up
-    } catch { /* not up */ }
+    } catch {
+      /* not up */
+    }
     const cwd = process.cwd();
-  const run = (cmd: string, args: string[]) => spawn(cmd, args, { cwd, stdio: ['ignore', 'pipe', 'pipe'], shell: false });
-  let tsNodeRegister: string;
-  try { tsNodeRegister = require.resolve('ts-node/register'); } catch { throw new Error('Cannot auto-start MCP: ts-node/register not found'); }
-  mcp = run(process.execPath, ['-r', tsNodeRegister, 'coreagent/server/unified-mcp-server.ts']);
+    const run = (cmd: string, args: string[]) =>
+      spawn(cmd, args, { cwd, stdio: ['ignore', 'pipe', 'pipe'], shell: false });
+    let tsNodeRegister: string;
+    try {
+      tsNodeRegister = require.resolve('ts-node/register');
+    } catch {
+      throw new Error('Cannot auto-start MCP: ts-node/register not found');
+    }
+    mcp = run(process.execPath, ['-r', tsNodeRegister, 'coreagent/server/unified-mcp-server.ts']);
     // small wait for server to bind
     const deadline = Date.now() + 15000;
     while (Date.now() < deadline) {
@@ -115,7 +168,7 @@ async function main() {
       } catch {
         // not ready yet
       }
-      await new Promise(r => setTimeout(r, 300));
+      await new Promise((r) => setTimeout(r, 300));
     }
   };
   await startIfNeeded();
@@ -126,7 +179,16 @@ async function main() {
   const info = await httpGet(mcpInfo);
   console.log('MCP /info:', info.body);
 
-  const init = await httpPostJson(mcpUrl, { jsonrpc: '2.0', id: 1, method: 'initialize', params: { protocolVersion: '2025-06-18', capabilities: {}, clientInfo: { name: 'hello-a2a', version: '0.0.1' } } });
+  const init = await httpPostJson(mcpUrl, {
+    jsonrpc: '2.0',
+    id: 1,
+    method: 'initialize',
+    params: {
+      protocolVersion: '2025-06-18',
+      capabilities: {},
+      clientInfo: { name: 'hello-a2a', version: '0.0.1' },
+    },
+  });
   if (!init || init.error) throw new Error('initialize failed');
   console.log('MCP initialize: OK');
 
@@ -139,11 +201,15 @@ async function main() {
   console.log('✅ Hello A2A demo completed');
   // best-effort cleanup if we started it
   if (mcp) {
-    try { (mcp as ChildProcess).kill(); } catch { /* ignore */ }
+    try {
+      (mcp as ChildProcess).kill();
+    } catch {
+      /* ignore */
+    }
   }
 }
 
-main().catch(err => {
+main().catch((err) => {
   console.error('Hello A2A demo failed:', err);
   process.exit(1);
 });

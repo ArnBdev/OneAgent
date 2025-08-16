@@ -42,16 +42,16 @@
  * Phase: 3 - Enhanced Multi-Agent Coordination
  */
 
-import { 
-  AgentId, 
-  NLACSDiscussion, 
+import {
+  AgentId,
+  NLACSDiscussion,
   NLACSMessage,
-  ConsensusResult, 
-  AgreementAnalysis, 
+  ConsensusResult,
+  AgreementAnalysis,
   ConflictPoint,
   ViewPoint,
   ConsensusOpportunity,
-  CompromiseSolution
+  CompromiseSolution,
 } from '../types/oneagent-backbone-types';
 import { OneAgentMemory } from '../memory/OneAgentMemory';
 import { createUnifiedId, unifiedMetadataService } from '../utils/UnifiedBackboneService';
@@ -71,27 +71,29 @@ export class ConsensusEngine {
   async buildConsensus(
     participants: AgentId[],
     proposal: string,
-    discussionContext: NLACSDiscussion
+    discussionContext: NLACSDiscussion,
   ): Promise<ConsensusResult> {
     console.log(`🤝 Building consensus for proposal: ${proposal.substring(0, 50)}...`);
 
     // Analyze existing discussion for agreement patterns
     const agreementAnalysis = await this.detectAgreementPatterns(discussionContext.messages);
-    console.log(`📊 Agreement analysis: ${(agreementAnalysis.overallAgreement * 100).toFixed(1)}% overall agreement`);
-    
+    console.log(
+      `📊 Agreement analysis: ${(agreementAnalysis.overallAgreement * 100).toFixed(1)}% overall agreement`,
+    );
+
     // Extract individual viewpoints from discussion
     const viewPoints = await this.extractViewPoints(discussionContext.messages, participants);
-    
+
     // Detect conflicts between viewpoints
     // const conflicts = await this.detectConflicts(viewPoints); // Unused but available for future enhancement
-    
+
     // Calculate consensus level
     const consensusLevel = this.calculateConsensusLevel(viewPoints, proposal);
-    
+
     // If consensus is low, attempt to synthesize compromise
     let compromiseSolutions: CompromiseSolution[] = [];
     if (consensusLevel < 0.7) {
-      const conflictingViews = viewPoints.filter(vp => vp.confidence > 0.6);
+      const conflictingViews = viewPoints.filter((vp) => vp.confidence > 0.6);
       compromiseSolutions = await this.synthesizeCompromise(conflictingViews);
     }
 
@@ -99,11 +101,17 @@ export class ConsensusEngine {
     const consensusResult: ConsensusResult = {
       agreed: consensusLevel >= 0.7,
       consensusLevel,
-      supportingAgents: viewPoints.filter(vp => this.supportsProposal(vp, proposal)).map(vp => vp.agentId),
-      objectingAgents: viewPoints.filter(vp => this.objectsToProposal(vp, proposal)).map(vp => vp.agentId),
-      neutralAgents: viewPoints.filter(vp => this.isNeutral(vp, proposal)).map(vp => vp.agentId),
+      supportingAgents: viewPoints
+        .filter((vp) => this.supportsProposal(vp, proposal))
+        .map((vp) => vp.agentId),
+      objectingAgents: viewPoints
+        .filter((vp) => this.objectsToProposal(vp, proposal))
+        .map((vp) => vp.agentId),
+      neutralAgents: viewPoints
+        .filter((vp) => this.isNeutral(vp, proposal))
+        .map((vp) => vp.agentId),
       finalDecision: await this.synthesizeFinalDecision(proposal, viewPoints, compromiseSolutions),
-      compromisesReached: compromiseSolutions.map(solution => solution.description),
+      compromisesReached: compromiseSolutions.map((solution) => solution.description),
       timeToConsensus: 0, // Placeholder - will calculate properly
       qualityScore: 0.8, // Placeholder - simplified quality calculation
       constitutionallyValidated: false, // Will be set during validation
@@ -111,8 +119,8 @@ export class ConsensusEngine {
         discussionSummary: `Democratic consensus building on: ${proposal}`,
         keyArguments: { for: [], against: [], neutral: [] },
         breakthroughMoments: [],
-        synthesizedInsights: []
-      }
+        synthesizedInsights: [],
+      },
     };
 
     // Validate consensus using Constitutional AI
@@ -128,28 +136,32 @@ export class ConsensusEngine {
         system: {
           source: 'consensus_building',
           component: 'ConsensusEngine',
-          userId: 'system_consensus'
+          userId: 'system_consensus',
         },
         content: {
           category: 'democratic_decision',
           tags: ['consensus', 'democracy', 'decision-making'],
           sensitivity: 'internal',
           relevanceScore: consensusLevel,
-          contextDependency: 'session'
-        }
+          contextDependency: 'session',
+        },
       });
-  interface ConsensusMetadataExtension { consensusData?: ConsensusResult }
-  (metadata as ConsensusMetadataExtension).consensusData = consensusResult; // attach domain-specific payload
+      interface ConsensusMetadataExtension {
+        consensusData?: ConsensusResult;
+      }
+      (metadata as ConsensusMetadataExtension).consensusData = consensusResult; // attach domain-specific payload
       await this.memory.addMemoryCanonical(
         `Consensus Result: ${consensusResult.agreed ? 'AGREEMENT' : 'NO CONSENSUS'} - ${proposal}`,
         metadata,
-        'system_consensus'
+        'system_consensus',
       );
     } catch (memErr) {
       console.warn('ConsensusEngine memory store failed:', memErr);
     }
 
-    console.log(`🤝 Consensus building complete: ${consensusResult.agreed ? 'AGREEMENT' : 'NO CONSENSUS'} (${(consensusLevel * 100).toFixed(1)}%)`);
+    console.log(
+      `🤝 Consensus building complete: ${consensusResult.agreed ? 'AGREEMENT' : 'NO CONSENSUS'} (${(consensusLevel * 100).toFixed(1)}%)`,
+    );
     return consensusResult;
   }
 
@@ -166,7 +178,7 @@ export class ConsensusEngine {
         agentAgreementMatrix: {},
         conflictPoints: [],
         consensusOpportunities: [],
-        compromiseSuggestions: []
+        compromiseSuggestions: [],
       };
     }
 
@@ -185,7 +197,9 @@ export class ConsensusEngine {
 
     const overallAgreement = (overallSimilarity + sentimentAlignment) / 2;
 
-    console.log(`📊 Agreement analysis complete: ${(overallAgreement * 100).toFixed(1)}% agreement`);
+    console.log(
+      `📊 Agreement analysis complete: ${(overallAgreement * 100).toFixed(1)}% agreement`,
+    );
 
     return {
       overallAgreement,
@@ -193,7 +207,7 @@ export class ConsensusEngine {
       agentAgreementMatrix: {},
       conflictPoints: [],
       consensusOpportunities: [],
-      compromiseSuggestions: []
+      compromiseSuggestions: [],
     };
   }
 
@@ -213,19 +227,22 @@ export class ConsensusEngine {
 
         // Calculate semantic opposition
         const opposition = this.calculateSemanticOpposition(viewA.position, viewB.position);
-        
-        if (opposition > 0.6) { // High opposition threshold
+
+        if (opposition > 0.6) {
+          // High opposition threshold
           const conflict: ConflictPoint = {
             id: createUnifiedId('system', `${viewA.agentId}-${viewB.agentId}`),
             topic: 'Conflict Resolution',
             conflictingViews: [viewA, viewB],
             severity: opposition > 0.8 ? 'critical' : opposition > 0.6 ? 'major' : 'moderate',
             resolutionStrategies: ['Find common ground', 'Seek compromise'],
-            affectedAgents: [viewA.agentId, viewB.agentId]
+            affectedAgents: [viewA.agentId, viewB.agentId],
           };
 
           conflicts.push(conflict);
-          console.log(`⚡ Conflict detected: ${viewA.agentId} vs ${viewB.agentId} (severity: ${(opposition * 100).toFixed(1)}%)`);
+          console.log(
+            `⚡ Conflict detected: ${viewA.agentId} vs ${viewB.agentId} (severity: ${(opposition * 100).toFixed(1)}%)`,
+          );
         }
       }
     }
@@ -238,7 +255,9 @@ export class ConsensusEngine {
    * Synthesize compromise solutions for conflicting viewpoints
    */
   async synthesizeCompromise(conflictingViews: ViewPoint[]): Promise<CompromiseSolution[]> {
-    console.log(`🤝 Synthesizing compromises for ${conflictingViews.length} conflicting viewpoints`);
+    console.log(
+      `🤝 Synthesizing compromises for ${conflictingViews.length} conflicting viewpoints`,
+    );
 
     const compromises: CompromiseSolution[] = [];
 
@@ -248,7 +267,7 @@ export class ConsensusEngine {
     for (const [topic, views] of Object.entries(topicGroups)) {
       if (views.length >= 2) {
         const compromise = await this.createCompromiseForTopic(topic, views);
-        if (compromise && await this.validateCompromiseConstitutionally(compromise)) {
+        if (compromise && (await this.validateCompromiseConstitutionally(compromise))) {
           compromises.push(compromise);
         }
       }
@@ -264,16 +283,19 @@ export class ConsensusEngine {
   /**
    * Validate consensus results using Constitutional AI principles
    */
-  private async validateConsensus(consensusResult: ConsensusResult): Promise<{ valid: boolean; issues: string[]; recommendations: string[] }> {
+  private async validateConsensus(
+    consensusResult: ConsensusResult,
+  ): Promise<{ valid: boolean; issues: string[]; recommendations: string[] }> {
     console.log(`✅ Validating consensus result using Constitutional AI`);
 
     const issues: string[] = [];
     const recommendations: string[] = [];
 
     // Validate democratic participation
-    const totalParticipants = consensusResult.supportingAgents.length + 
-                             consensusResult.objectingAgents.length + 
-                             consensusResult.neutralAgents.length;
+    const totalParticipants =
+      consensusResult.supportingAgents.length +
+      consensusResult.objectingAgents.length +
+      consensusResult.neutralAgents.length;
 
     if (totalParticipants === 0) {
       issues.push('No participant data available for validation');
@@ -281,10 +303,9 @@ export class ConsensusEngine {
     }
 
     // Check for minority suppression
-    const minorityRatio = Math.min(
-      consensusResult.supportingAgents.length,
-      consensusResult.objectingAgents.length
-    ) / totalParticipants;
+    const minorityRatio =
+      Math.min(consensusResult.supportingAgents.length, consensusResult.objectingAgents.length) /
+      totalParticipants;
 
     if (minorityRatio < 0.1 && consensusResult.objectingAgents.length > 0) {
       issues.push('Potential minority viewpoint suppression detected');
@@ -304,42 +325,47 @@ export class ConsensusEngine {
     }
 
     const isValid = issues.length === 0;
-    console.log(`✅ Consensus validation complete: ${isValid ? 'VALID' : 'NEEDS IMPROVEMENT'} (${issues.length} issues)`);
+    console.log(
+      `✅ Consensus validation complete: ${isValid ? 'VALID' : 'NEEDS IMPROVEMENT'} (${issues.length} issues)`,
+    );
 
     return {
       valid: isValid,
       issues,
-      recommendations
+      recommendations,
     };
   }
 
   // Supporting Methods Implementation
-  
-  private async extractViewPoints(messages: NLACSMessage[], participants: AgentId[]): Promise<ViewPoint[]> {
+
+  private async extractViewPoints(
+    messages: NLACSMessage[],
+    participants: AgentId[],
+  ): Promise<ViewPoint[]> {
     const viewPoints: ViewPoint[] = [];
-    
-    participants.forEach(agentId => {
-      const agentMessages = messages.filter(msg => msg.agentId === agentId);
+
+    participants.forEach((agentId) => {
+      const agentMessages = messages.filter((msg) => msg.agentId === agentId);
       if (agentMessages.length > 0) {
-        const combinedContent = agentMessages.map(msg => msg.content).join(' ');
+        const combinedContent = agentMessages.map((msg) => msg.content).join(' ');
         viewPoints.push({
           agentId,
           position: combinedContent,
           reasoning: [`Based on ${agentMessages.length} messages`],
           evidence: this.extractEvidence(agentMessages),
           confidence: this.calculateViewPointConfidence(agentMessages),
-          flexibility: 0.6 // Default flexibility
+          flexibility: 0.6, // Default flexibility
         });
       }
     });
-    
+
     return viewPoints;
   }
 
   private calculateConsensusLevel(viewPoints: ViewPoint[], proposal: string): number {
     if (viewPoints.length === 0) return 0;
-    
-    const supporters = viewPoints.filter(vp => this.supportsProposal(vp, proposal));
+
+    const supporters = viewPoints.filter((vp) => this.supportsProposal(vp, proposal));
     return supporters.length / viewPoints.length;
   }
 
@@ -361,10 +387,10 @@ export class ConsensusEngine {
     // Simplified semantic similarity - could use embeddings in production
     const words1 = new Set(text1.toLowerCase().split(/\s+/));
     const words2 = new Set(text2.toLowerCase().split(/\s+/));
-    
-    const intersection = new Set(Array.from(words1).filter(word => words2.has(word)));
+
+    const intersection = new Set(Array.from(words1).filter((word) => words2.has(word)));
     const union = new Set([...Array.from(words1), ...Array.from(words2)]);
-    
+
     return union.size > 0 ? intersection.size / union.size : 0;
   }
 
@@ -373,13 +399,13 @@ export class ConsensusEngine {
     const oppositionWords = ['not', 'no', 'disagree', 'oppose', 'against', 'wrong', 'reject'];
     const text1Lower = text1.toLowerCase();
     const text2Lower = text2.toLowerCase();
-    
-    const hasOpposition = oppositionWords.some(word => 
-      text1Lower.includes(word) || text2Lower.includes(word)
+
+    const hasOpposition = oppositionWords.some(
+      (word) => text1Lower.includes(word) || text2Lower.includes(word),
     );
-    
+
     if (!hasOpposition) return 0;
-    
+
     // Calculate inverse similarity as opposition measure
     const similarity = this.calculateSemanticSimilarity(text1, text2);
     return Math.max(0, 1 - similarity);
@@ -387,7 +413,7 @@ export class ConsensusEngine {
 
   private calculateMessageSimilarity(messages: NLACSMessage[]): number[][] {
     const matrix: number[][] = [];
-    
+
     for (let i = 0; i < messages.length; i++) {
       matrix[i] = [];
       for (let j = 0; j < messages.length; j++) {
@@ -398,31 +424,34 @@ export class ConsensusEngine {
         }
       }
     }
-    
+
     return matrix;
   }
 
   private calculateOverallSimilarity(similarityMatrix: number[][]): number {
     if (similarityMatrix.length === 0) return 0;
-    
+
     let sum = 0;
     let count = 0;
-    
+
     for (let i = 0; i < similarityMatrix.length; i++) {
       for (let j = i + 1; j < similarityMatrix[i].length; j++) {
         sum += similarityMatrix[i][j];
         count++;
       }
     }
-    
+
     return count > 0 ? sum / count : 0;
   }
 
-  private identifyAgreementClusters(messages: NLACSMessage[], similarityMatrix: number[][]): NLACSMessage[][] {
+  private identifyAgreementClusters(
+    messages: NLACSMessage[],
+    similarityMatrix: number[][],
+  ): NLACSMessage[][] {
     // Simplified clustering - could use more sophisticated algorithms
     const clusters = [];
     const threshold = 0.7;
-    
+
     for (let i = 0; i < messages.length; i++) {
       const cluster = [messages[i]];
       for (let j = i + 1; j < messages.length; j++) {
@@ -434,7 +463,7 @@ export class ConsensusEngine {
         clusters.push(cluster);
       }
     }
-    
+
     return clusters;
   }
 
@@ -442,32 +471,36 @@ export class ConsensusEngine {
     // Simplified sentiment analysis
     const positiveWords = ['good', 'great', 'excellent', 'agree', 'support', 'yes'];
     const negativeWords = ['bad', 'terrible', 'disagree', 'oppose', 'no', 'wrong'];
-    
+
     let positiveCount = 0;
     let negativeCount = 0;
-    
-    messages.forEach(msg => {
+
+    messages.forEach((msg) => {
       const content = msg.content.toLowerCase();
-      positiveWords.forEach(word => {
+      positiveWords.forEach((word) => {
         if (content.includes(word)) positiveCount++;
       });
-      negativeWords.forEach(word => {
+      negativeWords.forEach((word) => {
         if (content.includes(word)) negativeCount++;
       });
     });
-    
+
     const total = positiveCount + negativeCount;
     return total > 0 ? Math.abs(positiveCount - negativeCount) / total : 0.5;
   }
 
-  private identifyConsensusOpportunities(agreementClusters: NLACSMessage[][]): ConsensusOpportunity[] {
+  private identifyConsensusOpportunities(
+    agreementClusters: NLACSMessage[][],
+  ): ConsensusOpportunity[] {
     return agreementClusters.map((cluster, index) => ({
       id: createUnifiedId('system', `cluster-${index}`),
       topic: `Agreement cluster ${index + 1}`,
       agreementLevel: 0.8, // Simplified calculation
-      requiredActions: [`Build on shared understanding from ${cluster.length} aligned participants`],
+      requiredActions: [
+        `Build on shared understanding from ${cluster.length} aligned participants`,
+      ],
       timeframe: 'short-term',
-      likelihood: 0.8
+      likelihood: 0.8,
     }));
   }
 
@@ -476,50 +509,50 @@ export class ConsensusEngine {
     const evidenceWords = ['because', 'data', 'research', 'evidence', 'study', 'analysis'];
     let evidenceCount = 0;
     let totalWords = 0;
-    
-    messages.forEach(msg => {
+
+    messages.forEach((msg) => {
       const words = msg.content.split(/\s+/);
       totalWords += words.length;
-      evidenceWords.forEach(word => {
+      evidenceWords.forEach((word) => {
         if (msg.content.toLowerCase().includes(word)) evidenceCount++;
       });
     });
-    
+
     const lengthFactor = Math.min(1.0, totalWords / 100); // Longer messages show more confidence
     const evidenceFactor = Math.min(1.0, evidenceCount / 5); // Evidence shows confidence
-    
+
     return (lengthFactor + evidenceFactor) / 2;
   }
 
   private extractEvidence(messages: NLACSMessage[]): string[] {
     const evidence: string[] = [];
     const evidenceKeywords = ['because', 'data shows', 'research indicates', 'studies prove'];
-    
-    messages.forEach(msg => {
-      evidenceKeywords.forEach(keyword => {
+
+    messages.forEach((msg) => {
+      evidenceKeywords.forEach((keyword) => {
         if (msg.content.toLowerCase().includes(keyword)) {
           const sentences = msg.content.split('.');
-          const evidenceSentence = sentences.find(s => s.toLowerCase().includes(keyword));
+          const evidenceSentence = sentences.find((s) => s.toLowerCase().includes(keyword));
           if (evidenceSentence) {
             evidence.push(evidenceSentence.trim());
           }
         }
       });
     });
-    
+
     return evidence;
   }
 
   private async synthesizeFinalDecision(
-    proposal: string, 
-    viewPoints: ViewPoint[], 
-    compromises: CompromiseSolution[]
+    proposal: string,
+    viewPoints: ViewPoint[],
+    compromises: CompromiseSolution[],
   ): Promise<string> {
     if (compromises.length > 0) {
       const bestCompromise = compromises[0]; // Already sorted by acceptance score
       return `Modified proposal incorporating compromise: ${bestCompromise.description}`;
     } else {
-      const supportingViews = viewPoints.filter(vp => this.supportsProposal(vp, proposal));
+      const supportingViews = viewPoints.filter((vp) => this.supportsProposal(vp, proposal));
       if (supportingViews.length > viewPoints.length / 2) {
         return `Original proposal accepted with ${supportingViews.length}/${viewPoints.length} support`;
       } else {
@@ -531,15 +564,15 @@ export class ConsensusEngine {
   private groupViewPointsByTopic(viewPoints: ViewPoint[]): Record<string, ViewPoint[]> {
     // Simplified topic grouping - could use NLP topic modeling
     const groups: Record<string, ViewPoint[]> = {};
-    
-    viewPoints.forEach(vp => {
+
+    viewPoints.forEach((vp) => {
       const topics = this.extractTopics(vp.position);
-      topics.forEach(topic => {
+      topics.forEach((topic) => {
         if (!groups[topic]) groups[topic] = [];
         groups[topic].push(vp);
       });
     });
-    
+
     return groups;
   }
 
@@ -547,66 +580,77 @@ export class ConsensusEngine {
     // Simplified topic extraction
     const words = content.toLowerCase().split(/\s+/);
     const topics: string[] = [];
-    
+
     // Look for business/technical keywords that indicate topics
-    const topicKeywords = ['marketing', 'sales', 'product', 'development', 'strategy', 'budget', 'timeline'];
-    
-    topicKeywords.forEach(keyword => {
+    const topicKeywords = [
+      'marketing',
+      'sales',
+      'product',
+      'development',
+      'strategy',
+      'budget',
+      'timeline',
+    ];
+
+    topicKeywords.forEach((keyword) => {
       if (words.includes(keyword)) {
         topics.push(keyword);
       }
     });
-    
+
     return topics.length > 0 ? topics : ['general'];
   }
 
-  private async createCompromiseForTopic(topic: string, views: ViewPoint[]): Promise<CompromiseSolution | null> {
+  private async createCompromiseForTopic(
+    topic: string,
+    views: ViewPoint[],
+  ): Promise<CompromiseSolution | null> {
     if (views.length < 2) return null;
-    
+
     // Extract common elements and differences
     const commonElements = this.findCommonElements(views);
     // const differences = this.findDifferences(views); // Available for future enhancement
-    
+
     // Create compromise solution
     const compromise: CompromiseSolution = {
       id: createUnifiedId('system', topic),
       description: `Compromise solution for ${topic} incorporating ${views.length} viewpoints`,
-      affectedParties: views.map(v => v.agentId),
+      affectedParties: views.map((v) => v.agentId),
       tradeoffs: {},
       benefits: [],
       risks: [],
       implementationSteps: [],
-      acceptanceScore: this.calculateCompromiseAcceptance(views, commonElements)
+      acceptanceScore: this.calculateCompromiseAcceptance(views, commonElements),
     };
-    
+
     return compromise;
   }
 
   private findCommonElements(views: ViewPoint[]): string[] {
-    const allWords = views.map(v => v.position.toLowerCase().split(/\s+/));
-    const commonWords = allWords[0].filter((word: string) => 
-      allWords.every(wordList => wordList.includes(word))
+    const allWords = views.map((v) => v.position.toLowerCase().split(/\s+/));
+    const commonWords = allWords[0].filter((word: string) =>
+      allWords.every((wordList) => wordList.includes(word)),
     );
-    
+
     return commonWords.filter((word: string) => word.length > 3); // Filter out short words
   }
 
   private findDifferences(views: ViewPoint[]): string[] {
     const differences: string[] = [];
-    
+
     for (let i = 0; i < views.length; i++) {
       for (let j = i + 1; j < views.length; j++) {
         const wordsA = new Set(views[i].position.toLowerCase().split(/\s+/));
         const wordsB = new Set(views[j].position.toLowerCase().split(/\s+/));
-        
-        Array.from(wordsA).forEach(word => {
+
+        Array.from(wordsA).forEach((word) => {
           if (!wordsB.has(word) && (word as string).length > 3) {
             differences.push(`${views[i].agentId}: ${word}`);
           }
         });
       }
     }
-    
+
     return differences;
   }
 
@@ -614,7 +658,7 @@ export class ConsensusEngine {
     // Calculate how well the compromise represents all viewpoints
     const totalElements = views.reduce((sum, view) => sum + view.position.split(/\s+/).length, 0);
     const commonElementCount = commonElements.length;
-    
+
     return Math.min(1.0, (commonElementCount * views.length) / totalElements);
   }
 
@@ -622,20 +666,22 @@ export class ConsensusEngine {
     return [
       `Phase 1: Implement agreed-upon elements: ${commonElements.slice(0, 3).join(', ')}`,
       `Phase 2: Review implementation effectiveness`,
-      `Phase 3: Address remaining differences through iterative consensus`
+      `Phase 3: Address remaining differences through iterative consensus`,
     ];
   }
 
-  private async validateCompromiseConstitutionally(compromise: CompromiseSolution): Promise<boolean> {
+  private async validateCompromiseConstitutionally(
+    compromise: CompromiseSolution,
+  ): Promise<boolean> {
     // Simplified Constitutional AI validation
     const ethicalKeywords = ['fair', 'transparent', 'inclusive', 'beneficial'];
     const harmfulKeywords = ['discriminate', 'exclude', 'harm', 'unfair'];
-    
+
     const description = compromise.description.toLowerCase();
-    
-    const hasEthicalElements = ethicalKeywords.some(keyword => description.includes(keyword));
-    const hasHarmfulElements = harmfulKeywords.some(keyword => description.includes(keyword));
-    
+
+    const hasEthicalElements = ethicalKeywords.some((keyword) => description.includes(keyword));
+    const hasHarmfulElements = harmfulKeywords.some((keyword) => description.includes(keyword));
+
     return hasEthicalElements && !hasHarmfulElements;
   }
 
@@ -644,15 +690,15 @@ export class ConsensusEngine {
     const businessKeywords = ['budget', 'cost', 'revenue', 'profit'];
     const technicalKeywords = ['technology', 'system', 'implementation', 'architecture'];
     const strategicKeywords = ['strategy', 'plan', 'goal', 'objective'];
-    
+
     const contentA = viewA.position.toLowerCase();
     const contentB = viewB.position.toLowerCase();
-    
-    if (businessKeywords.some(k => contentA.includes(k) || contentB.includes(k))) {
+
+    if (businessKeywords.some((k) => contentA.includes(k) || contentB.includes(k))) {
       return 'business';
-    } else if (technicalKeywords.some(k => contentA.includes(k) || contentB.includes(k))) {
+    } else if (technicalKeywords.some((k) => contentA.includes(k) || contentB.includes(k))) {
       return 'technical';
-    } else if (strategicKeywords.some(k => contentA.includes(k) || contentB.includes(k))) {
+    } else if (strategicKeywords.some((k) => contentA.includes(k) || contentB.includes(k))) {
       return 'strategic';
     } else {
       return 'general';
@@ -662,7 +708,7 @@ export class ConsensusEngine {
   private identifyUnderlyingIssues(viewA: ViewPoint, viewB: ViewPoint): string[] {
     // Simplified issue identification
     const issues: string[] = [];
-    
+
     if (viewA.position.includes('cost') && viewB.position.includes('quality')) {
       issues.push('Cost vs Quality trade-off');
     }
@@ -672,7 +718,7 @@ export class ConsensusEngine {
     if (viewA.position.includes('risk') && viewB.position.includes('opportunity')) {
       issues.push('Risk vs Opportunity balance');
     }
-    
+
     return issues.length > 0 ? issues : ['Philosophical differences in approach'];
   }
 
@@ -680,13 +726,13 @@ export class ConsensusEngine {
     // Calculate resolution difficulty based on confidence and opposition
     const avgConfidence = (viewA.confidence + viewB.confidence) / 2;
     const opposition = this.calculateSemanticOpposition(viewA.position, viewB.position);
-    
-    return Math.min(1.0, (avgConfidence * opposition));
+
+    return Math.min(1.0, avgConfidence * opposition);
   }
 
   private suggestMediationApproach(viewA: ViewPoint, viewB: ViewPoint): string {
     const difficulty = this.assessResolutionDifficulty(viewA, viewB);
-    
+
     if (difficulty > 0.8) {
       return 'Structured mediation with neutral facilitator required';
     } else if (difficulty > 0.5) {

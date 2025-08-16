@@ -1,6 +1,6 @@
 /**
  * Workflow Type Definitions
- * 
+ *
  * Definerer alle typer og interfaces relatert til arbeidsflyter (workflows)
  * i OneAgent systemet.
  */

@@ -1,17 +1,23 @@
 /**
  * RealOfficeAgent.ts - ACTUAL Office Productivity Agent Implementation
- * 
+ *
  * This is a REAL BaseAgent instance that:
  * - Inherits from BaseAgent with full functionality
  * - Handles office tasks and productivity
  * - Manages documents, emails, scheduling
  * - Uses memory for user preferences and history
  * - Provides actual office assistance
- * 
+ *
  * NOT just metadata - this is a functioning office agent!
  */
 
-import { BaseAgent, AgentConfig, AgentContext, AgentResponse, AgentAction } from '../base/BaseAgent';
+import {
+  BaseAgent,
+  AgentConfig,
+  AgentContext,
+  AgentResponse,
+  AgentAction,
+} from '../base/BaseAgent';
 import { ISpecializedAgent, AgentHealthStatus } from '../base/ISpecializedAgent';
 import { PromptConfig } from '../base/PromptEngine';
 
@@ -47,21 +53,37 @@ export class OfficeAgent extends BaseAgent implements ISpecializedAgent {
   getAvailableActions(): AgentAction[] {
     return [
       { type: 'create_document', description: 'Create new office documents', parameters: {} },
-      { type: 'schedule_meeting', description: 'Schedule meetings and appointments', parameters: {} },
+      {
+        type: 'schedule_meeting',
+        description: 'Schedule meetings and appointments',
+        parameters: {},
+      },
       { type: 'manage_email', description: 'Handle email management tasks', parameters: {} },
       { type: 'track_tasks', description: 'Track and manage office tasks', parameters: {} },
-      { type: 'generate_report', description: 'Generate office reports and summaries', parameters: {} },
-      { type: 'calendar_management', description: 'Manage calendar and scheduling', parameters: {} }
+      {
+        type: 'generate_report',
+        description: 'Generate office reports and summaries',
+        parameters: {},
+      },
+      {
+        type: 'calendar_management',
+        description: 'Manage calendar and scheduling',
+        parameters: {},
+      },
     ];
   }
 
-  async executeAction(action: string | AgentAction, params: Record<string, unknown>, _context?: AgentContext): Promise<AgentResponse> {
+  async executeAction(
+    action: string | AgentAction,
+    params: Record<string, unknown>,
+    _context?: AgentContext,
+  ): Promise<AgentResponse> {
     try {
       const actionType = typeof action === 'string' ? action : action.type;
       const timestamp = this.unifiedBackbone.getServices().timeService.now();
-      
+
       let result: string;
-      
+
       switch (actionType) {
         case 'create_document':
           result = `Created document: ${params.title || 'Untitled Document'}`;
@@ -84,12 +106,12 @@ export class OfficeAgent extends BaseAgent implements ISpecializedAgent {
         default:
           result = `Unknown office action: ${actionType}`;
       }
-      
+
       return {
         content: result,
         actions: [],
         memories: [],
-        metadata: { actionType, timestamp: timestamp.iso, agentId: this.config.id }
+        metadata: { actionType, timestamp: timestamp.iso, agentId: this.config.id },
       };
     } catch (error) {
       const actionType = typeof action === 'string' ? action : action.type;
@@ -97,7 +119,11 @@ export class OfficeAgent extends BaseAgent implements ISpecializedAgent {
         content: `Error executing office action ${actionType}: ${error instanceof Error ? error.message : 'Unknown error'}`,
         actions: [],
         memories: [],
-        metadata: { actionType, error: true, timestamp: this.unifiedBackbone.getServices().timeService.now().iso }
+        metadata: {
+          actionType,
+          error: true,
+          timestamp: this.unifiedBackbone.getServices().timeService.now().iso,
+        },
       };
     }
   }
@@ -110,7 +136,7 @@ export class OfficeAgent extends BaseAgent implements ISpecializedAgent {
       responseTime: 45,
       errorRate: 0,
       lastActivity: new Date(),
-      errors: undefined
+      errors: undefined,
     };
   }
 
@@ -128,7 +154,7 @@ export class OfficeAgent extends BaseAgent implements ISpecializedAgent {
       content: `OfficeAgent received: ${message}`,
       tasks: [],
       documents: [],
-      suggestions: []
+      suggestions: [],
     };
   }
 }

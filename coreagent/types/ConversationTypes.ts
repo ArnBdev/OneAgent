@@ -1,37 +1,37 @@
 /**
  * Types for Conversational Multi-Agent System
- * 
+ *
  * These types enable natural language discussions between AI agents
  * that go beyond simple task coordination to produce collaborative insights.
  */
 
 export interface ConversationContext {
-  domain: string;              // The subject domain (e.g., "software-architecture", "business-strategy")
-  complexityLevel: number;     // 1-10 scale of topic complexity
-  stakeholders: string[];      // Who cares about this discussion
-  constraints: string[];       // Limitations or requirements
-  timeHorizon: string;        // "immediate", "short-term", "long-term"
-  riskLevel: "low" | "medium" | "high";
+  domain: string; // The subject domain (e.g., "software-architecture", "business-strategy")
+  complexityLevel: number; // 1-10 scale of topic complexity
+  stakeholders: string[]; // Who cares about this discussion
+  constraints: string[]; // Limitations or requirements
+  timeHorizon: string; // "immediate", "short-term", "long-term"
+  riskLevel: 'low' | 'medium' | 'high';
   metadata: Record<string, unknown>;
 }
 
 export enum DialogueState {
-  LISTENING = "listening",
-  CONTRIBUTING = "contributing", 
-  CHALLENGING = "challenging",
-  SYNTHESIZING = "synthesizing",
-  QUESTIONING = "questioning",
-  BUILDING = "building",
-  CONCLUDING = "concluding"
+  LISTENING = 'listening',
+  CONTRIBUTING = 'contributing',
+  CHALLENGING = 'challenging',
+  SYNTHESIZING = 'synthesizing',
+  QUESTIONING = 'questioning',
+  BUILDING = 'building',
+  CONCLUDING = 'concluding',
 }
 
 export interface AgentPersonality {
-  perspective: string;         // "analytical", "creative", "skeptical", "optimistic", etc.
-  communicationStyle: string;  // "direct", "diplomatic", "socratic", "collaborative", etc.
-  expertiseFocus: string[];    // Areas of specialized knowledge
-  cognitiveStyle: string;      // "systems-thinking", "detail-oriented", "big-picture", etc.
-  biases: string[];           // Known cognitive biases or preferences
-  confidence: number;         // Base confidence level (0-1)
+  perspective: string; // "analytical", "creative", "skeptical", "optimistic", etc.
+  communicationStyle: string; // "direct", "diplomatic", "socratic", "collaborative", etc.
+  expertiseFocus: string[]; // Areas of specialized knowledge
+  cognitiveStyle: string; // "systems-thinking", "detail-oriented", "big-picture", etc.
+  biases: string[]; // Known cognitive biases or preferences
+  confidence: number; // Base confidence level (0-1)
 }
 
 export interface ConversationTurn {
@@ -39,27 +39,27 @@ export interface ConversationTurn {
   content: string;
   turnType: TurnType;
   timestamp: Date;
-  responseToTurn?: string;     // ID of turn this is responding to
+  responseToTurn?: string; // ID of turn this is responding to
   confidence: number;
   perspective: string;
 }
 
 export enum TurnType {
-  INITIAL_CONTRIBUTION = "initial",
-  RESPONSE = "response", 
-  CHALLENGE = "challenge",
-  BUILD_ON = "build-on",
-  CLARIFICATION = "clarification",
-  SYNTHESIS = "synthesis",
-  QUESTION = "question",
-  CONCLUSION = "conclusion"
+  INITIAL_CONTRIBUTION = 'initial',
+  RESPONSE = 'response',
+  CHALLENGE = 'challenge',
+  BUILD_ON = 'build-on',
+  CLARIFICATION = 'clarification',
+  SYNTHESIS = 'synthesis',
+  QUESTION = 'question',
+  CONCLUSION = 'conclusion',
 }
 
 export interface DiscussionThread {
   threadId: string;
   topic: string;
   context: ConversationContext;
-  participants: string[];      // Agent IDs
+  participants: string[]; // Agent IDs
   turns: ConversationTurn[];
   insights: Insight[];
   status: ThreadStatus;
@@ -68,31 +68,31 @@ export interface DiscussionThread {
 }
 
 export enum ThreadStatus {
-  ACTIVE = "active",
-  PAUSED = "paused",
-  CONCLUDED = "concluded",
-  NEEDS_FACILITATION = "needs-facilitation"
+  ACTIVE = 'active',
+  PAUSED = 'paused',
+  CONCLUDED = 'concluded',
+  NEEDS_FACILITATION = 'needs-facilitation',
 }
 
 export interface Insight {
   insightId: string;
   content: string;
-  sourceAgents: string[];      // Which agents contributed to this insight
+  sourceAgents: string[]; // Which agents contributed to this insight
   insightType: InsightType;
   confidence: number;
-  novelty: number;            // How novel is this insight (0-1)
+  novelty: number; // How novel is this insight (0-1)
   timestamp: Date;
   supportingEvidence: string[];
 }
 
 export enum InsightType {
-  SYNTHESIS = "synthesis",        // Combining multiple perspectives
-  NOVEL_CONNECTION = "novel-connection",  // Finding unexpected relationships
-  CONTRADICTION_RESOLUTION = "contradiction-resolution",
-  ASSUMPTION_CHALLENGE = "assumption-challenge", 
-  CREATIVE_SOLUTION = "creative-solution",
-  RISK_IDENTIFICATION = "risk-identification",
-  OPPORTUNITY_DISCOVERY = "opportunity-discovery"
+  SYNTHESIS = 'synthesis', // Combining multiple perspectives
+  NOVEL_CONNECTION = 'novel-connection', // Finding unexpected relationships
+  CONTRADICTION_RESOLUTION = 'contradiction-resolution',
+  ASSUMPTION_CHALLENGE = 'assumption-challenge',
+  CREATIVE_SOLUTION = 'creative-solution',
+  RISK_IDENTIFICATION = 'risk-identification',
+  OPPORTUNITY_DISCOVERY = 'opportunity-discovery',
 }
 
 export interface ConversationMemory {
@@ -100,7 +100,7 @@ export interface ConversationMemory {
   agentContributions: Map<string, ConversationTurn[]>;
   insights: Insight[];
   relationships: AgentRelationship[];
-  
+
   // Methods for memory management
   addTurn(threadId: string, turn: ConversationTurn): void;
   getRelevantHistory(agentId: string, topic: string): ConversationTurn[];
@@ -112,24 +112,31 @@ export interface AgentRelationship {
   agentA: string;
   agentB: string;
   relationshipType: RelationshipType;
-  collaborationQuality: number;  // 0-1 scale
-  agreementRate: number;         // How often they agree
-  complementarity: number;       // How well they complement each other
+  collaborationQuality: number; // 0-1 scale
+  agreementRate: number; // How often they agree
+  complementarity: number; // How well they complement each other
   conflictResolutionStyle: string;
 }
 
 export enum RelationshipType {
-  COMPLEMENTARY = "complementary",    // Different but compatible perspectives
-  COMPETITIVE = "competitive",        // Often disagree, but productively
-  SYNERGISTIC = "synergistic",       // Build naturally on each other's ideas
-  CHALLENGING = "challenging",        // One often challenges the other
-  NEUTRAL = "neutral"                // No strong pattern
+  COMPLEMENTARY = 'complementary', // Different but compatible perspectives
+  COMPETITIVE = 'competitive', // Often disagree, but productively
+  SYNERGISTIC = 'synergistic', // Build naturally on each other's ideas
+  CHALLENGING = 'challenging', // One often challenges the other
+  NEUTRAL = 'neutral', // No strong pattern
 }
 
 export interface DialogueFacilitator {
   // AI system that manages multi-agent conversations
-  facilitateDiscussion(topic: string, context: ConversationContext, participants: string[]): Promise<DiscussionThread>;
-  moderateConflict(threadId: string, conflictingTurns: ConversationTurn[]): Promise<ConversationTurn>;
+  facilitateDiscussion(
+    topic: string,
+    context: ConversationContext,
+    participants: string[],
+  ): Promise<DiscussionThread>;
+  moderateConflict(
+    threadId: string,
+    conflictingTurns: ConversationTurn[],
+  ): Promise<ConversationTurn>;
   suggestNextSpeaker(threadId: string): Promise<string>;
   assessDiscussionQuality(threadId: string): Promise<DiscussionQualityAssessment>;
   identifyEmergingInsights(threadId: string): Promise<Insight[]>;
@@ -137,13 +144,13 @@ export interface DialogueFacilitator {
 }
 
 export interface DiscussionQualityAssessment {
-  overallQuality: number;           // 0-100 scale
-  perspectiveDiversity: number;     // How many different viewpoints represented
-  constructiveEngagement: number;   // How well agents build on each other
-  insightGeneration: number;        // Quality and novelty of insights produced
-  participationBalance: number;     // How evenly distributed participation is
-  topicCoverage: number;           // How thoroughly the topic was explored
-  
+  overallQuality: number; // 0-100 scale
+  perspectiveDiversity: number; // How many different viewpoints represented
+  constructiveEngagement: number; // How well agents build on each other
+  insightGeneration: number; // Quality and novelty of insights produced
+  participationBalance: number; // How evenly distributed participation is
+  topicCoverage: number; // How thoroughly the topic was explored
+
   strengths: string[];
   weaknesses: string[];
   recommendations: string[];
@@ -153,7 +160,7 @@ export interface DiscussionSummary {
   threadId: string;
   topic: string;
   participants: string[];
-  duration: number;               // Minutes
+  duration: number; // Minutes
   turnCount: number;
   keyInsights: Insight[];
   majorPoints: string[];
@@ -174,10 +181,10 @@ export interface ConversationAnalytics {
 export interface TurnPatternAnalysis {
   averageTurnLength: number;
   responseLatency: number;
-  buildOnRate: number;           // How often agents build on previous ideas
-  challengeRate: number;         // How often they challenge assumptions
-  questionRate: number;          // How often they ask clarifying questions
-  insightDensity: number;        // Insights per turn
+  buildOnRate: number; // How often agents build on previous ideas
+  challengeRate: number; // How often they challenge assumptions
+  questionRate: number; // How often they ask clarifying questions
+  insightDensity: number; // Insights per turn
 }
 
 export interface SuccessfulInteraction {
@@ -190,7 +197,7 @@ export interface SuccessfulInteraction {
 }
 
 export interface CompatibilityReport {
-  compatibilityScore: number;    // 0-100
+  compatibilityScore: number; // 0-100
   complementaryStrengths: string[];
   potentialConflicts: string[];
   recommendedRoles: { [agentId: string]: string };
@@ -207,7 +214,7 @@ export interface AgentGrouping {
 
 /**
  * Example conversation flow:
- * 
+ *
  * 1. Topic introduced with context
  * 2. Facilitator selects initial participants based on expertise/compatibility
  * 3. Agents make initial contributions based on their personalities and expertise

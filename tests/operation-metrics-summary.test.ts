@@ -15,19 +15,25 @@ async function run() {
   const userContext: MinimalContext = {
     user: { id: 'test-user', name: 'Test User' },
     sessionId: 'op-metrics-test',
-    conversationHistory: []
+    conversationHistory: [],
   };
 
   try {
     await unifiedAgentCommunicationService.discoverAgents({ capabilities: [] });
-  } catch { /* ignore */ }
+  } catch {
+    /* ignore */
+  }
 
   try {
     // Intentionally cause error (leaving non-existent session)
     await unifiedAgentCommunicationService.leaveSession('non-existent', userContext.sessionId);
-  } catch { /* expected */ }
+  } catch {
+    /* expected */
+  }
 
-  const recent = unifiedMonitoringService.getRecentEvents(20).filter(e => e.type === 'operation_metric');
+  const recent = unifiedMonitoringService
+    .getRecentEvents(20)
+    .filter((e) => e.type === 'operation_metric');
   const summary = unifiedMonitoringService.summarizeOperationMetrics();
 
   console.log('--- Operation Metric Events (last 20) ---');
@@ -54,7 +60,7 @@ async function run() {
   console.log('\n✅ Operation metrics summary test passed');
 }
 
-run().catch(err => {
+run().catch((err) => {
   console.error('❌ operation-metrics-summary test failed', err);
   process.exit(1);
 });

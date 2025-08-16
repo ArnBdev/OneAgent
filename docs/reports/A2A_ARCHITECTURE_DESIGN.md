@@ -33,14 +33,14 @@ You're 100% right! Here's what actually occurred:
 
 ```typescript
 export abstract class BaseAgent {
-  protected a2aProtocol: OneAgentA2AProtocol;     // ✅ A2A communication
-  protected memoryClient: OneAgentMemory;         // ✅ Existing
-  protected aiClient: SmartGeminiClient;          // ✅ Existing
-  
+  protected a2aProtocol: OneAgentA2AProtocol; // ✅ A2A communication
+  protected memoryClient: OneAgentMemory; // ✅ Existing
+  protected aiClient: SmartGeminiClient; // ✅ Existing
+
   // ✅ Agent-to-Agent Communication via A2A
-  async sendMessageToAgent(agentId: string, message: string): Promise<AgentResponse>
-  async discoverAgents(capabilities: string[]): Promise<AgentCard[]>
-  async createTask(agentId: string, task: Task): Promise<TaskResult>
+  async sendMessageToAgent(agentId: string, message: string): Promise<AgentResponse>;
+  async discoverAgents(capabilities: string[]): Promise<AgentCard[]>;
+  async createTask(agentId: string, task: Task): Promise<TaskResult>;
 }
 ```
 
@@ -49,8 +49,9 @@ export abstract class BaseAgent {
 ### **Phase 1: Clean Legacy NLACS** 🗑️ **COMPLETED ✅**
 
 **Completed Tasks:**
+
 - ✅ Delete NLACS configuration from .env
-- ✅ Remove NLACS types from codebase  
+- ✅ Remove NLACS types from codebase
 - ✅ Clean up NLACS comments and references
 
 **Result**: All NLACS references removed from OneAgent system. A2A Protocol is now the single agent communication system.
@@ -58,16 +59,17 @@ export abstract class BaseAgent {
 ### **Phase 2: Integrate A2A into BaseAgent** ✅ **COMPLETED ✅**
 
 **Completed A2A Protocol integration into BaseAgent:**
+
 ```typescript
 // In BaseAgent.ts
 import { createOneAgentA2A, OneAgentA2AProtocol } from '../../protocols/a2a/A2AProtocol';
 
 export abstract class BaseAgent {
   protected a2aProtocol: OneAgentA2AProtocol;
-  
+
   async initialize(): Promise<void> {
     // ...existing initialization...
-    
+
     // Initialize A2A Protocol
     this.a2aProtocol = createOneAgentA2A({
       name: this.config.name,
@@ -77,27 +79,27 @@ export abstract class BaseAgent {
       capabilities: {
         streaming: oneAgentConfig.a2aStreamingEnabled,
         pushNotifications: oneAgentConfig.a2aPushNotifications,
-        stateTransitionHistory: oneAgentConfig.a2aStateHistory
-      }
+        stateTransitionHistory: oneAgentConfig.a2aStateHistory,
+      },
     });
-    
+
     await this.a2aProtocol.initialize();
   }
-  
+
   // Agent-to-Agent Communication Methods
   async sendMessageToAgent(agentUrl: string, message: string): Promise<AgentResponse> {
     const a2aMessage = {
-      role: "user" as const,
-      parts: [{ kind: "text" as const, text: message }],
+      role: 'user' as const,
+      parts: [{ kind: 'text' as const, text: message }],
       messageId: uuidv4(),
-      kind: "message" as const
+      kind: 'message' as const,
     };
-    
+
     const result = await this.a2aProtocol.sendMessageToAgent(agentUrl, a2aMessage);
     // Convert A2A response to AgentResponse format
     return this.convertA2AResponse(result);
   }
-  
+
   async discoverAgents(capabilities?: string[]): Promise<AgentCard[]> {
     // Use A2A discovery to find other agents
     // Implementation depends on registry integration
@@ -108,6 +110,7 @@ export abstract class BaseAgent {
 ### **Phase 3: MCP Server Integration** (Multi-Agent Communication Hub)
 
 ### **Implementation Details:**
+
 - **A2A HTTP Endpoints**: Add REST endpoints to MCP server for agent communication
 - **WebSocket Support**: Real-time agent-to-agent messaging via WebSocket connections
 - **Agent Registry**: Centralized registry for agent discovery and capability matching
@@ -115,23 +118,26 @@ export abstract class BaseAgent {
 - **Group Session Management**: Coordinate multi-agent sessions with state management
 
 ### **Key Features:**
+
 ```typescript
 // MCP Server A2A Endpoints
-POST /a2a/agents/register        // Register agent with capabilities
-GET  /a2a/agents/discover        // Discover agents by capabilities
-POST /a2a/messages/send          // Send message to specific agent
-POST /a2a/groups/create          // Create multi-agent group session
-POST /a2a/groups/{id}/join       // Join existing group session
-GET  /a2a/groups/{id}/state      // Get group session state
+POST / a2a / agents / register; // Register agent with capabilities
+GET / a2a / agents / discover; // Discover agents by capabilities
+POST / a2a / messages / send; // Send message to specific agent
+POST / a2a / groups / create; // Create multi-agent group session
+POST / a2a / groups / { id } / join; // Join existing group session
+GET / a2a / groups / { id } / state; // Get group session state
 ```
 
 ### **Multi-Agent Group Meeting Support:**
+
 - **Session Coordination**: Create and manage multi-agent sessions
 - **Message Broadcasting**: Send messages to all participants
 - **State Synchronization**: Keep all agents updated on session state
 - **Capability Matching**: Find optimal agent combinations for tasks
 
 ### **Business Idea Example Implementation:**
+
 ```typescript
 // Create business planning group
 const session = await mcpServer.createGroupSession({
@@ -140,34 +146,36 @@ const session = await mcpServer.createGroupSession({
     { agentId: 'devagent', role: 'technical-lead' },
     { agentId: 'officeagent', role: 'business-analyst' },
     { agentId: 'coreagent', role: 'system-architect' },
-    { agentId: 'triageagent', role: 'risk-manager' }
+    { agentId: 'triageagent', role: 'risk-manager' },
   ],
   coordinationMode: 'collaborative',
-  decisionMaking: 'consensus'
+  decisionMaking: 'consensus',
 });
 ```
 
 ### **Phase 4: AgentFactory Updates** (Automatic A2A Configuration)
 
 ### **Implementation Details:**
+
 - **Auto-A2A Registration**: New agents automatically register with A2A protocol
 - **Capability Declaration**: Agents declare their skills during creation
 - **Team Formation**: Automatic team assembly based on task requirements
 - **Agent Lifecycle Management**: Handle agent startup, shutdown, and updates
 
 ### **Key Features:**
+
 ```typescript
 // Enhanced AgentFactory with A2A integration
 const businessTeam = await AgentFactory.createTeam({
   task: 'business-idea-development',
   requiredCapabilities: [
     'technical-planning',
-    'business-analysis', 
+    'business-analysis',
     'system-architecture',
-    'risk-assessment'
+    'risk-assessment',
   ],
   coordinationMode: 'collaborative',
-  maxAgents: 5
+  maxAgents: 5,
 });
 
 // Auto-discovers and creates optimal agent team
@@ -175,6 +183,7 @@ const businessTeam = await AgentFactory.createTeam({
 ```
 
 ### **Business Scenario Benefits:**
+
 - **Automatic Team Assembly**: Factory finds best agents for your business idea
 - **Skill Matching**: Ensures all necessary capabilities are covered
 - **Load Balancing**: Distributes work based on agent availability
@@ -207,21 +216,25 @@ ONEAGENT_A2A_DISCOVERY_ENABLED=true
 ## **Benefits of A2A-Only Architecture**
 
 ### **Simplicity** 🎯
+
 - **Single communication protocol** (no NLACS confusion)
 - **Standard Google A2A specification** (industry standard)
 - **No dual-system complexity**
 
 ### **Performance** ⚡
+
 - **Direct peer-to-peer communication** (no orchestrator overhead)
 - **JSON-RPC 2.0 efficiency** (lightweight protocol)
 - **Built-in task lifecycle management**
 
 ### **Enterprise Ready** 🏢
+
 - **Google A2A specification compliance** (enterprise standard)
 - **Agent Card discovery system** (professional metadata)
 - **Security schemes support** (authentication/authorization)
 
 ### **Memory Integration** 🧠
+
 - **Automatic conversation storage** (A2A → OneAgentMemory)
 - **Task history persistence** (full lifecycle tracking)
 - **Cross-agent learning** (shared memory insights)
@@ -229,11 +242,13 @@ ONEAGENT_A2A_DISCOVERY_ENABLED=true
 ## **Agent Communication Flow**
 
 ### **Current (Broken):**
+
 ```
 User → MCP Server → BaseAgent → ❌ No Agent Communication
 ```
 
 ### **New (A2A-Integrated):**
+
 ```
 User → MCP Server → BaseAgent A → A2A Protocol → BaseAgent B → Response
                            ↓
@@ -245,16 +260,19 @@ User → MCP Server → BaseAgent A → A2A Protocol → BaseAgent B → Respons
 ## **Multi-Agent Scenarios Enabled**
 
 ### **Code Review Workflow:**
+
 ```
 DevAgent writes code → OfficeAgent reviews business logic → ValidationAgent checks compliance
 ```
 
 ### **Research & Analysis:**
+
 ```
 ResearchAgent gathers data → AnalysisAgent processes insights → ReportAgent generates summary
 ```
 
 ### **Customer Support:**
+
 ```
 TriageAgent categorizes issue → SpecialistAgent handles domain-specific solution → FollowUpAgent ensures satisfaction
 ```
@@ -262,15 +280,19 @@ TriageAgent categorizes issue → SpecialistAgent handles domain-specific soluti
 ## **Implementation Priority**
 
 ### **🚨 CRITICAL: Phase 1** (Clean Legacy)
+
 Remove all NLACS references - they're confusing the architecture
 
-### **⚡ HIGH: Phase 2** (BaseAgent Integration)  
+### **⚡ HIGH: Phase 2** (BaseAgent Integration)
+
 Add A2A Protocol to BaseAgent - this enables agent communication
 
 ### **📈 MEDIUM: Phase 3-4** (Factory & Server)
+
 Complete the integration with proper configuration and endpoints
 
 ### **🎯 LOW: Phase 5** (Advanced Features)
+
 Multi-agent workflows and complex orchestration
 
 ## **Why This Is The Right Architecture**

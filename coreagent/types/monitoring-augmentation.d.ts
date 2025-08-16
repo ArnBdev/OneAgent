@@ -19,8 +19,12 @@ declare module '../monitoring/UnifiedMonitoringService' {
 import { unifiedMonitoringService } from '../monitoring/UnifiedMonitoringService';
 const svc = unifiedMonitoringService as UnifiedMonitoringService;
 if (!svc.increment) {
-  svc.increment = () => { /* no-op until canonical metrics expansion */ };
+  svc.increment = () => {
+    /* no-op until canonical metrics expansion */
+  };
 }
 if (!svc.gauge) {
-  svc.gauge = () => { /* no-op until canonical metrics expansion */ };
+  svc.gauge = () => {
+    /* no-op until canonical metrics expansion */
+  };
 }

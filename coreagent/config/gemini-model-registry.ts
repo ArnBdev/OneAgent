@@ -27,12 +27,13 @@ export const GEMINI_MODELS: Record<string, GeminiModel> = {
     name: 'gemini-2.5-pro',
     tier: 'pro',
     type: 'llm',
-    description: 'Gemini 2.5 Pro (latest stable, enhanced thinking and reasoning, multimodal understanding)',
-    pricingUSDper1Ktokens: 1.00,
+    description:
+      'Gemini 2.5 Pro (latest stable, enhanced thinking and reasoning, multimodal understanding)',
+    pricingUSDper1Ktokens: 1.0,
     inputLimitTokens: 1048576,
     outputLimitTokens: 8192,
     version: '2.5',
-    thinkingEnabled: true
+    thinkingEnabled: true,
   },
   'gemini-2.5-flash': {
     name: 'gemini-2.5-flash',
@@ -43,17 +44,18 @@ export const GEMINI_MODELS: Record<string, GeminiModel> = {
     inputLimitTokens: 1048576,
     outputLimitTokens: 8192,
     version: '2.5-flash',
-    thinkingEnabled: true
+    thinkingEnabled: true,
   },
   'gemini-2.5-flash-lite': {
     name: 'gemini-2.5-flash-lite',
     tier: 'lite',
     type: 'llm',
-    description: 'Gemini 2.5 Flash-Lite (most cost-efficient, high throughput, real-time use cases)',
-    pricingUSDper1Ktokens: 0.10,
+    description:
+      'Gemini 2.5 Flash-Lite (most cost-efficient, high throughput, real-time use cases)',
+    pricingUSDper1Ktokens: 0.1,
     inputLimitTokens: 32768,
     outputLimitTokens: 4096,
-    version: '2.5-flash-lite'
+    version: '2.5-flash-lite',
   },
   'gemini-2.0-flash': {
     name: 'gemini-2.0-flash',
@@ -64,13 +66,14 @@ export const GEMINI_MODELS: Record<string, GeminiModel> = {
     inputLimitTokens: 1048576,
     outputLimitTokens: 8192,
     version: '2.0-flash',
-    experimental: false
+    experimental: false,
   },
   'gemini-embedding-001': {
     name: 'gemini-embedding-001',
     tier: 'embedding',
     type: 'embedding',
-    description: 'Gemini Embedding 001 (latest stable, Matryoshka Representation Learning, flexible dimensions)',
+    description:
+      'Gemini Embedding 001 (latest stable, Matryoshka Representation Learning, flexible dimensions)',
     pricingUSDper1Ktokens: 0.13,
     inputLimitTokens: 2048,
     outputLimitTokens: 3072, // Max embedding dimension
@@ -78,7 +81,7 @@ export const GEMINI_MODELS: Record<string, GeminiModel> = {
     experimental: false,
     version: '001',
     lastUpdate: '2025-06',
-    recommended: true
+    recommended: true,
   },
   // Legacy models for backward compatibility
   'gemini-embedding-exp-03-07': {
@@ -94,7 +97,7 @@ export const GEMINI_MODELS: Record<string, GeminiModel> = {
     deprecated: true,
     replacedBy: 'gemini-embedding-001',
     version: 'exp-03-07',
-    lastUpdate: '2025-03'
+    lastUpdate: '2025-03',
   },
   'text-embedding-004': {
     name: 'text-embedding-004',
@@ -109,8 +112,8 @@ export const GEMINI_MODELS: Record<string, GeminiModel> = {
     deprecated: true,
     replacedBy: 'gemini-embedding-001',
     version: '004',
-    lastUpdate: '2024-04'
-  }
+    lastUpdate: '2024-04',
+  },
 };
 
 /**
@@ -164,7 +167,7 @@ export function getRecommendedReplacement(modelName: string): GeminiModel {
  * Get all non-deprecated models for production use.
  */
 export function getProductionModels(): GeminiModel[] {
-  return Object.values(GEMINI_MODELS).filter(model => !model.deprecated);
+  return Object.values(GEMINI_MODELS).filter((model) => !model.deprecated);
 }
 
 /**

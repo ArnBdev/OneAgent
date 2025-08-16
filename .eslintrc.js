@@ -1,13 +1,8 @@
 module.exports = {
   root: true,
   parser: '@typescript-eslint/parser',
-  plugins: [
-    '@typescript-eslint',
-  ],
-  extends: [
-    'eslint:recommended',
-    '@typescript-eslint/recommended',
-  ],
+  plugins: ['@typescript-eslint'],
+  extends: ['eslint:recommended', '@typescript-eslint/recommended'],
   parserOptions: {
     ecmaVersion: 2020,
     sourceType: 'module',
@@ -15,24 +10,24 @@ module.exports = {
   },
   rules: {
     // Code quality rules
-    '@typescript-eslint/no-unused-vars': ['error', { 'argsIgnorePattern': '^_' }],
+    '@typescript-eslint/no-unused-vars': ['error', { argsIgnorePattern: '^_' }],
     '@typescript-eslint/no-explicit-any': 'warn',
     '@typescript-eslint/explicit-function-return-type': 'off',
     '@typescript-eslint/explicit-module-boundary-types': 'off',
     '@typescript-eslint/no-inferrable-types': 'off',
     '@typescript-eslint/no-non-null-assertion': 'warn',
-    
+
     // Import rules
     'no-duplicate-imports': 'error',
-    
+
     // General code quality
     'no-console': 'off', // Allow console for logging in this project
     'prefer-const': 'error',
     'no-var': 'error',
-    
+
     // OneAgent specific rules
     'no-unused-expressions': 'off', // Allow for agent method chaining
-    '@typescript-eslint/no-unused-expressions': 'off'
+    '@typescript-eslint/no-unused-expressions': 'off',
   },
   ignorePatterns: [
     'dist/**',
@@ -50,7 +45,7 @@ module.exports = {
     '*.config.js',
     'test-*.js',
     'tests/test-tier-system-implementation.ts',
-    'docs/**/*.ts'
+    'docs/**/*.ts',
   ],
   env: {
     node: true,

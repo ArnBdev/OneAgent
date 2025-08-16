@@ -1,9 +1,9 @@
 /**
  * OneAgent A2A (Agent-to-Agent) Protocol Implementation
- * 
+ *
  * Implements the full A2A specification (v0.2.5) from Google's Agent2Agent project
  * for true peer-to-peer agent communication with enterprise-grade security.
- * 
+ *
  * @see https://a2aproject.github.io/A2A/latest/specification/
  * @version 4.0.0-A2A-COMPLIANT
  * @author OneAgent Professional Development Platform
@@ -15,7 +15,6 @@ import type { UnifiedMetadata } from '../../types/oneagent-backbone-types';
 import { OneAgentMemory } from '../../memory/OneAgentMemory';
 import { OneAgentUnifiedBackbone } from '../../utils/UnifiedBackboneService';
 import { UnifiedBackboneService } from '../../utils/UnifiedBackboneService';
-
 
 // =============================================================================
 // A2A PROTOCOL TYPES (v0.2.5 Specification)
@@ -144,7 +143,7 @@ export enum TaskState {
   Working = 'working',
   Completed = 'completed',
   Failed = 'failed',
-  Canceled = 'canceled'
+  Canceled = 'canceled',
 }
 
 export interface JSONRPCRequest {
@@ -238,7 +237,11 @@ export interface SynthesizedKnowledge {
 
 export interface CommunicationPattern {
   id: string;
-  type: 'recurring_topic' | 'collaboration_style' | 'problem_solving_approach' | 'knowledge_sharing';
+  type:
+    | 'recurring_topic'
+    | 'collaboration_style'
+    | 'problem_solving_approach'
+    | 'knowledge_sharing';
   description: string;
   frequency: number;
   participants: string[];
@@ -285,7 +288,7 @@ export interface MemoryResult {
 
 /**
  * OneAgent A2A Protocol Implementation
- * 
+ *
  * Provides full A2A protocol compliance with:
  * - Agent Card management and discovery
  * - Task lifecycle management
@@ -309,12 +312,16 @@ export class OneAgentA2AProtocol extends EventEmitter {
     // Use canonical singleton access instead of dynamic require to avoid parallel systems
     this.memory = OneAgentMemory.getInstance();
     this.agentCard = agentCard;
-    
+
     console.log('🚀 OneAgent A2A Protocol initialized');
     console.log(`   📋 Agent: ${agentCard.name} (${agentCard.version})`);
     console.log(`   🌐 URL: ${agentCard.url}`);
     console.log(`   🔧 Skills: ${agentCard.skills.length} available`);
-    console.log(`   🎛️ Capabilities: ${Object.keys(agentCard.capabilities).filter(k => agentCard.capabilities[k as keyof AgentCapabilities]).join(', ')}`);
+    console.log(
+      `   🎛️ Capabilities: ${Object.keys(agentCard.capabilities)
+        .filter((k) => agentCard.capabilities[k as keyof AgentCapabilities])
+        .join(', ')}`,
+    );
   }
 
   /**
@@ -324,22 +331,21 @@ export class OneAgentA2AProtocol extends EventEmitter {
     try {
       // Validate agent card
       await this.validateAgentCard();
-      
+
       // Store agent card in memory for discovery
       await this.storeAgentCard();
-      
+
       // Initialize task management
       await this.initializeTaskManagement();
-      
+
       this.isInitialized = true;
-      this.emit('initialized', { 
+      this.emit('initialized', {
         agentName: this.agentCard.name,
-        timestamp: this.unifiedBackbone.getServices().timeService.now()
+        timestamp: this.unifiedBackbone.getServices().timeService.now(),
       });
-      
+
       console.log('✅ OneAgent A2A Protocol fully initialized');
       return true;
-      
     } catch (error) {
       console.error('❌ A2A Protocol initialization failed:', error);
       return false;
@@ -363,7 +369,7 @@ export class OneAgentA2AProtocol extends EventEmitter {
       }
 
       console.log(`📨 A2A Request: ${request.method} (${request.id})`);
-      
+
       // Route to appropriate handler
       switch (request.method) {
         case 'message/send':
@@ -381,17 +387,16 @@ export class OneAgentA2AProtocol extends EventEmitter {
         default:
           throw new Error(`Method not found: ${request.method}`);
       }
-      
     } catch (error) {
       console.error('❌ A2A Request processing failed:', error);
       return {
-        jsonrpc: "2.0",
+        jsonrpc: '2.0',
         id: request.id,
         error: {
           code: -32603,
           message: 'Internal error',
-          data: { details: error instanceof Error ? error.message : String(error) }
-        }
+          data: { details: error instanceof Error ? error.message : String(error) },
+        },
       };
     }
   }
@@ -401,33 +406,33 @@ export class OneAgentA2AProtocol extends EventEmitter {
    */
   private async handleMessageSend(request: JSONRPCRequest): Promise<JSONRPCResponse> {
     const params = request.params as unknown as MessageSendParams;
-    
+
     // Basic message validation
     if (!params.message || !params.message.parts || params.message.parts.length === 0) {
       return {
-        jsonrpc: "2.0",
+        jsonrpc: '2.0',
         id: request.id,
         error: {
           code: -32602,
           message: 'Invalid message: message must contain at least one part',
-          data: { message: params.message }
-        }
+          data: { message: params.message },
+        },
       };
     }
-    
+
     // Create or continue task
     const task = await this.createOrContinueTask(params.message);
-    
+
     // Process message through agent
     const result = await this.processMessageThroughAgent(params.message, task);
-    
+
     // Store in memory
     await this.storeTaskInMemory(task);
-    
+
     return {
-      jsonrpc: "2.0",
+      jsonrpc: '2.0',
       id: request.id,
-      result: result
+      result: result,
     };
   }
 
@@ -446,28 +451,28 @@ export class OneAgentA2AProtocol extends EventEmitter {
   private async handleTasksGet(request: JSONRPCRequest): Promise<JSONRPCResponse> {
     const params = request.params as { id: string; historyLength?: number };
     const task = this.activeTasks.get(params.id);
-    
+
     if (!task) {
       return {
-        jsonrpc: "2.0",
+        jsonrpc: '2.0',
         id: request.id,
         error: {
           code: -32001,
           message: 'Task not found',
-          data: { taskId: params.id }
-        }
+          data: { taskId: params.id },
+        },
       };
     }
-    
+
     // Optionally limit history
     if (params.historyLength && task.history) {
       task.history = task.history.slice(-params.historyLength);
     }
-    
+
     return {
-      jsonrpc: "2.0",
+      jsonrpc: '2.0',
       id: request.id,
-      result: task
+      result: task,
     };
   }
 
@@ -477,31 +482,31 @@ export class OneAgentA2AProtocol extends EventEmitter {
   private async handleTasksCancel(request: JSONRPCRequest): Promise<JSONRPCResponse> {
     const params = request.params as { id: string };
     const task = this.activeTasks.get(params.id);
-    
+
     if (!task) {
       return {
-        jsonrpc: "2.0",
+        jsonrpc: '2.0',
         id: request.id,
         error: {
           code: -32001,
           message: 'Task not found',
-          data: { taskId: params.id }
-        }
+          data: { taskId: params.id },
+        },
       };
     }
-    
+
     // Cancel task
     task.status = {
       state: TaskState.Canceled,
-      timestamp: this.unifiedBackbone.getServices().timeService.now().iso
+      timestamp: this.unifiedBackbone.getServices().timeService.now().iso,
     };
-    
+
     await this.storeTaskInMemory(task);
-    
+
     return {
-      jsonrpc: "2.0",
+      jsonrpc: '2.0',
       id: request.id,
-      result: task
+      result: task,
     };
   }
 
@@ -511,13 +516,13 @@ export class OneAgentA2AProtocol extends EventEmitter {
   private async handlePushNotificationConfigSet(request: JSONRPCRequest): Promise<JSONRPCResponse> {
     // Implementation for push notification setup
     return {
-      jsonrpc: "2.0",
+      jsonrpc: '2.0',
       id: request.id,
       error: {
         code: -32003,
         message: 'Push notifications not yet implemented',
-        data: { feature: 'push_notifications' }
-      }
+        data: { feature: 'push_notifications' },
+      },
     };
   }
 
@@ -527,13 +532,13 @@ export class OneAgentA2AProtocol extends EventEmitter {
   private async handlePushNotificationConfigGet(request: JSONRPCRequest): Promise<JSONRPCResponse> {
     // Implementation for push notification config retrieval
     return {
-      jsonrpc: "2.0",
+      jsonrpc: '2.0',
       id: request.id,
       error: {
         code: -32003,
         message: 'Push notifications not yet implemented',
-        data: { feature: 'push_notifications' }
-      }
+        data: { feature: 'push_notifications' },
+      },
     };
   }
 
@@ -543,39 +548,38 @@ export class OneAgentA2AProtocol extends EventEmitter {
   async sendMessageToAgent(agentUrl: string, message: Message): Promise<Task | Message> {
     try {
       const request: JSONRPCRequest = {
-        jsonrpc: "2.0",
-        method: "message/send",
+        jsonrpc: '2.0',
+        method: 'message/send',
         params: {
           message: message,
           configuration: {
-            acceptedOutputModes: ["text/plain", "application/json"],
-            blocking: true
-          }
+            acceptedOutputModes: ['text/plain', 'application/json'],
+            blocking: true,
+          },
         },
-        id: generateUnifiedId('task')
+        id: generateUnifiedId('task'),
       };
-      
+
       const response = await fetch(agentUrl, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'User-Agent': `OneAgent-A2A/${this.agentCard.version}`
+          'User-Agent': `OneAgent-A2A/${this.agentCard.version}`,
         },
-        body: JSON.stringify(request)
+        body: JSON.stringify(request),
       });
-      
+
       if (!response.ok) {
         throw new Error(`HTTP ${response.status}: ${response.statusText}`);
       }
-      
-      const jsonResponse = await response.json() as JSONRPCResponse;
-      
+
+      const jsonResponse = (await response.json()) as JSONRPCResponse;
+
       if (jsonResponse.error) {
         throw new Error(`A2A Error: ${jsonResponse.error.message}`);
       }
-      
+
       return jsonResponse.result as Task | Message;
-      
     } catch (error) {
       console.error('❌ A2A message sending failed:', error);
       throw error;
@@ -589,23 +593,22 @@ export class OneAgentA2AProtocol extends EventEmitter {
     try {
       // Try well-known URI first
       const wellKnownUrl = new URL('/.well-known/agent.json', agentUrl).toString();
-      
+
       const response = await fetch(wellKnownUrl);
-      
+
       if (!response.ok) {
         throw new Error(`Failed to fetch agent card: ${response.statusText}`);
       }
-      
-      const agentCard = await response.json() as AgentCard;
-      
+
+      const agentCard = (await response.json()) as AgentCard;
+
       // Validate the agent card
       if (!agentCard.protocolVersion || !agentCard.name || !agentCard.skills) {
         throw new Error('Invalid agent card format');
       }
-      
+
       console.log(`🔍 Discovered agent: ${agentCard.name} (${agentCard.version})`);
       return agentCard;
-      
     } catch (error) {
       console.error('❌ Agent discovery failed:', error);
       throw error;
@@ -620,28 +623,43 @@ export class OneAgentA2AProtocol extends EventEmitter {
     if (!this.agentCard.protocolVersion) {
       throw new Error('Agent card must have protocolVersion');
     }
-    
+
     if (!this.agentCard.name || !this.agentCard.description) {
       throw new Error('Agent card must have name and description');
     }
-    
+
     if (!this.agentCard.skills || this.agentCard.skills.length === 0) {
       throw new Error('Agent card must have at least one skill');
     }
-    
+
     if (!this.agentCard.url) {
       throw new Error('Agent card must have a URL');
     }
   }
 
   private async storeAgentCard(): Promise<void> {
-    await this.memory.addMemoryCanonical(`Agent Card: ${this.agentCard.name}`, {
-      system: { userId: 'system_registry', source: 'A2AProtocol', component: 'agent-card' },
-      content: { category: 'agent_card', tags: ['agent','card', this.agentCard.name], sensitivity: 'internal', relevanceScore: 0.9, contextDependency: 'global' },
-      quality: { score: 0.9, constitutionalCompliant: true, validationLevel: 'basic', confidence: 0.85 },
-      relationships: { parent: undefined, children: [], related: [], dependencies: [] },
-      analytics: { accessCount: 0, lastAccessPattern: 'write', usageContext: [] }
-    }, 'system_registry');
+    await this.memory.addMemoryCanonical(
+      `Agent Card: ${this.agentCard.name}`,
+      {
+        system: { userId: 'system_registry', source: 'A2AProtocol', component: 'agent-card' },
+        content: {
+          category: 'agent_card',
+          tags: ['agent', 'card', this.agentCard.name],
+          sensitivity: 'internal',
+          relevanceScore: 0.9,
+          contextDependency: 'global',
+        },
+        quality: {
+          score: 0.9,
+          constitutionalCompliant: true,
+          validationLevel: 'basic',
+          confidence: 0.85,
+        },
+        relationships: { parent: undefined, children: [], related: [], dependencies: [] },
+        analytics: { accessCount: 0, lastAccessPattern: 'write', usageContext: [] },
+      },
+      'system_registry',
+    );
   }
 
   private async initializeTaskManagement(): Promise<void> {
@@ -651,7 +669,7 @@ export class OneAgentA2AProtocol extends EventEmitter {
 
   private async createOrContinueTask(message: Message): Promise<Task> {
     let task: Task;
-    
+
     if (message.taskId && this.activeTasks.has(message.taskId)) {
       // Continue existing task
       task = this.activeTasks.get(message.taskId)!;
@@ -661,7 +679,7 @@ export class OneAgentA2AProtocol extends EventEmitter {
       // Create new task
       const taskId = generateUnifiedId('task');
       const contextId = message.contextId || generateUnifiedId('context');
-      
+
       task = {
         id: taskId,
         name: `Task ${taskId}`,
@@ -670,28 +688,28 @@ export class OneAgentA2AProtocol extends EventEmitter {
         contextId: contextId,
         status: {
           state: TaskState.Submitted,
-          timestamp: this.unifiedBackbone.getServices().timeService.now().iso
+          timestamp: this.unifiedBackbone.getServices().timeService.now().iso,
         },
         history: [message],
         artifacts: [],
         metadata: {
           createdBy: 'a2a_protocol',
-          createdAt: this.unifiedBackbone.getServices().timeService.now().iso
+          createdAt: this.unifiedBackbone.getServices().timeService.now().iso,
         },
-        kind: "task",
+        kind: 'task',
         createdAt: this.unifiedBackbone.getServices().timeService.now().iso,
-        updatedAt: this.unifiedBackbone.getServices().timeService.now().iso
+        updatedAt: this.unifiedBackbone.getServices().timeService.now().iso,
       };
-      
+
       this.activeTasks.set(taskId, task);
-      
+
       // Track context
       if (!this.taskContexts.has(contextId)) {
         this.taskContexts.set(contextId, []);
       }
       this.taskContexts.get(contextId)!.push(taskId);
     }
-    
+
     return task;
   }
 
@@ -699,45 +717,47 @@ export class OneAgentA2AProtocol extends EventEmitter {
     // Update task status
     task.status = {
       state: TaskState.Working,
-      timestamp: this.unifiedBackbone.getServices().timeService.now().iso
+      timestamp: this.unifiedBackbone.getServices().timeService.now().iso,
     };
-    
+
     // Process message (integrate with existing OneAgent processing)
     const textContent = message.parts
-      .filter(p => p.kind === 'text')
-      .map(p => (p as TextPart).text)
+      .filter((p) => p.kind === 'text')
+      .map((p) => (p as TextPart).text)
       .join(' ');
-    
+
     // Create response message
     const responseMessage: Message = {
       id: generateUnifiedId('message'),
-      role: "agent",
-      parts: [{
-        kind: "text",
-        text: `Processed: ${textContent}`,
-        metadata: { processingTime: this.unifiedBackbone.getServices().timeService.now().unix }
-      }],
+      role: 'agent',
+      parts: [
+        {
+          kind: 'text',
+          text: `Processed: ${textContent}`,
+          metadata: { processingTime: this.unifiedBackbone.getServices().timeService.now().unix },
+        },
+      ],
       messageId: generateUnifiedId('message'),
       taskId: task.id,
       contextId: task.contextId || '',
-      kind: "message",
+      kind: 'message',
       metadata: {
         processedBy: this.agentCard.name,
-        processedAt: this.unifiedBackbone.getServices().timeService.now().iso
-      }
+        processedAt: this.unifiedBackbone.getServices().timeService.now().iso,
+      },
     };
-    
+
     // Add to task history
     task.history = task.history || [];
     task.history.push(responseMessage);
-    
+
     // Complete task
     task.status = {
       state: TaskState.Completed,
       message: responseMessage,
-      timestamp: this.unifiedBackbone.getServices().timeService.now().iso
+      timestamp: this.unifiedBackbone.getServices().timeService.now().iso,
     };
-    
+
     return task;
   }
 
@@ -748,7 +768,7 @@ export class OneAgentA2AProtocol extends EventEmitter {
       status: (task.status as { state: TaskState })?.state || task.state,
       messageCount: task.history?.length || 0,
       artifactCount: task.artifacts?.length || 0,
-      timestamp: this.unifiedBackbone.getServices().timeService.now().iso
+      timestamp: this.unifiedBackbone.getServices().timeService.now().iso,
     });
   }
 
@@ -770,55 +790,63 @@ export class OneAgentA2AProtocol extends EventEmitter {
   }): Promise<string> {
     const messageId = generateUnifiedId('message');
     const timestamp = this.unifiedBackbone.getServices().timeService.now();
-    
+
     // Create A2A compliant message
     const message: Message = {
       id: generateUnifiedId('message'),
       messageId,
       role: 'agent',
-      parts: [{
-        kind: 'text',
-        text: params.content,
-        metadata: {
-          messageType: params.messageType || 'direct',
-          priority: params.priority || 'medium',
-          threadId: params.threadId,
-          replyToMessageId: params.replyToMessageId,
-          ...params.metadata
-        }
-      }],
+      parts: [
+        {
+          kind: 'text',
+          text: params.content,
+          metadata: {
+            messageType: params.messageType || 'direct',
+            priority: params.priority || 'medium',
+            threadId: params.threadId,
+            replyToMessageId: params.replyToMessageId,
+            ...params.metadata,
+          },
+        },
+      ],
       kind: 'message',
       metadata: {
         fromAgent: this.agentCard.name,
         toAgent: params.toAgent,
         timestamp: timestamp.iso,
-        ...params.metadata
-      }
+        ...params.metadata,
+      },
     };
 
     // Store in memory for audit trail and context
-    await this.storeA2AMemory('agent-message', `Agent Communication - ${(params.messageType || 'direct').toUpperCase()}
+    await this.storeA2AMemory(
+      'agent-message',
+      `Agent Communication - ${(params.messageType || 'direct').toUpperCase()}
 From: ${this.agentCard.name}
 To: ${params.toAgent}
 Priority: ${params.priority || 'medium'}
 Content: ${params.content}
 ${params.threadId ? `Thread: ${params.threadId}` : ''}
-${params.replyToMessageId ? `Reply to: ${params.replyToMessageId}` : ''}`, {
-      messageId,
-      fromAgent: this.agentCard.name,
-      toAgent: params.toAgent,
-      messageType: params.messageType || 'direct',
-      priority: params.priority || 'medium',
-      threadId: params.threadId,
-      replyToMessageId: params.replyToMessageId,
-      timestamp: timestamp.iso,
-      ...params.metadata
-    });
+${params.replyToMessageId ? `Reply to: ${params.replyToMessageId}` : ''}`,
+      {
+        messageId,
+        fromAgent: this.agentCard.name,
+        toAgent: params.toAgent,
+        messageType: params.messageType || 'direct',
+        priority: params.priority || 'medium',
+        threadId: params.threadId,
+        replyToMessageId: params.replyToMessageId,
+        timestamp: timestamp.iso,
+        ...params.metadata,
+      },
+    );
 
     // Send the message using A2A protocol
     try {
       await this.sendMessageToAgent(params.toAgent, message);
-      console.log(`📤 Agent message sent: ${this.agentCard.name} → ${params.toAgent} (${messageId})`);
+      console.log(
+        `📤 Agent message sent: ${this.agentCard.name} → ${params.toAgent} (${messageId})`,
+      );
     } catch (error) {
       console.error(`❌ Failed to send message to ${params.toAgent}:`, error);
       throw error;
@@ -836,18 +864,23 @@ ${params.replyToMessageId ? `Reply to: ${params.replyToMessageId}` : ''}`, {
     limit?: number;
   }): Promise<CommunicationPattern[]> {
     const searchQuery = `agent communication message to:${this.agentCard.name} OR broadcast`;
-    
+
     const searchResult = await this.memory.searchMemory({
       query: searchQuery,
       user_id: this.agentCard.name,
       limit: options?.limit || 50,
       semanticSearch: true,
-      type: 'agent-message'
+      type: 'agent-message',
     });
-  const results = searchResult?.results || [];
-  const filtered = results.filter((result: unknown) => {
+    const results = searchResult?.results || [];
+    const filtered = results.filter((result: unknown) => {
       const res = result as { metadata?: { messageType?: string; timestamp?: string } };
-      if (options?.messageTypes && res.metadata?.messageType && !options.messageTypes.includes(res.metadata.messageType)) return false;
+      if (
+        options?.messageTypes &&
+        res.metadata?.messageType &&
+        !options.messageTypes.includes(res.metadata.messageType)
+      )
+        return false;
       if (options?.since && res.metadata?.timestamp) {
         const messageTime = new Date(res.metadata.timestamp);
         if (messageTime < options.since) return false;
@@ -856,17 +889,21 @@ ${params.replyToMessageId ? `Reply to: ${params.replyToMessageId}` : ''}`, {
     });
     // Map to CommunicationPattern (minimal message-as-pattern representation)
     return filtered.map((m): CommunicationPattern => {
-      const mem = m as unknown as { id: string; content?: string; metadata?: { messageType?: string } };
+      const mem = m as unknown as {
+        id: string;
+        content?: string;
+        metadata?: { messageType?: string };
+      };
       return {
         id: mem.id,
         type: 'knowledge_sharing',
         description: mem.content?.slice(0, 120) || 'agent message',
-      frequency: 1,
+        frequency: 1,
         participants: [this.agentCard.name],
         contexts: [mem.metadata?.messageType || 'general'],
-      effectiveness: 0.5,
+        effectiveness: 0.5,
         metadata: (mem.metadata as Record<string, unknown>) || {},
-      relevanceScore: 0.5
+        relevanceScore: 0.5,
       };
     });
   }
@@ -874,43 +911,54 @@ ${params.replyToMessageId ? `Reply to: ${params.replyToMessageId}` : ''}`, {
   /**
    * Search agent communication history
    */
-  async searchAgentCommunications(query: string, options?: {
-    messageTypes?: string[];
-    timeRange?: { start: Date; end: Date };
-    limit?: number;
-    minQualityScore?: number;
-  }): Promise<CommunicationPattern[]> {
+  async searchAgentCommunications(
+    query: string,
+    options?: {
+      messageTypes?: string[];
+      timeRange?: { start: Date; end: Date };
+      limit?: number;
+      minQualityScore?: number;
+    },
+  ): Promise<CommunicationPattern[]> {
     const searchResult2 = await this.memory.searchMemory({
       query,
       user_id: this.agentCard.name,
       limit: options?.limit || 20,
       semanticSearch: true,
-      type: 'agent-message'
+      type: 'agent-message',
     });
-  const results2 = searchResult2?.results || [];
-  const filtered2 = results2.filter((result: unknown) => {
-      const res = result as { metadata?: { messageType?: string; timestamp?: string; qualityScore?: number } };
+    const results2 = searchResult2?.results || [];
+    const filtered2 = results2.filter((result: unknown) => {
+      const res = result as {
+        metadata?: { messageType?: string; timestamp?: string; qualityScore?: number };
+      };
       const md = res.metadata || {};
-      if (options?.messageTypes && md.messageType && !options.messageTypes.includes(md.messageType)) return false;
+      if (options?.messageTypes && md.messageType && !options.messageTypes.includes(md.messageType))
+        return false;
       if (options?.timeRange && md.timestamp) {
         const ts = new Date(md.timestamp);
         if (ts < options.timeRange.start || ts > options.timeRange.end) return false;
       }
-      if (options?.minQualityScore && (md.qualityScore || 0) < options.minQualityScore) return false;
+      if (options?.minQualityScore && (md.qualityScore || 0) < options.minQualityScore)
+        return false;
       return true;
     });
     return filtered2.map((m): CommunicationPattern => {
-      const mem = m as unknown as { id: string; content?: string; metadata?: { messageType?: string } };
+      const mem = m as unknown as {
+        id: string;
+        content?: string;
+        metadata?: { messageType?: string };
+      };
       return {
         id: mem.id,
         type: 'knowledge_sharing',
         description: mem.content?.slice(0, 120) || 'agent message',
-      frequency: 1,
+        frequency: 1,
         participants: [this.agentCard.name],
         contexts: [mem.metadata?.messageType || 'general'],
-      effectiveness: 0.5,
+        effectiveness: 0.5,
         metadata: (mem.metadata as Record<string, unknown>) || {},
-      relevanceScore: 0.5
+        relevanceScore: 0.5,
       };
     });
   }
@@ -923,20 +971,23 @@ ${params.replyToMessageId ? `Reply to: ${params.replyToMessageId}` : ''}`, {
    * Get contextual information for agent decision making
    * Enhanced A2A Protocol context retrieval for intelligent inter-agent communication
    */
-  async getAgentContext(agentId: string, currentTask?: string): Promise<{
+  async getAgentContext(
+    agentId: string,
+    currentTask?: string,
+  ): Promise<{
     recentMessages: unknown[];
     relevantHistory: unknown[];
     peerAgents: unknown[];
     systemStatus: unknown;
   }> {
     console.log(`[A2A] Getting context for agent: ${agentId}`);
-    
+
     try {
       // Get recent messages (last 10)
       const timestamp = this.unifiedBackbone.getServices().timeService.now();
       const recentMessages = await this.getAgentMessages({
         limit: 10,
-        since: new Date(timestamp.unix - 24 * 60 * 60 * 1000) // Last 24 hours
+        since: new Date(timestamp.unix - 24 * 60 * 60 * 1000), // Last 24 hours
       });
 
       // Get relevant history based on current task
@@ -944,20 +995,20 @@ ${params.replyToMessageId ? `Reply to: ${params.replyToMessageId}` : ''}`, {
       if (currentTask) {
         relevantHistory = await this.searchAgentCommunications(currentTask, {
           limit: 5,
-          minQualityScore: 0.7
+          minQualityScore: 0.7,
         });
       }
 
       // Get peer agent information from memory
-  const peerAgentSearchResult = await this.memory.searchMemory({
+      const peerAgentSearchResult = await this.memory.searchMemory({
         query: 'agent registration active available',
         user_id: 'system',
         limit: 20,
         semanticSearch: true,
-        type: 'agent-registration'
+        type: 'agent-registration',
       });
-  const peerAgentsRaw = peerAgentSearchResult?.results || [];
-  const peerAgents = peerAgentsRaw.filter((agent: unknown) => {
+      const peerAgentsRaw = peerAgentSearchResult?.results || [];
+      const peerAgents = peerAgentsRaw.filter((agent: unknown) => {
         const a = agent as { metadata?: { agentId?: string; status?: string } };
         return a.metadata?.agentId !== agentId && a.metadata?.status === 'active';
       });
@@ -969,7 +1020,7 @@ ${params.replyToMessageId ? `Reply to: ${params.replyToMessageId}` : ''}`, {
         recentMessages,
         relevantHistory,
         peerAgents,
-        systemStatus
+        systemStatus,
       };
     } catch (error) {
       console.error(`[A2A] Failed to get context for ${agentId}:`, error);
@@ -982,19 +1033,19 @@ ${params.replyToMessageId ? `Reply to: ${params.replyToMessageId}` : ''}`, {
    */
   private async getSystemStatus(): Promise<unknown> {
     try {
-  const systemSearchResult = await this.memory.searchMemory({
+      const systemSearchResult = await this.memory.searchMemory({
         query: 'system status health metrics',
         user_id: 'system',
         limit: 5,
         semanticSearch: false,
-        type: 'system-metrics'
+        type: 'system-metrics',
       });
-      
+
       return {
         timestamp: this.unifiedBackbone.getServices().timeService.now().iso,
         activeTasks: this.activeTasks.size,
-  memorySystemHealth: (systemSearchResult?.results?.length || 0) > 0,
-        lastSystemUpdate: this.unifiedBackbone.getServices().timeService.now().iso
+        memorySystemHealth: (systemSearchResult?.results?.length || 0) > 0,
+        lastSystemUpdate: this.unifiedBackbone.getServices().timeService.now().iso,
       };
     } catch (error) {
       console.error('[A2A] Failed to get system status:', error);
@@ -1002,7 +1053,7 @@ ${params.replyToMessageId ? `Reply to: ${params.replyToMessageId}` : ''}`, {
         timestamp: this.unifiedBackbone.getServices().timeService.now().iso,
         activeTasks: this.activeTasks.size,
         memorySystemHealth: false,
-        lastSystemUpdate: this.unifiedBackbone.getServices().timeService.now().iso
+        lastSystemUpdate: this.unifiedBackbone.getServices().timeService.now().iso,
       };
     }
   }
@@ -1019,7 +1070,7 @@ ${params.replyToMessageId ? `Reply to: ${params.replyToMessageId}` : ''}`, {
     requiresResponse?: boolean;
   }): Promise<string> {
     const timestamp = this.unifiedBackbone.getServices().timeService.now();
-    
+
     // Enhanced natural language message with context
     const enhancedContent = `
 Natural Language Communication:
@@ -1040,8 +1091,8 @@ Response Required: ${params.requiresResponse ? 'Yes' : 'No'}
         originalContent: params.naturalLanguageContent,
         context: params.context,
         requiresResponse: params.requiresResponse,
-        timestamp: timestamp.iso
-      }
+        timestamp: timestamp.iso,
+      },
     });
   }
 
@@ -1060,12 +1111,12 @@ Response Required: ${params.requiresResponse ? 'Yes' : 'No'}
       priority?: 'low' | 'medium' | 'high' | 'urgent';
     } = {
       toAgent: 'ALL',
-      naturalLanguageContent: params.naturalLanguageContent
+      naturalLanguageContent: params.naturalLanguageContent,
     };
-    
+
     if (params.context) messageParams.context = params.context;
     if (params.priority) messageParams.priority = params.priority;
-    
+
     return await this.sendNaturalLanguageMessage(messageParams);
   }
 
@@ -1075,15 +1126,15 @@ Response Required: ${params.requiresResponse ? 'Yes' : 'No'}
    */
   async getRegisteredAgents(): Promise<unknown[]> {
     try {
-  const agentSearchResult = await this.memory.searchMemory({
+      const agentSearchResult = await this.memory.searchMemory({
         query: 'agent registration active',
         user_id: 'system',
         limit: 50,
         semanticSearch: true,
-        type: 'agent-registration'
+        type: 'agent-registration',
       });
-  const agentRecords = agentSearchResult?.results || [];
-  return agentRecords.filter((agent: unknown) => {
+      const agentRecords = agentSearchResult?.results || [];
+      return agentRecords.filter((agent: unknown) => {
         const a = agent as { metadata?: { status?: string } };
         return a.metadata?.status === 'active';
       });
@@ -1096,14 +1147,17 @@ Response Required: ${params.requiresResponse ? 'Yes' : 'No'}
   /**
    * Update agent status in memory
    */
-  async updateAgentStatus(agentId: string, status: 'active' | 'inactive' | 'busy' | 'offline'): Promise<void> {
+  async updateAgentStatus(
+    agentId: string,
+    status: 'active' | 'inactive' | 'busy' | 'offline',
+  ): Promise<void> {
     try {
       await this.storeA2AMemory('agent-status', `Agent ${agentId} status updated to ${status}`, {
         agentId,
         status,
-        timestamp: this.unifiedBackbone.getServices().timeService.now().iso
+        timestamp: this.unifiedBackbone.getServices().timeService.now().iso,
       });
-      
+
       console.log(`[A2A] Agent ${agentId} status updated to ${status}`);
     } catch (error) {
       console.error(`[A2A] Failed to update agent ${agentId} status:`, error);
@@ -1120,31 +1174,31 @@ Response Required: ${params.requiresResponse ? 'Yes' : 'No'}
   async createAgentDiscussion(
     topic: string,
     participants: string[],
-    context?: string
+    context?: string,
   ): Promise<string> {
     const discussionId = generateUnifiedId('discussion');
     const services = this.unifiedBackbone.getServices();
     const timestamp = services.timeService.now();
-    
+
     // Create canonical metadata for the discussion
     const discussionMetadata = services.metadataService.create('agent_discussion', 'a2a_protocol', {
       content: {
         category: 'agent_coordination',
-        tags: ['discussion', 'agents', 'collaboration', ...participants.map(p => `agent:${p}`)],
+        tags: ['discussion', 'agents', 'collaboration', ...participants.map((p) => `agent:${p}`)],
         sensitivity: 'internal' as const,
         relevanceScore: 0.9,
-        contextDependency: 'session' as const
+        contextDependency: 'session' as const,
       },
       system: {
         source: 'a2a_protocol',
         component: 'discussion_manager',
         agent: {
           id: this.agentCard.name,
-          type: 'specialized'
-        }
-      }
+          type: 'specialized',
+        },
+      },
     });
-    
+
     const discussion: AgentDiscussion = {
       id: discussionId,
       topic,
@@ -1162,17 +1216,17 @@ Response Required: ${params.requiresResponse ? 'Yes' : 'No'}
         backbone: {
           temporal: {
             created: timestamp,
-            lastUpdated: timestamp
+            lastUpdated: timestamp,
           },
           lineage: {
             source: 'a2a_protocol',
             action: 'create_discussion',
-            agentId: this.agentCard.name
-          }
-        }
-      }
+            agentId: this.agentCard.name,
+          },
+        },
+      },
     };
-    
+
     // Store discussion in memory with canonical metadata
     await this.storeA2AMemory('agent_discussion', JSON.stringify(discussion), {
       discussionId,
@@ -1180,9 +1234,9 @@ Response Required: ${params.requiresResponse ? 'Yes' : 'No'}
       participants,
       status: 'active',
       creator: this.agentCard.name,
-      timestamp: timestamp.iso
+      timestamp: timestamp.iso,
     });
-    
+
     // Notify participants using canonical A2A messaging
     for (const participant of participants) {
       if (participant !== this.agentCard.name) {
@@ -1190,11 +1244,11 @@ Response Required: ${params.requiresResponse ? 'Yes' : 'No'}
           toAgent: participant,
           naturalLanguageContent: `You have been invited to join agent discussion: "${topic}"`,
           context: `Discussion ID: ${discussionId}`,
-          requiresResponse: false
+          requiresResponse: false,
         });
       }
     }
-    
+
     console.log(`[A2A] Created agent discussion: ${discussionId} - ${topic}`);
     return discussionId;
   }
@@ -1205,24 +1259,26 @@ Response Required: ${params.requiresResponse ? 'Yes' : 'No'}
   async joinAgentDiscussion(discussionId: string, _context?: string): Promise<boolean> {
     try {
       // Retrieve discussion from memory
-  const memorySearchResult = await this.memory.searchMemory({
+      const memorySearchResult = await this.memory.searchMemory({
         query: `agent_discussion ${discussionId}`,
         user_id: 'system',
-        limit: 1
+        limit: 1,
       });
-  const memoryResults = memorySearchResult?.results || [];
-  if (memoryResults.length === 0) {
+      const memoryResults = memorySearchResult?.results || [];
+      if (memoryResults.length === 0) {
         console.warn(`[A2A] Discussion ${discussionId} not found`);
         return false;
       }
-      
+
       const discussion: AgentDiscussion = JSON.parse(memoryResults[0].content);
-      
+
       // Add agent to participants if not already present
       if (!discussion.participants.includes(this.agentCard.name)) {
         discussion.participants.push(this.agentCard.name);
-        discussion.lastActivity = new Date(this.unifiedBackbone.getServices().timeService.now().utc);
-        
+        discussion.lastActivity = new Date(
+          this.unifiedBackbone.getServices().timeService.now().utc,
+        );
+
         // Update discussion in memory
         await this.storeA2AMemory('agent_discussion', JSON.stringify(discussion), {
           discussionId,
@@ -1230,10 +1286,10 @@ Response Required: ${params.requiresResponse ? 'Yes' : 'No'}
           participants: discussion.participants,
           status: discussion.status,
           updatedBy: this.agentCard.name,
-          timestamp: this.unifiedBackbone.getServices().timeService.now().iso
+          timestamp: this.unifiedBackbone.getServices().timeService.now().iso,
         });
       }
-      
+
       console.log(`[A2A] Joined agent discussion: ${discussionId} - ${discussion.topic}`);
       return true;
     } catch (error) {
@@ -1249,17 +1305,19 @@ Response Required: ${params.requiresResponse ? 'Yes' : 'No'}
     discussionId: string,
     content: string,
     contributionType: ContributionType = 'solution',
-    context?: string
+    context?: string,
   ): Promise<Message> {
     const timestamp = this.unifiedBackbone.getServices().timeService.now();
     const messageId = generateUnifiedId('message');
-    
+
     const message: Message = {
       id: messageId,
-      parts: [{
-        kind: 'text',
-        text: content
-      }],
+      parts: [
+        {
+          kind: 'text',
+          text: content,
+        },
+      ],
       content,
       role: 'assistant',
       timestamp: timestamp.iso,
@@ -1267,43 +1325,47 @@ Response Required: ${params.requiresResponse ? 'Yes' : 'No'}
         discussionId,
         contributionType,
         contributor: this.agentCard.name,
-        context: context || 'agent_discussion_contribution'
-      }
+        context: context || 'agent_discussion_contribution',
+      },
     };
-    
+
     // Store contribution in memory
-    await this.storeA2AMemory('agent_discussion_contribution', `Agent Discussion Contribution: ${content}`, {
-      discussionId,
-      messageId,
-      contributionType,
-      contributor: this.agentCard.name,
-      timestamp: timestamp.iso,
-      contentLength: content.length
-    });
-    
+    await this.storeA2AMemory(
+      'agent_discussion_contribution',
+      `Agent Discussion Contribution: ${content}`,
+      {
+        discussionId,
+        messageId,
+        contributionType,
+        contributor: this.agentCard.name,
+        timestamp: timestamp.iso,
+        contentLength: content.length,
+      },
+    );
+
     // Retrieve and update discussion
     const memorySearchResult2 = await this.memory.searchMemory({
       query: `agent_discussion ${discussionId}`,
       user_id: 'system',
-      limit: 1
+      limit: 1,
     });
     const memoryResults2 = memorySearchResult2?.results || [];
     if (memoryResults2.length > 0) {
       const discussion: AgentDiscussion = JSON.parse(memoryResults2[0].content);
       discussion.messages.push(message);
       discussion.lastActivity = new Date(timestamp.utc);
-      
+
       // Update discussion in memory
-        await this.storeA2AMemory('agent_discussion', JSON.stringify(discussion), {
-          discussionId,
-          topic: discussion.topic,
-          participants: discussion.participants,
-          messageCount: discussion.messages.length,
-          lastContributor: this.agentCard.name,
-          timestamp: timestamp.iso
-        });
+      await this.storeA2AMemory('agent_discussion', JSON.stringify(discussion), {
+        discussionId,
+        topic: discussion.topic,
+        participants: discussion.participants,
+        messageCount: discussion.messages.length,
+        lastContributor: this.agentCard.name,
+        timestamp: timestamp.iso,
+      });
     }
-    
+
     console.log(`[A2A] Contributed to discussion ${discussionId}: ${contributionType}`);
     return message;
   }
@@ -1313,15 +1375,15 @@ Response Required: ${params.requiresResponse ? 'Yes' : 'No'}
    */
   async generateCrossAgentInsights(
     conversationHistory: Message[],
-    context?: string
+    context?: string,
   ): Promise<AgentInsight[]> {
     const insights: AgentInsight[] = [];
     const timestamp = this.unifiedBackbone.getServices().timeService.now();
-    
+
     try {
       // Analyze conversation patterns
       const patterns = await this.analyzeConversationPatterns(conversationHistory);
-      
+
       // Generate insights from patterns
       for (const pattern of patterns) {
         const insight: AgentInsight = {
@@ -1331,32 +1393,35 @@ Response Required: ${params.requiresResponse ? 'Yes' : 'No'}
           confidence: pattern.confidence || 0.8,
           contributors: pattern.participants || [],
           sources: pattern.messageIds || [],
-          implications: [`Pattern frequency: ${pattern.frequency}`, `Effectiveness: ${pattern.effectiveness}`],
+          implications: [
+            `Pattern frequency: ${pattern.frequency}`,
+            `Effectiveness: ${pattern.effectiveness}`,
+          ],
           actionItems: ['Monitor pattern evolution', 'Validate pattern effectiveness'],
           createdAt: new Date(timestamp.utc),
           relevanceScore: pattern.relevanceScore || 0.8,
           metadata: {
             context: context || 'cross_agent_analysis',
             patternType: pattern.type,
-            analysisTimestamp: timestamp.iso
-          }
+            analysisTimestamp: timestamp.iso,
+          },
         };
-        
+
         insights.push(insight);
       }
-      
+
       // Store insights in memory
       for (const insight of insights) {
         await this.storeA2AMemory('agent_insight', JSON.stringify(insight), {
           insightId: insight.id,
           insightType: insight.type,
-            confidence: insight.confidence,
+          confidence: insight.confidence,
           relevanceScore: insight.relevanceScore,
           contributor: this.agentCard.name,
-          timestamp: timestamp.iso
+          timestamp: timestamp.iso,
         });
       }
-      
+
       console.log(`[A2A] Generated ${insights.length} cross-agent insights`);
       return insights;
     } catch (error) {
@@ -1370,23 +1435,28 @@ Response Required: ${params.requiresResponse ? 'Yes' : 'No'}
    */
   async synthesizeAgentKnowledge(
     conversationThreads: AgentConversationThread[],
-    context?: string
+    context?: string,
   ): Promise<SynthesizedKnowledge | null> {
     try {
       const timestamp = this.unifiedBackbone.getServices().timeService.now();
       const knowledgeId = generateUnifiedId('knowledge');
-      
+
       // Extract key insights from all threads
-      const allInsights = conversationThreads.flatMap(thread => thread.insights);
-      const allContributors = [...new Set(conversationThreads.flatMap(thread => thread.participants))];
-      
+      const allInsights = conversationThreads.flatMap((thread) => thread.insights);
+      const allContributors = [
+        ...new Set(conversationThreads.flatMap((thread) => thread.participants)),
+      ];
+
       // Synthesize knowledge content
-      const synthesizedContent = await this.synthesizeKnowledgeContent(conversationThreads, allInsights);
-      
+      const synthesizedContent = await this.synthesizeKnowledgeContent(
+        conversationThreads,
+        allInsights,
+      );
+
       const synthesizedKnowledge: SynthesizedKnowledge = {
         id: knowledgeId,
         content: synthesizedContent,
-        sourceThreads: conversationThreads.map(t => t.id),
+        sourceThreads: conversationThreads.map((t) => t.id),
         contributors: allContributors,
         confidence: this.calculateSynthesisConfidence(allInsights),
         qualityScore: this.calculateSynthesisQuality(synthesizedContent, allInsights),
@@ -1397,10 +1467,10 @@ Response Required: ${params.requiresResponse ? 'Yes' : 'No'}
           threadCount: conversationThreads.length,
           insightCount: allInsights.length,
           synthesizedAt: timestamp.iso,
-          synthesizer: this.agentCard.name
-        }
+          synthesizer: this.agentCard.name,
+        },
       };
-      
+
       // Store synthesized knowledge
       await this.storeA2AMemory('synthesized_knowledge', JSON.stringify(synthesizedKnowledge), {
         knowledgeId,
@@ -1408,10 +1478,12 @@ Response Required: ${params.requiresResponse ? 'Yes' : 'No'}
         qualityScore: synthesizedKnowledge.qualityScore,
         threadCount: conversationThreads.length,
         synthesizer: this.agentCard.name,
-        timestamp: timestamp.iso
+        timestamp: timestamp.iso,
       });
-      
-      console.log(`[A2A] Synthesized knowledge from ${conversationThreads.length} conversation threads`);
+
+      console.log(
+        `[A2A] Synthesized knowledge from ${conversationThreads.length} conversation threads`,
+      );
       return synthesizedKnowledge;
     } catch (error) {
       console.error('[A2A] Failed to synthesize agent knowledge:', error);
@@ -1424,30 +1496,30 @@ Response Required: ${params.requiresResponse ? 'Yes' : 'No'}
    */
   async detectCommunicationPatterns(
     agentIds: string[],
-    timeRange: TimeRange
+    timeRange: TimeRange,
   ): Promise<CommunicationPattern[]> {
     const patterns: CommunicationPattern[] = [];
-    
+
     try {
       // Search for communications in the time range
       const searchQuery = `agent_discussion_contribution ${agentIds.join(' OR ')}`;
-  const memorySearchResult3 = await this.memory.searchMemory({
+      const memorySearchResult3 = await this.memory.searchMemory({
         query: searchQuery,
         user_id: 'system',
-        limit: 100
+        limit: 100,
       });
-  const memoryResults = memorySearchResult3?.results || [];
-  if (memoryResults.length === 0) {
+      const memoryResults = memorySearchResult3?.results || [];
+      if (memoryResults.length === 0) {
         return patterns;
       }
-      
+
       // Analyze communication patterns
-  const contributionsByType = this.groupContributionsByType(memoryResults);
-  const collaborationPatterns = this.analyzeCollaborationPatterns(memoryResults, agentIds);
-      
+      const contributionsByType = this.groupContributionsByType(memoryResults);
+      const collaborationPatterns = this.analyzeCollaborationPatterns(memoryResults, agentIds);
+
       // Add collaboration patterns to the results
       patterns.push(...collaborationPatterns);
-      
+
       // Create pattern objects from contribution types
       for (const [type, contributions] of Object.entries(contributionsByType)) {
         const pattern: CommunicationPattern = {
@@ -1456,18 +1528,18 @@ Response Required: ${params.requiresResponse ? 'Yes' : 'No'}
           description: `${type} pattern detected among agents`,
           frequency: contributions.length,
           participants: agentIds,
-          contexts: [...new Set(contributions.map(c => c.metadata?.context || 'unknown'))],
+          contexts: [...new Set(contributions.map((c) => c.metadata?.context || 'unknown'))],
           effectiveness: this.calculatePatternEffectiveness(contributions),
           metadata: {
             timeRange,
             analysisTimestamp: this.unifiedBackbone.getServices().timeService.now().iso,
-            analyzer: this.agentCard.name
-          }
+            analyzer: this.agentCard.name,
+          },
         };
-        
+
         patterns.push(pattern);
       }
-      
+
       console.log(`[A2A] Detected ${patterns.length} communication patterns`);
       return patterns;
     } catch (error) {
@@ -1480,10 +1552,12 @@ Response Required: ${params.requiresResponse ? 'Yes' : 'No'}
   // PRIVATE HELPER METHODS FOR ENHANCED A2A FUNCTIONALITY
   // =============================================================================
 
-  private async analyzeConversationPatterns(conversationHistory: Message[]): Promise<CommunicationPattern[]> {
+  private async analyzeConversationPatterns(
+    conversationHistory: Message[],
+  ): Promise<CommunicationPattern[]> {
     // Simplified pattern analysis - can be enhanced with ML
     const patterns: CommunicationPattern[] = [];
-    
+
     // Topic frequency analysis
     const topicFrequency = new Map<string, number>();
     for (const message of conversationHistory) {
@@ -1492,10 +1566,11 @@ Response Required: ${params.requiresResponse ? 'Yes' : 'No'}
         topicFrequency.set(topic, (topicFrequency.get(topic) || 0) + 1);
       }
     }
-    
+
     // Convert to patterns
     for (const [topic, frequency] of topicFrequency) {
-      if (frequency >= 2) { // Pattern threshold
+      if (frequency >= 2) {
+        // Pattern threshold
         patterns.push({
           id: generateUnifiedId('message'),
           type: 'recurring_topic',
@@ -1503,39 +1578,45 @@ Response Required: ${params.requiresResponse ? 'Yes' : 'No'}
           frequency,
           confidence: Math.min(frequency / conversationHistory.length, 1.0),
           relevanceScore: frequency / conversationHistory.length,
-          participants: [...new Set(conversationHistory.map(m => (m.metadata?.contributor as string) || 'unknown'))],
-          messageIds: conversationHistory.filter(m => m.content?.includes(topic)).map(m => m.id),
+          participants: [
+            ...new Set(
+              conversationHistory.map((m) => (m.metadata?.contributor as string) || 'unknown'),
+            ),
+          ],
+          messageIds: conversationHistory
+            .filter((m) => m.content?.includes(topic))
+            .map((m) => m.id),
           contexts: ['discussion'],
-          effectiveness: Math.min(frequency / conversationHistory.length, 1.0)
+          effectiveness: Math.min(frequency / conversationHistory.length, 1.0),
         });
       }
     }
-    
+
     return patterns;
   }
 
   private async synthesizeKnowledgeContent(
     conversationThreads: AgentConversationThread[],
-    allInsights: AgentInsight[]
+    allInsights: AgentInsight[],
   ): Promise<string> {
     const keyTopics = this.extractKeyTopics(conversationThreads);
-    const keyInsights = allInsights.filter(i => i.relevanceScore > 0.7);
-    
+    const keyInsights = allInsights.filter((i) => i.relevanceScore > 0.7);
+
     let synthesizedContent = `Knowledge synthesis from ${conversationThreads.length} conversation threads:\n\n`;
-    
+
     // Add key topics
     if (keyTopics.length > 0) {
-      synthesizedContent += `Key Topics:\n${keyTopics.map(t => `- ${t}`).join('\n')}\n\n`;
+      synthesizedContent += `Key Topics:\n${keyTopics.map((t) => `- ${t}`).join('\n')}\n\n`;
     }
-    
+
     // Add key insights
     if (keyInsights.length > 0) {
-      synthesizedContent += `Key Insights:\n${keyInsights.map(i => `- ${i.content}`).join('\n')}\n\n`;
+      synthesizedContent += `Key Insights:\n${keyInsights.map((i) => `- ${i.content}`).join('\n')}\n\n`;
     }
-    
+
     // Add overall summary
-    synthesizedContent += `This knowledge synthesis represents the collective intelligence from ${conversationThreads.length} conversation threads involving ${[...new Set(conversationThreads.flatMap(t => t.participants))].length} agents.`;
-    
+    synthesizedContent += `This knowledge synthesis represents the collective intelligence from ${conversationThreads.length} conversation threads involving ${[...new Set(conversationThreads.flatMap((t) => t.participants))].length} agents.`;
+
     return synthesizedContent;
   }
 
@@ -1552,11 +1633,11 @@ Response Required: ${params.requiresResponse ? 'Yes' : 'No'}
   }
 
   private extractImplications(insights: AgentInsight[]): string[] {
-    return [...new Set(insights.flatMap(i => i.implications))];
+    return [...new Set(insights.flatMap((i) => i.implications))];
   }
 
   private extractActionItems(insights: AgentInsight[]): string[] {
-    return [...new Set(insights.flatMap(i => i.actionItems))];
+    return [...new Set(insights.flatMap((i) => i.actionItems))];
   }
 
   private extractKeyTopics(conversationThreads: AgentConversationThread[]): string[] {
@@ -1564,7 +1645,7 @@ Response Required: ${params.requiresResponse ? 'Yes' : 'No'}
     for (const thread of conversationThreads) {
       for (const message of thread.messages) {
         const messageTopics = this.extractTopics(message.content || '');
-        messageTopics.forEach(topic => topics.add(topic));
+        messageTopics.forEach((topic) => topics.add(topic));
       }
     }
     return Array.from(topics).slice(0, 10); // Top 10 topics
@@ -1573,12 +1654,31 @@ Response Required: ${params.requiresResponse ? 'Yes' : 'No'}
   private extractTopics(content: string): string[] {
     // Simple topic extraction - can be enhanced with NLP
     const words = content.toLowerCase().split(/\s+/);
-    return words.filter(word => word.length > 4 && !['this', 'that', 'with', 'from', 'they', 'have', 'will', 'been', 'were', 'what', 'when', 'where', 'which', 'while'].includes(word));
+    return words.filter(
+      (word) =>
+        word.length > 4 &&
+        ![
+          'this',
+          'that',
+          'with',
+          'from',
+          'they',
+          'have',
+          'will',
+          'been',
+          'were',
+          'what',
+          'when',
+          'where',
+          'which',
+          'while',
+        ].includes(word),
+    );
   }
 
   private groupContributionsByType(memoryResults: MemoryResult[]): Record<string, MemoryResult[]> {
     const grouped: Record<string, MemoryResult[]> = {};
-    
+
     for (const result of memoryResults) {
       const contributionType = result.metadata?.contributionType || 'unknown';
       if (!grouped[contributionType]) {
@@ -1586,36 +1686,43 @@ Response Required: ${params.requiresResponse ? 'Yes' : 'No'}
       }
       grouped[contributionType].push(result);
     }
-    
+
     return grouped;
   }
 
-  private analyzeCollaborationPatterns(memoryResults: MemoryResult[], _agentIds: string[]): CommunicationPattern[] {
+  private analyzeCollaborationPatterns(
+    memoryResults: MemoryResult[],
+    _agentIds: string[],
+  ): CommunicationPattern[] {
     // Simplified collaboration analysis
     const patterns: CommunicationPattern[] = [];
-    
+
     // Analyze response patterns
     const responsePatterns = new Map<string, number>();
     for (const result of memoryResults) {
       const contributor = result.metadata?.contributor || 'unknown';
       responsePatterns.set(contributor, (responsePatterns.get(contributor) || 0) + 1);
     }
-    
+
     return patterns;
   }
 
   private calculatePatternEffectiveness(contributions: MemoryResult[]): number {
     // Simple effectiveness calculation based on contribution frequency and diversity
-    const uniqueContributors = new Set(contributions.map(c => c.metadata?.contributor)).size;
+    const uniqueContributors = new Set(contributions.map((c) => c.metadata?.contributor)).size;
     const totalContributions = contributions.length;
-    
+
     return Math.min((uniqueContributors / totalContributions) * 100, 100) / 100;
   }
 
   // =============================================================
   // CANONICAL A2A MEMORY STORAGE (UnifiedMetadata + addMemoryCanonical)
   // =============================================================
-  private async storeA2AMemory(type: string, content: string, fields: Record<string, unknown>): Promise<void> {
+  private async storeA2AMemory(
+    type: string,
+    content: string,
+    fields: Record<string, unknown>,
+  ): Promise<void> {
     try {
       const timestamp = this.unifiedBackbone.getServices().timeService.now();
       // Build base UnifiedMetadata partial
@@ -1625,20 +1732,20 @@ Response Required: ${params.requiresResponse ? 'Yes' : 'No'}
           source: 'a2a_protocol',
           component: 'a2a_memory',
           userId: 'system',
-          agent: { id: this.agentCard.name, type: 'a2a' }
+          agent: { id: this.agentCard.name, type: 'a2a' },
         },
         content: {
           category: 'a2a',
           tags: [type],
           sensitivity: 'internal',
           relevanceScore: 0.8,
-          contextDependency: 'global'
+          contextDependency: 'global',
         },
         quality: {
           score: 0.9,
           confidence: 0.9,
           constitutionalCompliant: true,
-          validationLevel: 'enhanced'
+          validationLevel: 'enhanced',
         },
         temporal: {
           created: timestamp,
@@ -1648,11 +1755,11 @@ Response Required: ${params.requiresResponse ? 'Yes' : 'No'}
             timeOfDay: timestamp.contextual.timeOfDay,
             dayOfWeek: new Date(timestamp.utc).toLocaleDateString('en-US', { weekday: 'long' }),
             businessContext: true,
-            energyContext: 'standard'
-          }
+            energyContext: 'standard',
+          },
         },
         relationships: { children: [], related: [], dependencies: [] },
-        analytics: { accessCount: 0, lastAccessPattern: 'create', usageContext: ['a2a'] }
+        analytics: { accessCount: 0, lastAccessPattern: 'create', usageContext: ['a2a'] },
       } as Partial<UnifiedMetadata>;
 
       const metadata: Partial<UnifiedMetadata> = { ...base, ...fields };
@@ -1661,7 +1768,6 @@ Response Required: ${params.requiresResponse ? 'Yes' : 'No'}
       console.error('[A2A] Failed to store canonical memory:', err);
     }
   }
-
 }
 
 export function createA2AProtocol(agentConfig: {
@@ -1673,7 +1779,7 @@ export function createA2AProtocol(agentConfig: {
   customUrl?: string; // Override for testing
 }): OneAgentA2AProtocol {
   const agentUrl = agentConfig.customUrl || UnifiedBackboneService.config.a2aBaseUrl;
-  
+
   const agentCard: AgentCard = {
     protocolVersion: UnifiedBackboneService.config.a2aProtocolVersion,
     name: agentConfig.name,
@@ -1686,19 +1792,19 @@ export function createA2AProtocol(agentConfig: {
       pushNotifications: UnifiedBackboneService.config.a2aPushNotifications,
       stateTransitionHistory: UnifiedBackboneService.config.a2aStateHistory,
       extensions: [],
-      ...agentConfig.capabilities
+      ...agentConfig.capabilities,
     },
-    defaultInputModes: ["text/plain", "application/json"],
-    defaultOutputModes: ["text/plain", "application/json"],
+    defaultInputModes: ['text/plain', 'application/json'],
+    defaultOutputModes: ['text/plain', 'application/json'],
     skills: agentConfig.skills,
     provider: {
-      organization: "OneAgent Professional Development Platform",
-      url: "https://github.com/ArnBdev/OneAgent"
+      organization: 'OneAgent Professional Development Platform',
+      url: 'https://github.com/ArnBdev/OneAgent',
     },
     iconUrl: `${agentUrl}/icon.png`,
     documentationUrl: `${agentUrl}/docs`,
-    supportsAuthenticatedExtendedCard: UnifiedBackboneService.config.a2aSecurityEnabled
+    supportsAuthenticatedExtendedCard: UnifiedBackboneService.config.a2aSecurityEnabled,
   };
-  
+
   return new OneAgentA2AProtocol(agentCard);
 }

@@ -3,7 +3,9 @@ process.env.ONEAGENT_FAST_TEST_MODE = '1';
 
 (async () => {
   const { AgentFactory } = await import('../../coreagent/agents/specialized/AgentFactory');
-  const { unifiedAgentCommunicationService } = await import('../../coreagent/utils/UnifiedAgentCommunicationService');
+  const { unifiedAgentCommunicationService } = await import(
+    '../../coreagent/utils/UnifiedAgentCommunicationService'
+  );
 
   const events: Array<{ type: string; payload: unknown }> = [];
   const onSent = (p: unknown) => events.push({ type: 'sent', payload: p });
@@ -18,30 +20,35 @@ process.env.ONEAGENT_FAST_TEST_MODE = '1';
   const triage = await AgentFactory.createTriageAgent();
 
   // Expect at least two registrations
-  console.log('events_registered_count', events.filter(e => e.type === 'registered').length);
+  console.log('events_registered_count', events.filter((e) => e.type === 'registered').length);
 
   const sessionId = await unifiedAgentCommunicationService.createSession({
-    name: 'events', participants: [dev.config.id, triage.config.id], topic: 'events-test'
+    name: 'events',
+    participants: [dev.config.id, triage.config.id],
+    topic: 'events-test',
   });
 
   await unifiedAgentCommunicationService.sendMessage({
     sessionId,
     fromAgent: dev.config.id,
     toAgent: triage.config.id,
-    content: 'ping'
+    content: 'ping',
   });
 
-  console.log('events_sent_count', events.filter(e => e.type === 'sent').length);
-  console.log('events_received_count', events.filter(e => e.type === 'received').length);
+  console.log('events_sent_count', events.filter((e) => e.type === 'sent').length);
+  console.log('events_received_count', events.filter((e) => e.type === 'received').length);
 
   // Broadcast
   await unifiedAgentCommunicationService.broadcastMessage({
     sessionId,
     fromAgent: triage.config.id,
-    content: 'broadcast'
+    content: 'broadcast',
   });
 
-  console.log('events_received_after_broadcast', events.filter(e => e.type === 'received').length);
+  console.log(
+    'events_received_after_broadcast',
+    events.filter((e) => e.type === 'received').length,
+  );
 
   unifiedAgentCommunicationService.off('message_sent', onSent);
   unifiedAgentCommunicationService.off('message_received', onReceived);

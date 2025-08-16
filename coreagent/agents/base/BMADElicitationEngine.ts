@@ -1,9 +1,9 @@
 /**
  * BMADElicitationEngine - Advanced 9-Point Quality Framework for OneAgent
- * 
+ *
  * Implements and extends the BMAD 9-point elicitation system discovered in DevAgent,
  * making it available system-wide for all OneAgent agents.
- * 
+ *
  * Provides context-aware elicitation technique selection and quality enhancement
  * patterns that achieve 30% improvement in task completion quality.
  */
@@ -40,24 +40,23 @@ export interface TaskAnalysis {
  * Advanced quality enhancement framework for OneAgent
  */
 export class BMADElicitationEngine {
-
   // Extended 9-Point Elicitation Framework (from DevAgent research)
   private static readonly ELICITATION_POINTS: ElicitationPoint[] = [
     {
       id: 0,
-      question: 'What\'s the appropriate detail level for the user\'s expertise and context?',
+      question: "What's the appropriate detail level for the user's expertise and context?",
       purpose: 'Adaptive audience calibration',
       applicableContexts: ['all'],
       complexity: 'simple',
-      effectivenessScore: 0.85
+      effectivenessScore: 0.85,
     },
     {
       id: 1,
-      question: 'What\'s the core challenge and most logical reasoning approach?',
+      question: "What's the core challenge and most logical reasoning approach?",
       purpose: 'Transparent reasoning chain development',
       applicableContexts: ['development', 'analysis', 'problem-solving'],
       complexity: 'medium',
-      effectivenessScore: 0.92
+      effectivenessScore: 0.92,
     },
     {
       id: 2,
@@ -65,7 +64,7 @@ export class BMADElicitationEngine {
       purpose: 'Critical refinement and anti-pattern identification',
       applicableContexts: ['development', 'advice', 'decision-making'],
       complexity: 'medium',
-      effectivenessScore: 0.88
+      effectivenessScore: 0.88,
     },
     {
       id: 3,
@@ -73,15 +72,15 @@ export class BMADElicitationEngine {
       purpose: 'Structural analysis and dependency mapping',
       applicableContexts: ['development', 'planning', 'implementation'],
       complexity: 'medium',
-      effectivenessScore: 0.90
+      effectivenessScore: 0.9,
     },
     {
       id: 4,
-      question: 'How does this serve the user\'s broader goals and objectives?',
+      question: "How does this serve the user's broader goals and objectives?",
       purpose: 'Goal alignment assessment and purpose validation',
       applicableContexts: ['all'],
       complexity: 'simple',
-      effectivenessScore: 0.87
+      effectivenessScore: 0.87,
     },
     {
       id: 5,
@@ -89,7 +88,7 @@ export class BMADElicitationEngine {
       purpose: 'Comprehensive risk identification and mitigation',
       applicableContexts: ['development', 'advice', 'implementation', 'decision-making'],
       complexity: 'medium',
-      effectivenessScore: 0.91
+      effectivenessScore: 0.91,
     },
     {
       id: 6,
@@ -97,7 +96,7 @@ export class BMADElicitationEngine {
       purpose: 'Critical perspective challenge and assumption validation',
       applicableContexts: ['all'],
       complexity: 'medium',
-      effectivenessScore: 0.89
+      effectivenessScore: 0.89,
     },
     {
       id: 7,
@@ -105,7 +104,7 @@ export class BMADElicitationEngine {
       purpose: 'Solution space exploration and creative alternatives',
       applicableContexts: ['development', 'problem-solving', 'creative'],
       complexity: 'complex',
-      effectivenessScore: 0.86
+      effectivenessScore: 0.86,
     },
     {
       id: 8,
@@ -113,7 +112,7 @@ export class BMADElicitationEngine {
       purpose: 'Hindsight reflection integration and learning synthesis',
       applicableContexts: ['complex', 'learning', 'retrospective'],
       complexity: 'complex',
-      effectivenessScore: 0.83
+      effectivenessScore: 0.83,
     },
     {
       id: 9,
@@ -121,8 +120,8 @@ export class BMADElicitationEngine {
       purpose: 'Completion control and information sufficiency assessment',
       applicableContexts: ['all'],
       complexity: 'simple',
-      effectivenessScore: 0.84
-    }
+      effectivenessScore: 0.84,
+    },
   ];
 
   // Context-specific elicitation patterns
@@ -133,7 +132,7 @@ export class BMADElicitationEngine {
     ['creative', [0, 4, 6, 7, 8]],
     ['planning', [3, 4, 5, 7, 9]],
     ['implementation', [2, 3, 5, 6, 9]],
-    ['problem-solving', [1, 2, 6, 7, 8]]
+    ['problem-solving', [1, 2, 6, 7, 8]],
   ]);
 
   /**
@@ -142,25 +141,20 @@ export class BMADElicitationEngine {
   async applyNinePointElicitation(
     message: string,
     context: AgentContext,
-    agentDomain: string = 'general'
+    agentDomain: string = 'general',
   ): Promise<ElicitationResult> {
-    
     // Analyze task complexity and requirements
     const taskAnalysis = this.analyzeTask(message, context, agentDomain);
-    
+
     // Select optimal elicitation points
-    const selectedPoints = this.selectOptimalElicitationPoints(
-      message,
-      taskAnalysis,
-      agentDomain
-    );
-    
+    const selectedPoints = this.selectOptimalElicitationPoints(message, taskAnalysis, agentDomain);
+
     // Generate enhanced message with elicitation framework
     const enhancedMessage = this.generateEnhancedMessage(message, selectedPoints, taskAnalysis);
-    
+
     // Create quality framework guidance
     const qualityFramework = this.generateQualityFramework(selectedPoints, taskAnalysis);
-    
+
     // Calculate confidence in elicitation effectiveness
     const confidence = this.calculateElicitationConfidence(selectedPoints, taskAnalysis);
 
@@ -169,7 +163,7 @@ export class BMADElicitationEngine {
       enhancedMessage,
       qualityFramework,
       complexity: taskAnalysis.complexity,
-      confidence
+      confidence,
     };
   }
 
@@ -179,19 +173,18 @@ export class BMADElicitationEngine {
   selectOptimalElicitationTechnique(
     taskType: string,
     complexity: 'simple' | 'medium' | 'complex',
-    domain: string = 'general'
+    domain: string = 'general',
   ): ElicitationPoint[] {
-    
     // Start with domain-specific patterns
     const domainPoints = BMADElicitationEngine.DOMAIN_PATTERNS.get(domain) || [0, 4, 6, 9];
-    
+
     // Filter by complexity appropriateness
-    const applicablePoints = BMADElicitationEngine.ELICITATION_POINTS.filter(point => {
+    const applicablePoints = BMADElicitationEngine.ELICITATION_POINTS.filter((point) => {
       const complexityMatch = this.isComplexityAppropriate(point.complexity, complexity);
       const domainMatch = domainPoints.includes(point.id);
-      const contextMatch = point.applicableContexts.includes('all') || 
-                          point.applicableContexts.includes(taskType);
-      
+      const contextMatch =
+        point.applicableContexts.includes('all') || point.applicableContexts.includes(taskType);
+
       return complexityMatch && (domainMatch || contextMatch);
     });
 
@@ -204,11 +197,7 @@ export class BMADElicitationEngine {
   /**
    * Generate quality framework for complex tasks
    */
-  generateQualityFramework(
-    selectedPoints: ElicitationPoint[],
-    taskAnalysis: TaskAnalysis
-  ): string {
-    
+  generateQualityFramework(selectedPoints: ElicitationPoint[], taskAnalysis: TaskAnalysis): string {
     if (!taskAnalysis.requiresElicitation) {
       return 'Standard quality guidelines apply.';
     }
@@ -217,8 +206,8 @@ export class BMADElicitationEngine {
       this.generateElicitationSection(selectedPoints),
       this.generateRiskAssessmentSection(taskAnalysis),
       this.generateValidationSection(selectedPoints),
-      this.generateCompletionSection(selectedPoints)
-    ].filter(section => section.length > 0);
+      this.generateCompletionSection(selectedPoints),
+    ].filter((section) => section.length > 0);
 
     return frameworkSections.join('\n\n');
   }
@@ -228,13 +217,24 @@ export class BMADElicitationEngine {
    */
   requiresAdvancedElicitation(message: string, _context: AgentContext): boolean {
     const complexityIndicators = [
-      'complex', 'difficult', 'challenging', 'architecture', 'design',
-      'strategy', 'analyze', 'evaluate', 'compare', 'recommend',
-      'best practice', 'optimal', 'solution', 'approach'
+      'complex',
+      'difficult',
+      'challenging',
+      'architecture',
+      'design',
+      'strategy',
+      'analyze',
+      'evaluate',
+      'compare',
+      'recommend',
+      'best practice',
+      'optimal',
+      'solution',
+      'approach',
     ];
 
-    const hasComplexityIndicators = complexityIndicators.some(indicator =>
-      message.toLowerCase().includes(indicator)
+    const hasComplexityIndicators = complexityIndicators.some((indicator) =>
+      message.toLowerCase().includes(indicator),
     );
 
     const isLongRequest = message.length > 100;
@@ -246,16 +246,15 @@ export class BMADElicitationEngine {
   // PRIVATE IMPLEMENTATION METHODS
 
   private analyzeTask(message: string, context: AgentContext, domain: string): TaskAnalysis {
-    
     // Determine complexity
     const complexity = this.determineComplexity(message);
-    
+
     // Identify primary domain
     const identifiedDomain = this.identifyDomain(message, domain);
-    
+
     // Assess if elicitation is needed
     const requiresElicitation = this.requiresAdvancedElicitation(message, context);
-    
+
     // Calculate risk level
     const riskLevel = this.assessRiskLevel(message, complexity);
 
@@ -264,7 +263,7 @@ export class BMADElicitationEngine {
       domain: identifiedDomain,
       requiresElicitation,
       suggestedPoints: this.getSuggestedPoints(identifiedDomain, complexity),
-      riskLevel
+      riskLevel,
     };
   }
 
@@ -272,15 +271,15 @@ export class BMADElicitationEngine {
     const complexityIndicators = {
       simple: ['what', 'how', 'when', 'where'],
       medium: ['why', 'explain', 'describe', 'compare'],
-      complex: ['analyze', 'design', 'architect', 'optimize', 'strategy', 'evaluate']
+      complex: ['analyze', 'design', 'architect', 'optimize', 'strategy', 'evaluate'],
     };
 
     const messageLower = message.toLowerCase();
-    
-    if (complexityIndicators.complex.some(indicator => messageLower.includes(indicator))) {
+
+    if (complexityIndicators.complex.some((indicator) => messageLower.includes(indicator))) {
       return 'complex';
     }
-    if (complexityIndicators.medium.some(indicator => messageLower.includes(indicator))) {
+    if (complexityIndicators.medium.some((indicator) => messageLower.includes(indicator))) {
       return 'medium';
     }
     return 'simple';
@@ -292,13 +291,13 @@ export class BMADElicitationEngine {
       analysis: ['analyze', 'data', 'metrics', 'performance', 'statistics'],
       planning: ['plan', 'schedule', 'timeline', 'roadmap', 'strategy'],
       creative: ['design', 'creative', 'brainstorm', 'innovative', 'artistic'],
-      advice: ['recommend', 'suggest', 'advice', 'opinion', 'should I']
+      advice: ['recommend', 'suggest', 'advice', 'opinion', 'should I'],
     };
 
     const messageLower = message.toLowerCase();
-    
+
     for (const [domain, keywords] of Object.entries(domainKeywords)) {
-      if (keywords.some(keyword => messageLower.includes(keyword))) {
+      if (keywords.some((keyword) => messageLower.includes(keyword))) {
         return domain;
       }
     }
@@ -308,31 +307,33 @@ export class BMADElicitationEngine {
   private selectOptimalElicitationPoints(
     _message: string,
     taskAnalysis: TaskAnalysis,
-    domain: string
+    domain: string,
   ): ElicitationPoint[] {
-    
     if (!taskAnalysis.requiresElicitation) {
       return [];
     }
 
     // Get domain-specific base points
-    const basePoints = BMADElicitationEngine.DOMAIN_PATTERNS.get(taskAnalysis.domain) || 
-                     BMADElicitationEngine.DOMAIN_PATTERNS.get(domain) || 
-                     [0, 4, 6, 9];
+    const basePoints = BMADElicitationEngine.DOMAIN_PATTERNS.get(taskAnalysis.domain) ||
+      BMADElicitationEngine.DOMAIN_PATTERNS.get(domain) || [0, 4, 6, 9];
 
     // Filter points by applicability and complexity
-    const availablePoints = BMADElicitationEngine.ELICITATION_POINTS.filter(point => {
+    const availablePoints = BMADElicitationEngine.ELICITATION_POINTS.filter((point) => {
       const pointApplicable = basePoints.includes(point.id);
-      const complexityMatch = this.isComplexityAppropriate(point.complexity, taskAnalysis.complexity);
-      const contextMatch = point.applicableContexts.includes('all') || 
-                          point.applicableContexts.includes(taskAnalysis.domain);
-      
+      const complexityMatch = this.isComplexityAppropriate(
+        point.complexity,
+        taskAnalysis.complexity,
+      );
+      const contextMatch =
+        point.applicableContexts.includes('all') ||
+        point.applicableContexts.includes(taskAnalysis.domain);
+
       return pointApplicable && complexityMatch && contextMatch;
     });
 
     // Sort by effectiveness and select optimal count
     const maxPoints = this.getOptimalPointCount(taskAnalysis.complexity);
-    
+
     return availablePoints
       .sort((a, b) => b.effectivenessScore - a.effectivenessScore)
       .slice(0, maxPoints);
@@ -341,15 +342,14 @@ export class BMADElicitationEngine {
   private generateEnhancedMessage(
     originalMessage: string,
     selectedPoints: ElicitationPoint[],
-    taskAnalysis: TaskAnalysis
+    taskAnalysis: TaskAnalysis,
   ): string {
-    
     if (selectedPoints.length === 0) {
       return originalMessage;
     }
 
     const elicitationQuestions = selectedPoints
-      .map(point => `${point.id}. ${point.question}`)
+      .map((point) => `${point.id}. ${point.question}`)
       .join('\n');
 
     return `${originalMessage}
@@ -365,7 +365,7 @@ Apply this elicitation framework to ensure comprehensive, high-quality response.
     if (selectedPoints.length === 0) return '';
 
     const pointsList = selectedPoints
-      .map(point => `• ${point.purpose}: ${point.question}`)
+      .map((point) => `• ${point.purpose}: ${point.question}`)
       .join('\n');
 
     return `Quality Elicitation Framework:
@@ -377,7 +377,7 @@ ${pointsList}`;
 
     const riskGuidance = {
       medium: 'Consider potential complications and alternative approaches.',
-      high: 'Conduct thorough risk analysis and provide multiple solution paths.'
+      high: 'Conduct thorough risk analysis and provide multiple solution paths.',
     };
 
     return `Risk Assessment (${taskAnalysis.riskLevel} risk):
@@ -385,8 +385,8 @@ ${riskGuidance[taskAnalysis.riskLevel] || 'Standard risk considerations apply.'}
   }
 
   private generateValidationSection(selectedPoints: ElicitationPoint[]): string {
-    const validationPoints = selectedPoints.filter(point => 
-      point.purpose.includes('validation') || point.purpose.includes('challenge')
+    const validationPoints = selectedPoints.filter(
+      (point) => point.purpose.includes('validation') || point.purpose.includes('challenge'),
     );
 
     if (validationPoints.length === 0) return '';
@@ -398,8 +398,8 @@ ${riskGuidance[taskAnalysis.riskLevel] || 'Standard risk considerations apply.'}
   }
 
   private generateCompletionSection(selectedPoints: ElicitationPoint[]): string {
-    const hasCompletionPoint = selectedPoints.some(point => point.id === 9);
-    
+    const hasCompletionPoint = selectedPoints.some((point) => point.id === 9);
+
     if (!hasCompletionPoint) return '';
 
     return `Completion Criteria:
@@ -410,20 +410,20 @@ ${riskGuidance[taskAnalysis.riskLevel] || 'Standard risk considerations apply.'}
 
   private calculateElicitationConfidence(
     selectedPoints: ElicitationPoint[],
-    taskAnalysis: TaskAnalysis
+    taskAnalysis: TaskAnalysis,
   ): number {
-    
     if (selectedPoints.length === 0) {
       return taskAnalysis.requiresElicitation ? 0.3 : 0.8;
     }
 
     // Base confidence on point effectiveness scores
-    const avgEffectiveness = selectedPoints.reduce((sum, point) => 
-      sum + point.effectivenessScore, 0) / selectedPoints.length;
+    const avgEffectiveness =
+      selectedPoints.reduce((sum, point) => sum + point.effectivenessScore, 0) /
+      selectedPoints.length;
 
     // Adjust for task-elicitation alignment
     const alignmentBonus = taskAnalysis.requiresElicitation ? 0.1 : -0.1;
-    
+
     // Adjust for point count appropriateness
     const optimalCount = this.getOptimalPointCount(taskAnalysis.complexity);
     const countAlignment = Math.abs(selectedPoints.length - optimalCount) <= 1 ? 0.05 : -0.05;
@@ -433,9 +433,8 @@ ${riskGuidance[taskAnalysis.riskLevel] || 'Standard risk considerations apply.'}
 
   private isComplexityAppropriate(
     pointComplexity: 'simple' | 'medium' | 'complex',
-    taskComplexity: 'simple' | 'medium' | 'complex'
+    taskComplexity: 'simple' | 'medium' | 'complex',
   ): boolean {
-    
     const complexityLevels = { simple: 1, medium: 2, complex: 3 };
     const pointLevel = complexityLevels[pointComplexity];
     const taskLevel = complexityLevels[taskComplexity];
@@ -446,38 +445,42 @@ ${riskGuidance[taskAnalysis.riskLevel] || 'Standard risk considerations apply.'}
 
   private getOptimalPointCount(complexity: 'simple' | 'medium' | 'complex'): number {
     switch (complexity) {
-      case 'simple': return 3;
-      case 'medium': return 5;
-      case 'complex': return 7;
-      default: return 4;
+      case 'simple':
+        return 3;
+      case 'medium':
+        return 5;
+      case 'complex':
+        return 7;
+      default:
+        return 4;
     }
   }
 
   private getSuggestedPoints(domain: string, complexity: string): number[] {
     const basePoints = BMADElicitationEngine.DOMAIN_PATTERNS.get(domain) || [0, 4, 6, 9];
     const maxPoints = this.getOptimalPointCount(complexity as 'simple' | 'medium' | 'complex');
-    
+
     return basePoints.slice(0, maxPoints);
   }
 
   private assessRiskLevel(message: string, complexity: string): 'low' | 'medium' | 'high' {
     const riskIndicators = {
       high: ['delete', 'remove', 'critical', 'production', 'irreversible'],
-      medium: ['change', 'modify', 'update', 'replace', 'implement']
+      medium: ['change', 'modify', 'update', 'replace', 'implement'],
     };
 
     const messageLower = message.toLowerCase();
-    
-    if (riskIndicators.high.some(indicator => messageLower.includes(indicator))) {
+
+    if (riskIndicators.high.some((indicator) => messageLower.includes(indicator))) {
       return 'high';
     }
-    if (riskIndicators.medium.some(indicator => messageLower.includes(indicator))) {
+    if (riskIndicators.medium.some((indicator) => messageLower.includes(indicator))) {
       return 'medium';
     }
     if (complexity === 'complex') {
       return 'medium';
     }
-    
+
     return 'low';
   }
 }

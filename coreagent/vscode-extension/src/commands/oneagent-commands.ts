@@ -1,561 +1,624 @@
 import * as vscode from 'vscode';
-import { OneAgentClient, ConstitutionalValidationResponse, QualityScoreResponse, MemoryItem as UIMemoryItem, MemorySearchResponse, SystemHealthResponse, ProfileStatusResponse } from '../connection/oneagent-client';
+import {
+  OneAgentClient,
+  ConstitutionalValidationResponse,
+  QualityScoreResponse,
+  MemoryItem as UIMemoryItem,
+  MemorySearchResponse,
+  SystemHealthResponse,
+  ProfileStatusResponse,
+} from '../connection/oneagent-client';
 
 export function registerCommands(context: vscode.ExtensionContext, client: OneAgentClient) {
-    
-    // Constitutional Validation Command
-    context.subscriptions.push(
-        vscode.commands.registerCommand('oneagent.constitutionalValidate', async () => {
-            const editor = vscode.window.activeTextEditor;
-            if (!editor) {
-                vscode.window.showErrorMessage('No active editor found. Please open a file and select text to validate.');
-                return;
+  // Constitutional Validation Command
+  context.subscriptions.push(
+    vscode.commands.registerCommand('oneagent.constitutionalValidate', async () => {
+      const editor = vscode.window.activeTextEditor;
+      if (!editor) {
+        vscode.window.showErrorMessage(
+          'No active editor found. Please open a file and select text to validate.',
+        );
+        return;
+      }
+
+      const selection = editor.document.getText(editor.selection);
+      if (!selection) {
+        vscode.window.showErrorMessage('No text selected. Please select code or text to validate.');
+        return;
+      }
+
+      // Show progress
+      await vscode.window.withProgress(
+        {
+          location: vscode.ProgressLocation.Notification,
+          title: 'OneAgent Constitutional Validation',
+          cancellable: false,
+        },
+        async (progress) => {
+          progress.report({ increment: 0, message: 'Validating with Constitutional AI...' });
+
+          const result = await client.constitutionalValidate({
+            response: selection,
+            userMessage: 'Code/text validation request from VS Code',
+          });
+
+          progress.report({ increment: 100, message: 'Validation complete' });
+
+          if (result.success) {
+            const data = (result.data || {}) as ConstitutionalValidationResponse;
+            const isCompliant = data.isCompliant ?? false;
+            const score = data.score;
+            const feedback = data.feedback || 'No specific feedback available';
+
+            const message = isCompliant
+              ? `✅ Constitutional AI Validation: COMPLIANT${score ? ` (Score: ${score}%)` : ''}`
+              : `❌ Constitutional AI Validation: NON-COMPLIANT${score ? ` (Score: ${score}%)` : ''}`;
+
+            if (isCompliant) {
+              vscode.window.showInformationMessage(message, 'View Details').then((selection) => {
+                if (selection === 'View Details') {
+                  vscode.window.showInformationMessage(feedback);
+                }
+              });
+            } else {
+              vscode.window.showWarningMessage(message, 'View Details').then((selection) => {
+                if (selection === 'View Details') {
+                  vscode.window.showWarningMessage(feedback);
+                }
+              });
             }
-            
-            const selection = editor.document.getText(editor.selection);
-            if (!selection) {
-                vscode.window.showErrorMessage('No text selected. Please select code or text to validate.');
-                return;
-            }
-            
-            // Show progress
-            await vscode.window.withProgress({
-                location: vscode.ProgressLocation.Notification,
-                title: "OneAgent Constitutional Validation",
-                cancellable: false
-            }, async (progress) => {
-                progress.report({ increment: 0, message: "Validating with Constitutional AI..." });
-                
-                const result = await client.constitutionalValidate({
-                    response: selection,
-                    userMessage: 'Code/text validation request from VS Code'
+          } else {
+            vscode.window.showErrorMessage(`Constitutional validation failed: ${result.error}`);
+          }
+        },
+      );
+    }),
+  );
+
+  // Quality Score Command
+  context.subscriptions.push(
+    vscode.commands.registerCommand('oneagent.qualityScore', async () => {
+      const editor = vscode.window.activeTextEditor;
+      if (!editor) {
+        vscode.window.showErrorMessage('No active editor found. Please open a file to analyze.');
+        return;
+      }
+
+      const selection = editor.document.getText(editor.selection) || editor.document.getText();
+      if (!selection.trim()) {
+        vscode.window.showErrorMessage(
+          'No content to analyze. Please ensure the file has content.',
+        );
+        return;
+      }
+
+      await vscode.window.withProgress(
+        {
+          location: vscode.ProgressLocation.Notification,
+          title: 'OneAgent Quality Analysis',
+          cancellable: false,
+        },
+        async (progress) => {
+          progress.report({ increment: 0, message: 'Analyzing code quality...' });
+
+          const result = await client.qualityScore({
+            content: selection,
+            criteria: ['accuracy', 'maintainability', 'performance', 'readability', 'security'],
+          });
+
+          progress.report({ increment: 100, message: 'Analysis complete' });
+
+          if (result.success) {
+            const data = (result.data || {}) as QualityScoreResponse;
+            const score = data.qualityScore ?? data.score ?? 0;
+            const grade = data.grade || getGradeFromScore(score);
+            const suggestions = data.suggestions || [];
+
+            const emoji = score >= 90 ? '🌟' : score >= 80 ? '✅' : score >= 70 ? '⚠️' : '❌';
+            const message = `${emoji} Quality Score: ${score}% (Grade: ${grade})`;
+
+            if (suggestions.length > 0) {
+              vscode.window
+                .showInformationMessage(message, 'View Suggestions')
+                .then((selection) => {
+                  if (selection === 'View Suggestions') {
+                    showQualityReport(score, grade, suggestions);
+                  }
                 });
-                
-                progress.report({ increment: 100, message: "Validation complete" });
-                
-                if (result.success) {
-                    const data = (result.data || {}) as ConstitutionalValidationResponse;
-                    const isCompliant = data.isCompliant ?? false;
-                    const score = data.score;
-                    const feedback = data.feedback || 'No specific feedback available';
-                    
-                    const message = isCompliant 
-                        ? `✅ Constitutional AI Validation: COMPLIANT${score ? ` (Score: ${score}%)` : ''}`
-                        : `❌ Constitutional AI Validation: NON-COMPLIANT${score ? ` (Score: ${score}%)` : ''}`;
-                    
-                    if (isCompliant) {
-                        vscode.window.showInformationMessage(message, 'View Details').then(selection => {
-                            if (selection === 'View Details') {
-                                vscode.window.showInformationMessage(feedback);
-                            }
-                        });
-                    } else {
-                        vscode.window.showWarningMessage(message, 'View Details').then(selection => {
-                            if (selection === 'View Details') {
-                                vscode.window.showWarningMessage(feedback);
-                            }
-                        });
-                    }
-                } else {
-                    vscode.window.showErrorMessage(`Constitutional validation failed: ${result.error}`);
-                }
-            });
-        })
-    );
-    
-    // Quality Score Command
-    context.subscriptions.push(
-        vscode.commands.registerCommand('oneagent.qualityScore', async () => {
-            const editor = vscode.window.activeTextEditor;
-            if (!editor) {
-                vscode.window.showErrorMessage('No active editor found. Please open a file to analyze.');
-                return;
+            } else {
+              vscode.window.showInformationMessage(message);
             }
-            
-            const selection = editor.document.getText(editor.selection) || editor.document.getText();
-            if (!selection.trim()) {
-                vscode.window.showErrorMessage('No content to analyze. Please ensure the file has content.');
-                return;
-            }
-            
-            await vscode.window.withProgress({
-                location: vscode.ProgressLocation.Notification,
-                title: "OneAgent Quality Analysis",
-                cancellable: false
-            }, async (progress) => {
-                progress.report({ increment: 0, message: "Analyzing code quality..." });
-                
-                const result = await client.qualityScore({
-                    content: selection,
-                    criteria: ['accuracy', 'maintainability', 'performance', 'readability', 'security']
-                });
-                
-                progress.report({ increment: 100, message: "Analysis complete" });
-                
-                if (result.success) {
-                    const data = (result.data || {}) as QualityScoreResponse;
-                    const score = data.qualityScore ?? data.score ?? 0;
-                    const grade = data.grade || getGradeFromScore(score);
-                    const suggestions = data.suggestions || [];
-                    
-                    const emoji = score >= 90 ? '🌟' : score >= 80 ? '✅' : score >= 70 ? '⚠️' : '❌';
-                    const message = `${emoji} Quality Score: ${score}% (Grade: ${grade})`;
-                    
-                    if (suggestions.length > 0) {
-                        vscode.window.showInformationMessage(message, 'View Suggestions').then(selection => {
-                            if (selection === 'View Suggestions') {
-                                showQualityReport(score, grade, suggestions);
-                            }
-                        });
-                    } else {
-                        vscode.window.showInformationMessage(message);
-                    }
-                } else {
-                    vscode.window.showErrorMessage(`Quality scoring failed: ${result.error}`);
-                }
-            });
-        })
-    );
-    
-    // BMAD Analysis Command
-    context.subscriptions.push(
-        vscode.commands.registerCommand('oneagent.bmadAnalyze', async () => {
-            const editor = vscode.window.activeTextEditor;
-            if (!editor) {
-                vscode.window.showErrorMessage('No active editor found. Please open a file and select text to analyze.');
-                return;
-            }
-            
-            const selection = editor.document.getText(editor.selection);
-            if (!selection) {
-                vscode.window.showErrorMessage('No text selected. Please select code or requirements to analyze with BMAD framework.');
-                return;
-            }
-            
-            await vscode.window.withProgress({
-                location: vscode.ProgressLocation.Notification,
-                title: "OneAgent BMAD Analysis",
-                cancellable: false
-            }, async (progress) => {
-                progress.report({ increment: 0, message: "Analyzing with BMAD framework..." });
-                
-                const result = await client.bmadAnalyze({ task: selection });
-                
-                progress.report({ increment: 100, message: "Analysis complete" });
-                
-                if (result.success) {
-                    const panel = vscode.window.createWebviewPanel(
-                        'bmadAnalysis',
-                        'BMAD Framework Analysis',
-                        vscode.ViewColumn.Two,
-                        {
-                            enableScripts: true,
-                            localResourceRoots: [context.extensionUri]
-                        }
-                    );
-                    
-                    panel.webview.html = getBMADWebviewContent(result.data);
-                } else {
-                    vscode.window.showErrorMessage(`BMAD analysis failed: ${result.error}`);
-                }
-            });
-        })
-    );    // Dashboard Command
-    context.subscriptions.push(
-        vscode.commands.registerCommand('oneagent.openDashboard', async () => {
-            // Create dashboard webview panel
+          } else {
+            vscode.window.showErrorMessage(`Quality scoring failed: ${result.error}`);
+          }
+        },
+      );
+    }),
+  );
+
+  // BMAD Analysis Command
+  context.subscriptions.push(
+    vscode.commands.registerCommand('oneagent.bmadAnalyze', async () => {
+      const editor = vscode.window.activeTextEditor;
+      if (!editor) {
+        vscode.window.showErrorMessage(
+          'No active editor found. Please open a file and select text to analyze.',
+        );
+        return;
+      }
+
+      const selection = editor.document.getText(editor.selection);
+      if (!selection) {
+        vscode.window.showErrorMessage(
+          'No text selected. Please select code or requirements to analyze with BMAD framework.',
+        );
+        return;
+      }
+
+      await vscode.window.withProgress(
+        {
+          location: vscode.ProgressLocation.Notification,
+          title: 'OneAgent BMAD Analysis',
+          cancellable: false,
+        },
+        async (progress) => {
+          progress.report({ increment: 0, message: 'Analyzing with BMAD framework...' });
+
+          const result = await client.bmadAnalyze({ task: selection });
+
+          progress.report({ increment: 100, message: 'Analysis complete' });
+
+          if (result.success) {
             const panel = vscode.window.createWebviewPanel(
-                'oneagentDashboard',
-                'OneAgent Dashboard',
-                vscode.ViewColumn.One,
-                {
-                    enableScripts: true,
-                    retainContextWhenHidden: true,
-                    localResourceRoots: [context.extensionUri]
-                }
+              'bmadAnalysis',
+              'BMAD Framework Analysis',
+              vscode.ViewColumn.Two,
+              {
+                enableScripts: true,
+                localResourceRoots: [context.extensionUri],
+              },
             );
-            
-            // Set the dashboard HTML content
-            panel.webview.html = getDashboardWebviewContent();
-            
-            // Focus the panel
-            panel.reveal();
-        })
-    );
-    
-    // Memory Search Command
-    context.subscriptions.push(
-        vscode.commands.registerCommand('oneagent.memorySearch', async () => {
-            const query = await vscode.window.showInputBox({
-                prompt: 'Enter search query for OneAgent memory',
-                placeHolder: 'Search project context, previous conversations...',
-                validateInput: (value) => {
-                    if (!value || value.trim().length < 2) {
-                        return 'Please enter at least 2 characters';
-                    }
-                    return null;
-                }
+
+            panel.webview.html = getBMADWebviewContent(result.data);
+          } else {
+            vscode.window.showErrorMessage(`BMAD analysis failed: ${result.error}`);
+          }
+        },
+      );
+    }),
+  ); // Dashboard Command
+  context.subscriptions.push(
+    vscode.commands.registerCommand('oneagent.openDashboard', async () => {
+      // Create dashboard webview panel
+      const panel = vscode.window.createWebviewPanel(
+        'oneagentDashboard',
+        'OneAgent Dashboard',
+        vscode.ViewColumn.One,
+        {
+          enableScripts: true,
+          retainContextWhenHidden: true,
+          localResourceRoots: [context.extensionUri],
+        },
+      );
+
+      // Set the dashboard HTML content
+      panel.webview.html = getDashboardWebviewContent();
+
+      // Focus the panel
+      panel.reveal();
+    }),
+  );
+
+  // Memory Search Command
+  context.subscriptions.push(
+    vscode.commands.registerCommand('oneagent.memorySearch', async () => {
+      const query = await vscode.window.showInputBox({
+        prompt: 'Enter search query for OneAgent memory',
+        placeHolder: 'Search project context, previous conversations...',
+        validateInput: (value) => {
+          if (!value || value.trim().length < 2) {
+            return 'Please enter at least 2 characters';
+          }
+          return null;
+        },
+      });
+
+      if (query) {
+        await vscode.window.withProgress(
+          {
+            location: vscode.ProgressLocation.Notification,
+            title: 'OneAgent Memory Search',
+            cancellable: false,
+          },
+          async (progress) => {
+            progress.report({ increment: 0, message: 'Searching memory context...' });
+            const userId = vscode.env.machineId;
+            const result = await client.memorySearch({
+              query,
+              userId,
+              limit: 10,
+              includeInsights: true, // Enable Memory Intelligence insights
             });
-            
-            if (query) {
-                await vscode.window.withProgress({
-                    location: vscode.ProgressLocation.Notification,
-                    title: "OneAgent Memory Search",
-                    cancellable: false
-                }, async (progress) => {
-                    progress.report({ increment: 0, message: "Searching memory context..." });
-                      const userId = vscode.env.machineId;
-                    const result = await client.memorySearch({ 
-                        query, 
-                        userId, 
-                        limit: 10,
-                        includeInsights: true  // Enable Memory Intelligence insights
-                    });
-                    
-                    progress.report({ increment: 100, message: "Search complete" });
-                      if (result.success && result.data?.memories?.length) {
-                        const memories = (result.data as MemorySearchResponse).memories as UIMemoryItem[];
-                        
-                        interface MemoryQuickPickItem extends vscode.QuickPickItem {
-                            memory: UIMemoryItem;
-                        }
-                        
-                        const items: MemoryQuickPickItem[] = memories.map((memory) => ({
-                            label: `$(file-text) ${memory.content.substring(0, 60)}${memory.content.length > 60 ? '...' : ''}`,
-                            description: `${memory.memoryType ?? 'Unknown'} | ${memory.timestamp ? String(memory.timestamp) : 'Unknown time'}`,
-                            detail: memory.content,
-                            memory
-                        }));
-                        
-                        const selected = await vscode.window.showQuickPick(items, {
-                            placeHolder: 'Select memory to view details',
-                            matchOnDescription: true,
-                            matchOnDetail: true
-                        });
-                          if (selected) {
-                            showMemoryDetails(selected.memory);
-                        }
-                    } else if (result.success) {
-                        vscode.window.showInformationMessage('No relevant memories found for your query.');
-                    } else {
-                        vscode.window.showErrorMessage(`Memory search failed: ${result.error}`);
-                    }
-                });
+
+            progress.report({ increment: 100, message: 'Search complete' });
+            if (result.success && result.data?.memories?.length) {
+              const memories = (result.data as MemorySearchResponse).memories as UIMemoryItem[];
+
+              interface MemoryQuickPickItem extends vscode.QuickPickItem {
+                memory: UIMemoryItem;
+              }
+
+              const items: MemoryQuickPickItem[] = memories.map((memory) => ({
+                label: `$(file-text) ${memory.content.substring(0, 60)}${memory.content.length > 60 ? '...' : ''}`,
+                description: `${memory.memoryType ?? 'Unknown'} | ${memory.timestamp ? String(memory.timestamp) : 'Unknown time'}`,
+                detail: memory.content,
+                memory,
+              }));
+
+              const selected = await vscode.window.showQuickPick(items, {
+                placeHolder: 'Select memory to view details',
+                matchOnDescription: true,
+                matchOnDetail: true,
+              });
+              if (selected) {
+                showMemoryDetails(selected.memory);
+              }
+            } else if (result.success) {
+              vscode.window.showInformationMessage('No relevant memories found for your query.');
+            } else {
+              vscode.window.showErrorMessage(`Memory search failed: ${result.error}`);
             }
-        })
-    );
-    
-    // System Health Command
-    context.subscriptions.push(
-        vscode.commands.registerCommand('oneagent.systemHealth', async () => {
-            await vscode.window.withProgress({
-                location: vscode.ProgressLocation.Notification,
-                title: "OneAgent System Health",
-                cancellable: false
-            }, async (progress) => {
-                progress.report({ increment: 0, message: "Checking system health..." });
-                
-                const result = await client.systemHealth();
-                
-                progress.report({ increment: 100, message: "Health check complete" });
-                
-                if (result.success) {
-                    const health = (result.data || {}) as SystemHealthResponse;
-                    const status = health.status || 'unknown';
-                    const qualityScore = health.metrics?.qualityScore || 0;
-                    const version = health.version || 'unknown';
-                    
-                    const emoji = status === 'healthy' ? '✅' : '❌';
-                    const message = `${emoji} OneAgent ${status.toUpperCase()} | Quality: ${qualityScore}% | Version: ${version}`;
-                    
-                    vscode.window.showInformationMessage(message, 'View Details').then(selection => {
-                        if (selection === 'View Details') {
-                            showSystemHealthDetails(health);
-                        }
-                    });
-                } else {
-                    vscode.window.showErrorMessage(`Health check failed: ${result.error}`);
+          },
+        );
+      }
+    }),
+  );
+
+  // System Health Command
+  context.subscriptions.push(
+    vscode.commands.registerCommand('oneagent.systemHealth', async () => {
+      await vscode.window.withProgress(
+        {
+          location: vscode.ProgressLocation.Notification,
+          title: 'OneAgent System Health',
+          cancellable: false,
+        },
+        async (progress) => {
+          progress.report({ increment: 0, message: 'Checking system health...' });
+
+          const result = await client.systemHealth();
+
+          progress.report({ increment: 100, message: 'Health check complete' });
+
+          if (result.success) {
+            const health = (result.data || {}) as SystemHealthResponse;
+            const status = health.status || 'unknown';
+            const qualityScore = health.metrics?.qualityScore || 0;
+            const version = health.version || 'unknown';
+
+            const emoji = status === 'healthy' ? '✅' : '❌';
+            const message = `${emoji} OneAgent ${status.toUpperCase()} | Quality: ${qualityScore}% | Version: ${version}`;
+
+            vscode.window.showInformationMessage(message, 'View Details').then((selection) => {
+              if (selection === 'View Details') {
+                showSystemHealthDetails(health);
+              }
+            });
+          } else {
+            vscode.window.showErrorMessage(`Health check failed: ${result.error}`);
+          }
+        },
+      );
+    }),
+  );
+
+  // New v4.0.0 Professional Commands
+
+  // Semantic Analysis Command
+  context.subscriptions.push(
+    vscode.commands.registerCommand('oneagent.semanticAnalysis', async () => {
+      const editor = vscode.window.activeTextEditor;
+      if (!editor) {
+        vscode.window.showErrorMessage(
+          'No active editor found. Please open a file and select text to analyze.',
+        );
+        return;
+      }
+
+      const selection = editor.document.getText(editor.selection);
+      if (!selection) {
+        vscode.window.showErrorMessage(
+          'No text selected. Please select text for semantic analysis.',
+        );
+        return;
+      }
+
+      const analysisType = await vscode.window.showQuickPick(
+        ['similarity', 'classification', 'clustering'],
+        { placeHolder: 'Select semantic analysis type' },
+      );
+
+      if (!analysisType) return;
+
+      await vscode.window.withProgress(
+        {
+          location: vscode.ProgressLocation.Notification,
+          title: 'OneAgent Semantic Analysis',
+          cancellable: false,
+        },
+        async (progress) => {
+          progress.report({ increment: 0, message: 'Performing semantic analysis...' });
+
+          const result = await client.semanticAnalysis({
+            text: selection,
+            analysisType: analysisType as 'similarity' | 'classification' | 'clustering',
+          });
+
+          progress.report({ increment: 100, message: 'Analysis complete' });
+
+          if (result.success) {
+            const analysis = result.data;
+            showSemanticAnalysisReport(analysis, analysisType);
+          } else {
+            vscode.window.showErrorMessage(`Semantic analysis failed: ${result.error}`);
+          }
+        },
+      );
+    }),
+  );
+
+  // Enhanced Search Command
+  context.subscriptions.push(
+    vscode.commands.registerCommand('oneagent.enhancedSearch', async () => {
+      const query = await vscode.window.showInputBox({
+        placeHolder: 'Enter search query...',
+        prompt: 'OneAgent Enhanced Search with Quality Filtering',
+      });
+
+      if (!query) return;
+
+      await vscode.window.withProgress(
+        {
+          location: vscode.ProgressLocation.Notification,
+          title: 'OneAgent Enhanced Search',
+          cancellable: false,
+        },
+        async (progress) => {
+          progress.report({ increment: 0, message: 'Searching with quality filters...' });
+
+          const result = await client.enhancedSearch({
+            query,
+            filterCriteria: ['accuracy', 'relevance', 'credibility'],
+            includeQualityScore: true,
+          });
+
+          progress.report({ increment: 100, message: 'Search complete' });
+
+          if (result.success) {
+            showEnhancedSearchResults(result.data);
+          } else {
+            vscode.window.showErrorMessage(`Enhanced search failed: ${result.error}`);
+          }
+        },
+      );
+    }),
+  );
+
+  // Evolution Analytics Command
+  context.subscriptions.push(
+    vscode.commands.registerCommand('oneagent.evolutionAnalytics', async () => {
+      await vscode.window.withProgress(
+        {
+          location: vscode.ProgressLocation.Notification,
+          title: 'OneAgent Evolution Analytics',
+          cancellable: false,
+        },
+        async (progress) => {
+          progress.report({ increment: 0, message: 'Generating evolution analytics...' });
+
+          const result = await client.evolutionAnalytics({
+            timeRange: '7d',
+            includeCapabilityAnalysis: true,
+            includeQualityTrends: true,
+          });
+
+          progress.report({ increment: 100, message: 'Analytics complete' });
+
+          if (result.success) {
+            showEvolutionAnalytics(result.data);
+          } else {
+            vscode.window.showErrorMessage(`Evolution analytics failed: ${result.error}`);
+          }
+        },
+      );
+    }),
+  );
+
+  // Profile Status Command
+  context.subscriptions.push(
+    vscode.commands.registerCommand('oneagent.profileStatus', async () => {
+      await vscode.window.withProgress(
+        {
+          location: vscode.ProgressLocation.Notification,
+          title: 'OneAgent Profile Status',
+          cancellable: false,
+        },
+        async (progress) => {
+          progress.report({ increment: 0, message: 'Checking profile status...' });
+
+          const result = await client.profileStatus();
+
+          progress.report({ increment: 100, message: 'Status retrieved' });
+
+          if (result.success) {
+            const status = (result.data || {}) as ProfileStatusResponse;
+            const evolutionReady = status.evolutionReadiness || 'Not Available';
+            const qualityScore = status.qualityScore || 'N/A';
+
+            vscode.window
+              .showInformationMessage(
+                `📊 Profile Status: Quality ${qualityScore}% | Evolution: ${evolutionReady}`,
+                'View Details',
+                'Evolution History',
+              )
+              .then((selection) => {
+                if (selection === 'View Details') {
+                  showProfileStatusDetails(status);
+                } else if (selection === 'Evolution History') {
+                  vscode.commands.executeCommand('oneagent.profileHistory');
                 }
-            });
-        })
-    );
-    
-    // New v4.0.0 Professional Commands
-    
-    // Semantic Analysis Command
-    context.subscriptions.push(
-        vscode.commands.registerCommand('oneagent.semanticAnalysis', async () => {
-            const editor = vscode.window.activeTextEditor;
-            if (!editor) {
-                vscode.window.showErrorMessage('No active editor found. Please open a file and select text to analyze.');
-                return;
-            }
-            
-            const selection = editor.document.getText(editor.selection);
-            if (!selection) {
-                vscode.window.showErrorMessage('No text selected. Please select text for semantic analysis.');
-                return;
-            }
-            
-            const analysisType = await vscode.window.showQuickPick(
-                ['similarity', 'classification', 'clustering'],
-                { placeHolder: 'Select semantic analysis type' }
-            );
-            
-            if (!analysisType) return;
-            
-            await vscode.window.withProgress({
-                location: vscode.ProgressLocation.Notification,
-                title: "OneAgent Semantic Analysis",
-                cancellable: false
-            }, async (progress) => {
-                progress.report({ increment: 0, message: "Performing semantic analysis..." });
-                
-                const result = await client.semanticAnalysis({
-                    text: selection,
-                    analysisType: analysisType as 'similarity' | 'classification' | 'clustering'
-                });
-                
-                progress.report({ increment: 100, message: "Analysis complete" });
-                
-                if (result.success) {
-                    const analysis = result.data;
-                    showSemanticAnalysisReport(analysis, analysisType);
-                } else {
-                    vscode.window.showErrorMessage(`Semantic analysis failed: ${result.error}`);
+              });
+          } else {
+            vscode.window.showErrorMessage(`Profile status check failed: ${result.error}`);
+          }
+        },
+      );
+    }),
+  );
+
+  // Evolve Profile Command
+  context.subscriptions.push(
+    vscode.commands.registerCommand('oneagent.evolveProfile', async () => {
+      const aggressiveness = await vscode.window.showQuickPick(
+        ['conservative', 'moderate', 'aggressive'],
+        { placeHolder: 'How aggressively should the profile evolve?' },
+      );
+
+      if (!aggressiveness) return;
+
+      const confirm = await vscode.window.showWarningMessage(
+        `🧬 This will evolve your OneAgent profile with ${aggressiveness} changes. Continue?`,
+        'Yes, Evolve',
+        'Cancel',
+      );
+
+      if (confirm !== 'Yes, Evolve') return;
+
+      await vscode.window.withProgress(
+        {
+          location: vscode.ProgressLocation.Notification,
+          title: 'OneAgent Profile Evolution',
+          cancellable: false,
+        },
+        async (progress) => {
+          progress.report({ increment: 0, message: 'Evolving agent profile...' });
+
+          const result = await client.evolveProfile('manual', aggressiveness);
+
+          progress.report({ increment: 100, message: 'Evolution complete' });
+
+          if (result.success) {
+            const evolution = result.data;
+            vscode.window
+              .showInformationMessage(
+                `✅ Profile evolved successfully! New capabilities unlocked.`,
+                'View Changes',
+                'Test New Features',
+              )
+              .then((selection) => {
+                if (selection === 'View Changes') {
+                  showEvolutionResults(evolution);
+                } else if (selection === 'Test New Features') {
+                  vscode.commands.executeCommand('oneagent.openDashboard');
                 }
-            });
-        })
-    );
-    
-    // Enhanced Search Command
-    context.subscriptions.push(
-        vscode.commands.registerCommand('oneagent.enhancedSearch', async () => {
-            const query = await vscode.window.showInputBox({
-                placeHolder: 'Enter search query...',
-                prompt: 'OneAgent Enhanced Search with Quality Filtering'
-            });
-            
-            if (!query) return;
-            
-            await vscode.window.withProgress({
-                location: vscode.ProgressLocation.Notification,
-                title: "OneAgent Enhanced Search",
-                cancellable: false
-            }, async (progress) => {
-                progress.report({ increment: 0, message: "Searching with quality filters..." });
-                
-                const result = await client.enhancedSearch({
-                    query,
-                    filterCriteria: ['accuracy', 'relevance', 'credibility'],
-                    includeQualityScore: true
-                });
-                
-                progress.report({ increment: 100, message: "Search complete" });
-                
-                if (result.success) {
-                    showEnhancedSearchResults(result.data);
-                } else {
-                    vscode.window.showErrorMessage(`Enhanced search failed: ${result.error}`);
-                }
-            });
-        })
-    );
-    
-    // Evolution Analytics Command
-    context.subscriptions.push(
-        vscode.commands.registerCommand('oneagent.evolutionAnalytics', async () => {
-            await vscode.window.withProgress({
-                location: vscode.ProgressLocation.Notification,
-                title: "OneAgent Evolution Analytics",
-                cancellable: false
-            }, async (progress) => {
-                progress.report({ increment: 0, message: "Generating evolution analytics..." });
-                
-                const result = await client.evolutionAnalytics({
-                    timeRange: '7d',
-                    includeCapabilityAnalysis: true,
-                    includeQualityTrends: true
-                });
-                
-                progress.report({ increment: 100, message: "Analytics complete" });
-                
-                if (result.success) {
-                    showEvolutionAnalytics(result.data);
-                } else {
-                    vscode.window.showErrorMessage(`Evolution analytics failed: ${result.error}`);
-                }
-            });
-        })
-    );
-    
-    // Profile Status Command
-    context.subscriptions.push(
-        vscode.commands.registerCommand('oneagent.profileStatus', async () => {
-            await vscode.window.withProgress({
-                location: vscode.ProgressLocation.Notification,
-                title: "OneAgent Profile Status",
-                cancellable: false
-            }, async (progress) => {
-                progress.report({ increment: 0, message: "Checking profile status..." });
-                
-                const result = await client.profileStatus();
-                
-                progress.report({ increment: 100, message: "Status retrieved" });
-                
-                if (result.success) {
-                    const status = (result.data || {}) as ProfileStatusResponse;
-                    const evolutionReady = status.evolutionReadiness || 'Not Available';
-                    const qualityScore = status.qualityScore || 'N/A';
-                    
-                    vscode.window.showInformationMessage(
-                        `📊 Profile Status: Quality ${qualityScore}% | Evolution: ${evolutionReady}`,
-                        'View Details', 'Evolution History'
-                    ).then(selection => {
-                        if (selection === 'View Details') {
-                            showProfileStatusDetails(status);
-                        } else if (selection === 'Evolution History') {
-                            vscode.commands.executeCommand('oneagent.profileHistory');
-                        }
-                    });
-                } else {
-                    vscode.window.showErrorMessage(`Profile status check failed: ${result.error}`);
-                }
-            });
-        })
-    );
-    
-    // Evolve Profile Command
-    context.subscriptions.push(
-        vscode.commands.registerCommand('oneagent.evolveProfile', async () => {
-            const aggressiveness = await vscode.window.showQuickPick(
-                ['conservative', 'moderate', 'aggressive'],
-                {                placeHolder: 'How aggressively should the profile evolve?'
-                }
-            );
-            
-            if (!aggressiveness) return;
-            
-            const confirm = await vscode.window.showWarningMessage(
-                `🧬 This will evolve your OneAgent profile with ${aggressiveness} changes. Continue?`,
-                'Yes, Evolve', 'Cancel'
-            );
-            
-            if (confirm !== 'Yes, Evolve') return;
-            
-            await vscode.window.withProgress({
-                location: vscode.ProgressLocation.Notification,
-                title: "OneAgent Profile Evolution",
-                cancellable: false
-            }, async (progress) => {
-                progress.report({ increment: 0, message: "Evolving agent profile..." });
-                
-                const result = await client.evolveProfile('manual', aggressiveness);
-                
-                progress.report({ increment: 100, message: "Evolution complete" });
-                
-                if (result.success) {
-                    const evolution = result.data;
-                    vscode.window.showInformationMessage(
-                        `✅ Profile evolved successfully! New capabilities unlocked.`,
-                        'View Changes', 'Test New Features'
-                    ).then(selection => {
-                        if (selection === 'View Changes') {
-                            showEvolutionResults(evolution);
-                        } else if (selection === 'Test New Features') {
-                            vscode.commands.executeCommand('oneagent.openDashboard');
-                        }
-                    });
-                } else {
-                    vscode.window.showErrorMessage(`Profile evolution failed: ${result.error}`);
-                }
-            });
-        })
-    );
-    
-    // Agent Network Health Command
-    context.subscriptions.push(
-        vscode.commands.registerCommand('oneagent.agentNetworkHealth', async () => {
-            await vscode.window.withProgress({
-                location: vscode.ProgressLocation.Notification,
-                title: "OneAgent Network Health",
-                cancellable: false
-            }, async (progress) => {
-                progress.report({ increment: 0, message: "Checking agent network health..." });
-                
-                const result = await client.getAgentNetworkHealth();
-                
-                progress.report({ increment: 100, message: "Health check complete" });
-                
-                if (result.success) {
-                    showAgentNetworkHealth(result.data);
-                } else {
-                    vscode.window.showErrorMessage(`Agent network health check failed: ${result.error}`);
-                }
-            });
-        })
-    );
-    
-    // Coordinate Agents Command
-    context.subscriptions.push(
-        vscode.commands.registerCommand('oneagent.coordinateAgents', async () => {
-            const task = await vscode.window.showInputBox({
-                placeHolder: 'Describe the task for multi-agent coordination...',
-                prompt: 'OneAgent Multi-Agent Task Coordination'
-            });
-            
-            if (!task) return;
-            
-            const capabilities = await vscode.window.showInputBox({
-                placeHolder: 'Required capabilities (comma-separated)...',
-                prompt: 'What capabilities do the agents need?',
-                value: 'analysis, code-generation, validation'
-            });
-            
-            if (!capabilities) return;
-            
-            await vscode.window.withProgress({
-                location: vscode.ProgressLocation.Notification,
-                title: "OneAgent Multi-Agent Coordination",
-                cancellable: false
-            }, async (progress) => {
-                progress.report({ increment: 0, message: "Coordinating agents..." });
-                
-                const result = await client.coordinateAgents(
-                    task,
-                    capabilities.split(',').map(c => c.trim()),
-                    'medium'
-                );
-                
-                progress.report({ increment: 100, message: "Coordination complete" });
-                
-                if (result.success) {
-                    showCoordinationResults(result.data);
-                } else {
-                    vscode.window.showErrorMessage(`Agent coordination failed: ${result.error}`);
-                }
-            });
-        })
-    );
+              });
+          } else {
+            vscode.window.showErrorMessage(`Profile evolution failed: ${result.error}`);
+          }
+        },
+      );
+    }),
+  );
+
+  // Agent Network Health Command
+  context.subscriptions.push(
+    vscode.commands.registerCommand('oneagent.agentNetworkHealth', async () => {
+      await vscode.window.withProgress(
+        {
+          location: vscode.ProgressLocation.Notification,
+          title: 'OneAgent Network Health',
+          cancellable: false,
+        },
+        async (progress) => {
+          progress.report({ increment: 0, message: 'Checking agent network health...' });
+
+          const result = await client.getAgentNetworkHealth();
+
+          progress.report({ increment: 100, message: 'Health check complete' });
+
+          if (result.success) {
+            showAgentNetworkHealth(result.data);
+          } else {
+            vscode.window.showErrorMessage(`Agent network health check failed: ${result.error}`);
+          }
+        },
+      );
+    }),
+  );
+
+  // Coordinate Agents Command
+  context.subscriptions.push(
+    vscode.commands.registerCommand('oneagent.coordinateAgents', async () => {
+      const task = await vscode.window.showInputBox({
+        placeHolder: 'Describe the task for multi-agent coordination...',
+        prompt: 'OneAgent Multi-Agent Task Coordination',
+      });
+
+      if (!task) return;
+
+      const capabilities = await vscode.window.showInputBox({
+        placeHolder: 'Required capabilities (comma-separated)...',
+        prompt: 'What capabilities do the agents need?',
+        value: 'analysis, code-generation, validation',
+      });
+
+      if (!capabilities) return;
+
+      await vscode.window.withProgress(
+        {
+          location: vscode.ProgressLocation.Notification,
+          title: 'OneAgent Multi-Agent Coordination',
+          cancellable: false,
+        },
+        async (progress) => {
+          progress.report({ increment: 0, message: 'Coordinating agents...' });
+
+          const result = await client.coordinateAgents(
+            task,
+            capabilities.split(',').map((c) => c.trim()),
+            'medium',
+          );
+
+          progress.report({ increment: 100, message: 'Coordination complete' });
+
+          if (result.success) {
+            showCoordinationResults(result.data);
+          } else {
+            vscode.window.showErrorMessage(`Agent coordination failed: ${result.error}`);
+          }
+        },
+      );
+    }),
+  );
 }
 
 function getGradeFromScore(score: number): string {
-    if (score >= 90) return 'A';
-    if (score >= 80) return 'B';
-    if (score >= 70) return 'C';
-    if (score >= 60) return 'D';
-    return 'F';
+  if (score >= 90) return 'A';
+  if (score >= 80) return 'B';
+  if (score >= 70) return 'C';
+  if (score >= 60) return 'D';
+  return 'F';
 }
 
 function showQualityReport(score: number, grade: string, suggestions: string[]) {
-    const panel = vscode.window.createWebviewPanel(
-        'qualityReport',
-        'OneAgent Quality Report',
-        vscode.ViewColumn.Two,
-        { enableScripts: true }
-    );
-    
-    panel.webview.html = `
+  const panel = vscode.window.createWebviewPanel(
+    'qualityReport',
+    'OneAgent Quality Report',
+    vscode.ViewColumn.Two,
+    { enableScripts: true },
+  );
+
+  panel.webview.html = `
     <!DOCTYPE html>
     <html>
     <head>
@@ -606,21 +669,21 @@ function showQualityReport(score: number, grade: string, suggestions: string[]) 
         
         <div class="suggestions">
             <h2><span class="emoji">💡</span>Improvement Suggestions</h2>
-            ${suggestions.map(suggestion => `<div class="suggestion">${suggestion}</div>`).join('')}
+            ${suggestions.map((suggestion) => `<div class="suggestion">${suggestion}</div>`).join('')}
         </div>
     </body>
     </html>`;
 }
 
 function showMemoryDetails(memory: UIMemoryItem) {
-    const panel = vscode.window.createWebviewPanel(
-        'memoryDetails',
-        'OneAgent Memory Details',
-        vscode.ViewColumn.Two,
-        { enableScripts: true }
-    );
-    
-    panel.webview.html = `
+  const panel = vscode.window.createWebviewPanel(
+    'memoryDetails',
+    'OneAgent Memory Details',
+    vscode.ViewColumn.Two,
+    { enableScripts: true },
+  );
+
+  panel.webview.html = `
     <!DOCTYPE html>
     <html>
     <head>
@@ -672,17 +735,22 @@ function showMemoryDetails(memory: UIMemoryItem) {
 }
 
 function showSystemHealthDetails(health: SystemHealthResponse) {
-    const panel = vscode.window.createWebviewPanel(
-        'systemHealth',
-        'OneAgent System Health',
-        vscode.ViewColumn.Two,
-        { enableScripts: true }
-    );
-    
-    const components: Record<string, { status?: string; port?: number; version?: string; provider?: string }> = health.components || {} as Record<string, { status?: string; port?: number; version?: string; provider?: string }>;
-    const metrics = health.metrics || {};
-    
-    panel.webview.html = `
+  const panel = vscode.window.createWebviewPanel(
+    'systemHealth',
+    'OneAgent System Health',
+    vscode.ViewColumn.Two,
+    { enableScripts: true },
+  );
+
+  const components: Record<
+    string,
+    { status?: string; port?: number; version?: string; provider?: string }
+  > =
+    health.components ||
+    ({} as Record<string, { status?: string; port?: number; version?: string; provider?: string }>);
+  const metrics = health.metrics || {};
+
+  panel.webview.html = `
     <!DOCTYPE html>
     <html>
     <head>
@@ -735,7 +803,9 @@ function showSystemHealthDetails(health: SystemHealthResponse) {
         </div>
         
         <h2>🔧 Components</h2>
-    ${Object.entries(components).map(([name, comp]) => `
+    ${Object.entries(components)
+      .map(
+        ([name, comp]) => `
             <div class="component">
                 <h3>${name}</h3>
                 <div class="metric"><span class="label">Status:</span> <span class="value">${comp.status || 'Unknown'}</span></div>
@@ -743,7 +813,9 @@ function showSystemHealthDetails(health: SystemHealthResponse) {
                 ${comp.version ? `<div class="metric"><span class="label">Version:</span> <span class="value">${comp.version}</span></div>` : ''}
                 ${comp.provider ? `<div class="metric"><span class="label">Provider:</span> <span class="value">${comp.provider}</span></div>` : ''}
             </div>
-        `).join('')}
+        `,
+      )
+      .join('')}
         
         <h2>🛠️ Capabilities</h2>
         <div class="component">
@@ -754,17 +826,22 @@ function showSystemHealthDetails(health: SystemHealthResponse) {
 }
 
 function getBMADWebviewContent(analysis: unknown): string {
-    // Extract variables to avoid template literal scope issues
-    const a = (analysis as Record<string, unknown>) || {};
-    const summary = typeof a.summary === 'string' ? a.summary : 'No summary available';
-    const confidence = typeof a.confidence === 'number' ? a.confidence : 0;
-    const complexity = typeof a.complexity === 'string' ? a.complexity : 'Unknown';
-    const recommendations = Array.isArray(a.recommendations) ? (a.recommendations as string[]) : ['No specific recommendations available'];
-    const riskAssessment = typeof a.riskAssessment === 'string' ? a.riskAssessment : 'No risk assessment available';
-    const successMetrics = typeof a.successMetrics === 'string' ? a.successMetrics : 'No success metrics defined';
-    const timeline = typeof a.timeline === 'string' ? a.timeline : 'No timeline considerations provided';
-    
-    return `
+  // Extract variables to avoid template literal scope issues
+  const a = (analysis as Record<string, unknown>) || {};
+  const summary = typeof a.summary === 'string' ? a.summary : 'No summary available';
+  const confidence = typeof a.confidence === 'number' ? a.confidence : 0;
+  const complexity = typeof a.complexity === 'string' ? a.complexity : 'Unknown';
+  const recommendations = Array.isArray(a.recommendations)
+    ? (a.recommendations as string[])
+    : ['No specific recommendations available'];
+  const riskAssessment =
+    typeof a.riskAssessment === 'string' ? a.riskAssessment : 'No risk assessment available';
+  const successMetrics =
+    typeof a.successMetrics === 'string' ? a.successMetrics : 'No success metrics defined';
+  const timeline =
+    typeof a.timeline === 'string' ? a.timeline : 'No timeline considerations provided';
+
+  return `
     <!DOCTYPE html>
     <html>
     <head>
@@ -822,9 +899,9 @@ function getBMADWebviewContent(analysis: unknown): string {
         </div>
           <div class="section">
             <h2><span class="emoji">💡</span>Recommendations</h2>
-            ${recommendations.map((rec: string) => 
-                `<div class="recommendation">${rec}</div>`
-            ).join('')}
+            ${recommendations
+              .map((rec: string) => `<div class="recommendation">${rec}</div>`)
+              .join('')}
         </div>
         
         <div class="section">
@@ -846,7 +923,7 @@ function getBMADWebviewContent(analysis: unknown): string {
 }
 
 function getDashboardWebviewContent(): string {
-    return `
+  return `
     <!DOCTYPE html>
     <html>
     <head>
@@ -1038,14 +1115,14 @@ function getDashboardWebviewContent(): string {
 // New v4.0.0 Professional Helper Functions
 
 function showSemanticAnalysisReport(_analysis: unknown, analysisType: string) {
-    const panel = vscode.window.createWebviewPanel(
-        'semanticAnalysis',
-        'OneAgent Semantic Analysis',
-        vscode.ViewColumn.Two,
-        { enableScripts: true }
-    );
+  const panel = vscode.window.createWebviewPanel(
+    'semanticAnalysis',
+    'OneAgent Semantic Analysis',
+    vscode.ViewColumn.Two,
+    { enableScripts: true },
+  );
 
-    panel.webview.html = `<!DOCTYPE html>
+  panel.webview.html = `<!DOCTYPE html>
     <html>
     <head>
         <style>
@@ -1080,17 +1157,17 @@ function showSemanticAnalysisReport(_analysis: unknown, analysisType: string) {
 }
 
 function showEnhancedSearchResults(data: unknown) {
-    const panel = vscode.window.createWebviewPanel(
-        'enhancedSearch',
-        'OneAgent Enhanced Search Results',
-        vscode.ViewColumn.Two,
-        { enableScripts: true }
-    );
+  const panel = vscode.window.createWebviewPanel(
+    'enhancedSearch',
+    'OneAgent Enhanced Search Results',
+    vscode.ViewColumn.Two,
+    { enableScripts: true },
+  );
 
-    const d = (data as { results?: unknown[] }) || {};
-    const results = Array.isArray(d.results) ? d.results : [];
-    
-    panel.webview.html = `<!DOCTYPE html>
+  const d = (data as { results?: unknown[] }) || {};
+  const results = Array.isArray(d.results) ? d.results : [];
+
+  panel.webview.html = `<!DOCTYPE html>
     <html>
     <head>
         <style>
@@ -1105,11 +1182,17 @@ function showEnhancedSearchResults(data: unknown) {
         <h2>🔍 Enhanced Search Results</h2>
         <p>Found ${results.length} quality-filtered results</p>
         
-    ${results.map((result) => {
+    ${results
+      .map((result) => {
         const r = (result as Record<string, unknown>) || {};
         const title = typeof r.title === 'string' ? r.title : 'No title';
         const url = typeof r.url === 'string' ? r.url : '';
-        const summary = typeof r.summary === 'string' ? r.summary : (typeof r.snippet === 'string' ? r.snippet : '');
+        const summary =
+          typeof r.summary === 'string'
+            ? r.summary
+            : typeof r.snippet === 'string'
+              ? r.snippet
+              : '';
         const q = typeof r.qualityScore === 'number' ? r.qualityScore : undefined;
         return `
             <div class="result">
@@ -1118,20 +1201,22 @@ function showEnhancedSearchResults(data: unknown) {
         <div class="summary">${summary}</div>
         ${q !== undefined ? `<span class="quality-badge">Quality: ${q}%</span>` : ''}
             </div>
-    `;}).join('')}
+    `;
+      })
+      .join('')}
     </body>
     </html>`;
 }
 
 function showEvolutionAnalytics(data: unknown) {
-    const panel = vscode.window.createWebviewPanel(
-        'evolutionAnalytics',
-        'OneAgent Evolution Analytics',
-        vscode.ViewColumn.Two,
-        { enableScripts: true }
-    );
+  const panel = vscode.window.createWebviewPanel(
+    'evolutionAnalytics',
+    'OneAgent Evolution Analytics',
+    vscode.ViewColumn.Two,
+    { enableScripts: true },
+  );
 
-    panel.webview.html = `<!DOCTYPE html>
+  panel.webview.html = `<!DOCTYPE html>
     <html>
     <head>
         <style>
@@ -1148,7 +1233,7 @@ function showEvolutionAnalytics(data: unknown) {
         <div class="metric-card">
             <h3>Quality Trends</h3>
             <p>Average Quality Score: ${(data as Record<string, unknown>)?.averageQuality ?? 'N/A'}%</p>
-            <p>Quality Trend: <span class="${(((data as Record<string, unknown>)?.qualityTrend as number) || 0) >= 0 ? 'trend-up' : 'trend-down'}">${((((data as Record<string, unknown>)?.qualityTrend as number) || 0) >= 0) ? '📈' : '📉'} ${((data as Record<string, unknown>)?.qualityTrend as number) || 0}%</span></p>
+            <p>Quality Trend: <span class="${(((data as Record<string, unknown>)?.qualityTrend as number) || 0) >= 0 ? 'trend-up' : 'trend-down'}">${(((data as Record<string, unknown>)?.qualityTrend as number) || 0) >= 0 ? '📈' : '📉'} ${((data as Record<string, unknown>)?.qualityTrend as number) || 0}%</span></p>
         </div>
         
         <div class="metric-card">
@@ -1169,14 +1254,14 @@ function showEvolutionAnalytics(data: unknown) {
 }
 
 function showProfileStatusDetails(status: ProfileStatusResponse) {
-    const panel = vscode.window.createWebviewPanel(
-        'profileStatus',
-        'OneAgent Profile Status',
-        vscode.ViewColumn.Two,
-        { enableScripts: true }
-    );
+  const panel = vscode.window.createWebviewPanel(
+    'profileStatus',
+    'OneAgent Profile Status',
+    vscode.ViewColumn.Two,
+    { enableScripts: true },
+  );
 
-    panel.webview.html = `<!DOCTYPE html>
+  panel.webview.html = `<!DOCTYPE html>
     <html>
     <head>
         <style>
@@ -1213,26 +1298,47 @@ function showProfileStatusDetails(status: ProfileStatusResponse) {
             </div>
         </div>
         
-    ${status?.lastEvolution ? `
+    ${
+      status?.lastEvolution
+        ? `
             <div class="status-card">
                 <h3>Last Evolution</h3>
         <p>${new Date(String(status.lastEvolution)).toLocaleString()}</p>
             </div>
-        ` : ''}
+        `
+        : ''
+    }
     </body>
     </html>`;
 }
 
-function showEvolutionResults(evolution: { type?: string; qualityImprovement?: number; newFeatures?: unknown[]; newCapabilities?: string[]; enhancedCapabilities?: string[] } | unknown) {
-    const evo = (evolution as { type?: string; qualityImprovement?: number; newFeatures?: unknown[]; newCapabilities?: string[]; enhancedCapabilities?: string[] }) || {};
-    const panel = vscode.window.createWebviewPanel(
-        'evolutionResults',
-        'OneAgent Profile Evolution Results',
-        vscode.ViewColumn.Two,
-        { enableScripts: true }
-    );
+function showEvolutionResults(
+  evolution:
+    | {
+        type?: string;
+        qualityImprovement?: number;
+        newFeatures?: unknown[];
+        newCapabilities?: string[];
+        enhancedCapabilities?: string[];
+      }
+    | unknown,
+) {
+  const evo =
+    (evolution as {
+      type?: string;
+      qualityImprovement?: number;
+      newFeatures?: unknown[];
+      newCapabilities?: string[];
+      enhancedCapabilities?: string[];
+    }) || {};
+  const panel = vscode.window.createWebviewPanel(
+    'evolutionResults',
+    'OneAgent Profile Evolution Results',
+    vscode.ViewColumn.Two,
+    { enableScripts: true },
+  );
 
-    panel.webview.html = `<!DOCTYPE html>
+  panel.webview.html = `<!DOCTYPE html>
     <html>
     <head>
         <style>
@@ -1253,38 +1359,54 @@ function showEvolutionResults(evolution: { type?: string; qualityImprovement?: n
             <p><strong>New Features:</strong> ${evo?.newFeatures?.length || 0}</p>
         </div>
         
-        ${evo?.newCapabilities ? `
+        ${
+          evo?.newCapabilities
+            ? `
             <h3>New Capabilities</h3>
-            ${evo.newCapabilities.map((cap: string) => `
+            ${evo.newCapabilities
+              .map(
+                (cap: string) => `
                 <div class="capability">
                     <span class="new-capability">+ ${cap}</span>
                     <span>NEW</span>
                 </div>
-            `).join('')}
-        ` : ''}
+            `,
+              )
+              .join('')}
+        `
+            : ''
+        }
         
-        ${evo?.enhancedCapabilities ? `
+        ${
+          evo?.enhancedCapabilities
+            ? `
             <h3>Enhanced Capabilities</h3>
-            ${evo.enhancedCapabilities.map((cap: string) => `
+            ${evo.enhancedCapabilities
+              .map(
+                (cap: string) => `
                 <div class="capability">
                     <span class="enhanced-capability">↗ ${cap}</span>
                     <span>ENHANCED</span>
                 </div>
-            `).join('')}
-        ` : ''}
+            `,
+              )
+              .join('')}
+        `
+            : ''
+        }
     </body>
     </html>`;
 }
 
 function showAgentNetworkHealth(data: unknown) {
-    const panel = vscode.window.createWebviewPanel(
-        'agentNetworkHealth',
-        'OneAgent Network Health',
-        vscode.ViewColumn.Two,
-        { enableScripts: true }
-    );
+  const panel = vscode.window.createWebviewPanel(
+    'agentNetworkHealth',
+    'OneAgent Network Health',
+    vscode.ViewColumn.Two,
+    { enableScripts: true },
+  );
 
-    panel.webview.html = `<!DOCTYPE html>
+  panel.webview.html = `<!DOCTYPE html>
     <html>
     <head>
         <style>
@@ -1323,10 +1445,13 @@ function showAgentNetworkHealth(data: unknown) {
             </div>
         </div>
         
-    ${Array.isArray((data as Record<string, unknown>)?.agents as unknown[]) ? `
+    ${
+      Array.isArray((data as Record<string, unknown>)?.agents as unknown[])
+        ? `
             <div class="agent-list">
                 <h3>Agent Status Details</h3>
-        ${(((data as Record<string, unknown>)?.agents as unknown[]) || []).map((agent) => {
+        ${(((data as Record<string, unknown>)?.agents as unknown[]) || [])
+          .map((agent) => {
             const a = (agent as Record<string, unknown>) || {};
             const name = (a.name as string) || (a.id as string) || 'Unknown';
             const status = (a.status as string) || 'unknown';
@@ -1336,22 +1461,26 @@ function showAgentNetworkHealth(data: unknown) {
             <span>${name}</span>
             <span style="color: ${color}">${status.toUpperCase()}</span>
                     </div>
-        `;}).join('')}
+        `;
+          })
+          .join('')}
             </div>
-        ` : ''}
+        `
+        : ''
+    }
     </body>
     </html>`;
 }
 
 function showCoordinationResults(data: unknown) {
-    const panel = vscode.window.createWebviewPanel(
-        'coordinationResults',
-        'OneAgent Multi-Agent Coordination Results',
-        vscode.ViewColumn.Two,
-        { enableScripts: true }
-    );
+  const panel = vscode.window.createWebviewPanel(
+    'coordinationResults',
+    'OneAgent Multi-Agent Coordination Results',
+    vscode.ViewColumn.Two,
+    { enableScripts: true },
+  );
 
-    panel.webview.html = `<!DOCTYPE html>
+  panel.webview.html = `<!DOCTYPE html>
     <html>
     <head>
         <style>
@@ -1375,14 +1504,19 @@ function showCoordinationResults(data: unknown) {
             <p><strong>Success Rate:</strong> ${((data as Record<string, unknown>)?.successRate as number) || 0}%</p>
         </div>
         
-        ${Array.isArray((data as Record<string, unknown>)?.assignedAgents as unknown[]) ? `
+        ${
+          Array.isArray((data as Record<string, unknown>)?.assignedAgents as unknown[])
+            ? `
             <h3>Agent Assignments</h3>
-            ${(((data as Record<string, unknown>)?.assignedAgents as unknown[]) || []).map((assignment) => {
+            ${(((data as Record<string, unknown>)?.assignedAgents as unknown[]) || [])
+              .map((assignment) => {
                 const asn = (assignment as Record<string, unknown>) || {};
                 const agentName = (asn.agentName as string) || (asn.agentId as string) || 'Unknown';
                 const role = (asn.role as string) || 'Not specified';
                 const status = (asn.status as string) || 'Unknown';
-                const caps = Array.isArray(asn.capabilities) ? (asn.capabilities as string[]).join(', ') : 'None listed';
+                const caps = Array.isArray(asn.capabilities)
+                  ? (asn.capabilities as string[]).join(', ')
+                  : 'None listed';
                 return `
                 <div class="agent-assignment ${((assignment as Record<string, unknown>)?.status as string) === 'completed' ? 'success' : 'pending'}">
                     <h4>${agentName}</h4>
@@ -1390,13 +1524,20 @@ function showCoordinationResults(data: unknown) {
                     <p><strong>Status:</strong> ${status}</p>
                     <p><strong>Capabilities:</strong> ${caps}</p>
                 </div>
-            `;}).join('')}
-        ` : ''}
+            `;
+              })
+              .join('')}
+        `
+            : ''
+        }
         
-        ${Array.isArray((data as Record<string, unknown>)?.timeline as unknown[]) ? `
+        ${
+          Array.isArray((data as Record<string, unknown>)?.timeline as unknown[])
+            ? `
             <div class="timeline">
                 <h3>Coordination Timeline</h3>
-                ${(((data as Record<string, unknown>)?.timeline as unknown[]) || []).map((event) => {
+                ${(((data as Record<string, unknown>)?.timeline as unknown[]) || [])
+                  .map((event) => {
                     const e = (event as Record<string, unknown>) || {};
                     const timestamp = String(e.timestamp ?? '');
                     const description = String(e.description ?? '');
@@ -1407,9 +1548,13 @@ function showCoordinationResults(data: unknown) {
                             <strong>${timestamp}</strong>: ${description}
                         </div>
                     </div>
-                `;}).join('')}
+                `;
+                  })
+                  .join('')}
             </div>
-        ` : ''}
+        `
+            : ''
+        }
     </body>
     </html>`;
 }

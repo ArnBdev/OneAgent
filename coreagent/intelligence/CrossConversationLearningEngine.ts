@@ -1,6 +1,6 @@
 /**
  * Phase 4: Cross-Conversation Learning Engine
- * 
+ *
  * Analyzes conversation patterns across sessions to identify successful workflows,
  * extract learning patterns, and apply insights to future interactions.
  */
@@ -82,33 +82,33 @@ export class CrossConversationLearningEngine {
    */
   async analyzeConversationPatterns(conversations: Conversation[]): Promise<ConversationPattern[]> {
     console.log(`🔍 Analyzing ${conversations.length} conversations for patterns...`);
-    
+
     try {
       const patterns: ConversationPattern[] = [];
       const domainGroups = this.groupConversationsByDomain(conversations);
-      
-  for (const [, domainConversations] of domainGroups) {
+
+      for (const [, domainConversations] of domainGroups) {
         // Analyze workflow patterns
         const workflowPatterns = await this.extractWorkflowPatterns(domainConversations);
-        
+
         // Analyze collaboration patterns
         const collaborationPatterns = await this.extractCollaborationPatterns(domainConversations);
-        
+
         // Analyze problem-solving patterns
-        const problemSolvingPatterns = await this.extractProblemSolvingPatterns(domainConversations);
-        
+        const problemSolvingPatterns =
+          await this.extractProblemSolvingPatterns(domainConversations);
+
         patterns.push(...workflowPatterns, ...collaborationPatterns, ...problemSolvingPatterns);
       }
-      
+
       // Store patterns in memory
       for (const pattern of patterns) {
         this.patterns.set(pattern.id, pattern);
         await this.storePatternInMemory(pattern);
       }
-      
+
       console.log(`✅ Identified ${patterns.length} conversation patterns`);
       return patterns;
-      
     } catch (error) {
       console.error('❌ Error analyzing conversation patterns:', error);
       return [];
@@ -121,27 +121,26 @@ export class CrossConversationLearningEngine {
    */
   async extractSuccessfulWorkflows(conversations: Conversation[]): Promise<WorkflowPattern[]> {
     console.log(`⚡ Extracting successful workflows from ${conversations.length} conversations...`);
-    
+
     try {
       const workflows: WorkflowPattern[] = [];
-      const successfulConversations = conversations.filter(conv => conv.confidence > 0.7);
-      
+      const successfulConversations = conversations.filter((conv) => conv.confidence > 0.7);
+
       for (const conversation of successfulConversations) {
         const workflow = await this.analyzeWorkflowFromConversation(conversation);
         if (workflow) {
           workflows.push(workflow);
         }
       }
-      
+
       // Store workflows in memory
       for (const workflow of workflows) {
         this.workflows.set(workflow.id, workflow);
         await this.storeWorkflowInMemory(workflow);
       }
-      
+
       console.log(`✅ Extracted ${workflows.length} successful workflows`);
       return workflows;
-      
     } catch (error) {
       console.error('❌ Error extracting workflows:', error);
       return [];
@@ -154,17 +153,17 @@ export class CrossConversationLearningEngine {
    */
   async applyLearning(
     currentConversation: Conversation,
-    learnedPatterns: ConversationPattern[]
+    learnedPatterns: ConversationPattern[],
   ): Promise<ConversationOptimization> {
     console.log(`🧠 Applying learned patterns to conversation: ${currentConversation.id}`);
-    
+
     try {
       // Find relevant patterns
       const relevantPatterns = this.findRelevantPatterns(currentConversation, learnedPatterns);
-      
+
       // Predict outcome
       const predictedOutcome = await this.predictOutcome(currentConversation);
-      
+
       // Generate optimization suggestions
       const optimization: ConversationOptimization = {
         optimizationType: this.determineOptimizationType(relevantPatterns),
@@ -173,17 +172,16 @@ export class CrossConversationLearningEngine {
         suggestedActions: this.generateSuggestedActions(relevantPatterns),
         riskMitigation: this.generateRiskMitigation(relevantPatterns),
         estimatedImprovement: this.calculateEstimatedImprovement(relevantPatterns),
-        applicablePatterns: relevantPatterns.map(p => p.id),
+        applicablePatterns: relevantPatterns.map((p) => p.id),
         metadata: {
           analysisTimestamp: createUnifiedTimestamp().iso,
           patternCount: relevantPatterns.length,
-          domain: currentConversation.domain
-        }
+          domain: currentConversation.domain,
+        },
       };
-      
+
       console.log(`✅ Generated optimization with ${optimization.confidence}% confidence`);
       return optimization;
-      
     } catch (error) {
       console.error('❌ Error applying learning:', error);
       return {
@@ -194,7 +192,7 @@ export class CrossConversationLearningEngine {
         riskMitigation: ['Have backup plan ready'],
         estimatedImprovement: 0.1,
         applicablePatterns: [],
-        metadata: { error: error instanceof Error ? error.message : 'Unknown error' }
+        metadata: { error: error instanceof Error ? error.message : 'Unknown error' },
       };
     }
   }
@@ -202,21 +200,23 @@ export class CrossConversationLearningEngine {
   // Helper methods
   private groupConversationsByDomain(conversations: Conversation[]): Map<string, Conversation[]> {
     const domainGroups = new Map<string, Conversation[]>();
-    
-    conversations.forEach(conversation => {
+
+    conversations.forEach((conversation) => {
       const domain = conversation.domain;
       if (!domainGroups.has(domain)) {
         domainGroups.set(domain, []);
       }
       domainGroups.get(domain)!.push(conversation);
     });
-    
+
     return domainGroups;
   }
 
-  private async extractWorkflowPatterns(conversations: Conversation[]): Promise<ConversationPattern[]> {
+  private async extractWorkflowPatterns(
+    conversations: Conversation[],
+  ): Promise<ConversationPattern[]> {
     const patterns: ConversationPattern[] = [];
-    
+
     for (const conversation of conversations) {
       if (conversation.confidence > 0.7) {
         const pattern: ConversationPattern = {
@@ -232,21 +232,25 @@ export class CrossConversationLearningEngine {
           outcomes: [conversation.outcome],
           metadata: {
             sourceConversation: conversation.id,
-            messageCount: conversation.messages.length
-          }
+            messageCount: conversation.messages.length,
+          },
         };
         patterns.push(pattern);
       }
     }
-    
+
     return patterns;
   }
 
-  private async extractCollaborationPatterns(conversations: Conversation[]): Promise<ConversationPattern[]> {
+  private async extractCollaborationPatterns(
+    conversations: Conversation[],
+  ): Promise<ConversationPattern[]> {
     const patterns: ConversationPattern[] = [];
-    
-    const multiParticipantConversations = conversations.filter(conv => conv.participants.length > 1);
-    
+
+    const multiParticipantConversations = conversations.filter(
+      (conv) => conv.participants.length > 1,
+    );
+
     for (const conversation of multiParticipantConversations) {
       if (conversation.confidence > 0.6) {
         const pattern: ConversationPattern = {
@@ -262,24 +266,30 @@ export class CrossConversationLearningEngine {
           outcomes: [conversation.outcome],
           metadata: {
             participantCount: conversation.participants.length,
-            collaborationDuration: conversation.endTime.getTime() - conversation.startTime.getTime()
-          }
+            collaborationDuration:
+              conversation.endTime.getTime() - conversation.startTime.getTime(),
+          },
         };
         patterns.push(pattern);
       }
     }
-    
+
     return patterns;
   }
 
-  private async extractProblemSolvingPatterns(conversations: Conversation[]): Promise<ConversationPattern[]> {
+  private async extractProblemSolvingPatterns(
+    conversations: Conversation[],
+  ): Promise<ConversationPattern[]> {
     const patterns: ConversationPattern[] = [];
-    
-    const problemSolvingConversations = conversations.filter(conv => 
-      conv.messages.some(msg => msg.content.toLowerCase().includes('problem') || 
-                              msg.content.toLowerCase().includes('solution'))
+
+    const problemSolvingConversations = conversations.filter((conv) =>
+      conv.messages.some(
+        (msg) =>
+          msg.content.toLowerCase().includes('problem') ||
+          msg.content.toLowerCase().includes('solution'),
+      ),
     );
-    
+
     for (const conversation of problemSolvingConversations) {
       if (conversation.confidence > 0.65) {
         const pattern: ConversationPattern = {
@@ -295,19 +305,21 @@ export class CrossConversationLearningEngine {
           outcomes: [conversation.outcome],
           metadata: {
             problemKeywords: this.extractProblemKeywords(conversation.messages),
-            solutionSteps: this.extractSolutionSteps(conversation.messages)
-          }
+            solutionSteps: this.extractSolutionSteps(conversation.messages),
+          },
         };
         patterns.push(pattern);
       }
     }
-    
+
     return patterns;
   }
 
-  private async analyzeWorkflowFromConversation(conversation: Conversation): Promise<WorkflowPattern | null> {
+  private async analyzeWorkflowFromConversation(
+    conversation: Conversation,
+  ): Promise<WorkflowPattern | null> {
     const steps = this.extractWorkflowSteps(conversation.messages);
-    
+
     if (steps.length > 0) {
       return {
         id: `workflow-${conversation.id}-${createUnifiedTimestamp().unix}`,
@@ -323,23 +335,29 @@ export class CrossConversationLearningEngine {
         lastUsed: new Date(createUnifiedTimestamp().iso),
         metadata: {
           sourceConversation: conversation.id,
-          messageCount: conversation.messages.length
-        }
+          messageCount: conversation.messages.length,
+        },
       };
     }
-    
+
     return null;
   }
 
-  private extractWorkflowSteps(messages: Array<{role: string; content: string; timestamp: Date}>): string[] {
+  private extractWorkflowSteps(
+    messages: Array<{ role: string; content: string; timestamp: Date }>,
+  ): string[] {
     const steps: string[] = [];
-    
-    messages.forEach(message => {
-      if (message.content.includes('step') || message.content.includes('then') || message.content.includes('next')) {
+
+    messages.forEach((message) => {
+      if (
+        message.content.includes('step') ||
+        message.content.includes('then') ||
+        message.content.includes('next')
+      ) {
         steps.push(message.content.substring(0, 100));
       }
     });
-    
+
     return steps;
   }
 
@@ -349,60 +367,78 @@ export class CrossConversationLearningEngine {
     return 'high';
   }
 
-  private extractPrerequisites(messages: Array<{role: string; content: string; timestamp: Date}>): string[] {
+  private extractPrerequisites(
+    messages: Array<{ role: string; content: string; timestamp: Date }>,
+  ): string[] {
     const prerequisites: string[] = [];
-    
-    messages.forEach(message => {
-      if (message.content.includes('require') || message.content.includes('need') || message.content.includes('prerequisite')) {
+
+    messages.forEach((message) => {
+      if (
+        message.content.includes('require') ||
+        message.content.includes('need') ||
+        message.content.includes('prerequisite')
+      ) {
         prerequisites.push(message.content.substring(0, 100));
       }
     });
-    
+
     return prerequisites;
   }
 
-  private extractProblemKeywords(messages: Array<{role: string; content: string; timestamp: Date}>): string[] {
+  private extractProblemKeywords(
+    messages: Array<{ role: string; content: string; timestamp: Date }>,
+  ): string[] {
     const keywords: string[] = [];
     const problemWords = ['problem', 'issue', 'challenge', 'difficulty', 'error', 'bug'];
-    
-    messages.forEach(message => {
-      problemWords.forEach(word => {
+
+    messages.forEach((message) => {
+      problemWords.forEach((word) => {
         if (message.content.toLowerCase().includes(word)) {
           keywords.push(word);
         }
       });
     });
-    
+
     return [...new Set(keywords)];
   }
 
-  private extractSolutionSteps(messages: Array<{role: string; content: string; timestamp: Date}>): string[] {
+  private extractSolutionSteps(
+    messages: Array<{ role: string; content: string; timestamp: Date }>,
+  ): string[] {
     const steps: string[] = [];
-    
-    messages.forEach(message => {
-      if (message.content.includes('solution') || message.content.includes('fix') || message.content.includes('resolve')) {
+
+    messages.forEach((message) => {
+      if (
+        message.content.includes('solution') ||
+        message.content.includes('fix') ||
+        message.content.includes('resolve')
+      ) {
         steps.push(message.content.substring(0, 100));
       }
     });
-    
+
     return steps;
   }
 
-  private findRelevantPatterns(conversation: Conversation, patterns: ConversationPattern[]): ConversationPattern[] {
-    return patterns.filter(pattern => 
-      pattern.domain === conversation.domain && 
-      pattern.confidence > 0.6
+  private findRelevantPatterns(
+    conversation: Conversation,
+    patterns: ConversationPattern[],
+  ): ConversationPattern[] {
+    return patterns.filter(
+      (pattern) => pattern.domain === conversation.domain && pattern.confidence > 0.6,
     );
   }
 
-  private async predictOutcome(conversation: Conversation): Promise<{outcome: string; confidence: number}> {
+  private async predictOutcome(
+    conversation: Conversation,
+  ): Promise<{ outcome: string; confidence: number }> {
     // Simple prediction based on conversation characteristics
     const messageCount = conversation.messages.length;
     const participantCount = conversation.participants.length;
-    
+
     let confidence = 0.5;
     let outcome = 'unknown';
-    
+
     if (messageCount > 5 && participantCount > 1) {
       confidence = 0.75;
       outcome = 'collaborative_success';
@@ -413,25 +449,25 @@ export class CrossConversationLearningEngine {
       confidence = 0.4;
       outcome = 'needs_more_interaction';
     }
-    
+
     return { outcome, confidence };
   }
 
   private determineOptimizationType(patterns: ConversationPattern[]): string {
     if (patterns.length === 0) return 'basic';
-    
-    const types = patterns.map(p => p.type);
-    const mostCommonType = types.reduce((a, b) => 
-      types.filter(v => v === a).length >= types.filter(v => v === b).length ? a : b
+
+    const types = patterns.map((p) => p.type);
+    const mostCommonType = types.reduce((a, b) =>
+      types.filter((v) => v === a).length >= types.filter((v) => v === b).length ? a : b,
     );
-    
+
     return `${mostCommonType}_optimization`;
   }
 
   private generateSuggestedActions(patterns: ConversationPattern[]): string[] {
     const actions: string[] = [];
-    
-    patterns.forEach(pattern => {
+
+    patterns.forEach((pattern) => {
       switch (pattern.type) {
         case 'workflow':
           actions.push('Follow established workflow patterns');
@@ -447,59 +483,69 @@ export class CrossConversationLearningEngine {
           break;
       }
     });
-    
+
     return [...new Set(actions)];
   }
 
   private generateRiskMitigation(patterns: ConversationPattern[]): string[] {
     const mitigation: string[] = [];
-    
-    patterns.forEach(pattern => {
+
+    patterns.forEach((pattern) => {
       if (pattern.successRate < 0.7) {
         mitigation.push(`Monitor ${pattern.type} pattern closely`);
       }
     });
-    
+
     if (mitigation.length === 0) {
       mitigation.push('Continue with current approach');
     }
-    
+
     return mitigation;
   }
 
   private calculateEstimatedImprovement(patterns: ConversationPattern[]): number {
     if (patterns.length === 0) return 0.1;
-    
+
     const avgSuccessRate = patterns.reduce((sum, p) => sum + p.successRate, 0) / patterns.length;
     return Math.min(avgSuccessRate * 0.3, 0.5);
   }
 
   private async storePatternInMemory(pattern: ConversationPattern): Promise<void> {
     try {
-      const meta = unifiedMetadataService.create('conversation_pattern', 'CrossConversationLearningEngine', {
-        system: {
-          source: 'cross_conversation_learning',
-          component: 'CrossConversationLearningEngine',
-          userId: 'oneagent_system'
+      const meta = unifiedMetadataService.create(
+        'conversation_pattern',
+        'CrossConversationLearningEngine',
+        {
+          system: {
+            source: 'cross_conversation_learning',
+            component: 'CrossConversationLearningEngine',
+            userId: 'oneagent_system',
+          },
+          content: {
+            category: 'conversation_pattern',
+            tags: ['phase4', pattern.type, pattern.domain],
+            sensitivity: 'internal',
+            relevanceScore: pattern.confidence,
+            contextDependency: 'session',
+          },
         },
-        content: {
-          category: 'conversation_pattern',
-          tags: ['phase4', pattern.type, pattern.domain],
-          sensitivity: 'internal',
-          relevanceScore: pattern.confidence,
-          contextDependency: 'session'
-        }
-      });
-      interface PatternExtension { custom?: Record<string, unknown>; }
+      );
+      interface PatternExtension {
+        custom?: Record<string, unknown>;
+      }
       (meta as PatternExtension).custom = {
         patternId: pattern.id,
         domain: pattern.domain,
         confidence: pattern.confidence,
         successRate: pattern.successRate,
         timestamp: createUnifiedTimestamp().iso,
-        category: 'phase4_learning'
+        category: 'phase4_learning',
       };
-      await this.memory.addMemoryCanonical(`Conversation Pattern: ${pattern.type} - ${pattern.pattern}`, meta, 'oneagent_system');
+      await this.memory.addMemoryCanonical(
+        `Conversation Pattern: ${pattern.type} - ${pattern.pattern}`,
+        meta,
+        'oneagent_system',
+      );
     } catch (err) {
       console.warn('[CrossConversationLearning] Failed to store pattern canonically:', err);
     }
@@ -507,30 +553,40 @@ export class CrossConversationLearningEngine {
 
   private async storeWorkflowInMemory(workflow: WorkflowPattern): Promise<void> {
     try {
-      const meta = unifiedMetadataService.create('workflow_pattern', 'CrossConversationLearningEngine', {
-        system: {
-          source: 'cross_conversation_learning',
-          component: 'CrossConversationLearningEngine',
-          userId: 'oneagent_system'
+      const meta = unifiedMetadataService.create(
+        'workflow_pattern',
+        'CrossConversationLearningEngine',
+        {
+          system: {
+            source: 'cross_conversation_learning',
+            component: 'CrossConversationLearningEngine',
+            userId: 'oneagent_system',
+          },
+          content: {
+            category: 'workflow_pattern',
+            tags: ['phase4', workflow.domain, workflow.complexity],
+            sensitivity: 'internal',
+            relevanceScore: workflow.successRate,
+            contextDependency: 'session',
+          },
         },
-        content: {
-          category: 'workflow_pattern',
-          tags: ['phase4', workflow.domain, workflow.complexity],
-          sensitivity: 'internal',
-          relevanceScore: workflow.successRate,
-          contextDependency: 'session'
-        }
-      });
-      interface WorkflowExtension { custom?: Record<string, unknown>; }
+      );
+      interface WorkflowExtension {
+        custom?: Record<string, unknown>;
+      }
       (meta as WorkflowExtension).custom = {
         workflowId: workflow.id,
         domain: workflow.domain,
         successRate: workflow.successRate,
         complexity: workflow.complexity,
         timestamp: createUnifiedTimestamp().iso,
-        category: 'phase4_learning'
+        category: 'phase4_learning',
       };
-      await this.memory.addMemoryCanonical(`Workflow Pattern: ${workflow.name} - ${workflow.steps.join(', ')}`, meta, 'oneagent_system');
+      await this.memory.addMemoryCanonical(
+        `Workflow Pattern: ${workflow.name} - ${workflow.steps.join(', ')}`,
+        meta,
+        'oneagent_system',
+      );
     } catch (err) {
       console.warn('[CrossConversationLearning] Failed to store workflow canonically:', err);
     }

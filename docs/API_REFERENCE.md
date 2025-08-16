@@ -3,6 +3,7 @@
 ## Constitutional AI Tools
 
 ### `oneagent_constitutional_validate`
+
 Validate responses against Constitutional AI principles.
 
 ```typescript
@@ -28,6 +29,7 @@ interface ConstitutionalValidateResponse {
 ```
 
 ### `oneagent_bmad_analyze`
+
 Apply BMAD 9-point elicitation framework for complex reasoning.
 
 ```typescript
@@ -51,6 +53,7 @@ interface BMADAnalyzeResponse {
 ```
 
 ### `oneagent_quality_score`
+
 Generate quality scoring with professional grading.
 
 ```typescript
@@ -73,6 +76,7 @@ interface QualityScoreResponse {
 ## Memory Management Tools
 
 ### `oneagent_memory_context`
+
 Retrieve relevant memory context for enhanced responses.
 
 ```typescript
@@ -96,6 +100,7 @@ interface MemoryContextResponse {
 ```
 
 ### `oneagent_memory_create`
+
 Create new memory with real-time learning capability.
 
 ```typescript
@@ -110,6 +115,7 @@ interface MemoryCreateRequest {
 ## Enhanced Development Tools
 
 ### `oneagent_ai_assistant`
+
 AI assistance with Constitutional AI validation.
 
 ```typescript
@@ -121,6 +127,7 @@ interface AIAssistantRequest {
 ```
 
 ### `oneagent_enhanced_search`
+
 Enhanced web search with quality filtering.
 
 ```typescript
@@ -132,6 +139,7 @@ interface EnhancedSearchRequest {
 ```
 
 ### `oneagent_semantic_analysis`
+
 Advanced semantic analysis with 768-dimensional embeddings.
 
 ```typescript
@@ -142,6 +150,7 @@ interface SemanticAnalysisRequest {
 ```
 
 ### `oneagent_system_health`
+
 Comprehensive system health and performance metrics.
 
 ```typescript
@@ -169,6 +178,7 @@ interface SystemHealthResponse {
 ## Life Companion Frameworks
 
 ### Work Productivity (P-R-O-D-U-C-E)
+
 - **P**lan: Strategic task prioritization and goal alignment
 - **R**ecognize: Pattern recognition for productivity optimization
 - **O**rganize: Systematic workflow and resource management
@@ -178,6 +188,7 @@ interface SystemHealthResponse {
 - **E**volve: Continuous improvement and skill development
 
 ### Family Relationships (F-A-M-I-L-Y)
+
 - **F**eel: Emotional intelligence and empathy development
 - **A**ttend: Active listening and presence cultivation
 - **M**emory: Shared experience and milestone tracking
@@ -186,6 +197,7 @@ interface SystemHealthResponse {
 - **Y**ield: Growth through compromise and understanding
 
 ### Personal Growth (G-R-O-W-T-H)
+
 - **G**oals: Clear vision setting and milestone definition
 - **R**eflect: Self-awareness and pattern recognition
 - **O**ptimize: Continuous improvement and skill development
@@ -194,6 +206,7 @@ interface SystemHealthResponse {
 - **H**armony: Balanced integration across all life domains
 
 ### Cross-Domain Learning (L-I-N-K)
+
 - **L**earn: Pattern recognition across all life domains
 - **I**ntegrate: Knowledge transfer between contexts
 - **N**etwork: Connection mapping between insights
@@ -202,22 +215,24 @@ interface SystemHealthResponse {
 ## Usage Examples
 
 ### Constitutional AI Validation
+
 ```javascript
 const validation = await oneagent_constitutional_validate({
-  response: "Your implementation approach",
+  response: 'Your implementation approach',
   userMessage: "User's original request",
-  context: { projectType: "life-companion" }
+  context: { projectType: 'life-companion' },
 });
 
 if (validation.score >= 85) {
-  console.log("High-quality response validated");
+  console.log('High-quality response validated');
 }
 ```
 
 ### BMAD Analysis for Complex Tasks
+
 ```javascript
 const analysis = await oneagent_bmad_analyze({
-  task: "Implement cross-domain learning for work-family integration"
+  task: 'Implement cross-domain learning for work-family integration',
 });
 
 console.log(`Complexity: ${analysis.complexity}`);
@@ -225,10 +240,11 @@ console.log(`Confidence: ${analysis.confidence}`);
 ```
 
 ### Quality Assessment
+
 ```javascript
 const quality = await oneagent_quality_score({
-  content: "Your response content",
-  criteria: ["accuracy", "helpfulness", "clarity"]
+  content: 'Your response content',
+  criteria: ['accuracy', 'helpfulness', 'clarity'],
 });
 
 console.log(`Grade: ${quality.professionalGrade}`);

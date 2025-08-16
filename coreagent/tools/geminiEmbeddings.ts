@@ -6,7 +6,12 @@ import { GeminiClient } from './geminiClient';
 import { OneAgentMemory } from '../memory/OneAgentMemory';
 import { EmbeddingResult, EmbeddingTaskType } from '../types/gemini';
 import { globalProfiler } from '../performance/profiler';
-import { createUnifiedTimestamp, createUnifiedId, OneAgentUnifiedBackbone, unifiedMetadataService } from '../utils/UnifiedBackboneService';
+import {
+  createUnifiedTimestamp,
+  createUnifiedId,
+  OneAgentUnifiedBackbone,
+  unifiedMetadataService,
+} from '../utils/UnifiedBackboneService';
 
 export interface SemanticSearchOptions {
   taskType?: EmbeddingTaskType;
@@ -18,7 +23,14 @@ export interface SemanticSearchOptions {
 export interface MemoryEmbeddingOptions extends SemanticSearchOptions {
   workflowId?: string;
   sessionId?: string;
-  memoryType?: 'conversation' | 'learning' | 'pattern' | 'short_term' | 'long_term' | 'workflow' | 'session';
+  memoryType?:
+    | 'conversation'
+    | 'learning'
+    | 'pattern'
+    | 'short_term'
+    | 'long_term'
+    | 'workflow'
+    | 'session';
 }
 
 export interface SemanticSearchResult {
@@ -67,7 +79,10 @@ export class GeminiEmbeddingsTool {
     this.memorySystem = memorySystem || OneAgentMemory.getInstance();
   }
 
-  async semanticSearch(query: string, options?: MemoryEmbeddingOptions): Promise<{ results: SemanticSearchResult[]; analytics: EmbeddingAnalytics }> {
+  async semanticSearch(
+    query: string,
+    options?: MemoryEmbeddingOptions,
+  ): Promise<{ results: SemanticSearchResult[]; analytics: EmbeddingAnalytics }> {
     const start = createUnifiedTimestamp().unix;
     const opId = createUnifiedId('operation', 'semantic-search');
     try {
@@ -78,9 +93,9 @@ export class GeminiEmbeddingsTool {
         topK: options?.topK || 10,
         similarityThreshold: options?.similarityThreshold || 0.1,
         embeddingModel: options?.model || 'gemini-embedding-001',
-        semanticSearch: true
+        semanticSearch: true,
       });
-      const results: SemanticSearchResult[] = (searchResults?.results || []).map(r => {
+      const results: SemanticSearchResult[] = (searchResults?.results || []).map((r) => {
         const item = r as unknown as MemoryLike;
         return {
           memory: {
@@ -91,18 +106,20 @@ export class GeminiEmbeddingsTool {
             relevanceScore: Number(item.similarity || item.relevanceScore || 0),
             timestamp: item.timestamp ? new Date(item.timestamp) : new Date(),
             metadata: (item.metadata as Record<string, unknown>) || {},
-            summary: (item.summary as string) || undefined
+            summary: (item.summary as string) || undefined,
           },
-            similarity: Number(item.similarity || item.relevanceScore || 0),
-            embeddingResult: item.embeddingResult
+          similarity: Number(item.similarity || item.relevanceScore || 0),
+          embeddingResult: item.embeddingResult,
         };
       });
       const analytics: EmbeddingAnalytics = {
         totalMemories: searchResults?.totalFound || searchResults?.totalResults || results.length,
         searchResults: results.length,
-        averageSimilarity: results.length ? results.reduce((s, r) => s + r.similarity, 0) / results.length : 0,
+        averageSimilarity: results.length
+          ? results.reduce((s, r) => s + r.similarity, 0) / results.length
+          : 0,
         topSimilarity: results[0]?.similarity || 0,
-        processingTime: createUnifiedTimestamp().unix - start
+        processingTime: createUnifiedTimestamp().unix - start,
       };
       globalProfiler.endOperation(opId, true);
       return { results, analytics };
@@ -110,19 +127,42 @@ export class GeminiEmbeddingsTool {
       globalProfiler.endOperation(opId, false, String(error));
       return {
         results: [],
-        analytics: { totalMemories: 0, searchResults: 0, averageSimilarity: 0, topSimilarity: 0, processingTime: createUnifiedTimestamp().unix - start }
+        analytics: {
+          totalMemories: 0,
+          searchResults: 0,
+          averageSimilarity: 0,
+          topSimilarity: 0,
+          processingTime: createUnifiedTimestamp().unix - start,
+        },
       };
     }
   }
 
-  async storeMemoryWithEmbedding(content: string, agentId: string, userId: string, memoryType: 'conversation' | 'learning' | 'pattern' = 'conversation', metadata?: Record<string, unknown>): Promise<{ memoryId: string; embedding?: EmbeddingResult }> {
+  async storeMemoryWithEmbedding(
+    content: string,
+    agentId: string,
+    userId: string,
+    memoryType: 'conversation' | 'learning' | 'pattern' = 'conversation',
+    metadata?: Record<string, unknown>,
+  ): Promise<{ memoryId: string; embedding?: EmbeddingResult }> {
     const opId = createUnifiedId('memory', agentId);
     try {
       globalProfiler.startOperation(opId, 'store-memory-embedding');
       const unified = unifiedMetadataService.create(memoryType, 'GeminiEmbeddingsTool', {
-        system: { userId, component: 'gemini-embeddings', source: 'GeminiEmbeddingsTool', agent: { id: agentId, type: 'specialized' } },
-        content: { category: memoryType, tags: ['embedding', memoryType, agentId], sensitivity: 'internal', relevanceScore: 0.6, contextDependency: 'session' },
-        custom: { agentId, ...(metadata || {}) }
+        system: {
+          userId,
+          component: 'gemini-embeddings',
+          source: 'GeminiEmbeddingsTool',
+          agent: { id: agentId, type: 'specialized' },
+        },
+        content: {
+          category: memoryType,
+          tags: ['embedding', memoryType, agentId],
+          sensitivity: 'internal',
+          relevanceScore: 0.6,
+          contextDependency: 'session',
+        },
+        custom: { agentId, ...(metadata || {}) },
       });
       const memoryId = await this.memorySystem.addMemoryCanonical(content, unified, userId);
       globalProfiler.endOperation(opId, true);
@@ -135,21 +175,35 @@ export class GeminiEmbeddingsTool {
 
   private calculateCosineSimilarity(a: number[], b: number[]): number {
     if (a.length !== b.length) throw new Error('Embedding length mismatch');
-    let dot = 0, n1 = 0, n2 = 0;
-    for (let i = 0; i < a.length; i++) { dot += a[i] * b[i]; n1 += a[i] * a[i]; n2 += b[i] * b[i]; }
+    let dot = 0,
+      n1 = 0,
+      n2 = 0;
+    for (let i = 0; i < a.length; i++) {
+      dot += a[i] * b[i];
+      n1 += a[i] * a[i];
+      n2 += b[i] * b[i];
+    }
     return dot / (Math.sqrt(n1) * Math.sqrt(n2));
   }
 
-  async findSimilarMemories(queryText: string, _searchQuery?: unknown, options?: MemoryEmbeddingOptions) {
+  async findSimilarMemories(
+    queryText: string,
+    _searchQuery?: unknown,
+    options?: MemoryEmbeddingOptions,
+  ) {
     return this.semanticSearch(queryText, options);
   }
 
-  clearCache(): void { this.cache.clear(); }
+  clearCache(): void {
+    this.cache.clear();
+  }
   getCacheStats(): { size: number; keys: string[] } {
-  // Expose limited stats without accessing private internals
-  interface CacheIntrospection { listKeys?: () => string[] }
-  const introspect = this.cache as unknown as CacheIntrospection;
-  const keys = typeof introspect.listKeys === 'function' ? introspect.listKeys() || [] : [];
+    // Expose limited stats without accessing private internals
+    interface CacheIntrospection {
+      listKeys?: () => string[];
+    }
+    const introspect = this.cache as unknown as CacheIntrospection;
+    const keys = typeof introspect.listKeys === 'function' ? introspect.listKeys() || [] : [];
     return { size: Array.isArray(keys) ? keys.length : 0, keys };
   }
 }

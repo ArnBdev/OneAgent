@@ -6,12 +6,14 @@
 ## OneAgent Vision: One Agent for All Life Domains
 
 OneAgent is designed as a **comprehensive life assistant** covering all domains:
+
 - 💼 **Work & Professional:** Coding, project management, business tasks
 - 🏠 **Personal Life:** Health, fitness, finances, relationships
 - 🎯 **Goals & Growth:** Learning, habits, personal development
 - 🛠️ **Technical:** Development workflows, automation, system management
 
 ### Multi-Platform Architecture
+
 ```
 OneAgent Core (MCP Server)
 ├── 🖥️ Desktop UI (Web-based, future)
@@ -22,7 +24,9 @@ OneAgent Core (MCP Server)
 ```
 
 ### VS Code Integration (Primary Use Case)
+
 OneAgent serves as an **MCP server for GitHub Copilot**, providing:
+
 - **Constitutional AI** guidance for code quality
 - **BMAD Framework** analysis for architectural decisions
 - **Memory-driven** development patterns and best practices
@@ -34,7 +38,7 @@ OneAgent serves as an **MCP server for GitHub Copilot**, providing:
 The UI implementation is **intentionally deferred** to focus on building a solid foundation:
 
 1. **Core OneAgent MCP Server** (In Progress)
-2. **Agent Communication System** (In Progress) 
+2. **Agent Communication System** (In Progress)
 3. **Memory & Intelligence Systems** (In Progress)
 4. **API Stability & Testing** (In Progress)
 
@@ -47,6 +51,7 @@ After evaluating existing agent UI projects, a **custom implementation** is reco
 #### Why Not Existing Solutions?
 
 **AG-UI Protocol** (`ag-ui-protocol/ag-ui`):
+
 - ✅ **Strengths:** Solid protocol design, event-based architecture, broad framework support
 - ❌ **Limitations:** Designed for generic agent-app integration, not specialized for MCP-native agents like OneAgent
 - ❌ **Complexity:** Adds unnecessary protocol layer when OneAgent already uses MCP as primary interface
@@ -54,6 +59,7 @@ After evaluating existing agent UI projects, a **custom implementation** is reco
 - ❌ **VS Code Integration:** Doesn't align with OneAgent's role as MCP server for GitHub Copilot
 
 **Agno Agent UI** (`agno-agi/agent-ui`):
+
 - ✅ **Strengths:** Clean Next.js implementation, good visual design
 - ❌ **Limitations:** Tightly coupled to Agno framework (connects to `localhost:7777`)
 - ❌ **Architecture:** Simple chat interface, doesn't leverage OneAgent's comprehensive life domain capabilities
@@ -65,6 +71,7 @@ After evaluating existing agent UI projects, a **custom implementation** is reco
 Our UI needs to be **MCP-native** and showcase OneAgent's comprehensive life domain capabilities:
 
 #### Core Features
+
 ```
 📡 MCP Protocol Integration (VS Code Primary)
 ├── GitHub Copilot MCP server connection
@@ -101,6 +108,7 @@ Our UI needs to be **MCP-native** and showcase OneAgent's comprehensive life dom
 ```
 
 #### Technical Architecture
+
 ```
 Frontend: Next.js 15 + TypeScript (Multi-Platform)
 ├── Desktop UI: Electron wrapper for native experience
@@ -229,12 +237,14 @@ ui/
 ### MCP-First vs Traditional Approaches
 
 **Traditional Agent UIs:**
+
 - Chat-focused interfaces
 - Custom API integration required
 - Limited to specific use cases
 - Separate tools for different domains
 
 **OneAgent MCP-First UI:**
+
 - Life domain-focused dashboard
 - Native MCP protocol integration
 - VS Code Copilot enhancement as primary use case

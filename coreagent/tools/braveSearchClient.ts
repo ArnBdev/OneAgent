@@ -2,12 +2,12 @@
 // Brave Search API client for web search capabilities
 
 import axios, { AxiosInstance, AxiosResponse } from 'axios';
-import { 
-  BraveSearchQuery, 
-  BraveSearchResponse, 
-  BraveSearchResult, 
+import {
+  BraveSearchQuery,
+  BraveSearchResponse,
+  BraveSearchResult,
   BraveSearchConfig,
-  BraveSearchError 
+  BraveSearchError,
 } from '../types/braveSearch';
 import { createUnifiedTimestamp } from '../utils/UnifiedBackboneService';
 
@@ -25,21 +25,27 @@ export class BraveSearchClient {
       baseUrl: 'https://api.search.brave.com/res/v1/web/search',
       timeout: 10000,
       retryAttempts: 3,
-      ...config
-    };    // Enable mock mode if no API key provided or in test environment
-    this.mockMode = !config.apiKey || config.apiKey === 'your_brave_search_api_key_here' || process.env.NODE_ENV === 'test';
-    
+      ...config,
+    }; // Enable mock mode if no API key provided or in test environment
+    this.mockMode =
+      !config.apiKey ||
+      config.apiKey === 'your_brave_search_api_key_here' ||
+      process.env.NODE_ENV === 'test';
+
     if (this.mockMode) {
-      console.log('🔍 BraveSearchClient: Running in fallback mode (DuckDuckGo) - Configure BRAVE_API_KEY for production');
-    }if (!this.mockMode) {
+      console.log(
+        '🔍 BraveSearchClient: Running in fallback mode (DuckDuckGo) - Configure BRAVE_API_KEY for production',
+      );
+    }
+    if (!this.mockMode) {
       this.client = axios.create({
         baseURL: this.config.baseUrl!,
         timeout: this.config.timeout!,
         headers: {
           'X-Subscription-Token': this.config.apiKey,
-          'Accept': 'application/json',
-          'Accept-Encoding': 'gzip'
-        }
+          Accept: 'application/json',
+          'Accept-Encoding': 'gzip',
+        },
       });
     } else {
       console.log('🔍 BraveSearchClient: Running in mock mode');
@@ -52,35 +58,36 @@ export class BraveSearchClient {
    */
   private async enforceRateLimit(): Promise<void> {
     const now = createUnifiedTimestamp();
-    
+
     // Reset monthly counter if needed
-    if (now.unix - this.monthStart > 30 * 24 * 60 * 60 * 1000) { // ~30 days
+    if (now.unix - this.monthStart > 30 * 24 * 60 * 60 * 1000) {
+      // ~30 days
       this.monthlyRequestCount = 0;
       this.monthStart = now.unix;
     }
-    
+
     // Check monthly limit
     if (this.monthlyRequestCount >= 2000) {
       console.warn('🚫 Monthly Brave Search limit (2000) reached. Switching to mock mode.');
       this.mockMode = true;
       return;
     }
-    
+
     // Enforce 1 request per second limit
     const timeSinceLastRequest = now.unix - this.lastRequestTime;
     if (timeSinceLastRequest < 1000) {
       const delay = 1000 - timeSinceLastRequest;
       console.log(`⏳ Rate limiting: waiting ${delay}ms before next request`);
-      await new Promise(resolve => setTimeout(resolve, delay));
+      await new Promise((resolve) => setTimeout(resolve, delay));
     }
-    
+
     this.lastRequestTime = createUnifiedTimestamp().unix;
     this.monthlyRequestCount++;
   }
 
   /**
    * Perform a web search using Brave Search API
-   */  async search(query: BraveSearchQuery): Promise<BraveSearchResult[]> {
+   */ async search(query: BraveSearchQuery): Promise<BraveSearchResult[]> {
     try {
       if (this.mockMode) {
         return this.mockSearch(query);
@@ -96,32 +103,34 @@ export class BraveSearchClient {
         count: query.count || 10,
         offset: query.offset || 0,
         safesearch: query.safesearch || 'moderate',
-        country: query.country || 'US'
+        country: query.country || 'US',
       };
 
       const response: AxiosResponse<BraveSearchResponse> = await this.client.get('', { params });
-      
+
       if (response.status !== 200) {
         throw new Error(`Brave Search API returned status ${response.status}`);
       }
 
       const results = response.data.web?.results || [];
       console.log(`🔍 Found ${results.length} search results`);
-      
-      return results;
 
+      return results;
     } catch (error: unknown) {
-      console.error('❌ Brave Search API error:', error instanceof Error ? error.message : 'Unknown error');
-      
+      console.error(
+        '❌ Brave Search API error:',
+        error instanceof Error ? error.message : 'Unknown error',
+      );
+
       if (axios.isAxiosError(error)) {
         const braveError: BraveSearchError = {
           code: error.code || 'UNKNOWN_ERROR',
           message: error.message,
-          details: error.response?.data
+          details: error.response?.data,
         };
         throw braveError;
       }
-      
+
       throw error;
     }
   }
@@ -129,7 +138,10 @@ export class BraveSearchClient {
   /**
    * Search with automatic retry logic
    */
-  async searchWithRetry(query: BraveSearchQuery, maxRetries?: number): Promise<BraveSearchResult[]> {
+  async searchWithRetry(
+    query: BraveSearchQuery,
+    maxRetries?: number,
+  ): Promise<BraveSearchResult[]> {
     const retries = maxRetries || this.config.retryAttempts || 3;
     let lastError: unknown;
 
@@ -139,11 +151,11 @@ export class BraveSearchClient {
       } catch (error) {
         lastError = error;
         console.log(`🔍 Search attempt ${attempt}/${retries} failed, retrying...`);
-        
+
         if (attempt < retries) {
           // Exponential backoff
           const delay = Math.pow(2, attempt) * 1000;
-          await new Promise(resolve => setTimeout(resolve, delay));
+          await new Promise((resolve) => setTimeout(resolve, delay));
         }
       }
     }
@@ -154,16 +166,19 @@ export class BraveSearchClient {
   /**
    * Quick search - simplified interface for common use cases
    */
-  async quickSearch(searchTerm: string, options?: { 
-    count?: number; 
-    safesearch?: 'strict' | 'moderate' | 'off';
-    country?: string;
-  }): Promise<BraveSearchResult[]> {
+  async quickSearch(
+    searchTerm: string,
+    options?: {
+      count?: number;
+      safesearch?: 'strict' | 'moderate' | 'off';
+      country?: string;
+    },
+  ): Promise<BraveSearchResult[]> {
     const query: BraveSearchQuery = {
       q: searchTerm,
       count: options?.count || 5,
       safesearch: options?.safesearch || 'moderate',
-      country: options?.country || 'US'
+      country: options?.country || 'US',
     };
 
     return this.searchWithRetry(query);
@@ -176,7 +191,7 @@ export class BraveSearchClient {
     const query: BraveSearchQuery = {
       q: `${searchTerm} after:${this.getLastWeekDate()}`,
       count,
-      safesearch: 'moderate'
+      safesearch: 'moderate',
     };
 
     return this.searchWithRetry(query);
@@ -207,14 +222,14 @@ export class BraveSearchClient {
   private async mockSearch(query: BraveSearchQuery): Promise<BraveSearchResult[]> {
     console.log(`🔍 Brave API not configured - using DuckDuckGo fallback for: "${query.q}"`);
     console.log(`⚠️ CRITICAL: Configure BRAVE_API_KEY in .env for production-grade search`);
-    
+
     try {
       // Use a real web search fallback - DuckDuckGo instant answers API
       const fallbackResults = await this.fallbackWebSearch(query.q, query.count || 3);
       return fallbackResults;
     } catch (error) {
       console.error('❌ Fallback search also failed:', error);
-      
+
       // Only return educational results if all real search methods fail
       return this.getEducationalResults(query);
     }
@@ -226,19 +241,22 @@ export class BraveSearchClient {
   private async fallbackWebSearch(searchTerm: string, count: number): Promise<BraveSearchResult[]> {
     try {
       // DuckDuckGo instant answers API (free, no API key required)
-      const response = await axios.get(`https://api.duckduckgo.com/?q=${encodeURIComponent(searchTerm)}&format=json&no_html=1&skip_disambig=1`);
-      
+      const response = await axios.get(
+        `https://api.duckduckgo.com/?q=${encodeURIComponent(searchTerm)}&format=json&no_html=1&skip_disambig=1`,
+      );
+
       const results: BraveSearchResult[] = [];
-      
+
       // Convert DuckDuckGo results to our format
       if (response.data.AbstractURL) {
         results.push({
           title: response.data.AbstractText || `Search result for "${searchTerm}"`,
           url: response.data.AbstractURL,
-          description: response.data.Abstract || response.data.AbstractText || 'No description available',
+          description:
+            response.data.Abstract || response.data.AbstractText || 'No description available',
           age: 'Recent',
           language: 'en',
-          family_friendly: true
+          family_friendly: true,
         });
       }
 
@@ -253,7 +271,7 @@ export class BraveSearchClient {
               description: topic.Text || 'Related search result',
               age: 'Recent',
               language: 'en',
-              family_friendly: true
+              family_friendly: true,
             });
           }
         }
@@ -261,7 +279,6 @@ export class BraveSearchClient {
 
       console.log(`🔍 DuckDuckGo fallback returned ${results.length} real results`);
       return results.slice(0, count);
-      
     } catch (error) {
       console.error('❌ DuckDuckGo fallback failed:', error);
       throw error;
@@ -273,7 +290,7 @@ export class BraveSearchClient {
    */
   private getEducationalResults(query: BraveSearchQuery): BraveSearchResult[] {
     console.log(`⚠️ FALLBACK TO EDUCATIONAL RESULTS - Configure real search API keys!`);
-    
+
     return [
       {
         title: `Configure BRAVE_API_KEY for "${query.q}" searches`,
@@ -281,7 +298,7 @@ export class BraveSearchClient {
         description: `To get real web search results for "${query.q}", configure BRAVE_API_KEY in your .env file. This educational result is shown because no real search APIs are configured.`,
         age: 'Educational',
         language: 'en',
-        family_friendly: true
+        family_friendly: true,
       },
       {
         title: `Search API Configuration Guide`,
@@ -289,8 +306,8 @@ export class BraveSearchClient {
         description: `Learn how to set up Brave Search API or other web search services to replace these educational placeholders with real search results.`,
         age: 'Educational',
         language: 'en',
-        family_friendly: true
-      }
+        family_friendly: true,
+      },
     ];
   }
 
@@ -312,7 +329,7 @@ export class BraveSearchClient {
       baseUrl: this.config.baseUrl,
       timeout: this.config.timeout,
       retryAttempts: this.config.retryAttempts,
-      mockMode: this.mockMode
+      mockMode: this.mockMode,
     };
   }
 }

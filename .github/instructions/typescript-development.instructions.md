@@ -1,5 +1,5 @@
 ---
-applyTo: "coreagent/**/*.ts"
+applyTo: 'coreagent/**/*.ts'
 ---
 
 # TypeScript Development Instructions for OneAgent
@@ -7,6 +7,7 @@ applyTo: "coreagent/**/*.ts"
 ## Canonical System Requirements
 
 ### Mandatory Imports and Usage
+
 ```typescript
 // ✅ REQUIRED - Always use canonical systems
 import { createUnifiedTimestamp, createUnifiedId } from '../utils/UnifiedBackboneService';
@@ -21,6 +22,7 @@ const cache = OneAgentUnifiedBackbone.getInstance().cache;
 ```
 
 ### Forbidden Patterns
+
 ```typescript
 // ❌ FORBIDDEN - These create parallel systems
 const timestamp = Date.now();
@@ -32,12 +34,14 @@ const memory = new CustomMemoryClass();
 ## TypeScript Standards
 
 ### Strict Type Safety
+
 - Use strict TypeScript configuration
 - Implement comprehensive interfaces
 - Apply proper generic constraints
 - Use type guards for runtime safety
 
 ### Error Handling
+
 ```typescript
 // ✅ REQUIRED - Use canonical error handling
 import { UnifiedBackboneService } from '../utils/UnifiedBackboneService';
@@ -50,6 +54,7 @@ try {
 ```
 
 ### Memory Integration
+
 ```typescript
 // ✅ REQUIRED - Canonical memory operations
 const memory = OneAgentMemory.getInstance();
@@ -61,14 +66,15 @@ await memory.addMemory({
     type: 'code_pattern',
     technology: 'typescript',
     timestamp: createUnifiedTimestamp(),
-    quality_score: 85
-  }
+    quality_score: 85,
+  },
 });
 ```
 
 ## Architecture Patterns
 
 ### Agent Implementation
+
 ```typescript
 // ✅ REQUIRED - Extend BaseAgent
 export class CustomAgent extends BaseAgent implements ISpecializedAgent {
@@ -84,11 +90,12 @@ export class CustomAgent extends BaseAgent implements ISpecializedAgent {
 ```
 
 ### Service Integration
+
 ```typescript
 // ✅ REQUIRED - Use UnifiedBackboneService
 export class CustomService {
   private readonly backbone = UnifiedBackboneService.getInstance();
-  
+
   async performOperation(): Promise<void> {
     const operationId = createUnifiedId('service', 'operation');
     // Implementation
@@ -97,12 +104,14 @@ export class CustomService {
 ```
 
 ## Quality Standards
+
 - Target 80%+ quality score (Grade A)
 - Apply Constitutional AI validation for critical logic
 - Use structured error handling with canonical systems
 - Implement comprehensive documentation
 
 ## Pre-Implementation Checklist
+
 1. Search for existing implementations using oneagent_memory_search
 2. Check UnifiedBackboneService for canonical methods
 3. Verify no parallel systems are being created

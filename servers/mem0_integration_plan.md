@@ -1,7 +1,9 @@
 # Mem0 Integration Plan for OneAgent
+
 ## Strategic Decision: Replace Custom Memory Server with Mem0
 
 ### Why Mem0?
+
 1. **Production-Ready**: Battle-tested memory system with all advanced features
 2. **Gemini Support**: Native Google Gemini integration already implemented
 3. **Feature Complete**: LLM-based fact extraction, conflict resolution, deduplication
@@ -15,24 +17,24 @@
 // File: coreagent/memory/Mem0MemoryClient.ts
 export class Mem0MemoryClient implements MemoryClient {
   private mem0Client: Mem0Client;
-  
+
   constructor(config: Mem0Config) {
     this.mem0Client = new Mem0Client({
       provider: 'gemini',
       apiKey: config.geminiApiKey,
       model: 'gemini-2.5-flash',
-      embeddingModel: 'gemini-embedding-exp-03-07'
+      embeddingModel: 'gemini-embedding-exp-03-07',
     });
   }
-  
+
   async createMemory(content: string, userId: string, metadata?: any): Promise<Memory> {
     return await this.mem0Client.add(content, userId, metadata);
   }
-  
+
   async searchMemories(query: string, userId: string, limit?: number): Promise<Memory[]> {
     return await this.mem0Client.search(query, userId, { limit });
   }
-  
+
   async deleteMemory(memoryId: string, userId: string): Promise<boolean> {
     return await this.mem0Client.delete(memoryId, userId);
   }
@@ -42,6 +44,7 @@ export class Mem0MemoryClient implements MemoryClient {
 ### Installation Steps
 
 1. **Install Mem0**:
+
 ```bash
 npm install mem0ai
 # or
@@ -49,6 +52,7 @@ pip install mem0ai
 ```
 
 2. **Configure Gemini Integration**:
+
 ```python
 # Python configuration
 from mem0 import Memory
@@ -62,7 +66,7 @@ config = {
         }
     },
     "embedder": {
-        "provider": "gemini", 
+        "provider": "gemini",
         "config": {
             "model": "gemini-embedding-exp-03-07",
             "api_key": os.getenv("GEMINI_API_KEY")
@@ -91,12 +95,12 @@ memory = Memory.from_config(config)
 ✅ **Reliable**: Production-tested with thousands of users  
 ✅ **Advanced**: All mem0 features (LLM processing, deduplication, etc.)  
 ✅ **Maintained**: Regular updates and bug fixes  
-✅ **Focus**: Developers can focus on OneAgent's unique collaborative features  
+✅ **Focus**: Developers can focus on OneAgent's unique collaborative features
 
 ### Migration Timeline
 
 - **Day 1**: Install mem0, basic configuration
-- **Day 2**: Replace memory client calls, test basic operations  
+- **Day 2**: Replace memory client calls, test basic operations
 - **Day 3**: Advanced features (metadata, deduplication)
 - **Day 4**: Integration testing with OneAgent core
 - **Day 5**: Performance optimization and deployment

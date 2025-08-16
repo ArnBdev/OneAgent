@@ -1,33 +1,46 @@
 /**
  * BaseAgent - Core Agent Implementation for OneAgent
- * 
+ *
  * Enhanced with Advanced Prompt Engineering System:
  * - Constitutional AI principles and self-correction
- * - BMAD 9-point elicitation framework  
+ * - BMAD 9-point elicitation framework
  * - Systematic prompting frameworks (R-T-F, T-A-G, R-I-S-E, R-G-C, C-A-R-E)
  * - Chain-of-Verification (CoVe) patterns
  * - RAG integration with source grounding
- * 
+ *
  * Achieves 20-95% improvements in accuracy, task adherence, and quality.
  */
 
 import { OneAgentMemory } from '../../memory/OneAgentMemory';
 // import { UnifiedBackboneService } from '../../utils/UnifiedBackboneService';
-import { OneAgentUnifiedBackbone, unifiedBackbone as canonicalUnifiedBackbone, generateUnifiedId, unifiedMetadataService, createUnifiedTimestamp } from '../../utils/UnifiedBackboneService';
+import {
+  OneAgentUnifiedBackbone,
+  unifiedBackbone as canonicalUnifiedBackbone,
+  generateUnifiedId,
+  unifiedMetadataService,
+  createUnifiedTimestamp,
+} from '../../utils/UnifiedBackboneService';
 import { SmartGeminiClient } from '../../tools/SmartGeminiClient';
 import { User } from '../../types/user';
 import { MemoryIntelligence } from '../../intelligence/memoryIntelligence';
-import { NLACSMessage, EmergentInsight, ConversationThread, NLACSCapability, MemoryRecord, UnifiedMetadata, A2AMessage, AgentId, SessionId, MessageId, UnifiedAgentContext } from '../../types/oneagent-backbone-types';
+import {
+  NLACSMessage,
+  EmergentInsight,
+  ConversationThread,
+  NLACSCapability,
+  MemoryRecord,
+  UnifiedMetadata,
+  A2AMessage,
+  AgentId,
+  SessionId,
+  MessageId,
+  UnifiedAgentContext,
+} from '../../types/oneagent-backbone-types';
 import { unifiedAgentCommunicationService } from '../../utils/UnifiedAgentCommunicationService';
-import { 
-  PromptEngine, 
-  PromptConfig, 
-  AgentPersona
-} from './PromptEngine';
+import { PromptEngine, PromptConfig, AgentPersona } from './PromptEngine';
 import { ConstitutionalAI } from './ConstitutionalAI';
 import { BMADElicitationEngine } from './BMADElicitationEngine';
 import { PersonalityEngine } from '../personality/PersonalityEngine';
-
 
 export interface AgentConfig {
   id: string;
@@ -44,7 +57,7 @@ export interface AgentContext {
   conversationHistory: Message[];
   memoryContext?: unknown[];
   // enrichedContext?: any;  // Optional enriched context (interface removed)
-  
+
   // Enhanced context for inter-agent communication
   projectContext?: string; // Project identifier for context isolation
   topicContext?: string; // Topic/domain for context organization
@@ -86,21 +99,21 @@ export abstract class BaseAgent {
   // Unified context injected by AgentFactory (canonical) providing
   // time/metadata/session grounding. Set via setUnifiedContext() post-construction.
   protected unifiedContext?: UnifiedAgentContext;
-  
+
   // Advanced Prompt Engineering Components
   protected promptEngine?: PromptEngine;
   protected constitutionalAI?: ConstitutionalAI;
   protected bmadElicitation?: BMADElicitationEngine;
   protected promptConfig?: PromptConfig;
   protected personalityEngine?: PersonalityEngine;
-  
+
   // Canonical agent communication handled via UnifiedBackboneService only.
   protected currentSessions: Set<string> = new Set();
 
   // Canonical A2A/NLACS communication via unified service only
   protected comm = unifiedAgentCommunicationService;
   private boundMessageHandler?: (payload: unknown) => void;
-  
+
   // =============================================================================
   // NLACS (Natural Language Agent Coordination System) Extensions - Phase 1
   // Using Canonical Backbone Methods, Metadata System, and Temporal System
@@ -115,7 +128,9 @@ export abstract class BaseAgent {
   constructor(config: AgentConfig, promptConfig?: PromptConfig) {
     this.config = config;
     // Use canonical singleton to avoid parallel backbone instances
-    this.unifiedBackbone = OneAgentUnifiedBackbone.getInstance ? OneAgentUnifiedBackbone.getInstance() : (canonicalUnifiedBackbone as OneAgentUnifiedBackbone);
+    this.unifiedBackbone = OneAgentUnifiedBackbone.getInstance
+      ? OneAgentUnifiedBackbone.getInstance()
+      : (canonicalUnifiedBackbone as OneAgentUnifiedBackbone);
     // Initialize enhanced prompt engine if config provided
     if (promptConfig) {
       this.promptEngine = new PromptEngine(promptConfig);
@@ -154,11 +169,11 @@ export abstract class BaseAgent {
           extensions: [
             {
               uri: 'https://oneagent.ai/extensions/nlacs',
-              ...params.nlacsExtension
-            }
+              ...params.nlacsExtension,
+            },
           ],
-          nlacs: true
-        }
+          nlacs: true,
+        },
       });
       return messageId;
     } catch (error) {
@@ -173,7 +188,10 @@ export abstract class BaseAgent {
   protected async handleA2AIncomingMessage(a2aMessage: A2AMessage): Promise<void> {
     // Route to NLACS discussion if extension present
     const extensions = a2aMessage.metadata?.extensions;
-    if (Array.isArray(extensions) && extensions.some((ext: { uri: string }) => ext.uri === 'https://oneagent.ai/extensions/nlacs')) {
+    if (
+      Array.isArray(extensions) &&
+      extensions.some((ext: { uri: string }) => ext.uri === 'https://oneagent.ai/extensions/nlacs')
+    ) {
       // Process as NLACS message (could call contributeToDiscussion, etc.)
       console.log('Received NLACS-enabled A2A message:', a2aMessage);
       // Optionally: parse and store in memory, trigger NLACS workflows
@@ -214,7 +232,7 @@ export abstract class BaseAgent {
             isViolated: false,
             confidence: 1,
             validationRule: 'content.length > 0',
-            severityLevel: 'high'
+            severityLevel: 'high',
           },
           {
             id: 'transparency',
@@ -225,7 +243,7 @@ export abstract class BaseAgent {
             isViolated: false,
             confidence: 1,
             validationRule: 'content.length > 0',
-            severityLevel: 'medium'
+            severityLevel: 'medium',
           },
           {
             id: 'helpfulness',
@@ -236,7 +254,7 @@ export abstract class BaseAgent {
             isViolated: false,
             confidence: 1,
             validationRule: 'content.length > 0',
-            severityLevel: 'medium'
+            severityLevel: 'medium',
           },
           {
             id: 'safety',
@@ -247,10 +265,10 @@ export abstract class BaseAgent {
             isViolated: false,
             confidence: 1,
             validationRule: 'content.length > 0',
-            severityLevel: 'critical'
-          }
+            severityLevel: 'critical',
+          },
         ],
-        qualityThreshold: 0.8
+        qualityThreshold: 0.8,
       });
 
       // Initialize BMAD Elicitation Engine
@@ -317,27 +335,31 @@ export abstract class BaseAgent {
   protected enableNLACS(capabilities: NLACSCapability[]): void {
     this.nlacsCapabilities = capabilities;
     this.nlacsEnabled = true;
-    
+
     // Create string representations for logging and storage
-    const capabilityStrings = capabilities.map(c => `${c.type}:${c.description}`);
-    
+    const capabilityStrings = capabilities.map((c) => `${c.type}:${c.description}`);
+
     // Log with canonical backbone metadata
-  // Removed direct variable usage; canonical metadata built in call below
-    
-    console.log(`🧠 NLACS enabled for ${this.config.id} with capabilities: ${capabilityStrings.join(', ')}`);
-    
+    // Removed direct variable usage; canonical metadata built in call below
+
+    console.log(
+      `🧠 NLACS enabled for ${this.config.id} with capabilities: ${capabilityStrings.join(', ')}`,
+    );
+
     // Store in OneAgent memory with canonical metadata
-    this.memoryClient?.addMemoryCanonical(
-      `NLACS capabilities enabled: ${capabilityStrings.join(', ')}`,
-      this.buildCanonicalAgentMetadata('nlacs_initialization', this.config.id, {
-        agentId: this.config.id,
-        capabilities: capabilityStrings,
-        originalType: 'nlacs_initialization'
-      }),
-      this.config.id
-    ).catch(error => {
-      console.error('Failed to store NLACS initialization in memory:', error);
-    });
+    this.memoryClient
+      ?.addMemoryCanonical(
+        `NLACS capabilities enabled: ${capabilityStrings.join(', ')}`,
+        this.buildCanonicalAgentMetadata('nlacs_initialization', this.config.id, {
+          agentId: this.config.id,
+          capabilities: capabilityStrings,
+          originalType: 'nlacs_initialization',
+        }),
+        this.config.id,
+      )
+      .catch((error) => {
+        console.error('Failed to store NLACS initialization in memory:', error);
+      });
   }
 
   /**
@@ -353,12 +375,14 @@ export abstract class BaseAgent {
     try {
       const services = this.unifiedBackbone.getServices();
       const joinTimestamp = services.timeService.now();
-      
-      // Create canonical metadata for discussion participation
-  // Directly constructing canonical metadata via buildCanonicalAgentMetadata later
 
-      console.log(`💬 ${this.config.id} joining discussion: ${discussionId} at ${joinTimestamp.iso}`);
-      
+      // Create canonical metadata for discussion participation
+      // Directly constructing canonical metadata via buildCanonicalAgentMetadata later
+
+      console.log(
+        `💬 ${this.config.id} joining discussion: ${discussionId} at ${joinTimestamp.iso}`,
+      );
+
       // Store participation in OneAgent memory with canonical structure
       await this.memoryClient?.addMemoryCanonical(
         `Joined NLACS discussion: ${discussionId}`,
@@ -367,11 +391,11 @@ export abstract class BaseAgent {
           agentId: this.config.id,
           joinedAt: joinTimestamp,
           context: context || 'standard_participation',
-          capabilities: this.nlacsCapabilities
+          capabilities: this.nlacsCapabilities,
         }),
-        this.config.id
+        this.config.id,
       );
-      
+
       return true;
     } catch (error) {
       console.error(`❌ Error joining discussion ${discussionId}:`, error);
@@ -386,8 +410,13 @@ export abstract class BaseAgent {
   protected async contributeToDiscussion(
     discussionId: string,
     content: string,
-    messageType: 'question' | 'contribution' | 'synthesis' | 'insight' | 'consensus' = 'contribution',
-    context?: string
+    messageType:
+      | 'question'
+      | 'contribution'
+      | 'synthesis'
+      | 'insight'
+      | 'consensus' = 'contribution',
+    context?: string,
   ): Promise<NLACSMessage | null> {
     if (!this.nlacsEnabled) {
       console.warn(`⚠️ NLACS not enabled for ${this.config.id}`);
@@ -397,7 +426,7 @@ export abstract class BaseAgent {
     try {
       const services = this.unifiedBackbone.getServices();
       const contributionTimestamp = services.timeService.now();
-      
+
       // Create canonical NLACS message with backbone metadata
       const message: NLACSMessage = {
         id: generateUnifiedId('message', this.config.id),
@@ -413,21 +442,27 @@ export abstract class BaseAgent {
           backbone: services.metadataService.create('contribute_to_discussion', 'agent_system', {
             content: {
               category: 'communication',
-              tags: ['nlacs', 'contribution', `agent:${this.config.id}`, `discussion:${discussionId}`, `type:${messageType}`],
+              tags: [
+                'nlacs',
+                'contribution',
+                `agent:${this.config.id}`,
+                `discussion:${discussionId}`,
+                `type:${messageType}`,
+              ],
               sensitivity: 'internal' as const,
               relevanceScore: 0.9,
-              contextDependency: 'session' as const
+              contextDependency: 'session' as const,
             },
             system: {
               source: 'agent_system',
               component: 'nlacs_contribution',
               agent: {
                 id: this.config.id,
-                type: 'specialized'
-              }
-            }
-          })
-        }
+                type: 'specialized',
+              },
+            },
+          }),
+        },
       };
 
       // Store contribution in OneAgent memory with canonical structure
@@ -440,12 +475,14 @@ export abstract class BaseAgent {
           agentId: this.config.id,
           contributedAt: contributionTimestamp,
           contentLength: content.length,
-          context: context || 'standard_contribution'
+          context: context || 'standard_contribution',
         }),
-        this.config.id
+        this.config.id,
       );
 
-      console.log(`💬 ${this.config.id} contributed to discussion ${discussionId}: ${messageType} at ${contributionTimestamp}`);
+      console.log(
+        `💬 ${this.config.id} contributed to discussion ${discussionId}: ${messageType} at ${contributionTimestamp}`,
+      );
       return message;
     } catch (error) {
       console.error(`❌ Error contributing to discussion ${discussionId}:`, error);
@@ -459,7 +496,7 @@ export abstract class BaseAgent {
    */
   protected async generateEmergentInsights(
     conversationHistory: NLACSMessage[],
-    context?: string
+    context?: string,
   ): Promise<EmergentInsight[]> {
     if (!this.nlacsEnabled) {
       console.warn(`⚠️ NLACS not enabled for ${this.config.id}`);
@@ -470,14 +507,16 @@ export abstract class BaseAgent {
       const services = this.unifiedBackbone.getServices();
       const analysisTimestamp = services.timeService.now();
       const insights: EmergentInsight[] = [];
-      
+
       // Analyze conversation patterns using canonical temporal data
-      const messageTypes = conversationHistory.map(m => m.messageType);
-      const participants = new Set(conversationHistory.map(m => m.agentId));
-      const timeSpan = conversationHistory.length > 0 ? 
-        conversationHistory[conversationHistory.length - 1].timestamp.getTime() - 
-        conversationHistory[0].timestamp.getTime() : 0;
-      
+      const messageTypes = conversationHistory.map((m) => m.messageType);
+      const participants = new Set(conversationHistory.map((m) => m.agentId));
+      const timeSpan =
+        conversationHistory.length > 0
+          ? conversationHistory[conversationHistory.length - 1].timestamp.getTime() -
+            conversationHistory[0].timestamp.getTime()
+          : 0;
+
       // Pattern-based insight generation with canonical metadata
       if (messageTypes.includes('question') && messageTypes.includes('contribution')) {
         const insight: EmergentInsight = {
@@ -486,28 +525,28 @@ export abstract class BaseAgent {
           content: `Effective Q&A pattern observed with ${participants.size} participants over ${Math.round(timeSpan / 1000)}s`,
           confidence: 0.75,
           contributors: Array.from(participants),
-          sources: conversationHistory.slice(0, 3).map(m => m.id),
+          sources: conversationHistory.slice(0, 3).map((m) => m.id),
           implications: ['Enhanced collaboration pattern', 'Effective knowledge sharing'],
           actionItems: ['Continue Q&A pattern', 'Encourage participation'],
           createdAt: new Date(analysisTimestamp.unix),
-          relevanceScore: 0.85
+          relevanceScore: 0.85,
         };
         insights.push(insight);
       }
-      
+
       if (messageTypes.includes('synthesis')) {
-        const synthesisMessages = conversationHistory.filter(m => m.messageType === 'synthesis');
+        const synthesisMessages = conversationHistory.filter((m) => m.messageType === 'synthesis');
         const insight: EmergentInsight = {
           id: generateUnifiedId('knowledge', this.config.id),
           type: 'synthesis',
           content: `Knowledge synthesis achieved through ${synthesisMessages.length} synthesis points with ${participants.size} participants`,
           confidence: 0.82,
           contributors: Array.from(participants),
-          sources: synthesisMessages.map(m => m.id),
+          sources: synthesisMessages.map((m) => m.id),
           implications: ['Knowledge consolidation completed', 'Collaborative synthesis achieved'],
           actionItems: ['Document synthesis outcomes', 'Share insights with team'],
           createdAt: new Date(analysisTimestamp.unix),
-          relevanceScore: 0.88
+          relevanceScore: 0.88,
         };
         insights.push(insight);
       }
@@ -522,13 +561,15 @@ export abstract class BaseAgent {
             confidence: insight.confidence,
             context: context || 'conversation_analysis',
             contributingAgents: insight.contributors,
-            sourceMessageIds: insight.sources
+            sourceMessageIds: insight.sources,
           }),
-          this.config.id
+          this.config.id,
         );
       }
 
-      console.log(`🧠 ${this.config.id} generated ${insights.length} emergent insights at ${analysisTimestamp}`);
+      console.log(
+        `🧠 ${this.config.id} generated ${insights.length} emergent insights at ${analysisTimestamp}`,
+      );
       return insights;
     } catch (error) {
       console.error(`❌ Error generating emergent insights:`, error);
@@ -542,7 +583,7 @@ export abstract class BaseAgent {
    */
   protected async synthesizeKnowledge(
     conversationThreads: ConversationThread[],
-    synthesisQuestion: string
+    synthesisQuestion: string,
   ): Promise<string | null> {
     if (!this.nlacsEnabled) {
       console.warn(`⚠️ NLACS not enabled for ${this.config.id}`);
@@ -552,12 +593,10 @@ export abstract class BaseAgent {
     try {
       const services = this.unifiedBackbone.getServices();
       const synthesisTimestamp = services.timeService.now();
-      
+
       // Extract key insights from conversation threads using canonical temporal data
-      const allInsights = conversationThreads.flatMap(thread => 
-        thread.insights || []
-      );
-      
+      const allInsights = conversationThreads.flatMap((thread) => thread.insights || []);
+
       if (allInsights.length === 0) {
         console.warn(`⚠️ No insights available for synthesis at ${synthesisTimestamp}`);
         return null;
@@ -569,7 +608,7 @@ export abstract class BaseAgent {
         insightCount: allInsights.length,
         threadCount: conversationThreads.length,
         synthesisTimestamp: synthesisTimestamp,
-        agentId: this.config.id
+        agentId: this.config.id,
       };
 
       // Generate synthesis using AI with canonical prompting
@@ -581,18 +620,23 @@ export abstract class BaseAgent {
         Timestamp: ${synthesisContext.synthesisTimestamp}
         
         Insights (${allInsights.length} total):
-        ${allInsights.map((insight, idx) => 
-          `${idx + 1}. ${insight.content} (confidence: ${insight.confidence}, discovered: ${insight.createdAt})`
-        ).join('\n')}
+        ${allInsights
+          .map(
+            (insight, idx) =>
+              `${idx + 1}. ${insight.content} (confidence: ${insight.confidence}, discovered: ${insight.createdAt})`,
+          )
+          .join('\n')}
         
         Please provide a thoughtful synthesis that connects these insights and addresses the question.
         Focus on patterns, connections, and actionable conclusions.
       `;
 
       const synthesisResult = await this.aiClient?.generateContent(synthesisPrompt);
-      const synthesis = typeof synthesisResult === 'string' ? synthesisResult : 
-        synthesisResult?.response || 
-        `Cross-conversation synthesis based on ${allInsights.length} insights from ${conversationThreads.length} threads`;
+      const synthesis =
+        typeof synthesisResult === 'string'
+          ? synthesisResult
+          : synthesisResult?.response ||
+            `Cross-conversation synthesis based on ${allInsights.length} insights from ${conversationThreads.length} threads`;
 
       // Store synthesis in OneAgent memory with canonical backbone structure
       await this.memoryClient?.addMemoryCanonical(
@@ -600,17 +644,19 @@ export abstract class BaseAgent {
         this.buildCanonicalAgentMetadata('knowledge_synthesis', this.config.id, {
           synthesisId: generateUnifiedId('knowledge', this.config.id),
           synthesisQuestion,
-          sourceThreadIds: conversationThreads.map(t => t.id),
-          sourceInsightIds: allInsights.map(i => i.id),
+          sourceThreadIds: conversationThreads.map((t) => t.id),
+          sourceInsightIds: allInsights.map((i) => i.id),
           insightCount: allInsights.length,
           threadCount: conversationThreads.length,
           synthesisLength: synthesis.length,
-          questionCategory: this.categorizeSynthesisQuestion(synthesisQuestion)
+          questionCategory: this.categorizeSynthesisQuestion(synthesisQuestion),
         }),
-        this.config.id
+        this.config.id,
       );
 
-      console.log(`🔄 ${this.config.id} synthesized knowledge from ${conversationThreads.length} conversations at ${synthesisTimestamp}`);
+      console.log(
+        `🔄 ${this.config.id} synthesized knowledge from ${conversationThreads.length} conversations at ${synthesisTimestamp}`,
+      );
       return synthesis;
     } catch (error) {
       console.error(`❌ Error synthesizing knowledge:`, error);
@@ -623,7 +669,7 @@ export abstract class BaseAgent {
    * Uses canonical backbone temporal system and OneAgent memory
    */
   protected async extractConversationPatterns(
-    conversationHistory: NLACSMessage[]
+    conversationHistory: NLACSMessage[],
   ): Promise<{ patterns: string[]; insights: string[] }> {
     try {
       const services = this.unifiedBackbone.getServices();
@@ -632,30 +678,34 @@ export abstract class BaseAgent {
       const insights: string[] = [];
 
       // Analyze message flow patterns with canonical temporal data
-      const messageTypes = conversationHistory.map(m => m.messageType);
+      const messageTypes = conversationHistory.map((m) => m.messageType);
       const messageFlow = messageTypes.join(' → ');
-      const timeSpan = conversationHistory.length > 0 ? 
-        conversationHistory[conversationHistory.length - 1].timestamp.getTime() - 
-        conversationHistory[0].timestamp.getTime() : 0;
-      
+      const timeSpan =
+        conversationHistory.length > 0
+          ? conversationHistory[conversationHistory.length - 1].timestamp.getTime() -
+            conversationHistory[0].timestamp.getTime()
+          : 0;
+
       patterns.push(`Message flow: ${messageFlow}`);
       patterns.push(`Conversation duration: ${Math.round(timeSpan / 1000)}s`);
-      patterns.push(`Message frequency: ${Math.round(conversationHistory.length / (timeSpan / 1000))} msg/s`);
-      
+      patterns.push(
+        `Message frequency: ${Math.round(conversationHistory.length / (timeSpan / 1000))} msg/s`,
+      );
+
       // Identify effective patterns using canonical analysis
       if (messageFlow.includes('question → contribution → synthesis')) {
         insights.push('Effective Q→C→S pattern leads to synthesis');
       }
-      
+
       if (messageFlow.includes('insight')) {
         insights.push('Insight generation indicates deep thinking');
       }
 
       // Analyze participation patterns with canonical metadata
-      const participants = new Set(conversationHistory.map(m => m.agentId));
+      const participants = new Set(conversationHistory.map((m) => m.agentId));
       patterns.push(`Participant count: ${participants.size}`);
       patterns.push(`Participants: ${Array.from(participants).join(', ')}`);
-      
+
       if (participants.size > 2) {
         insights.push('Multi-agent collaboration enhances discussion quality');
       }
@@ -664,17 +714,19 @@ export abstract class BaseAgent {
       const nlacsMemories = await this.memoryClient?.searchMemory({
         query: 'nlacs_contribution',
         userId: this.config.id,
-        limit: 10
+        limit: 10,
       });
 
       // Extract patterns from historical NLACS participation
       if (nlacsMemories?.results && nlacsMemories.results.length > 0) {
-        patterns.push(`Historical participation: ${nlacsMemories.results.length} previous discussions`);
-        
+        patterns.push(
+          `Historical participation: ${nlacsMemories.results.length} previous discussions`,
+        );
+
         // Extract common themes using canonical metadata
         const themes = new Set<string>();
         const contexts = new Set<string>();
-        
+
         nlacsMemories.results.forEach((memory: MemoryRecord) => {
           if (memory.content?.includes('messageType')) {
             themes.add('communication_pattern');
@@ -683,11 +735,11 @@ export abstract class BaseAgent {
             contexts.add('conversation_context');
           }
         });
-        
+
         if (themes.size > 0) {
           patterns.push(`Common contribution types: ${Array.from(themes).join(', ')}`);
         }
-        
+
         if (contexts.size > 0) {
           patterns.push(`Discussion contexts: ${Array.from(contexts).join(', ')}`);
         }
@@ -702,12 +754,14 @@ export abstract class BaseAgent {
           insightCount: insights.length,
           messageCount: conversationHistory.length,
           participantCount: participants.size,
-          conversationDuration: timeSpan
+          conversationDuration: timeSpan,
         }),
-        this.config.id
+        this.config.id,
       );
 
-      console.log(`📊 ${this.config.id} extracted ${patterns.length} conversation patterns and ${insights.length} insights at ${analysisTimestamp}`);
+      console.log(
+        `📊 ${this.config.id} extracted ${patterns.length} conversation patterns and ${insights.length} insights at ${analysisTimestamp}`,
+      );
       return { patterns, insights };
     } catch (error) {
       console.error(`❌ Error extracting conversation patterns:`, error);
@@ -721,7 +775,7 @@ export abstract class BaseAgent {
    */
   private categorizeSynthesisQuestion(question: string): string {
     const lowerQuestion = question.toLowerCase();
-    
+
     if (lowerQuestion.includes('how') || lowerQuestion.includes('process')) {
       return 'process_inquiry';
     } else if (lowerQuestion.includes('what') || lowerQuestion.includes('definition')) {
@@ -756,17 +810,17 @@ export abstract class BaseAgent {
           tags: ['nlacs', 'status', `agent:${this.config.id}`],
           sensitivity: 'internal' as const,
           relevanceScore: 0.8,
-          contextDependency: 'session' as const
+          contextDependency: 'session' as const,
         },
         system: {
           source: 'agent_system',
           component: 'nlacs_status',
           agent: {
             id: this.config.id,
-            type: 'specialized'
-          }
-        }
-      })
+            type: 'specialized',
+          },
+        },
+      }),
     };
   }
 
@@ -785,7 +839,11 @@ export abstract class BaseAgent {
   /**
    * Add memory to the agent's memory system
    */
-  protected async addMemory(userId: string, content: string, metadata?: Record<string, unknown>): Promise<void> {
+  protected async addMemory(
+    userId: string,
+    content: string,
+    metadata?: Record<string, unknown>,
+  ): Promise<void> {
     if (!this.memoryClient) {
       console.warn('Memory client not initialized');
       return;
@@ -802,37 +860,57 @@ export abstract class BaseAgent {
     type: string,
     userId: string,
     extra?: Record<string, unknown>,
-    timestamp: ReturnType<typeof createUnifiedTimestamp> = createUnifiedTimestamp()
+    timestamp: ReturnType<typeof createUnifiedTimestamp> = createUnifiedTimestamp(),
   ): Partial<UnifiedMetadata> {
     return unifiedMetadataService.create(type, 'BaseAgent', {
-      system: { userId, component: this.config.id, source: 'BaseAgent', agent: { id: this.config.id, type: 'specialized' } },
-      content: { category: type, tags: ['agent', this.config.id, type], sensitivity: 'internal', relevanceScore: 0.7, contextDependency: 'session' },
-      temporal: { created: timestamp, updated: timestamp, accessed: timestamp, contextSnapshot: {
-        timeOfDay: timestamp.contextual.timeOfDay,
-        dayOfWeek: new Date(timestamp.unix).toLocaleDateString(undefined, { weekday: 'long' }),
-        businessContext: true,
-        energyContext: timestamp.contextual.energyLevel
-      } },
-      ...(extra || {})
+      system: {
+        userId,
+        component: this.config.id,
+        source: 'BaseAgent',
+        agent: { id: this.config.id, type: 'specialized' },
+      },
+      content: {
+        category: type,
+        tags: ['agent', this.config.id, type],
+        sensitivity: 'internal',
+        relevanceScore: 0.7,
+        contextDependency: 'session',
+      },
+      temporal: {
+        created: timestamp,
+        updated: timestamp,
+        accessed: timestamp,
+        contextSnapshot: {
+          timeOfDay: timestamp.contextual.timeOfDay,
+          dayOfWeek: new Date(timestamp.unix).toLocaleDateString(undefined, { weekday: 'long' }),
+          businessContext: true,
+          energyContext: timestamp.contextual.energyLevel,
+        },
+      },
+      ...(extra || {}),
     } as unknown as Partial<UnifiedMetadata>);
   }
 
   /**
    * Search memories
    */
-  protected async searchMemories(userId: string, query: string, limit: number = 10): Promise<MemoryRecord[]> {
+  protected async searchMemories(
+    userId: string,
+    query: string,
+    limit: number = 10,
+  ): Promise<MemoryRecord[]> {
     if (!this.memoryClient) {
       console.warn('Memory client not initialized');
       return [];
     }
-    
+
     const results = await this.memoryClient.searchMemory({
       query,
       userId,
-      limit
+      limit,
     });
-    
-  return results?.results || [];
+
+    return results?.results || [];
   }
 
   /**
@@ -844,9 +922,9 @@ export abstract class BaseAgent {
       return 'AI response not available';
     }
 
-    const context = memories ? memories.map(m => m.content).join('\n') : '';
+    const context = memories ? memories.map((m) => m.content).join('\n') : '';
     const enhancedPrompt = context ? `Context:\n${context}\n\nQuery:\n${prompt}` : prompt;
-    
+
     const response = await this.aiClient.generateContent(enhancedPrompt);
     return typeof response === 'string' ? response : response?.response || 'No response generated';
   }
@@ -855,9 +933,9 @@ export abstract class BaseAgent {
    * Create a standardized agent response
    */
   protected createResponse(
-    content: string, 
-    actions: AgentAction[] = [], 
-    memories: MemoryRecord[] = []
+    content: string,
+    actions: AgentAction[] = [],
+    memories: MemoryRecord[] = [],
   ): AgentResponse {
     return {
       content,
@@ -866,24 +944,24 @@ export abstract class BaseAgent {
       metadata: {
         agentId: this.config.id,
         timestamp: new Date(this.unifiedBackbone.getServices().timeService.now().utc),
-        confidence: 0.85
-      }
+        confidence: 0.85,
+      },
     };
   }
 
   /**
    * Execute an action (base implementation)
    */
-  async executeAction(action: string | AgentAction, _params: Record<string, unknown>, _context?: AgentContext): Promise<AgentResponse> {
+  async executeAction(
+    action: string | AgentAction,
+    _params: Record<string, unknown>,
+    _context?: AgentContext,
+  ): Promise<AgentResponse> {
     const actionName = typeof action === 'string' ? action : action.type;
     console.log(`BaseAgent ${this.config.id} executing action: ${actionName}`);
-    
+
     // Base implementation - specialized agents should override
-    return this.createResponse(
-      `Action ${actionName} not implemented in base class`,
-      [],
-      []
-    );
+    return this.createResponse(`Action ${actionName} not implemented in base class`, [], []);
   }
 
   /**
@@ -892,19 +970,19 @@ export abstract class BaseAgent {
   protected async generatePersonalityResponse(
     baseResponse: string,
     context: AgentContext,
-    personality?: AgentPersona
+    personality?: AgentPersona,
   ): Promise<string> {
     if (!this.personalityEngine || !personality) {
       return baseResponse;
     }
 
     const personalityContext = {
-      conversation_history: context.conversationHistory?.map(m => m.content) || [],
+      conversation_history: context.conversationHistory?.map((m) => m.content) || [],
       domain_context: this.config.capabilities.join(', '),
       user_relationship_level: 0.7,
       topic_expertise_level: 0.8,
       emotional_context: 'professional',
-      formality_level: 0.7
+      formality_level: 0.7,
     };
 
     // Use personality engine to enhance response
@@ -912,7 +990,7 @@ export abstract class BaseAgent {
       const enhancement = await this.personalityEngine.generatePersonalityResponse(
         this.config.id,
         baseResponse,
-        personalityContext
+        personalityContext,
       );
       return enhancement.content || baseResponse;
     } catch (error) {
@@ -934,18 +1012,18 @@ export abstract class BaseAgent {
       {
         type: 'memory_search',
         description: 'Search agent memory for relevant information',
-        parameters: { query: 'string', limit: 'number' }
+        parameters: { query: 'string', limit: 'number' },
       },
       {
         type: 'generate_response',
         description: 'Generate AI response with prompt engineering',
-        parameters: { prompt: 'string', context: 'object' }
+        parameters: { prompt: 'string', context: 'object' },
       },
       {
         type: 'constitutional_validate',
         description: 'Validate response against constitutional principles',
-        parameters: { response: 'string', context: 'object' }
-      }
+        parameters: { response: 'string', context: 'object' },
+      },
     ];
   }
 
@@ -976,7 +1054,7 @@ export abstract class BaseAgent {
       lastActivity: new Date(this.unifiedBackbone.getServices().timeService.now().utc),
       isHealthy: this.isInitialized,
       processedMessages: 0,
-      errors: 0
+      errors: 0,
     };
   }
 
@@ -1007,7 +1085,7 @@ export abstract class BaseAgent {
       responseTime: 0,
       errorRate: 0,
       lastActivity: new Date(timestamp.utc),
-      errors: []
+      errors: [],
     };
   }
 
@@ -1038,24 +1116,40 @@ export abstract class BaseAgent {
   // =============================================================================
   // Constitutional AI End-to-End Generation Loop
   // =============================================================================
-  protected async generateWithConstitutionalLoop(context: AgentContext, message: string): Promise<AgentResponse> {
+  protected async generateWithConstitutionalLoop(
+    context: AgentContext,
+    message: string,
+  ): Promise<AgentResponse> {
     const userId = context.user.id;
     const memories = await this.searchMemories(userId, message);
-    const enhancedPrompt = await this.promptEngine!.buildEnhancedPrompt(message, memories, context, 'medium');
+    const enhancedPrompt = await this.promptEngine!.buildEnhancedPrompt(
+      message,
+      memories,
+      context,
+      'medium',
+    );
     const raw = await this.generateResponse(enhancedPrompt, memories);
-    const validation = await this.constitutionalAI!.validateResponse(raw, message, { phase: 'initial' });
+    const validation = await this.constitutionalAI!.validateResponse(raw, message, {
+      phase: 'initial',
+    });
     let finalContent = validation.refinedResponse || raw;
     // Optional second pass if below threshold
     if (!validation.isValid) {
-      const second = await this.constitutionalAI!.validateResponse(finalContent, message, { phase: 'refinement' });
+      const second = await this.constitutionalAI!.validateResponse(finalContent, message, {
+        phase: 'refinement',
+      });
       finalContent = second.refinedResponse || finalContent;
     }
-    await this.addMemory(userId, `ConstitutionalInteraction:\nUser: ${message}\nResponse: ${finalContent}\nScore: ${validation.score}`, {
-      type: 'constitutional_interaction',
-      qualityScore: validation.score,
-      violations: validation.violations.map(v => v.principleId),
-      refined: validation.refinedResponse !== raw
-    });
+    await this.addMemory(
+      userId,
+      `ConstitutionalInteraction:\nUser: ${message}\nResponse: ${finalContent}\nScore: ${validation.score}`,
+      {
+        type: 'constitutional_interaction',
+        qualityScore: validation.score,
+        violations: validation.violations.map((v) => v.principleId),
+        refined: validation.refinedResponse !== raw,
+      },
+    );
     return {
       content: finalContent,
       actions: [],
@@ -1066,8 +1160,8 @@ export abstract class BaseAgent {
         constitutionalScore: validation.score,
         constitutionalValid: validation.isValid,
         violations: validation.violations,
-        refinementApplied: validation.refinedResponse !== raw
-      }
+        refinementApplied: validation.refinedResponse !== raw,
+      },
     };
   }
 
@@ -1085,7 +1179,7 @@ export abstract class BaseAgent {
     this.unifiedContext = {
       ...context,
       timeService: services.timeService,
-      metadataService: services.metadataService
+      metadataService: services.metadataService,
     };
   }
 
@@ -1094,7 +1188,9 @@ export abstract class BaseAgent {
    */
   protected getUnifiedContext(): UnifiedAgentContext {
     if (!this.unifiedContext) {
-      throw new Error('UnifiedAgentContext not set. Ensure AgentFactory.setUnifiedContext was called before initialize().');
+      throw new Error(
+        'UnifiedAgentContext not set. Ensure AgentFactory.setUnifiedContext was called before initialize().',
+      );
     }
     return this.unifiedContext;
   }
