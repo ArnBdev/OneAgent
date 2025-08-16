@@ -4,7 +4,7 @@
 import { BraveSearchClient } from './braveSearchClient';
 import { BraveSearchResult } from '../types/braveSearch';
 import { OneAgentMemory } from '../memory/OneAgentMemory';
-import { createUnifiedTimestamp } from '../utils/UnifiedBackboneService';
+import { createUnifiedTimestamp, unifiedMetadataService } from '../utils/UnifiedBackboneService';
 
 // Canonical memory integration for search result caching and learning
 
@@ -671,12 +671,11 @@ export class WebSearchTool {
 
     try {
       // Store successful search pattern with canonical metadata
-      const memoryData = {
-        content: `Search Query: "${query}" | Results: ${response.totalResults} found in ${response.searchTime}ms | Top domains: ${response.results.slice(0, 3).map(r => r.domain).join(', ')}`,
-        metadata: {
-          type: 'search_pattern',
-          category: 'web_search',
-          tags: ['search', 'query_pattern', 'performance'],
+      const unified = unifiedMetadataService.create('search_pattern', 'WebSearchTool', {
+        system: { userId: 'system', component: 'web-search', source: 'WebSearchTool' },
+        content: { category: 'web_search', tags: ['search', 'query_pattern', 'performance'], sensitivity: 'internal', relevanceScore: 0.75, contextDependency: 'session' },
+        custom: {
+          query,
           timestamp: response.timestamp,
           query_length: query.length,
           result_count: response.totalResults,
@@ -684,9 +683,8 @@ export class WebSearchTool {
           domains: response.results.map(r => r.domain).filter(Boolean),
           relevance_scores: response.results.map(r => r.relevanceScore).filter(Boolean)
         }
-      };
-
-      await this.memorySystem.addMemory(memoryData);
+      });
+      await this.memorySystem.addMemoryCanonical(`Search Query: "${query}" | Results: ${response.totalResults} found in ${response.searchTime}ms | Top domains: ${response.results.slice(0, 3).map(r => r.domain).join(', ')}`, unified, 'system');
       console.log(`🧠 Stored search learning for query: "${query}"`);
     } catch (error) {
       console.warn('⚠️ Failed to store search learning:', error);
@@ -722,20 +720,17 @@ export class WebSearchTool {
       const qualityResults = results.filter(r => (r.relevanceScore || 0) > 70);
       
       if (qualityResults.length > 0) {
-        const memoryData = {
-          content: `High-quality search results for "${query}": ${qualityResults.map(r => `${r.title} (${r.domain}) - ${r.description.substring(0, 100)}`).join(' | ')}`,
-          metadata: {
-            type: 'quality_search_results',
-            category: 'web_search',
-            tags: ['search_results', 'high_quality', 'reference'],
+        const unified = unifiedMetadataService.create('quality_search_results', 'WebSearchTool', {
+          system: { userId: 'system', component: 'web-search', source: 'WebSearchTool' },
+          content: { category: 'web_search', tags: ['search_results', 'high_quality', 'reference'], sensitivity: 'internal', relevanceScore: 0.8, contextDependency: 'session' },
+          custom: {
             original_query: query,
             result_count: qualityResults.length,
             domains: qualityResults.map(r => r.domain),
             urls: qualityResults.map(r => r.url)
           }
-        };
-
-        await this.memorySystem.addMemory(memoryData);
+        });
+        await this.memorySystem.addMemoryCanonical(`High-quality search results for "${query}": ${qualityResults.map(r => `${r.title} (${r.domain}) - ${r.description.substring(0, 100)}`).join(' | ')}`, unified, 'system');
         console.log(`🧠 Stored ${qualityResults.length} quality results for: "${query}"`);
       }
     } catch (error) {
@@ -780,7 +775,7 @@ export class WebSearchTool {
           const pattern = p as { metadata?: { original_query?: string } };
           return pattern.metadata?.original_query;
         }).filter((q): q is string => Boolean(q)).slice(0, 3),
-        commonDomains: [...new Set(domains)].slice(0, 5),
+  commonDomains: Array.from(new Set(domains)).slice(0, 5),
         avgResponseTime: responseTimes.length > 0 ? responseTimes.reduce((a, b) => a + b, 0) / responseTimes.length : 0,
         recommendedFilters: this.generateRecommendedFilters(domains)
       };

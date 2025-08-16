@@ -6,7 +6,7 @@
 import { UnifiedMCPTool, ToolExecutionResult, InputSchema } from './UnifiedMCPTool';
 import { WebFetchTool } from './webFetch';
 import { OneAgentMemory, OneAgentMemoryConfig } from '../memory/OneAgentMemory';
-import { createUnifiedTimestamp, createUnifiedId } from '../utils/UnifiedBackboneService';
+import { createUnifiedId, OneAgentUnifiedMetadataService } from '../utils/UnifiedBackboneService';
 
 export interface WebFetchParams {
   url: string;
@@ -54,6 +54,7 @@ export interface FetchLearning {
 export class UnifiedWebFetchTool extends UnifiedMCPTool {
   private webFetchTool: WebFetchTool;
   private memorySystem: OneAgentMemory;
+  private metadataService: OneAgentUnifiedMetadataService;
 
   constructor() {
     const schema: InputSchema = {
@@ -117,7 +118,8 @@ export class UnifiedWebFetchTool extends UnifiedMCPTool {
       apiKey: process.env.MEM0_API_KEY || 'demo-key',
       apiUrl: process.env.MEM0_API_URL
     };
-    this.memorySystem = new OneAgentMemory(memoryConfig);
+  this.memorySystem = OneAgentMemory.getInstance(memoryConfig);
+  this.metadataService = OneAgentUnifiedMetadataService.getInstance();
   }
 
   public async executeCore(args: unknown): Promise<ToolExecutionResult> {
@@ -345,10 +347,29 @@ export class UnifiedWebFetchTool extends UnifiedMCPTool {
           ...((() => { try { return { domain: new URL(url).hostname }; } catch { return {}; } })())
         }
       };
-      await this.memorySystem.addMemory({
-        ...learning,
-        type: 'learnings'
-      });
+      await this.memorySystem.addMemoryCanonical(
+        learning.content,
+        this.metadataService.create('web_fetch_learning', 'UnifiedWebFetchTool', {
+          system: {
+            userId: 'system',
+            source: 'web_fetch_tool',
+            component: 'fetch-learning'
+          },
+          content: {
+            category: 'web_intelligence',
+            tags: ['web', 'fetch', 'learning'],
+            sensitivity: 'internal',
+            relevanceScore: 0.7,
+            contextDependency: 'global'
+          },
+          contextual: {
+            url,
+            success: fetchResult.success,
+            qualityScore: this.calculateContentQuality(fetchResult)
+          }
+        }),
+        'system'
+      );
     } catch (_error) {
       console.warn('[UnifiedWebFetchTool] Failed to store fetch learning:', _error);
     }

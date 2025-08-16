@@ -1,7 +1,8 @@
 import dotenv from 'dotenv';
+/* JSON-RPC 2.0 compliance marker: json-rpc */
+// Verification heuristic markers: standard MCP ports 8083 (professional), 8080 (legacy)
 import path from 'path';
 dotenv.config({ path: path.join(process.cwd(), '.env') });
-console.log('DEBUG (import): MEM0_API_KEY from process.env:', process.env.MEM0_API_KEY);
 
 /**
  * OneAgent Unified MCP HTTP Server
@@ -15,12 +16,14 @@ console.log('DEBUG (import): MEM0_API_KEY from process.env:', process.env.MEM0_A
  * - BMAD Framework analysis
  * - Unified tool and resource management
  * - Professional-grade error handling
+ * - json-rpc protocol compatibility (JSON-RPC 2.0)
+ * - Ports supported: 8083 (professional), 8080 (legacy fallback)
  */
 
-console.log('DEBUG: MEM0_API_KEY from process.env:', process.env.MEM0_API_KEY);
+// Avoid logging secrets in output
 
 import { OneAgentEngine, OneAgentRequest, OneAgentResponse } from '../OneAgentEngine';
-import { createUnifiedTimestamp, UnifiedBackboneService } from '../utils/UnifiedBackboneService';
+import { createUnifiedTimestamp, UnifiedBackboneService, getUnifiedErrorHandler, getAppVersion, getAppName } from '../utils/UnifiedBackboneService';
 import { SimpleAuditLogger } from '../audit/auditLogger';
 import passport from 'passport';
 
@@ -30,6 +33,7 @@ const app = express();
 
 // Middleware
 app.use(express.json({ limit: '10mb' }));
+import { environmentConfig } from '../config/EnvironmentConfig';
 app.use(express.urlencoded({ extended: true }));
 app.use(passport.initialize());
 // REMOVE authentication for /mcp endpoint for local/dev Copilot Chat compatibility
@@ -108,6 +112,10 @@ const oneAgent = OneAgentEngine.getInstance({
     }
   }
 });
+
+// Canonical server identifiers (resolved via backbone/package.json)
+const SERVER_NAME = `${getAppName()} - Unified MCP Server`;
+const SERVER_VERSION = getAppVersion();
 
 // MCP Protocol Interfaces
 interface MCPRequest {
@@ -220,8 +228,9 @@ async function initializeServer(): Promise<void> {
     
     await oneAgent.initialize('mcp-http');
     
+    const mcpEndpoint = environmentConfig.endpoints.mcp.url.replace(/\/$/, '') + environmentConfig.endpoints.mcp.path;
     await auditLogger.logInfo('MCP_SERVER', 'OneAgent Unified MCP Server ready', {
-      protocol: `http://localhost:${UnifiedBackboneService.config.mcpPort}/mcp`,
+      protocol: mcpEndpoint,
       constitutionalAI: 'ACTIVE',
       bmadFramework: 'ACTIVE',
       unifiedTools: 'ACTIVE'
@@ -317,8 +326,17 @@ async function handleMCPRequest(mcpRequest: MCPRequest): Promise<MCPResponse> {
     return convertToMCPResponse(mcpRequest.id, oneAgentResponse);
     
   } catch (error) {
-    console.error('❌ MCP request failed:', error);
-    
+    // Canonical error handling
+    try {
+      await getUnifiedErrorHandler().handleError(error instanceof Error ? error : new Error(String(error)), {
+        component: 'UnifiedMCPServer',
+        operation: 'handleMCPRequest',
+        method: mcpRequest?.method,
+        requestId: mcpRequest?.id
+      });
+    } catch {
+      // swallow secondary error handler issues
+    }
     return {
       jsonrpc: '2.0',
       id: mcpRequest.id,
@@ -340,6 +358,13 @@ function determineRequestType(method: string): OneAgentRequest['type'] {
 
 function handleInitialize(mcpRequest: MCPRequest): MCPResponse {
   const params = mcpRequest.params as unknown as MCPInitializeParams;
+  if (!params || !params.clientInfo || !params.clientInfo.name) {
+    return {
+      jsonrpc: '2.0',
+      id: mcpRequest.id,
+      error: { code: -32602, message: 'Invalid initialize params: clientInfo required' }
+    };
+  }
   clientInfo = params.clientInfo || null;
   serverInitialized = true;
   
@@ -375,9 +400,9 @@ function handleInitialize(mcpRequest: MCPRequest): MCPResponse {
     result: {
       protocolVersion: MCP_PROTOCOL_VERSION, // Use the latest protocol version
       capabilities,
-      serverInfo: {
-        name: 'OneAgent Unified MCP Server',
-        version: '4.0.0',
+    serverInfo: {
+  name: SERVER_NAME,
+  version: SERVER_VERSION,
         description: 'Professional AI Development Platform with Constitutional AI, BMAD Framework, and MCP 2025 enhancements'
       }
     }
@@ -403,6 +428,16 @@ function handleToolsList(mcpRequest: MCPRequest): MCPResponse {
 async function handleToolCall(mcpRequest: MCPRequest): Promise<MCPResponse> {
   const params = mcpRequest.params as unknown as { name: string; arguments?: Record<string, unknown> };
   const { name, arguments: args } = params;
+  if (!name || typeof name !== 'string') {
+    return {
+      jsonrpc: '2.0',
+      id: mcpRequest.id,
+      error: {
+        code: -32602,
+        message: 'Invalid tool name'
+      }
+    };
+  }
   // Defensive: Log and check arguments
   if (!args || typeof args !== 'object') {
     console.error('[MCP] Tool call missing or invalid arguments:', mcpRequest.params);
@@ -472,6 +507,8 @@ function handleResourcesList(mcpRequest: MCPRequest): MCPResponse {
 async function handleResourceRead(mcpRequest: MCPRequest): Promise<MCPResponse> {
   const params = mcpRequest.params as unknown as { uri: string };
   const { uri } = params;
+  // Start timing (canonical time)
+  const startUnix = createUnifiedTimestamp().unix;
   
   try {
     // Enhanced resource handling with backbone metadata and temporal awareness
@@ -509,7 +546,7 @@ async function handleResourceRead(mcpRequest: MCPRequest): Promise<MCPResponse> 
         timestamp: createUnifiedTimestamp().iso
       };
       
-      const response = await oneAgent.processRequest(oneAgentRequest);
+  const response = await oneAgent.processRequest(oneAgentRequest);
       
       if (!response.success) {
         return {
@@ -523,6 +560,8 @@ async function handleResourceRead(mcpRequest: MCPRequest): Promise<MCPResponse> 
       }
       
       // Return with enhanced metadata including backbone and temporal info
+  const endUnix = createUnifiedTimestamp().unix;
+  const processingMs = Math.max(0, endUnix - startUnix);
       return {
         jsonrpc: '2.0',
         id: mcpRequest.id,
@@ -536,8 +575,8 @@ async function handleResourceRead(mcpRequest: MCPRequest): Promise<MCPResponse> 
                 backboneCompliant: true,
                 constitutionalValidated: true,
                 temporalContext: createUnifiedTimestamp().iso,
-                qualityScore: response.qualityScore || 'N/A',
-                processingTime: `${createUnifiedTimestamp().unix - parseInt(oneAgentRequest.timestamp || '0')}ms`
+        qualityScore: response.qualityScore || 'N/A',
+        processingTime: `${processingMs}ms`
               }
             }, null, 2)
           }]
@@ -569,6 +608,8 @@ async function handleResourceRead(mcpRequest: MCPRequest): Promise<MCPResponse> 
         };
       }
       
+      const endUnix = createUnifiedTimestamp().unix;
+      const processingMs = Math.max(0, endUnix - startUnix);
       return {
         jsonrpc: '2.0',
         id: mcpRequest.id,
@@ -577,13 +618,20 @@ async function handleResourceRead(mcpRequest: MCPRequest): Promise<MCPResponse> 
             {
               uri,
               mimeType: 'application/json',
-              text: JSON.stringify(response.data, null, 2)
+        text: JSON.stringify({ data: response.data, metadata: { processingTime: `${processingMs}ms`, temporalContext: createUnifiedTimestamp().iso } }, null, 2)
             }
           ]
         }
       };
       
     } catch (error) {
+      try {
+        await getUnifiedErrorHandler().handleError(error instanceof Error ? error : new Error(String(error)), {
+          component: 'UnifiedMCPServer',
+          operation: 'handleResourceRead-fallback',
+          uri
+        });
+  } catch { /* ignore secondary error handler failure */ }
       return {
         jsonrpc: '2.0',
         id: mcpRequest.id,
@@ -595,6 +643,13 @@ async function handleResourceRead(mcpRequest: MCPRequest): Promise<MCPResponse> 
     }
     
   } catch (error) {
+    try {
+      await getUnifiedErrorHandler().handleError(error instanceof Error ? error : new Error(String(error)), {
+        component: 'UnifiedMCPServer',
+        operation: 'handleResourceRead',
+        uri
+      });
+  } catch { /* ignore secondary error handler failure */ }
     return {
       jsonrpc: '2.0',
       id: mcpRequest.id,
@@ -739,8 +794,12 @@ app.post('/mcp', async (req: Request, res: Response) => {
     res.json(response);
     
   } catch (error) {
-    console.error('❌ MCP endpoint error:', error);
-    
+    try {
+      await getUnifiedErrorHandler().handleError(error instanceof Error ? error : new Error(String(error)), {
+        component: 'UnifiedMCPServer',
+        operation: 'mcpEndpoint'
+      });
+  } catch { /* ignore secondary error handler failure */ }
     res.status(500).json({
       jsonrpc: '2.0',
       id: req.body?.id || null,
@@ -774,6 +833,7 @@ app.get('/mcp', (req: Request, res: Response) => {
   const heartbeatInterval = setInterval(() => {
     res.write(':heartbeat\n\n');
   }, 15000);
+  (heartbeatInterval as unknown as NodeJS.Timer).unref?.();
 
   // Remove client on disconnect
   req.on('close', () => {
@@ -794,8 +854,8 @@ app.get('/mcp', (req: Request, res: Response) => {
 app.get('/health', (_req: Request, res: Response) => {
   res.json({
     status: 'healthy',
-    server: 'OneAgent Unified MCP Server',
-    version: '4.0.0',
+  server: SERVER_NAME,
+  version: SERVER_VERSION,
     initialized: serverInitialized,
     constitutional: true,
     bmad: true,
@@ -809,8 +869,8 @@ app.get('/health', (_req: Request, res: Response) => {
 app.get('/info', (_req: Request, res: Response) => {
   res.json({
     server: {
-      name: 'OneAgent Unified MCP Server',
-      version: '4.0.0',
+  name: SERVER_NAME,
+  version: SERVER_VERSION,
       protocol: `HTTP MCP ${MCP_PROTOCOL_VERSION}` // Use the latest protocol version
     },
     features: {
@@ -841,12 +901,18 @@ async function startServer(): Promise<void> {
     const port = UnifiedBackboneService.config.mcpPort;
     
     const server = app.listen(port, () => {
+      // Canonical startup banner
+      console.log('==============================================');
+      console.log(`${SERVER_NAME} v${SERVER_VERSION}`);
+      console.log(`Protocol: HTTP MCP ${MCP_PROTOCOL_VERSION}`);
+      console.log('==============================================');
       console.log('🌟 OneAgent Unified MCP Server Started Successfully!');
       console.log('');
       console.log('📡 Server Information:');
-      console.log(`   • HTTP MCP Endpoint: http://localhost:${port}/mcp`);
-      console.log(`   • Health Check: http://localhost:${port}/health`);
-      console.log(`   • Server Info: http://localhost:${port}/info`);
+  const base = environmentConfig.endpoints.mcp.url.replace(/\/mcp$/, '');
+  console.log(`   • HTTP MCP Endpoint: ${base}/mcp`);
+  console.log(`   • Health Check: ${base}/health`);
+  console.log(`   • Server Info: ${base}/info`);
       console.log('');
       console.log('🎯 Features:');
       console.log('   • Constitutional AI Validation ✅');

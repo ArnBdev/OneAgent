@@ -219,7 +219,7 @@ export class EvolutionValidator {
   // Private Helper Methods
   // ========================================
 
-  private detectMetricConflicts(improvements: any[]): string[] {
+  private detectMetricConflicts(improvements: Array<{ metric: string; currentValue: number; targetValue: number; confidence: number }>): string[] {
     const conflicts: string[] = [];
     
     // Check for known conflicting metrics

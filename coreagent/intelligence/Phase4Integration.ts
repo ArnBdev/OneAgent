@@ -14,7 +14,7 @@
  */
 
 import { OneAgentMemory } from '../memory/OneAgentMemory';
-import { createUnifiedTimestamp } from '../utils/UnifiedBackboneService';
+import { createUnifiedTimestamp, unifiedMetadataService } from '../utils/UnifiedBackboneService';
 import { ConstitutionalAI } from '../agents/base/ConstitutionalAI';
 import { CrossConversationLearningEngine, ConversationPattern, WorkflowPattern } from './CrossConversationLearningEngine';
 import { EmergentIntelligenceEngine, BreakthroughInsight, SynthesizedIntelligence } from './EmergentIntelligenceEngine';
@@ -166,13 +166,15 @@ export class Phase4MemoryDrivenIntelligence {
     console.log('🔄 Starting continuous Phase 4 learning...');
     
     // This would typically run in a background process
-    setInterval(async () => {
+  const learningTimer = setInterval(async () => {
       try {
         await this.performBackgroundLearning();
       } catch (error) {
         console.error('❌ Error in continuous learning:', error);
       }
-    }, 60000); // Every minute
+  }, 60000); // Every minute
+  // Non-critical timer should not keep process alive
+  (learningTimer as unknown as NodeJS.Timer).unref?.();
   }
 
   /**
@@ -405,15 +407,36 @@ export class Phase4MemoryDrivenIntelligence {
   }
 
   private async storeAnalysisResult(result: Phase4AnalysisResult): Promise<void> {
-    await this.system.memory.addMemory({
-      content: `Phase 4 Analysis: ${result.qualityScore.toFixed(2)} quality score with ${result.recommendations.length} recommendations`,
-      metadata: {
-        type: 'phase4_analysis_result',
-        result,
-        timestamp: createUnifiedTimestamp().unix,
+    try {
+      const meta = unifiedMetadataService.create('phase4_analysis_result', 'Phase4Integration', {
+        system: {
+          source: 'phase4_integration',
+          component: 'Phase4Integration',
+          userId: 'oneagent_system'
+        },
+        content: {
+          category: 'phase4_analysis_result',
+          tags: ['phase4', 'analysis', result.qualityScore > this.configuration.qualityTargetThreshold ? 'above_target' : 'below_target'],
+          sensitivity: 'internal',
+          relevanceScore: result.qualityScore,
+          contextDependency: 'session'
+        }
+      });
+      interface Phase4Extension { custom?: Record<string, unknown>; }
+      (meta as Phase4Extension).custom = {
+        qualityScore: result.qualityScore,
+        recommendationCount: result.recommendations.length,
+        timestamp: createUnifiedTimestamp().iso,
         category: 'phase4_comprehensive'
-      }
-    });
+      };
+      await this.system.memory.addMemoryCanonical(
+        `Phase 4 Analysis: ${result.qualityScore.toFixed(2)} quality score with ${result.recommendations.length} recommendations`,
+        meta,
+        'oneagent_system'
+      );
+    } catch (err) {
+      console.warn('[Phase4Integration] Failed to store analysis result canonically:', err);
+    }
   }
 }
 

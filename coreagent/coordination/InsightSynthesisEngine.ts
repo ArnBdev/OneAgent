@@ -426,28 +426,29 @@ export class InsightSynthesisEngine {
 
   private async storeBreakthroughInsights(insights: BreakthroughInsight[], discussion: NLACSDiscussion): Promise<void> {
     for (const insight of insights) {
-      await this.memory.addMemory({
-        content: `Breakthrough Insight: ${insight.content}`,
-        user_id: 'system_insights',
-        metadata: {
-          ...unifiedMetadataService.create('breakthrough_insight', 'InsightSynthesisEngine', {
-            system: {
-              source: 'insight_synthesis',
-              component: 'InsightSynthesisEngine',
-              sessionId: discussion.id,
-            },
-            content: {
-              category: 'breakthrough_insight',
-              tags: ['breakthrough', 'insight', 'synthesis', insight.businessImpact],
-              sensitivity: 'internal',
-              relevanceScore: insight.relevanceScore,
-              contextDependency: 'session'
-            },
-          }),
-          entityType: 'BreakthroughInsight',
-          insightData: insight,
-        },
-      });
+      try {
+        const metadata = unifiedMetadataService.create('breakthrough_insight', 'InsightSynthesisEngine', {
+          system: {
+            source: 'insight_synthesis',
+            component: 'InsightSynthesisEngine',
+            sessionId: discussion.id,
+            userId: 'system_insights'
+          },
+          content: {
+            category: 'breakthrough_insight',
+            tags: ['breakthrough', 'insight', 'synthesis', insight.businessImpact],
+            sensitivity: 'internal',
+            relevanceScore: insight.relevanceScore,
+            contextDependency: 'session'
+          }
+        });
+        interface InsightMetadataExtension { insightData?: BreakthroughInsight; entityType?: string }
+        (metadata as InsightMetadataExtension).entityType = 'BreakthroughInsight';
+        (metadata as InsightMetadataExtension).insightData = insight;
+        await this.memory.addMemoryCanonical(`Breakthrough Insight: ${insight.content}` , metadata, 'system_insights');
+      } catch (err) {
+        console.warn('InsightSynthesisEngine memory store failed:', err);
+      }
     }
   }
 

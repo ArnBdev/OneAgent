@@ -11,6 +11,7 @@
 
 import { EventEmitter } from 'events';
 import { generateUnifiedId } from '../../utils/UnifiedBackboneService';
+import type { UnifiedMetadata } from '../../types/oneagent-backbone-types';
 import { OneAgentMemory } from '../../memory/OneAgentMemory';
 import { OneAgentUnifiedBackbone } from '../../utils/UnifiedBackboneService';
 import { UnifiedBackboneService } from '../../utils/UnifiedBackboneService';
@@ -305,7 +306,8 @@ export class OneAgentA2AProtocol extends EventEmitter {
   constructor(agentCard: AgentCard) {
     super();
     this.unifiedBackbone = OneAgentUnifiedBackbone.getInstance();
-    this.memory = require('../../utils/UnifiedBackboneService').UnifiedBackboneService.memory;
+    // Use canonical singleton access instead of dynamic require to avoid parallel systems
+    this.memory = OneAgentMemory.getInstance();
     this.agentCard = agentCard;
     
     console.log('🚀 OneAgent A2A Protocol initialized');
@@ -633,17 +635,13 @@ export class OneAgentA2AProtocol extends EventEmitter {
   }
 
   private async storeAgentCard(): Promise<void> {
-    await this.memory.addMemory({
-      content: `Agent Card: ${this.agentCard.name}`,
-      metadata: {
-        type: 'agent_card',
-        agentName: this.agentCard.name,
-        agentVersion: this.agentCard.version,
-        skills: this.agentCard.skills.map(s => s.id),
-        capabilities: Object.keys(this.agentCard.capabilities),
-        url: this.agentCard.url
-      }
-    });
+    await this.memory.addMemoryCanonical(`Agent Card: ${this.agentCard.name}`, {
+      system: { userId: 'system_registry', source: 'A2AProtocol', component: 'agent-card' },
+      content: { category: 'agent_card', tags: ['agent','card', this.agentCard.name], sensitivity: 'internal', relevanceScore: 0.9, contextDependency: 'global' },
+      quality: { score: 0.9, constitutionalCompliant: true, validationLevel: 'basic', confidence: 0.85 },
+      relationships: { parent: undefined, children: [], related: [], dependencies: [] },
+      analytics: { accessCount: 0, lastAccessPattern: 'write', usageContext: [] }
+    }, 'system_registry');
   }
 
   private async initializeTaskManagement(): Promise<void> {
@@ -744,17 +742,13 @@ export class OneAgentA2AProtocol extends EventEmitter {
   }
 
   private async storeTaskInMemory(task: Task): Promise<void> {
-    await this.memory.addMemory({
-      content: `A2A Task: ${task.id}`,
-      metadata: {
-        type: 'a2a_task',
-        taskId: task.id,
-        contextId: task.contextId,
-        status: (task.status as { state: TaskState })?.state || task.state,
-        messageCount: task.history?.length || 0,
-        artifactCount: task.artifacts?.length || 0,
-        timestamp: this.unifiedBackbone.getServices().timeService.now().iso
-      }
+    await this.storeA2AMemory('a2a_task', `A2A Task: ${task.id}`, {
+      taskId: task.id,
+      contextId: task.contextId,
+      status: (task.status as { state: TaskState })?.state || task.state,
+      messageCount: task.history?.length || 0,
+      artifactCount: task.artifacts?.length || 0,
+      timestamp: this.unifiedBackbone.getServices().timeService.now().iso
     });
   }
 
@@ -803,26 +797,22 @@ export class OneAgentA2AProtocol extends EventEmitter {
     };
 
     // Store in memory for audit trail and context
-    await this.memory.addMemory({
-      content: `Agent Communication - ${(params.messageType || 'direct').toUpperCase()}
+    await this.storeA2AMemory('agent-message', `Agent Communication - ${(params.messageType || 'direct').toUpperCase()}
 From: ${this.agentCard.name}
 To: ${params.toAgent}
 Priority: ${params.priority || 'medium'}
 Content: ${params.content}
 ${params.threadId ? `Thread: ${params.threadId}` : ''}
-${params.replyToMessageId ? `Reply to: ${params.replyToMessageId}` : ''}`,
-      metadata: {
-        type: 'agent-message',
-        messageId,
-        fromAgent: this.agentCard.name,
-        toAgent: params.toAgent,
-        messageType: params.messageType || 'direct',
-        priority: params.priority || 'medium',
-        threadId: params.threadId,
-        replyToMessageId: params.replyToMessageId,
-        timestamp: timestamp.iso,
-        ...params.metadata
-      }
+${params.replyToMessageId ? `Reply to: ${params.replyToMessageId}` : ''}`, {
+      messageId,
+      fromAgent: this.agentCard.name,
+      toAgent: params.toAgent,
+      messageType: params.messageType || 'direct',
+      priority: params.priority || 'medium',
+      threadId: params.threadId,
+      replyToMessageId: params.replyToMessageId,
+      timestamp: timestamp.iso,
+      ...params.metadata
     });
 
     // Send the message using A2A protocol
@@ -847,27 +837,37 @@ ${params.replyToMessageId ? `Reply to: ${params.replyToMessageId}` : ''}`,
   }): Promise<CommunicationPattern[]> {
     const searchQuery = `agent communication message to:${this.agentCard.name} OR broadcast`;
     
-    const results = await this.memory.searchMemory({
+    const searchResult = await this.memory.searchMemory({
       query: searchQuery,
       user_id: this.agentCard.name,
       limit: options?.limit || 50,
       semanticSearch: true,
       type: 'agent-message'
     });
-
-    return (results || []).filter((result: unknown) => {
+  const results = searchResult?.results || [];
+  const filtered = results.filter((result: unknown) => {
       const res = result as { metadata?: { messageType?: string; timestamp?: string } };
-      if (options?.messageTypes && res.metadata?.messageType && !options.messageTypes.includes(res.metadata.messageType)) {
-        return false;
-      }
+      if (options?.messageTypes && res.metadata?.messageType && !options.messageTypes.includes(res.metadata.messageType)) return false;
       if (options?.since && res.metadata?.timestamp) {
-        // Constitutional AI: Use canonical timestamp comparison
         const messageTime = new Date(res.metadata.timestamp);
-        if (messageTime < options.since) {
-          return false;
-        }
+        if (messageTime < options.since) return false;
       }
       return true;
+    });
+    // Map to CommunicationPattern (minimal message-as-pattern representation)
+    return filtered.map((m): CommunicationPattern => {
+      const mem = m as unknown as { id: string; content?: string; metadata?: { messageType?: string } };
+      return {
+        id: mem.id,
+        type: 'knowledge_sharing',
+        description: mem.content?.slice(0, 120) || 'agent message',
+      frequency: 1,
+        participants: [this.agentCard.name],
+        contexts: [mem.metadata?.messageType || 'general'],
+      effectiveness: 0.5,
+        metadata: (mem.metadata as Record<string, unknown>) || {},
+      relevanceScore: 0.5
+      };
     });
   }
 
@@ -880,34 +880,38 @@ ${params.replyToMessageId ? `Reply to: ${params.replyToMessageId}` : ''}`,
     limit?: number;
     minQualityScore?: number;
   }): Promise<CommunicationPattern[]> {
-    const results = await this.memory.searchMemory({
+    const searchResult2 = await this.memory.searchMemory({
       query,
       user_id: this.agentCard.name,
       limit: options?.limit || 20,
       semanticSearch: true,
       type: 'agent-message'
     });
-
-    return (results || []).filter((result: unknown) => {
+  const results2 = searchResult2?.results || [];
+  const filtered2 = results2.filter((result: unknown) => {
       const res = result as { metadata?: { messageType?: string; timestamp?: string; qualityScore?: number } };
-      const metadata = res.metadata || {};
-      
-      if (options?.messageTypes && metadata.messageType && !options.messageTypes.includes(metadata.messageType)) {
-        return false;
+      const md = res.metadata || {};
+      if (options?.messageTypes && md.messageType && !options.messageTypes.includes(md.messageType)) return false;
+      if (options?.timeRange && md.timestamp) {
+        const ts = new Date(md.timestamp);
+        if (ts < options.timeRange.start || ts > options.timeRange.end) return false;
       }
-      
-      if (options?.timeRange && metadata.timestamp) {
-        const timestamp = new Date(metadata.timestamp);
-        if (timestamp < options.timeRange.start || timestamp > options.timeRange.end) {
-          return false;
-        }
-      }
-      
-      if (options?.minQualityScore && (metadata.qualityScore || 0) < options.minQualityScore) {
-        return false;
-      }
-      
+      if (options?.minQualityScore && (md.qualityScore || 0) < options.minQualityScore) return false;
       return true;
+    });
+    return filtered2.map((m): CommunicationPattern => {
+      const mem = m as unknown as { id: string; content?: string; metadata?: { messageType?: string } };
+      return {
+        id: mem.id,
+        type: 'knowledge_sharing',
+        description: mem.content?.slice(0, 120) || 'agent message',
+      frequency: 1,
+        participants: [this.agentCard.name],
+        contexts: [mem.metadata?.messageType || 'general'],
+      effectiveness: 0.5,
+        metadata: (mem.metadata as Record<string, unknown>) || {},
+      relevanceScore: 0.5
+      };
     });
   }
 
@@ -945,15 +949,15 @@ ${params.replyToMessageId ? `Reply to: ${params.replyToMessageId}` : ''}`,
       }
 
       // Get peer agent information from memory
-      const peerAgentSearch = await this.memory.searchMemory({
+  const peerAgentSearchResult = await this.memory.searchMemory({
         query: 'agent registration active available',
         user_id: 'system',
         limit: 20,
         semanticSearch: true,
         type: 'agent-registration'
       });
-
-      const peerAgents = peerAgentSearch.filter((agent: unknown) => {
+  const peerAgentsRaw = peerAgentSearchResult?.results || [];
+  const peerAgents = peerAgentsRaw.filter((agent: unknown) => {
         const a = agent as { metadata?: { agentId?: string; status?: string } };
         return a.metadata?.agentId !== agentId && a.metadata?.status === 'active';
       });
@@ -978,7 +982,7 @@ ${params.replyToMessageId ? `Reply to: ${params.replyToMessageId}` : ''}`,
    */
   private async getSystemStatus(): Promise<unknown> {
     try {
-      const systemResult = await this.memory.searchMemory({
+  const systemSearchResult = await this.memory.searchMemory({
         query: 'system status health metrics',
         user_id: 'system',
         limit: 5,
@@ -989,7 +993,7 @@ ${params.replyToMessageId ? `Reply to: ${params.replyToMessageId}` : ''}`,
       return {
         timestamp: this.unifiedBackbone.getServices().timeService.now().iso,
         activeTasks: this.activeTasks.size,
-        memorySystemHealth: (systemResult || []).length > 0,
+  memorySystemHealth: (systemSearchResult?.results?.length || 0) > 0,
         lastSystemUpdate: this.unifiedBackbone.getServices().timeService.now().iso
       };
     } catch (error) {
@@ -1071,15 +1075,15 @@ Response Required: ${params.requiresResponse ? 'Yes' : 'No'}
    */
   async getRegisteredAgents(): Promise<unknown[]> {
     try {
-      const agentSearch = await this.memory.searchMemory({
+  const agentSearchResult = await this.memory.searchMemory({
         query: 'agent registration active',
         user_id: 'system',
         limit: 50,
         semanticSearch: true,
         type: 'agent-registration'
       });
-
-      return agentSearch.filter((agent: unknown) => {
+  const agentRecords = agentSearchResult?.results || [];
+  return agentRecords.filter((agent: unknown) => {
         const a = agent as { metadata?: { status?: string } };
         return a.metadata?.status === 'active';
       });
@@ -1094,14 +1098,10 @@ Response Required: ${params.requiresResponse ? 'Yes' : 'No'}
    */
   async updateAgentStatus(agentId: string, status: 'active' | 'inactive' | 'busy' | 'offline'): Promise<void> {
     try {
-      await this.memory.addMemory({
-        content: `Agent ${agentId} status updated to ${status}`,
-        metadata: {
-          type: 'agent-status',
-          agentId,
-          status,
-          timestamp: this.unifiedBackbone.getServices().timeService.now().iso
-        }
+      await this.storeA2AMemory('agent-status', `Agent ${agentId} status updated to ${status}`, {
+        agentId,
+        status,
+        timestamp: this.unifiedBackbone.getServices().timeService.now().iso
       });
       
       console.log(`[A2A] Agent ${agentId} status updated to ${status}`);
@@ -1174,18 +1174,13 @@ Response Required: ${params.requiresResponse ? 'Yes' : 'No'}
     };
     
     // Store discussion in memory with canonical metadata
-    await this.memory.addMemory({
-      content: JSON.stringify(discussion),
-      metadata: {
-        ...discussionMetadata,
-        type: 'agent_discussion',
-        discussionId,
-        topic,
-        participants,
-        status: 'active',
-        creator: this.agentCard.name,
-        timestamp: timestamp.iso
-      }
+    await this.storeA2AMemory('agent_discussion', JSON.stringify(discussion), {
+      discussionId,
+      topic,
+      participants,
+      status: 'active',
+      creator: this.agentCard.name,
+      timestamp: timestamp.iso
     });
     
     // Notify participants using canonical A2A messaging
@@ -1210,13 +1205,13 @@ Response Required: ${params.requiresResponse ? 'Yes' : 'No'}
   async joinAgentDiscussion(discussionId: string, _context?: string): Promise<boolean> {
     try {
       // Retrieve discussion from memory
-      const memoryResults = await this.memory.searchMemory({
+  const memorySearchResult = await this.memory.searchMemory({
         query: `agent_discussion ${discussionId}`,
         user_id: 'system',
         limit: 1
       });
-      
-      if (!memoryResults || memoryResults.length === 0) {
+  const memoryResults = memorySearchResult?.results || [];
+  if (memoryResults.length === 0) {
         console.warn(`[A2A] Discussion ${discussionId} not found`);
         return false;
       }
@@ -1229,17 +1224,13 @@ Response Required: ${params.requiresResponse ? 'Yes' : 'No'}
         discussion.lastActivity = new Date(this.unifiedBackbone.getServices().timeService.now().utc);
         
         // Update discussion in memory
-        await this.memory.addMemory({
-          content: JSON.stringify(discussion),
-          metadata: {
-            type: 'agent_discussion',
-            discussionId,
-            topic: discussion.topic,
-            participants: discussion.participants,
-            status: discussion.status,
-            updatedBy: this.agentCard.name,
-            timestamp: this.unifiedBackbone.getServices().timeService.now().iso
-          }
+        await this.storeA2AMemory('agent_discussion', JSON.stringify(discussion), {
+          discussionId,
+          topic: discussion.topic,
+          participants: discussion.participants,
+          status: discussion.status,
+          updatedBy: this.agentCard.name,
+          timestamp: this.unifiedBackbone.getServices().timeService.now().iso
         });
       }
       
@@ -1281,44 +1272,36 @@ Response Required: ${params.requiresResponse ? 'Yes' : 'No'}
     };
     
     // Store contribution in memory
-    await this.memory.addMemory({
-      content: `Agent Discussion Contribution: ${content}`,
-      metadata: {
-        type: 'agent_discussion_contribution',
-        discussionId,
-        messageId,
-        contributionType,
-        contributor: this.agentCard.name,
-        timestamp: timestamp.iso,
-        contentLength: content.length
-      }
+    await this.storeA2AMemory('agent_discussion_contribution', `Agent Discussion Contribution: ${content}`, {
+      discussionId,
+      messageId,
+      contributionType,
+      contributor: this.agentCard.name,
+      timestamp: timestamp.iso,
+      contentLength: content.length
     });
     
     // Retrieve and update discussion
-    const memoryResults = await this.memory.searchMemory({
+    const memorySearchResult2 = await this.memory.searchMemory({
       query: `agent_discussion ${discussionId}`,
       user_id: 'system',
       limit: 1
     });
-    
-    if (memoryResults && memoryResults.length > 0) {
-      const discussion: AgentDiscussion = JSON.parse(memoryResults[0].content);
+    const memoryResults2 = memorySearchResult2?.results || [];
+    if (memoryResults2.length > 0) {
+      const discussion: AgentDiscussion = JSON.parse(memoryResults2[0].content);
       discussion.messages.push(message);
       discussion.lastActivity = new Date(timestamp.utc);
       
       // Update discussion in memory
-      await this.memory.addMemory({
-        content: JSON.stringify(discussion),
-        metadata: {
-          type: 'agent_discussion',
+        await this.storeA2AMemory('agent_discussion', JSON.stringify(discussion), {
           discussionId,
           topic: discussion.topic,
           participants: discussion.participants,
           messageCount: discussion.messages.length,
           lastContributor: this.agentCard.name,
           timestamp: timestamp.iso
-        }
-      });
+        });
     }
     
     console.log(`[A2A] Contributed to discussion ${discussionId}: ${contributionType}`);
@@ -1364,17 +1347,13 @@ Response Required: ${params.requiresResponse ? 'Yes' : 'No'}
       
       // Store insights in memory
       for (const insight of insights) {
-        await this.memory.addMemory({
-          content: JSON.stringify(insight),
-          metadata: {
-            type: 'agent_insight',
-            insightId: insight.id,
-            insightType: insight.type,
+        await this.storeA2AMemory('agent_insight', JSON.stringify(insight), {
+          insightId: insight.id,
+          insightType: insight.type,
             confidence: insight.confidence,
-            relevanceScore: insight.relevanceScore,
-            contributor: this.agentCard.name,
-            timestamp: timestamp.iso
-          }
+          relevanceScore: insight.relevanceScore,
+          contributor: this.agentCard.name,
+          timestamp: timestamp.iso
         });
       }
       
@@ -1423,17 +1402,13 @@ Response Required: ${params.requiresResponse ? 'Yes' : 'No'}
       };
       
       // Store synthesized knowledge
-      await this.memory.addMemory({
-        content: JSON.stringify(synthesizedKnowledge),
-        metadata: {
-          type: 'synthesized_knowledge',
-          knowledgeId,
-          confidence: synthesizedKnowledge.confidence,
-          qualityScore: synthesizedKnowledge.qualityScore,
-          threadCount: conversationThreads.length,
-          synthesizer: this.agentCard.name,
-          timestamp: timestamp.iso
-        }
+      await this.storeA2AMemory('synthesized_knowledge', JSON.stringify(synthesizedKnowledge), {
+        knowledgeId,
+        confidence: synthesizedKnowledge.confidence,
+        qualityScore: synthesizedKnowledge.qualityScore,
+        threadCount: conversationThreads.length,
+        synthesizer: this.agentCard.name,
+        timestamp: timestamp.iso
       });
       
       console.log(`[A2A] Synthesized knowledge from ${conversationThreads.length} conversation threads`);
@@ -1456,19 +1431,19 @@ Response Required: ${params.requiresResponse ? 'Yes' : 'No'}
     try {
       // Search for communications in the time range
       const searchQuery = `agent_discussion_contribution ${agentIds.join(' OR ')}`;
-      const memoryResults = await this.memory.searchMemory({
+  const memorySearchResult3 = await this.memory.searchMemory({
         query: searchQuery,
         user_id: 'system',
         limit: 100
       });
-      
-      if (!memoryResults || memoryResults.length === 0) {
+  const memoryResults = memorySearchResult3?.results || [];
+  if (memoryResults.length === 0) {
         return patterns;
       }
       
       // Analyze communication patterns
-      const contributionsByType = this.groupContributionsByType(memoryResults);
-      const collaborationPatterns = this.analyzeCollaborationPatterns(memoryResults, agentIds);
+  const contributionsByType = this.groupContributionsByType(memoryResults);
+  const collaborationPatterns = this.analyzeCollaborationPatterns(memoryResults, agentIds);
       
       // Add collaboration patterns to the results
       patterns.push(...collaborationPatterns);
@@ -1635,6 +1610,56 @@ Response Required: ${params.requiresResponse ? 'Yes' : 'No'}
     const totalContributions = contributions.length;
     
     return Math.min((uniqueContributors / totalContributions) * 100, 100) / 100;
+  }
+
+  // =============================================================
+  // CANONICAL A2A MEMORY STORAGE (UnifiedMetadata + addMemoryCanonical)
+  // =============================================================
+  private async storeA2AMemory(type: string, content: string, fields: Record<string, unknown>): Promise<void> {
+    try {
+      const timestamp = this.unifiedBackbone.getServices().timeService.now();
+      // Build base UnifiedMetadata partial
+      const base: Partial<UnifiedMetadata> = {
+        type,
+        system: {
+          source: 'a2a_protocol',
+          component: 'a2a_memory',
+          userId: 'system',
+          agent: { id: this.agentCard.name, type: 'a2a' }
+        },
+        content: {
+          category: 'a2a',
+          tags: [type],
+          sensitivity: 'internal',
+          relevanceScore: 0.8,
+          contextDependency: 'global'
+        },
+        quality: {
+          score: 0.9,
+          confidence: 0.9,
+          constitutionalCompliant: true,
+          validationLevel: 'enhanced'
+        },
+        temporal: {
+          created: timestamp,
+          updated: timestamp,
+          accessed: timestamp,
+          contextSnapshot: {
+            timeOfDay: timestamp.contextual.timeOfDay,
+            dayOfWeek: new Date(timestamp.utc).toLocaleDateString('en-US', { weekday: 'long' }),
+            businessContext: true,
+            energyContext: 'standard'
+          }
+        },
+        relationships: { children: [], related: [], dependencies: [] },
+        analytics: { accessCount: 0, lastAccessPattern: 'create', usageContext: ['a2a'] }
+      } as Partial<UnifiedMetadata>;
+
+      const metadata: Partial<UnifiedMetadata> = { ...base, ...fields };
+      await this.memory.addMemoryCanonical(content, metadata, this.agentCard.name);
+    } catch (err) {
+      console.error('[A2A] Failed to store canonical memory:', err);
+    }
   }
 
 }

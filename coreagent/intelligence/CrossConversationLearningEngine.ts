@@ -6,8 +6,7 @@
  */
 
 import { OneAgentMemory } from '../memory/OneAgentMemory';
-import { createUnifiedTimestamp } from '../utils/UnifiedBackboneService';
-import type { IMemoryClient } from '../types/oneagent-backbone-types';
+import { createUnifiedTimestamp, unifiedMetadataService } from '../utils/UnifiedBackboneService';
 
 export interface ConversationPattern {
   id: string;
@@ -88,7 +87,7 @@ export class CrossConversationLearningEngine {
       const patterns: ConversationPattern[] = [];
       const domainGroups = this.groupConversationsByDomain(conversations);
       
-      for (const [domain, domainConversations] of domainGroups) {
+  for (const [, domainConversations] of domainGroups) {
         // Analyze workflow patterns
         const workflowPatterns = await this.extractWorkflowPatterns(domainConversations);
         
@@ -476,32 +475,64 @@ export class CrossConversationLearningEngine {
   }
 
   private async storePatternInMemory(pattern: ConversationPattern): Promise<void> {
-    await this.memory.addMemory({
-      content: `Conversation Pattern: ${pattern.type} - ${pattern.pattern}`,
-      metadata: {
-        type: 'conversation_pattern',
+    try {
+      const meta = unifiedMetadataService.create('conversation_pattern', 'CrossConversationLearningEngine', {
+        system: {
+          source: 'cross_conversation_learning',
+          component: 'CrossConversationLearningEngine',
+          userId: 'oneagent_system'
+        },
+        content: {
+          category: 'conversation_pattern',
+          tags: ['phase4', pattern.type, pattern.domain],
+          sensitivity: 'internal',
+          relevanceScore: pattern.confidence,
+          contextDependency: 'session'
+        }
+      });
+      interface PatternExtension { custom?: Record<string, unknown>; }
+      (meta as PatternExtension).custom = {
         patternId: pattern.id,
         domain: pattern.domain,
         confidence: pattern.confidence,
         successRate: pattern.successRate,
-        timestamp: createUnifiedTimestamp().unix,
+        timestamp: createUnifiedTimestamp().iso,
         category: 'phase4_learning'
-      }
-    });
+      };
+      await this.memory.addMemoryCanonical(`Conversation Pattern: ${pattern.type} - ${pattern.pattern}`, meta, 'oneagent_system');
+    } catch (err) {
+      console.warn('[CrossConversationLearning] Failed to store pattern canonically:', err);
+    }
   }
 
   private async storeWorkflowInMemory(workflow: WorkflowPattern): Promise<void> {
-    await this.memory.addMemory({
-      content: `Workflow Pattern: ${workflow.name} - ${workflow.steps.join(', ')}`,
-      metadata: {
-        type: 'workflow_pattern',
+    try {
+      const meta = unifiedMetadataService.create('workflow_pattern', 'CrossConversationLearningEngine', {
+        system: {
+          source: 'cross_conversation_learning',
+          component: 'CrossConversationLearningEngine',
+          userId: 'oneagent_system'
+        },
+        content: {
+          category: 'workflow_pattern',
+          tags: ['phase4', workflow.domain, workflow.complexity],
+          sensitivity: 'internal',
+          relevanceScore: workflow.successRate,
+          contextDependency: 'session'
+        }
+      });
+      interface WorkflowExtension { custom?: Record<string, unknown>; }
+      (meta as WorkflowExtension).custom = {
         workflowId: workflow.id,
         domain: workflow.domain,
         successRate: workflow.successRate,
         complexity: workflow.complexity,
-        timestamp: createUnifiedTimestamp().unix,
+        timestamp: createUnifiedTimestamp().iso,
         category: 'phase4_learning'
-      }
-    });
+      };
+      await this.memory.addMemoryCanonical(`Workflow Pattern: ${workflow.name} - ${workflow.steps.join(', ')}`, meta, 'oneagent_system');
+    } catch (err) {
+      console.warn('[CrossConversationLearning] Failed to store workflow canonically:', err);
+    }
   }
 }

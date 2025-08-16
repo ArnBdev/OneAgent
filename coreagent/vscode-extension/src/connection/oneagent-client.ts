@@ -7,17 +7,61 @@ const getCanonicalTimestamp = () => {
   return createUnifiedTimestamp().unix;
 };
 
-export interface OneAgentResponse<T = any> {
+export interface OneAgentResponse<T = unknown> {
     success: boolean;
     data?: T;
     error?: string;
     qualityScore?: number;
 }
 
+// Typed response contracts used by commands/webviews
+export interface ConstitutionalValidationResponse {
+    isCompliant: boolean;
+    score?: number;
+    feedback?: string;
+}
+
+export interface QualityScoreResponse {
+    qualityScore?: number;
+    score?: number;
+    grade?: string;
+    suggestions?: string[];
+}
+
+export interface MemoryItem {
+    id?: string;
+    content: string;
+    memoryType?: string;
+    timestamp?: string | number | Date;
+}
+
+export interface MemorySearchResponse {
+    memories: MemoryItem[];
+}
+
+export interface SystemHealthResponse {
+    status?: string;
+    version?: string;
+    metrics?: {
+        qualityScore?: number;
+        totalOperations?: number;
+        averageLatency?: number;
+        errorRate?: number;
+    };
+    components?: Record<string, { status?: string }>;
+    capabilities?: string[];
+}
+
+export interface ProfileStatusResponse {
+    evolutionReadiness?: string;
+    qualityScore?: number;
+    [key: string]: unknown;
+}
+
 export interface ConstitutionalValidationRequest {
     response: string;
     userMessage: string;
-    context?: any;
+    context?: Record<string, unknown>;
 }
 
 export interface QualityScoreRequest {
@@ -40,7 +84,7 @@ export interface MemoryCreateRequest {
     content: string;
     userId: string;
     memoryType?: string;
-    metadata?: any;
+    metadata?: Record<string, unknown>;
     useIntelligence?: boolean; // Enhanced with Memory Intelligence
 }
 
@@ -58,6 +102,14 @@ export interface AIAssistantRequest {
     message: string;
     applyConstitutional?: boolean;
     qualityThreshold?: number;
+}
+
+export interface AIAssistantResponse {
+    content?: string;
+    response?: string;
+    qualityScore?: number;
+    constitutionalCompliance?: boolean;
+    [key: string]: unknown;
 }
 
 // New v4.0.0 Professional interfaces
@@ -81,7 +133,7 @@ export interface EvolutionAnalyticsRequest {
 export interface AgentRegistrationRequest {
     agentId: string;
     agentType: string;
-    capabilities: any[];
+    capabilities: string[];
     endpoint: string;
     qualityScore: number;
 }
@@ -101,7 +153,7 @@ export class OneAgentClient {
     constructor() {
         this.baseUrl = getServerUrl();
     }
-      async healthCheck(): Promise<boolean> {
+    async healthCheck(): Promise<boolean> {
         try {
             const response = await this.makeRequest('/health', {}, 'GET');
             return response.success;
@@ -111,39 +163,39 @@ export class OneAgentClient {
         }
     }
     
-    async constitutionalValidate(request: ConstitutionalValidationRequest): Promise<OneAgentResponse> {
-        return this.makeRequest('/tools/oneagent_constitutional_validate', {
+    async constitutionalValidate(request: ConstitutionalValidationRequest): Promise<OneAgentResponse<ConstitutionalValidationResponse>> {
+        return this.makeRequest<ConstitutionalValidationResponse>('/tools/oneagent_constitutional_validate', {
             response: request.response,
             userMessage: request.userMessage,
             context: request.context
         });
     }
     
-    async qualityScore(request: QualityScoreRequest): Promise<OneAgentResponse> {
-        return this.makeRequest('/tools/oneagent_quality_score', {
+    async qualityScore(request: QualityScoreRequest): Promise<OneAgentResponse<QualityScoreResponse>> {
+        return this.makeRequest<QualityScoreResponse>('/tools/oneagent_quality_score', {
             content: request.content,
             criteria: request.criteria || ['accuracy', 'maintainability', 'performance']
         });
     }
     
-    async bmadAnalyze(request: BMADAnalysisRequest): Promise<OneAgentResponse> {
-        return this.makeRequest('/tools/oneagent_bmad_analyze', {
+    async bmadAnalyze(request: BMADAnalysisRequest): Promise<OneAgentResponse<unknown>> {
+        return this.makeRequest<unknown>('/tools/oneagent_bmad_analyze', {
             task: request.task
         });
     }
     
-    async aiAssistant(request: AIAssistantRequest): Promise<OneAgentResponse> {
-        return this.makeRequest('/tools/oneagent_ai_assistant', {
+    async aiAssistant(request: AIAssistantRequest): Promise<OneAgentResponse<AIAssistantResponse>> {
+        return this.makeRequest<AIAssistantResponse>('/tools/oneagent_ai_assistant', {
             message: request.message,
             applyConstitutional: request.applyConstitutional ?? true,
             qualityThreshold: request.qualityThreshold ?? 80
         });
     }
-      async systemHealth(): Promise<OneAgentResponse> {
-        return this.makeRequest('/tools/oneagent_system_health', {}, 'POST');
+            async systemHealth(): Promise<OneAgentResponse<SystemHealthResponse>> {
+                return this.makeRequest<SystemHealthResponse>('/tools/oneagent_system_health', {}, 'POST');
     }
-      async memorySearch(request: MemorySearchRequest): Promise<OneAgentResponse> {
-        return this.makeRequest('/tools/oneagent_memory_context', {
+            async memorySearch(request: MemorySearchRequest): Promise<OneAgentResponse<MemorySearchResponse>> {
+                return this.makeRequest<MemorySearchResponse>('/tools/oneagent_memory_context', {
             query: request.query,
             userId: request.userId,
             limit: request.limit ?? 10,
@@ -151,8 +203,8 @@ export class OneAgentClient {
         });
     }
     
-    async memoryCreate(request: MemoryCreateRequest): Promise<OneAgentResponse> {
-        return this.makeRequest('/tools/oneagent_memory_create', {
+        async memoryCreate(request: MemoryCreateRequest): Promise<OneAgentResponse<unknown>> {
+                return this.makeRequest<unknown>('/tools/oneagent_memory_create', {
             content: request.content,
             userId: request.userId,
             memoryType: request.memoryType,
@@ -163,87 +215,87 @@ export class OneAgentClient {
 
     // New v4.0.0 Professional Methods
     
-    async semanticAnalysis(request: SemanticAnalysisRequest): Promise<OneAgentResponse> {
-        return this.makeRequest('/tools/oneagent_semantic_analysis', {
+    async semanticAnalysis(request: SemanticAnalysisRequest): Promise<OneAgentResponse<unknown>> {
+        return this.makeRequest<unknown>('/tools/oneagent_semantic_analysis', {
             text: request.text,
             analysisType: request.analysisType
         });
     }
     
-    async enhancedSearch(request: EnhancedSearchRequest): Promise<OneAgentResponse> {
-        return this.makeRequest('/tools/oneagent_enhanced_search', {
+    async enhancedSearch(request: EnhancedSearchRequest): Promise<OneAgentResponse<unknown>> {
+        return this.makeRequest<unknown>('/tools/oneagent_enhanced_search', {
             query: request.query,
             filterCriteria: request.filterCriteria,
             includeQualityScore: request.includeQualityScore ?? true
         });
     }
     
-    async evolutionAnalytics(request: EvolutionAnalyticsRequest = {}): Promise<OneAgentResponse> {
-        return this.makeRequest('/tools/oneagent_evolution_analytics', {
+    async evolutionAnalytics(request: EvolutionAnalyticsRequest = {}): Promise<OneAgentResponse<unknown>> {
+        return this.makeRequest<unknown>('/tools/oneagent_evolution_analytics', {
             timeRange: request.timeRange ?? '7d',
             includeCapabilityAnalysis: request.includeCapabilityAnalysis ?? true,
             includeQualityTrends: request.includeQualityTrends ?? true
         });
     }
     
-    async profileStatus(): Promise<OneAgentResponse> {
-        return this.makeRequest('/tools/oneagent_profile_status', {});
+    async profileStatus(): Promise<OneAgentResponse<ProfileStatusResponse>> {
+        return this.makeRequest<ProfileStatusResponse>('/tools/oneagent_profile_status', {});
     }
     
-    async profileHistory(limit?: number): Promise<OneAgentResponse> {
-        return this.makeRequest('/tools/oneagent_profile_history', {
+    async profileHistory(limit?: number): Promise<OneAgentResponse<unknown>> {
+        return this.makeRequest<unknown>('/tools/oneagent_profile_history', {
             limit: limit ?? 10,
             includeValidationDetails: true
         });
     }
     
-    async evolveProfile(trigger: string = 'manual', aggressiveness: string = 'moderate'): Promise<OneAgentResponse> {
-        return this.makeRequest('/tools/oneagent_evolve_profile', {
+    async evolveProfile(trigger: string = 'manual', aggressiveness: string = 'moderate'): Promise<OneAgentResponse<unknown>> {
+        return this.makeRequest<unknown>('/tools/oneagent_evolve_profile', {
             trigger,
             aggressiveness,
             qualityThreshold: 80
         });
     }
     
-    async webFetch(url: string, extractContent: boolean = true): Promise<OneAgentResponse> {
-        return this.makeRequest('/tools/oneagent_web_fetch', {
+    async webFetch(url: string, extractContent: boolean = true): Promise<OneAgentResponse<unknown>> {
+        return this.makeRequest<unknown>('/tools/oneagent_web_fetch', {
             url,
             extractContent,
             extractMetadata: true
         });
     }
     
-    async registerAgent(request: AgentRegistrationRequest): Promise<OneAgentResponse> {
-        return this.makeRequest('/tools/register_agent', request);
+    async registerAgent(request: AgentRegistrationRequest): Promise<OneAgentResponse<unknown>> {
+        return this.makeRequest<unknown>('/tools/register_agent', request);
     }
     
-    async sendAgentMessage(request: AgentMessageRequest): Promise<OneAgentResponse> {
-        return this.makeRequest('/tools/send_agent_message', request);
+    async sendAgentMessage(request: AgentMessageRequest): Promise<OneAgentResponse<unknown>> {
+        return this.makeRequest<unknown>('/tools/send_agent_message', request);
     }
     
-    async queryAgentCapabilities(query: string, qualityFilter: boolean = true): Promise<OneAgentResponse> {
-        return this.makeRequest('/tools/query_agent_capabilities', {
+    async queryAgentCapabilities(query: string, qualityFilter: boolean = true): Promise<OneAgentResponse<unknown>> {
+        return this.makeRequest<unknown>('/tools/query_agent_capabilities', {
             query,
             qualityFilter
         });
     }
     
-    async getAgentNetworkHealth(): Promise<OneAgentResponse> {
-        return this.makeRequest('/tools/get_agent_network_health', {
+    async getAgentNetworkHealth(): Promise<OneAgentResponse<unknown>> {
+        return this.makeRequest<unknown>('/tools/get_agent_network_health', {
             includeDetailed: true,
             timeframe: '5m'
         });
     }
     
-    async coordinateAgents(task: string, requiredCapabilities: string[], priority: string = 'medium'): Promise<OneAgentResponse> {
-        return this.makeRequest('/tools/coordinate_agents', {
+    async coordinateAgents(task: string, requiredCapabilities: string[], priority: string = 'medium'): Promise<OneAgentResponse<unknown>> {
+        return this.makeRequest<unknown>('/tools/coordinate_agents', {
             task,
             requiredCapabilities,
             priority,
             qualityTarget: 85
         });
     }
-      private async makeRequest(endpoint: string, data: any = {}, method: string = 'POST'): Promise<OneAgentResponse> {
+      private async makeRequest<T>(endpoint: string, data: unknown = {}, method: string = 'POST'): Promise<OneAgentResponse<T>> {
         try {
             const options: RequestInit = {
                 method,
@@ -285,7 +337,7 @@ export class OneAgentClient {
             if (endpoint === '/health') {
                 return {
                     success: true,
-                    data: result
+                    data: result as T
                 };
             }
             
@@ -297,19 +349,19 @@ export class OneAgentClient {
                         const parsedData = JSON.parse(content[0].text);
                         return {
                             success: true,
-                            data: parsedData
+                            data: parsedData as T
                         };
-                    } catch (parseError) {
+                    } catch {
                         // If parsing fails, return the raw text
                         return {
                             success: true,
-                            data: { content: content[0].text }
+                            data: { content: content[0].text } as T
                         };
                     }
                 } else {
                     return {
                         success: true,
-                        data: result.result
+                        data: result.result as T
                     };
                 }
             } else if (result.error) {
@@ -321,7 +373,7 @@ export class OneAgentClient {
             
             return {
                 success: true,
-                data: result
+                data: result as T
             };
         } catch (error) {
             return {

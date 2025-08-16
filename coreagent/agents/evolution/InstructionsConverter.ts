@@ -9,6 +9,7 @@ import * as fs from 'fs/promises';
 import * as path from 'path';
 import { AgentProfile } from './AgentProfile';
 import { ProfileManager } from './ProfileManager';
+import { createUnifiedTimestamp } from '../../utils/UnifiedBackboneService';
 
 export class InstructionsConverter {
   private static instance: InstructionsConverter;
@@ -40,7 +41,7 @@ export class InstructionsConverter {
       const parsedInstructions = await this.parseInstructions(instructionsContent);
 
       // Create AgentProfile from parsed instructions
-      const agentProfile = await this.createProfileFromInstructions(parsedInstructions);
+  const agentProfile = await this.createProfileFromInstructions(parsedInstructions);
 
       // Validate and save the new profile
       const validation = await this.profileManager.validateProfile(agentProfile);
@@ -92,7 +93,8 @@ export class InstructionsConverter {
   /**
    * Parse instructions markdown into structured data
    */
-  private async parseInstructions(content: string): Promise<any> {
+  private async parseInstructions(content: string): Promise<Record<string, string[]>> {
+  // Parse markdown sections into a simple map: sectionName -> lines
     console.log('📝 Parsing instructions content...');
 
     const sections: Record<string, string[]> = {};
@@ -138,8 +140,8 @@ export class InstructionsConverter {
         name: 'OneAgent',
         description: 'AI Development Assistant with Self-Evolution Capabilities (Converted from .instructions.md)',
         version: '2.0.0', // Version 2.0 to indicate migration to ALITA system
-        created: new Date().toISOString(),
-        lastEvolved: new Date().toISOString(),
+  created: createUnifiedTimestamp().iso,
+  lastEvolved: createUnifiedTimestamp().iso,
         evolutionCount: 0,
         baselineProfile: 'instructions.md'
       },
@@ -172,7 +174,14 @@ export class InstructionsConverter {
   /**
    * Extract personality configuration from instructions
    */
-  private extractPersonality(sections: Record<string, string[]>): any {
+  private extractPersonality(sections: Record<string, string[]>): {
+    role: string;
+    mission: string;
+    communicationStyle: string;
+    expertise: string[];
+    behaviorTraits: string[];
+    responsePatterns: { greeting: string; taskApproach: string; errorHandling: string; completion: string };
+  } {
     const intro = sections['oneagent_ai_development_assistant_instructions'] || [];
     const mission = intro.find(line => line.includes('mission')) || 
       'Deliver practical, systematic solutions through effective prompt engineering and quality development practices';
@@ -209,7 +218,14 @@ export class InstructionsConverter {
   /**
    * Extract instructions from sections
    */
-  private extractInstructions(sections: Record<string, string[]>): any {
+  private extractInstructions(sections: Record<string, string[]>): {
+    coreCapabilities: string[];
+    developmentRules: string[];
+    workflowPatterns: string[];
+    qualityStandards: string[];
+    prohibitions: string[];
+    specialInstructions: Record<string, string[]>;
+  } {
     const coreCapabilities = sections['core_capabilities'] || [];
     const developmentRules = sections['development_rules_enhanced_with_devagent_collaboration'] || [];
     const workflowPatterns = sections['development_workflow_enhanced_with_devagent_collaboration'] || [];
@@ -234,8 +250,8 @@ export class InstructionsConverter {
   /**
    * Extract capabilities from instructions
    */
-  private extractCapabilities(sections: Record<string, string[]>): any[] {
-    const capabilities = [];
+  private extractCapabilities(sections: Record<string, string[]>): AgentProfile['capabilities'] {
+    const capabilities: AgentProfile['capabilities'] = [];
     const mcpTools = sections['oneagent_mcp_tools_port_8083'] || [];
 
     // Parse MCP tools as capabilities
@@ -289,7 +305,7 @@ export class InstructionsConverter {
   /**
    * Extract framework preferences
    */
-  private extractFrameworks(): any {
+  private extractFrameworks(): AgentProfile['frameworks'] {
     return {
       systematicPrompting: ['R-T-F', 'T-A-G', 'R-I-S-E', 'R-G-C', 'C-A-R-E'],
       qualityValidation: 'Constitutional AI',
@@ -315,7 +331,7 @@ export class InstructionsConverter {
   /**
    * Extract quality thresholds
    */
-  private extractQualityThresholds(): any {
+  private extractQualityThresholds(): AgentProfile['qualityThresholds'] {
     return {
       minimumScore: 85,
       constitutionalCompliance: 100,
@@ -336,7 +352,7 @@ export class InstructionsConverter {
    */
   private async archiveOriginalInstructions(content: string): Promise<void> {
     try {
-      const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+  const timestamp = createUnifiedTimestamp().iso.replace(/[:.]/g, '-');
       const archivePath = path.join(
         process.cwd(), 
         'data', 
@@ -359,7 +375,7 @@ export class InstructionsConverter {
   async createPreConversionBackup(): Promise<void> {
     try {
       const currentProfile = await this.profileManager.loadProfile();
-      const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+  const timestamp = createUnifiedTimestamp().iso.replace(/[:.]/g, '-');
       const backupPath = path.join(
         process.cwd(),
         'data',
@@ -370,7 +386,7 @@ export class InstructionsConverter {
 
       await fs.writeFile(backupPath, JSON.stringify(currentProfile, null, 2), 'utf8');
       console.log(`💾 Pre-conversion backup created: ${backupPath}`);
-    } catch (error) {
+  } catch {
       console.log('No existing profile to backup (this is expected for first conversion)');
     }
   }

@@ -15,16 +15,16 @@
  */
 
 import { OneAgentA2AProtocol, AgentCard } from '../coreagent/protocols/a2a/A2AProtocol';
-import { oneAgentConfig } from '../coreagent/config/index';
+import { UnifiedBackboneService } from '../coreagent/utils/UnifiedBackboneService';
 import { v4 as uuidv4 } from 'uuid';
 import { createUnifiedId } from '../coreagent/utils/UnifiedBackboneService';
 
 // Test Agent Card for real server integration
 const testAgentCard: AgentCard = {
-  protocolVersion: oneAgentConfig.a2aProtocolVersion,
+  protocolVersion: UnifiedBackboneService.getResolvedConfig().a2aProtocolVersion,
   name: "OneAgent-A2A-Test",
   version: "1.0.0",
-  url: oneAgentConfig.a2aBaseUrl,
+  url: UnifiedBackboneService.getResolvedConfig().a2aBaseUrl,
   description: "Test agent for A2A protocol with real server",
   defaultInputModes: ["text"],
   defaultOutputModes: ["text"],
@@ -122,7 +122,7 @@ async function testA2AProtocolWithRealServer() {
     console.log('6️⃣ Testing Memory integration setup...');
     console.log('✅ Memory integration configured for production');
     console.log('   OneAgentMemory client initialized');
-    console.log(`   Memory server connection available at ${oneAgentConfig.memoryUrl}`);
+  console.log(`   Memory server connection available at ${UnifiedBackboneService.getResolvedConfig().memoryUrl}`);
     console.log('   Agent Card storage ready for real operations\n');
     
     console.log('🎉 All A2A Protocol server integration tests passed!');

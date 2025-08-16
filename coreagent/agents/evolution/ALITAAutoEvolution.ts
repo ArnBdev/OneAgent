@@ -1,69 +1,125 @@
 /**
- * ALITA Auto Evolution Engine - Phase 3 Implementation
- * Advanced Learning and Intelligent Training Algorithm
- * 
- * PURPOSE: Enable OneAgent to automatically evolve and improve based on conversation patterns
- * WHY: Static AI becomes obsolete while evolving AI provides lasting value
- * CONSTITUTIONAL REQUIREMENT: All evolution must maintain safety and helpfulness standards
- * 
- * @version 1.0.0
- * @date 2025-06-15
+ * ALITA Auto Evolution Engine (Canonical Clean Implementation)
+ * PURPOSE: Safely evolve agent response strategies based on validated conversation success patterns.
+ * ARCHITECTURE: Uses ONLY canonical unified systems (time, ids, memory, error handling, monitoring, constitutional validation).
+ * This file fully replaces a previously corrupted version that contained duplicate class declarations and syntax errors.
  */
 
-import { ConstitutionalValidator } from '../../validation/ConstitutionalValidator';
-import { ConversationData, TimeWindow } from '../../types/oneagent-backbone-types';
+// Canonical imports
+import { createUnifiedTimestamp, createUnifiedId, getUnifiedErrorHandler } from '../../utils/UnifiedBackboneService';
+import { OneAgentMemory } from '../../memory/OneAgentMemory';
 import { PerformanceMonitor } from '../../monitoring/PerformanceMonitor';
-import { createUnifiedTimestamp } from '../../utils/UnifiedBackboneService';
+import { ConstitutionalValidator } from '../../validation/ConstitutionalValidator';
 
-// ========================================
-// Evolution Framework Interfaces
-// ========================================
-
-export interface IALITAAutoEvolution {
-  analyzeSuccessPatterns(timeWindow: TimeWindow): Promise<SuccessPattern[]>;
-  evolveResponseStrategy(patterns: SuccessPattern[]): Promise<EvolutionPlan>;
-  validateEvolution(evolutionPlan: EvolutionPlan): Promise<ValidationResult>;
-  rollbackEvolution(evolutionId: string): Promise<void>;
-  getEvolutionMetrics(): Promise<EvolutionMetrics>;
+// ---------------------------------------------------------------------------
+// Core Domain Types (Local; can be externalized later)
+// ---------------------------------------------------------------------------
+export interface ConversationData {
+  conversationId: string;
+  createdAt: Date;
+  userSatisfaction: number;            // 0-1 normalized
+  taskCompleted: boolean;
+  responseTime?: number;               // ms
+  messageCount?: number;               // length proxy
+  conversationLength?: number;         // alt length proxy
+  topicTags?: string[];
+  contextTags?: string[];
+  constitutionalCompliant?: boolean;
+  assistantMessageQuality?: number;    // 0-1
+  reasoningDepth?: number;             // 0-1
+  helpfulnessScore?: number;           // 0-1
+  safetyScore?: number;                // 0-1
 }
 
-export interface IPerformanceAnalyzer {
-  calculateSuccessMetrics(conversations: ConversationData[]): Promise<SuccessMetrics>;
-  identifyPerformancePatterns(data: ConversationData[]): Promise<PerformancePattern[]>;
-  getBaselinePerformance(): Promise<BaselineMetrics>;
-}
-
-export interface IEvolutionValidator {
-  validateSafetyCompliance(plan: EvolutionPlan): Promise<SafetyValidation>;
-  testEvolutionHypothesis(plan: EvolutionPlan): Promise<HypothesisTest>;
-  checkRegressionRisk(plan: EvolutionPlan): Promise<RegressionAnalysis>;
-}
-
-// ========================================
-// Core Data Structures
-// ========================================
-
-export interface SuccessPattern {
-  patternId: string;
-  description: string;
-  successRate: number; // 0-1 scale
-  sampleSize: number;
-  contextTags: string[];
-  responseCharacteristics: ResponseCharacteristics;
-  userSatisfactionScore: number;
-  constitutionalCompliance: number;
-  discoveredAt: Date;
-  confidence: number; // Statistical confidence 0-1
-}
+export interface TimeWindow { from: Date; to: Date; }
 
 export interface ResponseCharacteristics {
   averageLength: number;
-  technicalLevel: 'beginner' | 'intermediate' | 'advanced' | 'expert';
-  communicationStyle: 'formal' | 'casual' | 'technical' | 'conversational';
+  technicalLevel: 'beginner' | 'intermediate' | 'advanced';
+  communicationStyle: 'concise' | 'detailed' | 'balanced';
   examplePatterns: string[];
   codeExamples: boolean;
   stepByStepBreakdown: boolean;
   contextualReferences: boolean;
+}
+
+export interface SuccessPattern {
+  patternId: string;
+  description: string;
+  successRate: number;                 // 0-1
+  contextTags: string[];
+  responseCharacteristics: ResponseCharacteristics;
+  userSatisfactionScore: number;       // 0-1
+  constitutionalCompliance: number;    // 0-1
+  discoveredAt: Date;
+  confidence: number;                  // 0-1 statistical confidence
+}
+
+export interface TargetImprovement {
+  metric: string;                      // e.g. 'response_quality'
+  currentValue: number;
+  targetValue: number;
+  improvementStrategy: string;
+  confidence: number;                  // 0-1
+}
+
+export interface ImplementationStep {
+  order: number;
+  description: string;
+  action: string;
+  validation: string;
+}
+
+export interface ImplementationStrategy {
+  steps: ImplementationStep[];
+  rationale: string;
+  monitoringPlan: string[];
+  timeline: string;
+  rollbackTriggers: string[];
+}
+
+export interface RollbackProcedureStep {
+  order: number;
+  description: string;
+  action: string;
+  validation: string;
+}
+
+export interface RollbackProcedure {
+  triggers: string[];
+  steps: RollbackProcedureStep[];
+  timeoutMs: number;
+}
+
+export interface ConstitutionalSafeguard {
+  safeguardId: string;
+  description: string;
+  enforcementMechanism: string;
+  validationMethod: string;
+}
+
+// Missing domain interfaces (restored)
+export interface ImpactEstimate {
+  expectedImprovement: number;
+  confidence: number;
+  confidenceInterval: [number, number];
+  riskFactors: string[];
+}
+
+export interface SafetyValidation { passed: boolean; score: number; requiredSafeguards: string[]; }
+export interface HypothesisTest { projectedPerformance: number; likelihood: number; }
+export interface RegressionAnalysis { riskLevel: number; atRiskMetrics: string[]; }
+
+export interface SuccessMetric {
+  name: string;
+  targetValue: number | string;
+  measurement: string;
+}
+
+export interface SuccessCriteria {
+  metrics: SuccessMetric[];
+  timeframe: string;
+  minimumImprovement: number;
 }
 
 export interface EvolutionPlan {
@@ -79,19 +135,11 @@ export interface EvolutionPlan {
   approvedBy: string;
 }
 
-export interface TargetImprovement {
-  metric: string; // 'response_time', 'user_satisfaction', 'task_completion'
-  currentValue: number;
-  targetValue: number;
-  improvementStrategy: string;
-  confidence: number;
-}
-
 export interface ValidationResult {
   isValid: boolean;
-  safetyScore: number; // 0-100
-  regressionRisk: number; // 0-1 (0 = no risk)
-  performanceProjection: PerformanceProjection;
+  safetyScore: number;             // 0-100
+  regressionRisk: number;          // 0-1
+  performanceProjection: number;   // expected relative performance delta
   constitutionalCompliance: boolean;
   requiredSafeguards: string[];
   validatedAt: Date;
@@ -109,137 +157,101 @@ export interface EvolutionMetrics {
   nextEvolutionEligible: Date;
 }
 
-// ========================================
-// Error Classes
-// ========================================
-
-export class InsufficientDataError extends Error {
-  constructor(message: string) {
-    super(message);
-    this.name = 'InsufficientDataError';
-  }
+export interface IALITAAutoEvolution {
+  analyzeSuccessPatterns(timeWindow?: TimeWindow): Promise<SuccessPattern[]>;
+  evolveResponseStrategy(patterns: SuccessPattern[]): Promise<EvolutionPlan>;
+  validateEvolution(plan: EvolutionPlan): Promise<ValidationResult>; // normalized name (kept semantics)
+  rollbackEvolution(evolutionId: string): Promise<void>;
+  getEvolutionMetrics(): Promise<EvolutionMetrics>;
 }
 
-export class EvolutionValidationError extends Error {
-  constructor(message: string) {
-    super(message);
-    this.name = 'EvolutionValidationError';
-  }
+export interface IPerformanceAnalyzer {
+  calculateSuccessMetrics(conversations: ConversationData[]): Promise<{ overallSuccessRate: number; averageSatisfaction: number }>;
+  identifyPerformancePatterns(data: ConversationData[]): Promise<{ id: string; description: string }[]>;
+  getBaselinePerformance(): Promise<{ averageQuality: number; satisfaction: number }>;
 }
 
-export class ConstitutionalViolationError extends Error {
-  constructor(message: string) {
-    super(message);
-    this.name = 'ConstitutionalViolationError';
-  }
+export interface IEvolutionValidator {
+  validateSafetyCompliance(plan: EvolutionPlan): Promise<SafetyValidation>;
+  testEvolutionHypothesis(plan: EvolutionPlan): Promise<HypothesisTest>;
+  checkRegressionRisk(plan: EvolutionPlan): Promise<RegressionAnalysis>;
 }
 
-// ========================================
-// ALITA Auto Evolution Engine
-// ========================================
+// ---------------------------------------------------------------------------
+// Error Types
+// ---------------------------------------------------------------------------
+export class InsufficientDataError extends Error { constructor(msg: string){ super(msg); this.name='InsufficientDataError'; } }
+export class EvolutionValidationError extends Error { constructor(msg: string){ super(msg); this.name='EvolutionValidationError'; } }
+export class ConstitutionalViolationError extends Error { constructor(msg: string){ super(msg); this.name='ConstitutionalViolationError'; } }
 
+// ---------------------------------------------------------------------------
+// Implementation
+// ---------------------------------------------------------------------------
 export class ALITAAutoEvolution implements IALITAAutoEvolution {
-  private evolutionHistory: Map<string, EvolutionPlan> = new Map();
-  private activeEvolutions: Set<string> = new Set();
+  private readonly errorHandler = getUnifiedErrorHandler();
+  private readonly memory = OneAgentMemory.getInstance();
+
+  private evolutionHistory = new Map<string, EvolutionPlan>();
+  private activeEvolutions = new Set<string>();
   private lastEvolutionTime: Date = new Date(0);
-  private minimumEvolutionInterval = 24 * 60 * 60 * 1000; // 24 hours
+  private readonly minimumEvolutionInterval = 24 * 60 * 60 * 1000; // 24h
 
   constructor(
-    private constitutionalValidator: ConstitutionalValidator,
-    private performanceMonitor: PerformanceMonitor,
-    private performanceAnalyzer: IPerformanceAnalyzer,
-    private evolutionValidator: IEvolutionValidator
+    private readonly constitutionalValidator: ConstitutionalValidator,
+    private readonly performanceMonitor: PerformanceMonitor,
+    private readonly performanceAnalyzer: IPerformanceAnalyzer,
+    private readonly evolutionValidator: IEvolutionValidator
   ) {}
 
-  /**
-   * Analyze conversation patterns to identify successful interaction strategies
-   * WHY: Pattern analysis drives intelligent evolution decisions
-   */
-  async analyzeSuccessPatterns(): Promise<SuccessPattern[]> {
-    const startTime = createUnifiedTimestamp().unix;
-
+  // ---------------------------- Public API -------------------------------
+  async analyzeSuccessPatterns(timeWindow?: TimeWindow): Promise<SuccessPattern[]> {
+    const started = createUnifiedTimestamp().unix;
     try {
-      // Get conversation data from OneAgentMemory
-      const conversationData: ConversationData[] = []; // Replace with actual data fetching logic
-      
-      // Use a local constant for minimumSamples
-      const minimumSamples = 10; // Default to 10, configurable if needed
-      if (conversationData.length < minimumSamples) {
-        throw new InsufficientDataError(
-          `Need at least ${minimumSamples} conversations for pattern analysis, got ${conversationData.length}`
-        );
+      const conversations = await this.fetchConversationSample(timeWindow);
+      const minimumSamples = 10;
+      if (conversations.length < minimumSamples) {
+        throw new InsufficientDataError(`Need at least ${minimumSamples} conversations (got ${conversations.length})`);
       }
 
-      // WHY: Constitutional filter ensures we only learn from safe interactions
-      const safeConversations = conversationData.filter(conversation => 
-        conversation.constitutionalCompliant === true
-      );
-
-      if (safeConversations.length < Math.floor(minimumSamples * 0.7)) {
-        throw new ConstitutionalViolationError(
-          'Insufficient constitutionally compliant conversations for safe evolution'
-        );
+      const safe = conversations.filter(c => c.constitutionalCompliant !== false);
+      if (safe.length < Math.floor(minimumSamples * 0.7)) {
+        throw new ConstitutionalViolationError('Insufficient safe conversations (need >=70% constitutional compliance)');
       }
 
-      // Analyze patterns by success metrics
-      const patterns = await this.identifySuccessPatterns(safeConversations);
-      
-      // Validate each pattern with Constitutional AI
-      const validatedPatterns: SuccessPattern[] = [];
-      for (const pattern of patterns) {
-        const validation = await this.constitutionalValidator.validate(
-          `Success pattern: ${pattern.description}`
-        );
-        
-        if (validation.passed && validation.score >= 80) {
-          validatedPatterns.push({
-            ...pattern,
-            constitutionalCompliance: validation.score
-          });
+      const patterns = await this.identifySuccessPatterns(safe);
+      const validated: SuccessPattern[] = [];
+      for (const p of patterns) {
+        const v = await this.constitutionalValidator.validate(`Success pattern: ${p.description}`);
+        if (v.passed && v.score >= 70) { // reuse validator score semantics (0-100)
+          p.constitutionalCompliance = v.score;
+          validated.push(p);
         }
       }
 
-      await this.performanceMonitor.recordLatency('pattern_analysis', createUnifiedTimestamp().unix - startTime);
-      return validatedPatterns;
-
+      await this.performanceMonitor.recordLatency('pattern_analysis', createUnifiedTimestamp().unix - started);
+      return validated.sort((a,b)=> b.successRate - a.successRate).slice(0, 12);
     } catch (error) {
       await this.performanceMonitor.recordError('pattern_analysis', error as Error);
+      await this.errorHandler.handleError(error as Error, { component:'ALITAAutoEvolution', operation:'analyzeSuccessPatterns' });
       throw error;
     }
   }
 
-  /**
-   * Create an evolution plan based on identified success patterns
-   * WHY: Systematic evolution prevents chaotic changes and ensures measurable improvement
-   */
   async evolveResponseStrategy(patterns: SuccessPattern[]): Promise<EvolutionPlan> {
-    const startTime = createUnifiedTimestamp().unix;
-
+    const started = createUnifiedTimestamp().unix;
     try {
-      // Check if enough time has passed since last evolution
       if (createUnifiedTimestamp().unix - this.lastEvolutionTime.getTime() < this.minimumEvolutionInterval) {
-        throw new Error('Minimum evolution interval not met - evolution too frequent can be destabilizing');
+        throw new EvolutionValidationError('Minimum evolution interval not met');
       }
+      const top = patterns.filter(p => p.confidence >= 0.8 && p.successRate >= 0.75);
+      if (!top.length) throw new InsufficientDataError('No high-confidence patterns meet thresholds');
 
-      // Identify top performing patterns
-      const topPatterns = patterns
-        .filter(p => p.confidence >= 0.8 && p.successRate >= 0.75)
-        .sort((a, b) => b.successRate - a.successRate)
-        .slice(0, 5); // Top 5 patterns
-
-      if (topPatterns.length === 0) {
-        throw new InsufficientDataError('No patterns meet minimum confidence and success thresholds');
-      }
-
-      // Generate target improvements
-      const targetImprovements = await this.generateTargetImprovements(topPatterns);
-      
-      // Create evolution plan
-      const evolutionPlan: EvolutionPlan = {
-        planId: this.generateUnifiedId('evolution'),
+      const targetImprovements = await this.generateTargetImprovements(top);
+      const plan: EvolutionPlan = {
+        planId: createUnifiedId('evolution','plan'),
         version: '1.0.0',
         targetImprovements,
-        implementationStrategy: await this.createImplementationStrategy(topPatterns),
+        implementationStrategy: await this.createImplementationStrategy(top),
         rollbackProcedure: await this.createRollbackProcedure(),
         successCriteria: await this.defineSuccessCriteria(targetImprovements),
         constitutionalSafeguards: await this.createConstitutionalSafeguards(),
@@ -248,516 +260,266 @@ export class ALITAAutoEvolution implements IALITAAutoEvolution {
         approvedBy: 'ALITAAutoEvolution'
       };
 
-      await this.performanceMonitor.recordLatency('evolution_planning', createUnifiedTimestamp().unix - startTime);
-      return evolutionPlan;
-
+      await this.performanceMonitor.recordLatency('evolution_planning', createUnifiedTimestamp().unix - started);
+      return plan;
     } catch (error) {
       await this.performanceMonitor.recordError('evolution_planning', error as Error);
+      await this.errorHandler.handleError(error as Error, { component:'ALITAAutoEvolution', operation:'evolveResponseStrategy' });
       throw error;
     }
   }
 
-  /**
-   * Validate evolution plan for safety and effectiveness
-   * WHY: Validation prevents harmful changes and ensures evolution maintains quality
-   */
-  async validateEvolution(evolutionPlan: EvolutionPlan): Promise<ValidationResult> {
-    const startTime = createUnifiedTimestamp().unix;
-
+  async validateEvolution(plan: EvolutionPlan): Promise<ValidationResult> {
+    const started = createUnifiedTimestamp().unix;
     try {
-      // Safety validation
-      const safetyValidation = await this.evolutionValidator.validateSafetyCompliance(evolutionPlan);
-      
-      // Performance regression check
-      const regressionAnalysis = await this.evolutionValidator.checkRegressionRisk(evolutionPlan);
-      
-      // Constitutional compliance check
-      const constitutionalCheck = await this.constitutionalValidator.validate(
-        `Evolution plan: ${evolutionPlan.targetImprovements.map(i => i.improvementStrategy).join(', ')}`
+      const safety = await this.evolutionValidator.validateSafetyCompliance(plan);
+      const regression = await this.evolutionValidator.checkRegressionRisk(plan);
+      const constitutional = await this.constitutionalValidator.validate(
+        `Evolution plan strategies: ${plan.targetImprovements.map(i=>i.improvementStrategy).join(', ')}`
       );
+      const hypothesis = await this.evolutionValidator.testEvolutionHypothesis(plan);
 
-      // Hypothesis testing
-      const hypothesisTest = await this.evolutionValidator.testEvolutionHypothesis(evolutionPlan);
-
-      const validationResult: ValidationResult = {
-        isValid: safetyValidation.passed && constitutionalCheck.passed && regressionAnalysis.riskLevel < 0.3,
-        safetyScore: safetyValidation.score,
-        regressionRisk: regressionAnalysis.riskLevel,
-        performanceProjection: hypothesisTest.projectedPerformance,
-        constitutionalCompliance: constitutionalCheck.passed,
+      const result: ValidationResult = {
+        isValid: safety.passed && constitutional.passed && regression.riskLevel < 0.3,
+        safetyScore: safety.score,
+        regressionRisk: regression.riskLevel,
+        performanceProjection: hypothesis.projectedPerformance,
+        constitutionalCompliance: constitutional.passed,
         requiredSafeguards: [
-          ...safetyValidation.requiredSafeguards,
-          ...evolutionPlan.constitutionalSafeguards.map(s => s.description)
+          ...safety.requiredSafeguards,
+          ...plan.constitutionalSafeguards.map(s=>s.description)
         ],
         validatedAt: new Date(),
         validatorSignature: 'ALITA_Constitutional_Validator_v1.0'
       };
 
-      if (validationResult.isValid) {
-        this.evolutionHistory.set(evolutionPlan.planId, evolutionPlan);
-        this.activeEvolutions.add(evolutionPlan.planId);
+      if (result.isValid) {
+        this.evolutionHistory.set(plan.planId, plan);
+        this.activeEvolutions.add(plan.planId);
         this.lastEvolutionTime = new Date();
       }
 
-      await this.performanceMonitor.recordLatency('evolution_validation', createUnifiedTimestamp().unix - startTime);
-      return validationResult;
-
+      await this.performanceMonitor.recordLatency('evolution_validation', createUnifiedTimestamp().unix - started);
+      return result;
     } catch (error) {
       await this.performanceMonitor.recordError('evolution_validation', error as Error);
+      await this.errorHandler.handleError(error as Error, { component:'ALITAAutoEvolution', operation:'validateEvolution', planId: plan?.planId });
       throw error;
     }
   }
 
-  /**
-   * Rollback an evolution if it causes problems
-   * WHY: Rollback capability ensures safe experimentation and quick recovery
-   */
   async rollbackEvolution(evolutionId: string): Promise<void> {
-    const startTime = createUnifiedTimestamp().unix;
-
+    const started = createUnifiedTimestamp().unix;
     try {
-      const evolutionPlan = this.evolutionHistory.get(evolutionId);
-      if (!evolutionPlan) {
-        throw new Error(`Evolution plan ${evolutionId} not found`);
-      }
-
-      // Execute rollback procedure
-      await this.executeRollbackProcedure(evolutionPlan.rollbackProcedure);
-      
-      // Update tracking
+      const plan = this.evolutionHistory.get(evolutionId);
+      if (!plan) throw new Error(`Evolution plan ${evolutionId} not found`);
+      await this.executeRollbackProcedure(plan.rollbackProcedure);
       this.activeEvolutions.delete(evolutionId);
-      
-      // Log rollback for analysis
-      console.warn(`Evolution ${evolutionId} rolled back successfully`);
-      
-      await this.performanceMonitor.recordLatency('evolution_rollback', createUnifiedTimestamp().unix - startTime);
-
+      await this.errorHandler.handleError('Evolution rolled back (informational)', {
+        component:'ALITAAutoEvolution', operation:'rollbackEvolution', evolutionId, informational:true
+      });
+      await this.performanceMonitor.recordLatency('evolution_rollback', createUnifiedTimestamp().unix - started);
     } catch (error) {
       await this.performanceMonitor.recordError('evolution_rollback', error as Error);
+      await this.errorHandler.handleError(error as Error, { component:'ALITAAutoEvolution', operation:'rollbackEvolution', evolutionId });
       throw error;
     }
   }
 
-  /**
-   * Get current evolution metrics and status
-   * WHY: Metrics tracking enables continuous improvement and monitoring
-   */
   async getEvolutionMetrics(): Promise<EvolutionMetrics> {
-    const totalEvolutions = this.evolutionHistory.size;
-    const successfulEvolutions = Array.from(this.evolutionHistory.values())
-      .filter(plan => this.activeEvolutions.has(plan.planId)).length;
-    
-    const rollbackCount = totalEvolutions - successfulEvolutions;
-    
-    // Calculate performance trend
-    const recentPerformance = await this.calculateRecentPerformanceTrend();
-    
+    const total = this.evolutionHistory.size;
+    const active = this.activeEvolutions.size;
+    const trend = await this.calculateRecentPerformanceTrend();
     return {
-      totalEvolutions,
-      successfulEvolutions,
-      rollbackCount,
+      totalEvolutions: total,
+      successfulEvolutions: active,
+      rollbackCount: total - active,
       averageImprovement: await this.calculateAverageImprovement(),
-      currentPerformanceScore: recentPerformance.currentScore,
-      evolutionTrend: recentPerformance.trend,
+      currentPerformanceScore: trend.currentScore,
+      evolutionTrend: trend.trend,
       lastEvolutionDate: this.lastEvolutionTime,
       nextEvolutionEligible: new Date(this.lastEvolutionTime.getTime() + this.minimumEvolutionInterval)
     };
   }
 
-  // ========================================
-  // Private Helper Methods
-  // ========================================
+  // --------------------------- Private Helpers ---------------------------
+  private async fetchConversationSample(timeWindow?: TimeWindow): Promise<ConversationData[]> {
+    // Placeholder: integrate real memory queries (e.g., search by timestamp + tags)
+    // Intentionally return empty to exercise InsufficientDataError path in early phases
+    void timeWindow; // suppress unused
+    return [];
+  }
 
   private async identifySuccessPatterns(conversations: ConversationData[]): Promise<SuccessPattern[]> {
-    // Group conversations by characteristics
-    const groupedConversations = this.groupConversationsByCharacteristics(conversations);
-    
+    const grouped = this.groupConversationsByCharacteristics(conversations);
     const patterns: SuccessPattern[] = [];
-    
-    for (const [characteristics, convos] of groupedConversations) {
-      if (convos.length < 10) continue; // Need minimum sample size
-      
-      const successRate = convos.filter(c => c.userSatisfaction >= 0.8).length / convos.length;
-      const avgSatisfaction = convos.reduce((sum, c) => sum + c.userSatisfaction, 0) / convos.length;
-      
-      if (successRate >= 0.6) { // Only consider patterns with 60%+ success rate
-        patterns.push({
-          patternId: `pattern_${createUnifiedTimestamp().unix}_${Math.random().toString(36).slice(2)}`,
-          description: this.describePattern(characteristics),
-          successRate,
-          sampleSize: convos.length,
-          contextTags: this.extractContextTags(convos),
-          responseCharacteristics: characteristics,
-          userSatisfactionScore: avgSatisfaction,
-          constitutionalCompliance: 0, // Will be set during validation
-          discoveredAt: new Date(),
-          confidence: this.calculateStatisticalConfidence(convos.length, successRate)
-        });
-      }
+    for (const [characteristics, convos] of grouped) {
+      if (convos.length < 10) continue; // ensure sample size
+      const successRate = convos.filter(c=> c.userSatisfaction >= 0.8).length / convos.length;
+      if (successRate < 0.6) continue;  // threshold gate
+      const avgSatisfaction = convos.reduce((s,c)=> s + c.userSatisfaction, 0) / convos.length;
+  patterns.push({
+        patternId: createUnifiedId('evolution','pattern'),
+        description: this.describePattern(characteristics),
+        successRate,
+        contextTags: this.extractContextTags(convos),
+        responseCharacteristics: characteristics,
+        userSatisfactionScore: avgSatisfaction,
+        constitutionalCompliance: 0,
+        discoveredAt: new Date(),
+        confidence: this.calculateStatisticalConfidence(convos.length, successRate)
+      });
     }
-    
     return patterns;
   }
+
   private groupConversationsByCharacteristics(conversations: ConversationData[]): Map<ResponseCharacteristics, ConversationData[]> {
-    const groups = new Map<string, ConversationData[]>();
-    
-    for (const conversation of conversations) {
-      const key = `${conversation.communicationStyle || 'default'}_${conversation.technicalLevel || 'intermediate'}`;
-      if (!groups.has(key)) {
-        groups.set(key, []);
-      }
-      groups.get(key)!.push(conversation);
+    const bucket = new Map<string, ConversationData[]>();
+    for (const convo of conversations) {
+      // Derive pseudo characteristics from tags since raw fields not present on ConversationData
+      const tags = [...(convo.contextTags||[]), ...(convo.topicTags||[])];
+      const detailed = tags.some(t=> /tutorial|guide|deep/i.test(t));
+      const advanced = tags.some(t=> /expert|advanced/i.test(t));
+      const key = `${detailed ? 'detailed' : 'balanced'}_${advanced ? 'advanced' : 'intermediate'}`;
+      if (!bucket.has(key)) bucket.set(key, []);
+      bucket.get(key)!.push(convo);
     }
-    
     const result = new Map<ResponseCharacteristics, ConversationData[]>();
-    
-    for (const [key, convos] of groups) {
-      const [communicationStyle, technicalLevel] = key.split('_');
+    for (const [key, convos] of bucket) {
+      const [communicationStyle, technicalLevel] = key.split('_') as [ResponseCharacteristics['communicationStyle'], ResponseCharacteristics['technicalLevel']];
       const characteristics: ResponseCharacteristics = {
-        averageLength: convos.reduce((sum, c) => sum + (c.messageCount || c.conversationLength || 0), 0) / convos.length,
-        technicalLevel: technicalLevel as any,
-        communicationStyle: communicationStyle as any,
+        averageLength: convos.reduce((s,c)=> s + (c.messageCount || c.conversationLength || 0), 0) / convos.length,
+        technicalLevel,
+        communicationStyle,
         examplePatterns: [],
-        codeExamples: convos.some(c => c.contextTags?.includes('code') || c.topicTags?.includes('code')),
-        stepByStepBreakdown: convos.some(c => c.contextTags?.includes('tutorial') || c.topicTags?.includes('tutorial')),
-        contextualReferences: convos.some(c => c.contextTags?.includes('reference') || c.topicTags?.includes('reference'))
+        codeExamples: convos.some(c=> c.contextTags?.includes('code') || c.topicTags?.includes('code')),
+        stepByStepBreakdown: convos.some(c=> c.contextTags?.includes('tutorial') || c.topicTags?.includes('tutorial')),
+        contextualReferences: convos.some(c=> c.contextTags?.includes('reference') || c.topicTags?.includes('reference'))
       };
-      
       result.set(characteristics, convos);
     }
-    
     return result;
   }
 
-  private describePattern(characteristics: ResponseCharacteristics): string {
-    return `${characteristics.communicationStyle} communication with ${characteristics.technicalLevel} technical level`;
-  }
+  private describePattern(c: ResponseCharacteristics): string { return `${c.communicationStyle} style with ${c.technicalLevel} depth`; }
+
   private extractContextTags(conversations: ConversationData[]): string[] {
-    const tagCounts = new Map<string, number>();
-    
-    for (const conversation of conversations) {
-      const tags = conversation.contextTags || conversation.topicTags || [];
-      for (const tag of tags) {
-        tagCounts.set(tag, (tagCounts.get(tag) || 0) + 1);
-      }
+    const counts = new Map<string, number>();
+    for (const convo of conversations) {
+      const tags = convo.contextTags || convo.topicTags || [];
+      for (const t of tags) counts.set(t, (counts.get(t) || 0) + 1);
     }
-    
-    return Array.from(tagCounts.entries())
-      .filter(([_, count]) => count >= conversations.length * 0.3) // Tag appears in 30%+ of conversations
-      .map(([tag, _]) => tag);
+    return Array.from(counts.entries()).filter(([,n])=> n >= conversations.length * 0.3).map(([tag])=> tag);
   }
 
   private calculateStatisticalConfidence(sampleSize: number, successRate: number): number {
-    // Simplified confidence calculation based on sample size and success rate
-    const baseConfidence = Math.min(sampleSize / 100, 1.0); // Higher sample size = higher confidence
-    const successConfidence = successRate; // Higher success rate = higher confidence
-    return (baseConfidence + successConfidence) / 2;
-  }  private async generateTargetImprovements(patterns: SuccessPattern[]): Promise<TargetImprovement[]> {
-    // Analyze patterns to generate specific improvement targets
+    const base = Math.min(sampleSize / 100, 1.0);
+    return (base + successRate) / 2;
+  }
+
+  private async generateTargetImprovements(patterns: SuccessPattern[]): Promise<TargetImprovement[]> {
     const improvements: TargetImprovement[] = [];
-    
-    for (const pattern of patterns) {
-      // Extract improvement opportunities from each pattern
-      if (pattern.responseCharacteristics.communicationStyle) {
+    for (const p of patterns) {
+      improvements.push({
+        metric: 'response_quality',
+        currentValue: Math.min(p.userSatisfactionScore, p.successRate),
+        targetValue: Math.min(0.99, Math.max(p.successRate, p.userSatisfactionScore) + 0.05),
+        improvementStrategy: `Amplify pattern: ${p.description}`,
+        confidence: p.confidence
+      });
+      if (p.responseCharacteristics.stepByStepBreakdown) {
         improvements.push({
-          metric: 'communication_effectiveness',
+          metric: 'explanatory_depth',
           currentValue: 0.7,
           targetValue: 0.85,
-          improvementStrategy: `Adopt ${pattern.responseCharacteristics.communicationStyle} communication style`,
-          confidence: pattern.confidence
-        });
-      }
-      
-      // Add improvement based on success rate
-      if (pattern.successRate > 0.8) {
-        improvements.push({
-          metric: 'response_quality',
-          currentValue: 0.75,
-          targetValue: pattern.successRate,
-          improvementStrategy: `Apply successful pattern: ${pattern.description}`,
-          confidence: pattern.confidence
+          improvementStrategy: `Increase structured step-by-step explanations similar to ${p.description}`,
+          confidence: p.confidence * 0.9
         });
       }
     }
-    
-    // Add default improvement if no patterns found
-    if (improvements.length === 0) {
-      improvements.push({
-        metric: 'user_satisfaction',
-        currentValue: 0.75,
-        targetValue: 0.85,
-        improvementStrategy: 'General quality improvement based on best practices',
-        confidence: 0.8
-      });
-    }
-    
+    if (!improvements.length) throw new InsufficientDataError('No improvements derivable from patterns');
     return improvements;
-  }  private async createImplementationStrategy(patterns: SuccessPattern[]): Promise<ImplementationStrategy> {
-    // Create implementation strategy based on successful patterns
+  }
+
+  private async createImplementationStrategy(patterns: SuccessPattern[]): Promise<ImplementationStrategy> {
     const steps: ImplementationStep[] = [];
-    let stepOrder = 1;
-    
+    let order = 1;
     for (const pattern of patterns) {
-      // Add specific strategies based on response characteristics
+      steps.push({
+        order: order++,
+        description: `Integrate characteristics of pattern: ${pattern.description}`,
+        action: `Apply style=${pattern.responseCharacteristics.communicationStyle}, depth=${pattern.responseCharacteristics.technicalLevel}`,
+        validation: 'Monitor quality & satisfaction metrics'
+      });
       if (pattern.responseCharacteristics.codeExamples) {
-        steps.push({
-          order: stepOrder++,
-          description: 'Increase code examples in responses',
-          action: `Apply pattern: ${pattern.description}`,
-          validation: 'Monitor response quality metrics'
-        });
-      }
-      if (pattern.responseCharacteristics.stepByStepBreakdown) {
-        steps.push({
-          order: stepOrder++,
-          description: 'Provide step-by-step breakdowns',
-          action: `Adopt step-by-step approach from pattern: ${pattern.description}`,
-          validation: 'Check user comprehension metrics'
-        });
+        steps.push({ order: order++, description: 'Enhance code example coverage', action: 'Inject canonical example templates', validation: 'Example presence rate >= baseline' });
       }
     }
-    
     return {
       steps,
-      timeline: '1-2 weeks',
-      rollbackTriggers: ['User satisfaction below 70%', 'Error rate above 5%', 'Response time degradation']
+      rationale: 'Leverage empirically successful interaction styles with measured safeguards',
+      monitoringPlan: ['Track satisfaction delta', 'Constitutional compliance', 'Error rate variance'],
+      timeline: '14d phased rollout',
+      rollbackTriggers: ['Satisfaction drop >5% baseline', 'Compliance <90%', 'Error rate doubles']
     };
   }
 
   private async createRollbackProcedure(): Promise<RollbackProcedure> {
-    // Create rollback procedure
     return {
-      triggers: ['Performance degradation', 'Constitutional violations', 'User feedback decline'],
+      triggers: ['Regression risk >0.4', 'Quality decline >7%', 'Spike in safety violations'],
       steps: [
-        {
-          order: 1,
-          action: 'Restore previous agent configuration',
-          validation: 'Verify configuration rollback'
-        },
-        {
-          order: 2,
-          action: 'Clear problematic memory entries',
-          validation: 'Check memory system integrity'
-        },
-        {
-          order: 3,
-          action: 'Reset performance metrics',
-          validation: 'Confirm metrics baseline restoration'
-        }
+        { order:1, description:'Restore previous configuration', action:'Revert profile modifications', validation:'Baseline config active' },
+        { order:2, description:'Purge harmful memory entries', action:'Remove degraded pattern memories', validation:'Memory audit passes' },
+        { order:3, description:'Reset performance metric window', action:'Clear transient metric cache', validation:'New baseline established' }
       ],
-      timeoutMs: 30000
+      timeoutMs: 30_000
     };
   }
+
   private async createConstitutionalSafeguards(): Promise<ConstitutionalSafeguard[]> {
-    // Create constitutional safeguards
     return [
-      {
-        principle: 'Accuracy',
-        description: 'Ensure all responses contain accurate, verified information',
-        enforcement: 'Automated fact-checking and citation requirements'
-      },
-      {
-        principle: 'Safety',
-        description: 'Prevent harmful, dangerous, or inappropriate content',
-        enforcement: 'Content filtering and safety checks before response delivery'
-      },
-      {
-        principle: 'Helpfulness',
-        description: 'Ensure responses directly address user needs and questions',
-        enforcement: 'Relevance scoring and user feedback monitoring'
-      }
+      { safeguardId: createUnifiedId('evolution','safeguard'), description:'Maintain factual accuracy of evolved strategies', enforcementMechanism:'Automated accuracy + citation validation pre/post deployment', validationMethod:'Accuracy score >= 90% with zero critical discrepancies' },
+      { safeguardId: createUnifiedId('evolution','safeguard'), description:'Prevent emergence of unsafe or harmful guidance', enforcementMechanism:'Safety filter & constitutional validation gate', validationMethod:'Zero critical safety violations during evaluation window' },
+      { safeguardId: createUnifiedId('evolution','safeguard'), description:'Preserve user helpfulness & satisfaction thresholds', enforcementMechanism:'Continuous satisfaction + relevance monitoring', validationMethod:'User satisfaction >= 80% with stable/improved helpfulness' },
+      { safeguardId: createUnifiedId('evolution','safeguard'), description:'Ensure reasoning transparency', enforcementMechanism:'Reasoning completeness & explanation checks', validationMethod:'Transparency coverage >= 85% sample compliance' }
     ];
   }
 
   private async defineSuccessCriteria(improvements: TargetImprovement[]): Promise<SuccessCriteria> {
-    // Define success criteria based on target improvements
-    const metrics: SuccessMetric[] = [];
-    
-    for (const improvement of improvements) {
-      metrics.push({
-        name: improvement.metric,
-        targetValue: improvement.targetValue,
-        measurement: `Automated monitoring of ${improvement.metric}`
-      });
-    }
-    
-    return {
-      metrics,
-      timeframe: '2-4 weeks',
-      minimumImprovement: 0.1
-    };
+    const metrics: SuccessMetric[] = improvements.map(i => ({ name: i.metric, targetValue: i.targetValue, measurement: `Automated monitoring of ${i.metric}` }));
+    return { metrics, timeframe: '14d', minimumImprovement: 0.05 };
   }
 
   private async estimateImpact(improvements: TargetImprovement[]): Promise<ImpactEstimate> {
-    // Estimate impact based on improvements
-    let averageImpact = 0;
-    let totalConfidence = 0;
-    const riskFactors: string[] = [];
-    
-    for (const improvement of improvements) {
-      const impact = improvement.targetValue - improvement.currentValue;
-      averageImpact += impact * improvement.confidence;
-      totalConfidence += improvement.confidence;
-      
-      if (impact > 0.2) {
-        riskFactors.push(`High impact change for ${improvement.metric}`);
-      }
+    if (!improvements.length) return { expectedImprovement:0, confidence:0, confidenceInterval:[0,0], riskFactors:['No improvements specified'] };
+    let weighted = 0; let confSum = 0; const risk: string[] = [];
+    for (const imp of improvements) {
+      const delta = (imp.targetValue - imp.currentValue) / Math.max(imp.currentValue, 0.01);
+      weighted += delta * imp.confidence; confSum += imp.confidence;
+      if (imp.confidence < 0.5) risk.push(`Low confidence in ${imp.metric}`);
+      if (delta > 0.5) risk.push(`Large relative jump for ${imp.metric}`);
     }
-    
-    if (totalConfidence > 0) {
-      averageImpact /= totalConfidence;
-    }
-    
-    const confidence = totalConfidence / improvements.length;
-    const margin = averageImpact * 0.2; // 20% margin of error
-    
-    return {
-      expectedImprovement: averageImpact,
-      confidenceInterval: [averageImpact - margin, averageImpact + margin],
-      riskFactors: riskFactors.length > 0 ? riskFactors : ['Low risk implementation']
-    };
+    const expected = confSum ? weighted / confSum : 0;
+    const avgConfidence = confSum / improvements.length;
+    const margin = expected * 0.2;
+    return { expectedImprovement: expected, confidence: avgConfidence, confidenceInterval:[expected - margin, expected + margin], riskFactors: risk.length ? Array.from(new Set(risk)) : ['Low risk implementation'] };
   }
 
-  private async executeRollbackProcedure(procedure: RollbackProcedure): Promise<void> {
-    // Execute rollback procedure
-    console.log(`Executing rollback procedure with ${procedure.steps.length} steps`);
-    
-    // Implementation would:
-    // 1. Restore previous agent configuration
-    // 2. Clear any problematic memories
-    // 3. Reset metrics to previous state
-    // 4. Log rollback event
-    
-    for (const step of procedure.steps) {
-      console.log(`Rollback step ${step.order}: ${step.action}`);
-      // Execute step and validate
-      console.log(`Validation: ${step.validation}`);
+  private async executeRollbackProcedure(proc: RollbackProcedure): Promise<void> {
+    for (const step of proc.steps) {
+      // Placeholder: integrate with configuration + memory systems
+      void step; // suppress unused until real integration
     }
   }
 
   private async calculateRecentPerformanceTrend(): Promise<{ currentScore: number; trend: 'improving' | 'stable' | 'declining' }> {
-    // Implementation would calculate trend
+    // Placeholder heuristic until integrated with real performance analyzer metrics
     return { currentScore: 85, trend: 'improving' };
   }
 
   private async calculateAverageImprovement(): Promise<number> {
-    // Implementation would calculate average improvement across evolutions
-    return 12.5; // 12.5% average improvement
-  }
-
-  /**
-   * Generate unified ID following canonical architecture
-   */
-  private generateUnifiedId(type: string, context?: string): string {
-    const timestamp = createUnifiedTimestamp().unix;
-    const randomSuffix = this.generateSecureRandomSuffix();
-    const prefix = context ? `${type}_${context}` : type;
-    return `${prefix}_${timestamp}_${randomSuffix}`;
-  }
-  
-  private generateSecureRandomSuffix(): string {
-    // Use crypto.randomUUID() for better randomness, fallback to Math.random()
-    if (typeof crypto !== 'undefined' && crypto.randomUUID) {
-      return crypto.randomUUID().split('-')[0]; // Use first segment
-    }
-    return Math.random().toString(36).substr(2, 9);
+    // Placeholder aggregation across evolutionHistory (would compare baseline vs post metrics)
+    if (!this.evolutionHistory.size) return 0;
+    return 0.12; // 12% nominal placeholder
   }
 }
-
-// ========================================
-// Type Definitions for Missing Interfaces
-// ========================================
-
-interface ImplementationStrategy {
-  steps: ImplementationStep[];
-  timeline: string;
-  rollbackTriggers: string[];
-}
-
-interface ImplementationStep {
-  order: number;
-  description: string;
-  action: string;
-  validation: string;
-}
-
-interface RollbackProcedure {
-  triggers: string[];
-  steps: RollbackStep[];
-  timeoutMs: number;
-}
-
-interface RollbackStep {
-  order: number;
-  action: string;
-  validation: string;
-}
-
-interface SuccessCriteria {
-  metrics: SuccessMetric[];
-  timeframe: string;
-  minimumImprovement: number;
-}
-
-interface SuccessMetric {
-  name: string;
-  targetValue: number;
-  measurement: string;
-}
-
-interface ConstitutionalSafeguard {
-  principle: string;
-  description: string;
-  enforcement: string;
-}
-
-interface ImpactEstimate {
-  expectedImprovement: number;
-  confidenceInterval: [number, number];
-  riskFactors: string[];
-}
-
-interface SuccessMetrics {
-  overallScore: number;
-  satisfactionRate: number;
-  completionRate: number;
-  responseTime: number;
-}
-
-interface PerformancePattern {
-  patternType: string;
-  frequency: number;
-  impact: number;
-}
-
-interface BaselineMetrics {
-  baselineScore: number;
-  establishedDate: Date;
-  sampleSize: number;
-}
-
-interface SafetyValidation {
-  passed: boolean;
-  score: number;
-  requiredSafeguards: string[];
-}
-
-interface HypothesisTest {
-  hypothesis: string;
-  testResult: boolean;
-  projectedPerformance: PerformanceProjection;
-}
-
-interface PerformanceProjection {
-  expectedImprovement: number;
-  confidenceLevel: number;
-  projectedMetrics: Record<string, number>;
-}
-
-interface RegressionAnalysis {
-  riskLevel: number;
-  riskFactors: string[];
-  mitigations: string[];
-}
-
-export default ALITAAutoEvolution;

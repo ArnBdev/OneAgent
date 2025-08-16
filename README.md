@@ -45,6 +45,36 @@ npm run server:unified
 npm run dev
 ```
 
+## 🧪 Testing (Dual-Mode Communication & Monitoring Verification)
+
+The communication subsystem is validated in two modes to ensure zero regression while keeping CI fast:
+
+1. Monitoring Disabled Mode (fast, silent):
+	- Env: `ONEAGENT_FAST_TEST_MODE=1`, `ONEAGENT_DISABLE_AUTO_MONITORING=1`, `ONEAGENT_SILENCE_COMM_LOGS=1`
+	- Purpose: Validate core communication flow & legacy pattern absence without incurring monitoring overhead.
+	- Operation event assertions are intentionally skipped (monitoring stub returns no events).
+
+2. Monitoring Enabled Mode (coverage enforcement):
+	- Env: `ONEAGENT_FAST_TEST_MODE=1`, `ONEAGENT_SILENCE_COMM_LOGS=1` (monitoring flag unset)
+	- Purpose: Enforce presence of `operation` field events for all canonical methods:
+	  `registerAgent`, `discoverAgents`, `createSession`, `sendMessage`, `getMessageHistory`.
+	- Fails build if any required operation event is missing.
+
+The `scripts/verify-build.js` script orchestrates both passes and performs an in-process post-run verification to guarantee operation coverage (no reliance on only the test process memory). A lightweight utility `tests/utils/monitoringTestUtils.ts` provides reusable coverage assertions (no parallel metrics state—derives strictly from monitoring events).
+
+Run full verification locally:
+```bash
+node scripts/verify-build.js
+```
+
+Environment Flags Summary:
+- `ONEAGENT_FAST_TEST_MODE=1` → In-memory agent/session/message registries (zero external dependencies)
+- `ONEAGENT_DISABLE_AUTO_MONITORING=1` → Replaces monitoring singleton with no-op stub (skips event assertions)
+- `ONEAGENT_SILENCE_COMM_LOGS=1` → Suppresses verbose communication logs for cleaner CI output
+
+Rate limit enforcement (30 msgs / 60s per agent-session) is covered by `tests/canonical/communication-rate-limit.test.ts` and executes in fast mode. Both conformance and rate limit tests exit cleanly to avoid lingering handles, ensuring CI stability.
+
+This dual-mode strategy delivers deterministic coverage plus minimal runtime overhead, preserving canonical single-source monitoring (UnifiedMonitoringService) without introducing parallel systems.
 ### **Phase 4 Testing**
 ```bash
 # Verify all 8 Phase 4 core methods
@@ -117,6 +147,7 @@ Transform from reactive responses to proactive suggestions based on learned patt
 - **[PHASE_5_AUTONOMOUS_INTELLIGENCE_ROADMAP.md](./PHASE_5_AUTONOMOUS_INTELLIGENCE_ROADMAP.md)**: Phase 5 strategic roadmap
 - **[ONEAGENT_ARCHITECTURE.md](./ONEAGENT_ARCHITECTURE.md)**: Complete architecture overview
 - **[ONEAGENT_HYBRID_ROADMAP_V5.md](./ONEAGENT_HYBRID_ROADMAP_V5.md)**: Strategic implementation roadmap
+- **[docs/monitoring/OPERATION_METRICS.md](./docs/monitoring/OPERATION_METRICS.md)**: Canonical event-based operation metrics (trackOperation + summarizeOperationMetrics)
 
 ### **Phase 4 Specifications**
 - **[PHASE_4_MEMORY_DRIVEN_INTELLIGENCE_OVERVIEW.md](./PHASE_4_MEMORY_DRIVEN_INTELLIGENCE_OVERVIEW.md)**: Phase 4 technical specifications
@@ -152,6 +183,51 @@ Transform from reactive responses to proactive suggestions based on learned patt
 - **Zero compilation errors** with strict type checking
 - **Comprehensive error handling** with graceful fallbacks
 - **Full memory integration** with persistent learning
+
+### **Canonical Memory API (Unified Metadata)**
+All memory writes MUST use the canonical path:
+
+```ts
+// Preferred ergonomic alias (delegates to canonical)
+await memory.addMemory("User prefers dark mode", {
+	category: "preferences",
+	tags: ["ui", "theme"],
+	importance: "standard"
+}, userId);
+
+// Direct canonical form (same effect)
+await memory.addMemoryCanonical(
+	"User prefers dark mode",
+	{
+		category: "preferences",
+		tags: ["ui", "theme"],
+		importance: "standard"
+	},
+	userId
+);
+```
+
+Unified metadata is internally normalized via the UnifiedMetadata service (system/content/temporal/custom blocks). The legacy object-form call:
+
+```ts
+// ❌ DEPRECATED & REMOVED
+await memory.addMemory({ content: "...", metadata: { ... } });
+```
+
+has been fully removed. Batch operations and tools now automatically construct canonical metadata; no parallel memory write paths remain. This consolidation improves analytics fidelity, learning consistency, and future adapter simplification potential (e.g., `adaptSearchResponse`).
+
+### Monitoring Control (Lightweight Scripts)
+Set environment variable `ONEAGENT_DISABLE_AUTO_MONITORING=1` to prevent automatic monitoring service instantiation during simple imports (unit tests, one-off scripts). All periodic timers also use `unref()` so they won't block process exit when enabled.
+
+### Canonical Agent Communication (Consolidated)
+All agent-to-agent (A2A) coordination uses `UnifiedAgentCommunicationService` (singleton exported as `unifiedAgentCommunicationService`). Legacy service names (`AgentCommunicationService`, `A2ACommunicationService`, `MultiAgentCommunicationService`) are guarded by throwing stubs in `DeprecatedCommunication.ts` to prevent parallel system regression. A conformance test (`tests/canonical/communication-conformance.test.ts`) enforces:
+- Successful register → discover → createSession → sendMessage → getMessageHistory flow
+- Monitoring events with explicit `operation` field for each core method
+- Absence of legacy class references in the codebase
+
+Rate limiting (30 messages / 60s per agent-session) is enforced and covered by `communication-rate-limit.test.ts`.
+
+Monitoring events now include an explicit `operation` field (in addition to the descriptive message) for robust assertion and aggregation, while `trackOperation` remains the canonical entry point (no parallel metrics store).
 
 ## 🤝 **Contributing**
 

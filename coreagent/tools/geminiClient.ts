@@ -1,7 +1,7 @@
 // Google Gemini API client for AI-powered text processing
 
 import axios, { AxiosInstance, AxiosResponse } from 'axios';
-import { createUnifiedTimestamp } from '../utils/UnifiedBackboneService';
+import { createUnifiedId } from '../utils/UnifiedBackboneService';
 import { 
   GeminiConfig, 
   GeminiRequest, 
@@ -271,7 +271,7 @@ export class GeminiClient {
    * Generate text embedding using Gemini embedding models
    */
   async generateEmbedding(text: string, options?: EmbeddingOptions): Promise<EmbeddingResult> {
-    const operationId = `gemini_embedding_${createUnifiedTimestamp().unix}_${Math.random()}`;
+  const operationId = createUnifiedId('operation', 'gemini_embedding');
     globalProfiler.startOperation(operationId, 'gemini_generate_embedding', { 
       textLength: text.length,
       model: options?.model,
@@ -354,7 +354,7 @@ export class GeminiClient {
    * Generate embeddings for multiple texts in batch
    */
   async generateEmbeddingBatch(texts: string[], options?: EmbeddingOptions): Promise<EmbeddingResult[]> {
-    const operationId = `gemini_batch_embedding_${createUnifiedTimestamp().unix}_${Math.random()}`;
+  const operationId = createUnifiedId('operation', 'gemini_batch_embedding');
     globalProfiler.startOperation(operationId, 'gemini_batch_embeddings', { 
       batchSize: texts.length,
       model: options?.model,

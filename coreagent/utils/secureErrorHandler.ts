@@ -28,7 +28,7 @@ export interface SecureErrorResponse {
   };
   debug?: {
     stack?: string;
-    details?: Record<string, any>;
+  details?: Record<string, unknown>;
   };
 }
 
@@ -62,17 +62,18 @@ export class SecureErrorHandler {
    * Handles and formats errors securely
    */
   async handleError(
-    error: Error | any,
+  error: unknown,
     context: ErrorContext = {}
   ): Promise<SecureErrorResponse> {
     const timestamp = createUnifiedTimestamp();
     const requestId = context.requestId || this.generateRequestId();
 
     // Determine error category and code
-    const { category, code } = this.categorizeError(error);
+  const { category, code } = this.categorizeError(error);
+  const errInfo = this.toErrorInfo(error);
     
     // Sanitize error message
-    const sanitizedMessage = this.sanitizeErrorMessage(error.message || 'An unexpected error occurred');
+  const sanitizedMessage = this.sanitizeErrorMessage(errInfo.message || 'An unexpected error occurred');
 
     // Log the error for internal tracking
     if (this.config.enableDetailedLogging) {
@@ -82,10 +83,10 @@ export class SecureErrorHandler {
         {
           ...context,
           requestId,
-          originalError: error.message,
-          stack: this.config.sanitizeStackTraces ? this.sanitizeStackTrace(error.stack) : error.stack,
-          errorName: error.name,
-          errorCode: error.code
+      originalError: errInfo.message,
+      stack: this.config.sanitizeStackTraces ? this.sanitizeStackTrace(errInfo.stack) : errInfo.stack,
+      errorName: errInfo.name,
+      errorCode: errInfo.code
         }
       );
     }
@@ -106,11 +107,11 @@ export class SecureErrorHandler {
     if (this.config.includeDebugInfo) {
       response.debug = {
         stack: this.config.sanitizeStackTraces 
-          ? this.sanitizeStackTrace(error.stack)
-          : error.stack,
+          ? this.sanitizeStackTrace(errInfo.stack)
+          : errInfo.stack,
         details: {
-          name: error.name,
-          code: error.code,
+          name: errInfo.name,
+          code: errInfo.code,
           ...context
         }
       };
@@ -129,9 +130,7 @@ export class SecureErrorHandler {
   ): Promise<SecureErrorResponse> {
     const validationError = new Error(`Validation failed: ${errors.join(', ')}`);
     validationError.name = 'ValidationError';
-    (validationError as any).code = 'VALIDATION_FAILED';
-    (validationError as any).errors = errors;
-    (validationError as any).warnings = warnings;
+  this.attachProps(validationError, { code: 'VALIDATION_FAILED', errors, warnings });
 
     return this.handleError(validationError, context);
   }
@@ -145,7 +144,7 @@ export class SecureErrorHandler {
   ): Promise<SecureErrorResponse> {
     const authError = new Error(message);
     authError.name = 'AuthenticationError';
-    (authError as any).code = 'AUTH_REQUIRED';
+  this.attachProps(authError, { code: 'AUTH_REQUIRED' });
 
     return this.handleError(authError, context);
   }
@@ -160,9 +159,7 @@ export class SecureErrorHandler {
   ): Promise<SecureErrorResponse> {
     const networkError = new Error(`Service ${serviceName} is temporarily unavailable`);
     networkError.name = 'NetworkError';
-    (networkError as any).code = 'SERVICE_UNAVAILABLE';
-    (networkError as any).serviceName = serviceName;
-    (networkError as any).originalError = originalError.message;
+  this.attachProps(networkError, { code: 'SERVICE_UNAVAILABLE', serviceName, originalError: originalError.message });
 
     return this.handleError(networkError, context);
   }
@@ -170,24 +167,25 @@ export class SecureErrorHandler {
   /**
    * Categorizes errors for appropriate handling
    */
-  private categorizeError(error: any): { category: SecureErrorResponse['error']['category']; code: string } {
-    if (error.name === 'ValidationError' || error.code === 'VALIDATION_FAILED') {
+  private categorizeError(error: unknown): { category: SecureErrorResponse['error']['category']; code: string } {
+    const { name, code } = this.toBasicErrorInfo(error);
+    if (name === 'ValidationError' || code === 'VALIDATION_FAILED') {
       return { category: 'VALIDATION', code: 'VALIDATION_FAILED' };
     }
     
-    if (error.name === 'AuthenticationError' || error.code === 'AUTH_REQUIRED') {
+    if (name === 'AuthenticationError' || code === 'AUTH_REQUIRED') {
       return { category: 'AUTHENTICATION', code: 'AUTH_REQUIRED' };
     }
     
-    if (error.name === 'AuthorizationError' || error.code === 'ACCESS_DENIED') {
+    if (name === 'AuthorizationError' || code === 'ACCESS_DENIED') {
       return { category: 'AUTHORIZATION', code: 'ACCESS_DENIED' };
     }
     
-    if (error.name === 'NetworkError' || error.code === 'SERVICE_UNAVAILABLE') {
+    if (name === 'NetworkError' || code === 'SERVICE_UNAVAILABLE') {
       return { category: 'NETWORK', code: 'SERVICE_UNAVAILABLE' };
     }
     
-    if (error.name === 'TimeoutError' || error.code === 'TIMEOUT') {
+    if (name === 'TimeoutError' || code === 'TIMEOUT') {
       return { category: 'TIMEOUT', code: 'REQUEST_TIMEOUT' };
     }
 
@@ -210,14 +208,14 @@ export class SecureErrorHandler {
 
     // Remove potentially sensitive information
     sanitized = sanitized
-      .replace(/password[s]?[\s]*[:=][\s]*[^\s]+/gi, 'password: [REDACTED]')
-      .replace(/token[s]?[\s]*[:=][\s]*[^\s]+/gi, 'token: [REDACTED]')
-      .replace(/key[s]?[\s]*[:=][\s]*[^\s]+/gi, 'key: [REDACTED]')
-      .replace(/secret[s]?[\s]*[:=][\s]*[^\s]+/gi, 'secret: [REDACTED]')
-      .replace(/api[_\-]?key[s]?[\s]*[:=][\s]*[^\s]+/gi, 'api_key: [REDACTED]')
-      .replace(/\/[a-zA-Z]:[\\\/].*/g, '[PATH_REDACTED]') // Windows paths
-      .replace(/\/home\/[^\s]*/g, '[PATH_REDACTED]') // Unix paths
-      .replace(/\b\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}\b/g, '[IP_REDACTED]'); // IP addresses
+      .replace(/passwords?[\s]*[:=][\s]*[^\s]+/gi, 'password: [REDACTED]')
+      .replace(/tokens?[\s]*[:=][\s]*[^\s]+/gi, 'token: [REDACTED]')
+      .replace(/keys?[\s]*[:=][\s]*[^\s]+/gi, 'key: [REDACTED]')
+      .replace(/secrets?[\s]*[:=][\s]*[^\s]+/gi, 'secret: [REDACTED]')
+      .replace(/api[_-]?keys?[\s]*[:=][\s]*[^\s]+/gi, 'api_key: [REDACTED]')
+      .replace(/[A-Za-z]:[\\/][^\s]*/g, '[PATH_REDACTED]') // Windows paths anywhere in string
+      .replace(new RegExp(String.raw`/home/\S*`, 'g'), '[PATH_REDACTED]') // Unix paths
+      .replace(/\b\d{1,3}(?:\.\d{1,3}){3}\b/g, '[IP_REDACTED]'); // IP addresses
 
     return sanitized;
   }
@@ -232,7 +230,7 @@ export class SecureErrorHandler {
       .split('\n')
       .map(line => {
         // Remove full file paths, keep only filename and line number
-        return line.replace(/\s+at\s+.*[\\\/]([^\\\/]+:\d+:\d+)/g, '    at [SANITIZED]/$1');
+        return line.replace(/\s+at\s+.*[\\/]([^\\/]+:\d+:\d+)/g, '    at [SANITIZED]/$1');
       })
       .slice(0, 10) // Limit stack trace depth
       .join('\n');
@@ -275,6 +273,38 @@ export class SecureErrorHandler {
    */
   getConfig(): ErrorHandlerConfig {
     return { ...this.config };
+  }
+
+  // Helper: attach typed properties to Error without using 'any'
+  private attachProps<T extends Record<string, unknown>>(err: Error, props: T): asserts err is Error & T {
+    Object.assign(err, props);
+  }
+
+  // Helper: normalize unknown error into a consistent shape
+  private toErrorInfo(error: unknown): { name?: string; message?: string; stack?: string; code?: unknown } {
+    if (error instanceof Error) {
+      const code = this.hasCode(error) ? error.code : undefined;
+      return { name: error.name, message: error.message, stack: error.stack, code };
+    }
+    if (typeof error === 'object' && error !== null) {
+      const maybe = error as { name?: unknown; message?: unknown; stack?: unknown; code?: unknown };
+      return {
+        name: typeof maybe.name === 'string' ? maybe.name : undefined,
+        message: typeof maybe.message === 'string' ? maybe.message : JSON.stringify(error),
+        stack: typeof maybe.stack === 'string' ? maybe.stack : undefined,
+        code: maybe.code
+      };
+    }
+    return { message: String(error) };
+  }
+
+  private toBasicErrorInfo(error: unknown): { name?: string; code?: unknown } {
+    const info = this.toErrorInfo(error);
+    return { name: info.name, code: info.code };
+  }
+
+  private hasCode(x: unknown): x is { code?: unknown } {
+    return typeof x === 'object' && x !== null && 'code' in x;
   }
 }
 

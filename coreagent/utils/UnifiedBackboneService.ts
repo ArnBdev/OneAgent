@@ -21,6 +21,9 @@ import {
 // import { OneAgentMemory } from '../memory/OneAgentMemory'; // Removed to prevent circular dependency
 // ...existing code...
 import type { UnifiedTimeContext, IdType } from '../types/oneagent-backbone-types';
+// Canonical package metadata (enabled by resolveJsonModule)
+// Used for exposing app name/version via backbone instead of hard-coding
+import pkg from '../../package.json';
 // ...existing code...
 
 
@@ -29,6 +32,14 @@ import type { UnifiedTimeContext, IdType } from '../types/oneagent-backbone-type
 import { unifiedMonitoringService, UnifiedMonitoringService } from '../monitoring/UnifiedMonitoringService';
 import type { ServerConfig } from '../config/index';
 import { oneAgentConfig } from '../config/index';
+// NOTE: Avoid early import of UnifiedConfigProvider (it imports UnifiedBackboneService utils for timestamps/ids indirectly)
+// We'll resolve it lazily to prevent undefined during initialization order.
+interface MinimalConfigProvider { getConfig?: () => ServerConfig }
+function getConfigProviderSafe(): MinimalConfigProvider | null {
+  // Provider registers itself globally to avoid circular import
+  // (set in UnifiedConfigProvider.ts)
+  return (globalThis as unknown as { __unifiedConfigProvider?: MinimalConfigProvider }).__unifiedConfigProvider || null;
+}
 
 // =====================================
 // ...existing code...
@@ -45,7 +56,53 @@ export class UnifiedBackboneService {
    * Canonical configuration for OneAgent (single source of truth)
    * Usage: UnifiedBackboneService.config
    */
-  static config: ServerConfig = oneAgentConfig; // Initialize with actual config
+  // Static config now resolves through UnifiedConfigProvider for layered overrides while preserving shape
+  static config: ServerConfig = ((): ServerConfig => {
+    const prov = getConfigProviderSafe();
+    return prov?.getConfig ? prov.getConfig() : oneAgentConfig;
+  })();
+  /**
+   * Canonical accessor to updated resolved config (in case overrides applied after initial load)
+   */
+  static getResolvedConfig(): ServerConfig {
+  const prov = getConfigProviderSafe();
+  return prov?.getConfig ? prov.getConfig() : oneAgentConfig;
+  }
+  /**
+   * Backward compatibility: refresh static config snapshot (avoid long-lived stale copies)
+   */
+  static refreshConfigSnapshot(): void {
+  const prov = getConfigProviderSafe();
+  UnifiedBackboneService.config = prov?.getConfig ? prov.getConfig() : oneAgentConfig;
+  }
+
+  /**
+   * Get a specific endpoint (memory|mcp|ui) from current resolved config (dynamic, reflects overrides)
+   */
+  static getEndpoint(name: 'memory' | 'mcp' | 'ui'): { url: string; port: number; path?: string } {
+    const cfg = UnifiedBackboneService.getResolvedConfig();
+    switch (name) {
+      case 'memory': return { url: cfg.memoryUrl, port: cfg.memoryPort };
+      case 'mcp': return { url: cfg.mcpUrl, port: cfg.mcpPort, path: '/mcp' };
+      case 'ui': return { url: cfg.uiUrl, port: cfg.uiPort };
+      default: {
+        // Exhaustive check
+        const _never: never = name; // eslint-disable-line @typescript-eslint/no-unused-vars
+        throw new Error(`Unknown endpoint: ${String(name)}`);
+      }
+    }
+  }
+
+  /**
+   * Convenience: get all canonical endpoints snapshot
+   */
+  static getEndpoints() {
+    return {
+      memory: this.getEndpoint('memory'),
+      mcp: this.getEndpoint('mcp'),
+      ui: this.getEndpoint('ui')
+    };
+  }
   // All config access must use UnifiedBackboneService.config
 
   // ...existing code...
@@ -63,7 +120,7 @@ export class UnifiedBackboneService {
    * Canonical health/performance monitoring system (single source of truth)
    * Usage: UnifiedBackboneService.monitoring
    */
-  static monitoring: UnifiedMonitoringService = unifiedMonitoringService;
+  static monitoring: UnifiedMonitoringService = (unifiedMonitoringService as unknown as UnifiedMonitoringService);
 // ...existing code...
 }
 
@@ -479,8 +536,6 @@ export class OneAgentUnifiedMetadataService implements UnifiedMetadataService {
         contextDependency: options.content?.contextDependency || 'session'
       },
         relationships: {
-// ...existing code...
-// ...existing code...
         ...(options.relationships?.parent && { parent: options.relationships.parent }),
         children: options.relationships?.children || [],
         related: options.relationships?.related || [],
@@ -868,11 +923,27 @@ export class OneAgentUnifiedBackbone {
   /**
    * Generate secure random suffix for IDs
    */
-  private generateSecureRandomSuffix(secure: boolean = false): string {
-    if (secure && typeof crypto !== 'undefined' && crypto.randomUUID) {
-      return crypto.randomUUID().split('-')[0]; // Use first segment for security
+  private generateSecureRandomSuffix(): string {
+    try {
+      // Prefer UUID v4 when available
+      const anyCrypto: unknown = (globalThis as unknown as { crypto?: { randomUUID?: () => string } }).crypto;
+      if (anyCrypto && typeof (anyCrypto as { randomUUID?: () => string }).randomUUID === 'function') {
+        return (anyCrypto as { randomUUID: () => string }).randomUUID().split('-')[0];
+      }
+      // Fallback: attempt Node.js crypto via eval-free import
+      try {
+        const req = eval('require') as (m: string) => unknown;
+        const nodeCrypto = req('crypto') as { randomBytes: (n: number) => { toString: (enc: string) => string } };
+        return nodeCrypto.randomBytes(6).toString('hex');
+      } catch {
+        // ignore
+      }
+    } catch {
+      // Last resort: timestamp-based suffix (deterministic-ish, no Math.random)
+      return this.timeService.now().unix.toString(36);
     }
-    return Math.random().toString(36).substr(2, 9);
+    // If all else fails
+    return this.timeService.now().unix.toString(36);
   }
 
   /**
@@ -881,7 +952,7 @@ export class OneAgentUnifiedBackbone {
    */
   public generateUnifiedId(type: IdType, context?: string, config?: Partial<UnifiedIdConfig>): string {
     const timestamp = this.timeService.now().unix;
-    const randomSuffix = this.generateSecureRandomSuffix(config?.secure);
+  const randomSuffix = this.generateSecureRandomSuffix();
     const prefix = context ? `${type}_${context}` : type;
     
     switch (config?.format) {
@@ -1100,13 +1171,12 @@ export class OneAgentUnifiedCacheSystem<T = unknown> {
       cacheSize: number;
     };
   } {
+    // Derive health based on hit rate and response time thresholds
     const hitRate = this.metrics.hitRate;
     const avgResponseTime = this.metrics.averageResponseTime;
-    
     let status: 'healthy' | 'degraded' | 'unhealthy' = 'healthy';
     if (hitRate < 0.7 || avgResponseTime > 100) status = 'degraded';
     if (hitRate < 0.5 || avgResponseTime > 200) status = 'unhealthy';
-    
     return {
       status,
       details: {
@@ -1178,12 +1248,12 @@ export class OneAgentUnifiedCacheSystem<T = unknown> {
     let oldestKey: string | null = null;
     let oldestTime = Infinity;
     
-    for (const [key, entry] of cache) {
+    cache.forEach((entry, key) => {
       if (entry.timestamp < oldestTime) {
         oldestTime = entry.timestamp;
         oldestKey = key;
       }
-    }
+    });
     
     if (oldestKey) {
       cache.delete(oldestKey);
@@ -1208,19 +1278,22 @@ export class OneAgentUnifiedCacheSystem<T = unknown> {
   }
 
   private startCleanupTimer(): void {
+    // Background maintenance timer (does not keep process alive)
     this.cleanupTimer = setInterval(() => {
       this.cleanup();
     }, this.config.cleanupInterval);
+    // Allow process to exit naturally if this is the only remaining handle
+    (this.cleanupTimer as unknown as NodeJS.Timer).unref?.();
   }
 
   private cleanup(): void {
     // Cleanup expired entries from all tiers
     [this.memoryCache, this.diskCache, this.networkCache].forEach(cache => {
-      for (const [key, entry] of cache) {
+      cache.forEach((entry, key) => {
         if (this.isExpired(entry)) {
           cache.delete(key);
         }
-      }
+      });
     });
   }
 
@@ -1495,7 +1568,7 @@ export class OneAgentUnifiedErrorSystem {
     context: Record<string, unknown>
   ): OneAgentErrorEntry {
     const timestamp = this.timeService.now();
-    const errorId = `error_${timestamp.unix}_${Math.random().toString(36).substr(2, 9)}`;
+  const errorId = generateUnifiedId('operation', 'error');
     
     const message = typeof error === 'string' ? error : error.message;
     const originalError = typeof error === 'string' ? undefined : error;
@@ -1739,6 +1812,8 @@ export class OneAgentUnifiedErrorSystem {
     this.cleanupTimer = setInterval(() => {
       this.cleanup();
     }, 60000); // Cleanup every minute
+  // Allow process to exit naturally in short-lived scripts/tests
+  (this.cleanupTimer as unknown as NodeJS.Timer).unref?.();
   }
 
   /**
@@ -2045,7 +2120,7 @@ export class OneAgentUnifiedMCPSystem {
     } = {}
   ): Promise<OneAgentMCPResponse> {
     const timestamp = this.timeService.now();
-    const requestId = `mcp_request_${timestamp.unix}_${Math.random().toString(36).substr(2, 9)}`;
+  const requestId = generateUnifiedId('operation', 'mcp_request');
     const startTime = timestamp.unix;
 
     const request: OneAgentMCPRequest = {
@@ -2191,6 +2266,7 @@ export class OneAgentUnifiedMCPSystem {
    * Get all server statuses
    */
   getAllConnectionStatuses(): Record<string, OneAgentMCPConnection> {
+   
     const statuses: Record<string, OneAgentMCPConnection> = {};
     this.connections.forEach((connection, serverId) => {
       statuses[serverId] = connection;
@@ -2235,8 +2311,9 @@ export class OneAgentUnifiedMCPSystem {
   // Private helper methods
 
   private async connectHTTP(server: OneAgentMCPServerConfig): Promise<void> {
-    // HTTP connection logic
-    const endpoint = server.endpoint || `http://localhost:${server.port}`;
+    // HTTP connection logic (canonical endpoint resolution)
+  const canonicalBase = UnifiedBackboneService.getResolvedConfig().mcpUrl.replace(/\/mcp$/, '');
+    const endpoint = server.endpoint || canonicalBase;
     
     // Test connection with initialize request
     const response = await fetch(`${endpoint}/mcp`, {
@@ -2245,9 +2322,9 @@ export class OneAgentUnifiedMCPSystem {
         'Content-Type': 'application/json',
         'MCP-Protocol-Version': server.protocolVersion
       },
-      body: JSON.stringify({
+    body: JSON.stringify({
         jsonrpc: '2.0',
-        id: `mcp_init_${this.timeService.now().unix}_${Math.random().toString(36).substr(2, 9)}`,
+  id: generateUnifiedId('operation', 'mcp_init'),
         method: 'initialize',
         params: {
           protocolVersion: server.protocolVersion,
@@ -2352,7 +2429,8 @@ export class OneAgentUnifiedMCPSystem {
     request: OneAgentMCPRequest,
     server: OneAgentMCPServerConfig
   ): Promise<OneAgentMCPResponse> {
-    const endpoint = server.endpoint || `http://localhost:${server.port}`;
+  const canonicalBase = UnifiedBackboneService.getResolvedConfig().mcpUrl.replace(/\/mcp$/, '');
+  const endpoint = server.endpoint || canonicalBase;
     const startTime = this.timeService.now().unix;
     
     const fetchResponse = await fetch(`${endpoint}/mcp`, {
@@ -2460,38 +2538,39 @@ export class OneAgentUnifiedMCPSystem {
     this.healthCheckTimer = setInterval(() => {
       this.performHealthChecks();
     }, 30000); // Every 30 seconds
+    this.healthCheckTimer?.unref?.();
   }
 
   private startReconnectionManager(): void {
     this.reconnectTimer = setInterval(() => {
       this.attemptReconnections();
     }, 60000); // Every minute
+    this.reconnectTimer?.unref?.();
   }
 
   private async performHealthChecks(): Promise<void> {
-    for (const [serverId] of this.servers) {
+    this.servers.forEach((_cfg, serverId) => {
       const connection = this.connections.get(serverId);
       if (connection && connection.status === 'connected') {
-        try {
-          const startTime = this.timeService.now().unix;
-          await this.sendRequest('ping', {}, { serverId, timeout: 5000 });
-          const responseTime = this.timeService.now().unix - startTime;
-          
-          connection.health.responseTime = responseTime;
-          connection.health.status = responseTime < 1000 ? 'healthy' : 
-                                   responseTime < 3000 ? 'degraded' : 'unhealthy';
-          connection.health.lastHealthCheck = this.timeService.now();
-          
-        } catch {
-          connection.health.status = 'unhealthy';
-          connection.health.errorRate = Math.min(connection.health.errorRate + 0.1, 1.0);
-        }
+        (async () => {
+          try {
+            const startTime = this.timeService.now().unix;
+            await this.sendRequest('ping', {}, { serverId, timeout: 5000 });
+            const responseTime = this.timeService.now().unix - startTime;
+            connection.health.responseTime = responseTime;
+            connection.health.status = responseTime < 1000 ? 'healthy' : responseTime < 3000 ? 'degraded' : 'unhealthy';
+            connection.health.lastHealthCheck = this.timeService.now();
+          } catch {
+            connection.health.status = 'unhealthy';
+            connection.health.errorRate = Math.min(connection.health.errorRate + 0.1, 1.0);
+          }
+        })();
       }
-    }
+    });
   }
 
   private async attemptReconnections(): Promise<void> {
-    for (const [serverId, connection] of this.connections) {
+    for (const [serverId, connection] of Array.from(this.connections.entries())) {
       if (connection.status === 'disconnected' || connection.status === 'error') {
         await this.connectToServer(serverId);
       }
@@ -2619,6 +2698,25 @@ export function getUnifiedErrorHandler(): OneAgentUnifiedErrorSystem {
  */
 export function getUnifiedMCPClient(): OneAgentUnifiedMCPSystem {
   return unifiedBackbone.mcpClient;
+}
+
+// =====================================
+// APPLICATION METADATA (CANONICAL)
+// =====================================
+/**
+ * Canonical getter for application version (from package.json)
+ */
+export function getAppVersion(): string {
+  const v = (pkg as unknown as { version?: string }).version;
+  return typeof v === 'string' && v.trim().length > 0 ? v : '0.0.0';
+}
+
+/**
+ * Canonical getter for application name (from package.json)
+ */
+export function getAppName(): string {
+  const n = (pkg as unknown as { name?: string }).name;
+  return typeof n === 'string' && n.trim().length > 0 ? n : 'oneagent-core';
 }
 
 // =====================================

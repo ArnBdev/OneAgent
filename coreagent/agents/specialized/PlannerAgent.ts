@@ -28,16 +28,13 @@
  */
 
 import { BaseAgent } from '../base/BaseAgent';
+import { unifiedMetadataService } from '../../utils/UnifiedBackboneService';
 import { AgentConfig, AgentContext, AgentResponse, AgentAction } from '../base/BaseAgent';
 import { ISpecializedAgent, AgentHealthStatus } from '../base/ISpecializedAgent';
-import { OneAgentUnifiedBackbone } from '../../utils/UnifiedBackboneService';
-import type { NLACSMessage, EmergentInsight, ConversationThread, UnifiedTimestamp, UnifiedMetadata } from '../../types/oneagent-backbone-types';
-import { ConstitutionalAI } from '../base/ConstitutionalAI';
+import type { NLACSMessage, EmergentInsight, UnifiedTimestamp, UnifiedMetadata, MemoryRecord } from '../../types/oneagent-backbone-types';
 import { PersonaLoader } from '../persona/PersonaLoader';
 import { PersonalityEngine } from '../personality/PersonalityEngine';
-import * as yaml from 'js-yaml';
-import * as fs from 'fs';
-import * as path from 'path';
+// Removed unused imports (yaml, fs, path) as part of canonical cleanup
 
 // =============================================================================
 // PLANNING RESPONSE TYPES
@@ -92,6 +89,25 @@ export interface PlanningRiskResponse {
   mitigationStrategies: string[];
   message: string;
 }
+
+// =============================================================================
+// ACTION PARAM & RESULT HELPER TYPES (extracted from inline definitions for lint clarity)
+// =============================================================================
+
+interface DecomposeParams { objective?: string; goal?: string; context?: PlanningContext; maxTasks?: number }
+interface ReplanParams { changeContext?: string; urgency?: 'low'|'medium'|'high'|'critical'; sessionId?: string }
+interface ConstitutionalValidationResult { isValid: boolean; score: number; violations: unknown[] }
+type ExecuteActionResult =
+  | PlanningProgressResponse
+  | PlanningReportResponse
+  | PlanningOptimizationResponse
+  | PlanningReplanResponse
+  | PlanningCoordinationResponse
+  | PlanningRiskResponse
+  | ConstitutionalValidationResult
+  | PlanningSession
+  | PlanningTask[]
+  | Map<string, PlanningTask[]>;
 
 // =============================================================================
 // PLANNING TYPES AND INTERFACES
@@ -198,6 +214,8 @@ export interface PlanningSession {
 // PLANNER AGENT IMPLEMENTATION
 // =============================================================================
 
+import type { PromptConfig } from '../base/PromptEngine';
+
 export class PlannerAgent extends BaseAgent implements ISpecializedAgent {
   private planningStrategies: Map<string, PlanningStrategy> = new Map();
   private agentCapabilities: Map<string, AgentCapabilityProfile> = new Map();
@@ -228,64 +246,83 @@ export class PlannerAgent extends BaseAgent implements ISpecializedAgent {
   async executeAction(action: string | AgentAction, params: Record<string, unknown>, _context?: AgentContext): Promise<AgentResponse> {
     try {
       const actionType = typeof action === 'string' ? action : action.type;
-      let result: PlanningProgressResponse | PlanningReportResponse | PlanningOptimizationResponse | 
-                  PlanningReplanResponse | PlanningCoordinationResponse | PlanningRiskResponse | 
-                  { isValid: boolean; score: number; violations: unknown[] } |
-                  PlanningSession | PlanningTask[] | Map<string, PlanningTask[]>;
+  let result: ExecuteActionResult;
       
       switch (actionType) {
-        case 'create_planning_session':
-          result = await this.createPlanningSession(params.context as PlanningContext);
+        case 'create_planning_session': {
+          const planningContext = params.context as PlanningContext | undefined;
+          if (!planningContext) throw new Error('Missing planning context');
+          result = await this.createPlanningSession(planningContext);
           break;
-        
-        case 'decompose_objective':
-          result = await this.decomposeObjective(params.objective as string, params.context as PlanningContext);
+        }
+        case 'decompose_objective': {
+          const p = params as DecomposeParams;
+          const objective = p.objective || p.goal;
+          if (!objective) throw new Error('Missing objective');
+          const planningContext = (p.context as PlanningContext) || {
+            projectId: 'ad-hoc',
+            objective,
+            constraints: [],
+            resources: [],
+            timeframe: 'unspecified',
+            stakeholders: [],
+            riskTolerance: 'medium',
+            qualityRequirements: [],
+            successCriteria: [],
+            constitutionalRequirements: []
+          };
+          result = await this.decomposeObjective(objective, planningContext, (p.maxTasks as number) || 10);
           break;
-        
-        case 'assign_tasks':
-          result = await this.assignTasksToAgents(params.tasks as PlanningTask[], params.agents as AgentCapabilityProfile[]);
+        }
+        case 'assign_tasks': {
+          const tasks = (params.tasks as PlanningTask[]) || [];
+          const agents = (params.availableAgents as AgentCapabilityProfile[]) || Array.from(this.agentCapabilities.values());
+          if (!tasks.length) throw new Error('No tasks provided for assignment');
+          result = await this.assignTasksToAgents(tasks, agents);
           break;
-        
-        case 'track_progress':
+        }
+        case 'track_progress': {
           result = this.getCurrentProgress();
           break;
-        
-        case 'generate_report':
-          result = await this.generateCurrentReport(params.sessionId as string);
+        }
+        case 'generate_report': {
+          result = await this.generateCurrentReport(params.sessionId as string | undefined);
           break;
-        
-        case 'optimize_plan':
-          result = await this.optimizeCurrentPlan(params.sessionId as string);
+        }
+        case 'optimize_plan': {
+          result = await this.optimizeCurrentPlan(params.sessionId as string | undefined);
           break;
-        
-        case 'handle_replanning':
-          result = await this.handleDynamicReplanning(params.changes as Record<string, unknown>, params.context as PlanningContext);
+        }
+        case 'handle_replanning': {
+          if (!this.activePlanningSession) throw new Error('No active session to replan');
+          const rp = params as ReplanParams;
+          result = await this.generateReplan(this.activePlanningSession, (rp.changeContext as string) || 'unspecified change', rp.urgency || 'medium');
           break;
-        
-        case 'coordinate_agents':
+        }
+        case 'coordinate_agents': {
           result = await this.coordinateAgentExecution();
           break;
-        
-        case 'assess_risks':
-          result = await this.assessContextualRisks(params.context as PlanningContext);
+        }
+        case 'assess_risks': {
+          const ctx = (params.context as PlanningContext) || this.activePlanningSession?.context;
+          if (!ctx) throw new Error('No planning context available for risk assessment');
+          result = await this.assessContextualRisks(ctx);
           break;
-        
+        }
         case 'validate_constitutionally': {
-          const validation = await this.constitutionalAI?.validateResponse(
-            JSON.stringify(params.content),
-            (params.context as string) || 'General validation',
-            { context: 'planning_validation' }
-          );
+          const target = (params.content as string) || JSON.stringify(this.activePlanningSession?.context || {});
+          if (!target) throw new Error('Nothing to validate');
+          const validation = await this.constitutionalAI?.validateResponse(target, 'Validate planning artifact', { context: 'planning_validation' });
           result = {
-            isValid: validation?.isValid || false,
+            isValid: Boolean(validation?.isValid),
             score: validation?.score || 0,
             violations: validation?.violations || []
           };
           break;
         }
-        
-        default:
-          throw new Error(`Unknown action: ${actionType}`);
+        default: {
+          throw new Error(`Unsupported action: ${actionType}`);
+        }
       }
       
       return {
@@ -488,8 +525,8 @@ export class PlannerAgent extends BaseAgent implements ISpecializedAgent {
     };
   }
 
-  constructor(config: AgentConfig) {
-    super(config);
+  constructor(config: AgentConfig, promptConfig?: PromptConfig) {
+    super(config, promptConfig);
     this.personaLoader = new PersonaLoader();
     this.personalityEngine = new PersonalityEngine();
     this.initializePlanningStrategies();
@@ -568,18 +605,18 @@ export class PlannerAgent extends BaseAgent implements ISpecializedAgent {
       this.activePlanningSession = session;
       
       // Store in OneAgent memory
-      await this.memoryClient?.addMemory({
-        content: `Planning session created: ${context.objective}`,
-        metadata: {
-          type: 'planning_session',
+      const resolvedUserId = (context as unknown as { userId?: string }).userId || this.config.id;
+      await this.memoryClient?.addMemoryCanonical(
+        `Planning session created: ${context.objective}`,
+        this.buildCanonicalAgentMetadata('planning_session', resolvedUserId, {
           sessionId: sessionId,
           objective: context.objective,
           agentId: this.config.id,
-          timestamp: services.timeService.now().iso,
           constitutionallyCompliant: true,
           qualityScore: 90
-        }
-      });
+        }),
+        resolvedUserId
+      );
 
       console.log(`📋 PlannerAgent ${this.config.id} created planning session: ${sessionId}`);
       return session;
@@ -611,9 +648,10 @@ export class PlannerAgent extends BaseAgent implements ISpecializedAgent {
     try {
       const services = this.unifiedBackbone.getServices();
       const timestamp = services.timeService.now();
+  const resolvedUserId = this.getResolvedUserId(context);
       
       // Search memory for similar decomposition patterns
-      const memoryResults = await this.memoryClient?.searchMemory({
+  const memoryResults = await this.memoryClient?.searchMemory({
         query: `task decomposition ${objective}`,
         limit: 5,
         filters: {
@@ -621,6 +659,7 @@ export class PlannerAgent extends BaseAgent implements ISpecializedAgent {
           agentId: this.config.id
         }
       });
+  const previousPatterns: MemoryRecord[] = memoryResults?.results || [];
 
       // Use AI to decompose the objective
       const decompositionPrompt = `
@@ -630,8 +669,8 @@ export class PlannerAgent extends BaseAgent implements ISpecializedAgent {
         Context: ${JSON.stringify(context, null, 2)}
         Maximum tasks: ${maxTasks}
         
-        ${memoryResults?.memories?.length ? 
-          `Previous similar decompositions:\n${memoryResults.memories.map((r: { content: string }) => r.content).join('\n')}` : 
+        ${previousPatterns.length ? 
+          `Previous similar decompositions:\n${previousPatterns.map((r: MemoryRecord) => r.content).join('\n')}` : 
           'No previous patterns found - create comprehensive decomposition.'
         }
         
@@ -670,20 +709,47 @@ export class PlannerAgent extends BaseAgent implements ISpecializedAgent {
       }
 
       // Store successful decomposition pattern in memory
-      await this.memoryClient?.addMemory({
-        content: `Task decomposition pattern: ${objective} → ${validatedTasks.length} tasks`,
-        metadata: {
-          type: 'task_decomposition',
+  await this.memoryClient?.addMemoryCanonical(
+        `Task decomposition pattern: ${objective} → ${validatedTasks.length} tasks`,
+        this.buildCanonicalAgentMetadata('task_decomposition', resolvedUserId, {
           objective: objective,
           taskCount: validatedTasks.length,
           agentId: this.config.id,
-          timestamp: timestamp.iso,
           constitutionallyCompliant: true,
           qualityScore: 92
-        }
-      });
+        }),
+        resolvedUserId
+      );
 
       console.log(`🎯 Decomposed objective into ${validatedTasks.length} validated tasks`);
+
+      // If there's an active session matching this objective, integrate tasks
+      if (this.activePlanningSession && this.activePlanningSession.context.objective === context.objective) {
+        const servicesNow = this.unifiedBackbone.getServices().timeService.now();
+        for (const t of validatedTasks) {
+          // Avoid duplicate task IDs if decomposition called multiple times
+          if (!this.activePlanningSession.tasks.find(existing => existing.id === t.id)) {
+            this.activePlanningSession.tasks.push(t);
+          }
+        }
+        // Update session metadata timestamp & metrics
+        this.activePlanningSession.metadata.updatedAt = servicesNow;
+        this.updateActiveSessionMetrics();
+
+        // Persist memory of session enrichment
+  await this.memoryClient?.addMemoryCanonical(
+          `Session ${this.activePlanningSession.id} enriched with ${validatedTasks.length} tasks (objective: ${context.objective})`,
+          this.buildCanonicalAgentMetadata('planning_session_update', resolvedUserId, {
+            updateType: 'tasks_added',
+            taskDelta: validatedTasks.length,
+            objective: context.objective,
+            agentId: this.config.id,
+            constitutionallyCompliant: true,
+            qualityScore: 91
+          }),
+          resolvedUserId
+        );
+      }
       return validatedTasks;
     } catch (error) {
       // CANONICAL ERROR HANDLING: Use UnifiedBackboneService.errorHandler
@@ -699,6 +765,15 @@ export class PlannerAgent extends BaseAgent implements ISpecializedAgent {
       );
       throw error;
     }
+  }
+
+  /**
+   * Resolve a user identifier from PlanningContext (fallback to agent id)
+   */
+  private getResolvedUserId(context: PlanningContext): string {
+    // Attempt common shapes: context.userId, context.user?.id, context.ownerId
+    const anyContext = context as unknown as { userId?: string; user?: { id?: string }; ownerId?: string };
+    return anyContext.userId || anyContext.user?.id || anyContext.ownerId || this.config.id;
   }
 
   /**
@@ -752,21 +827,90 @@ export class PlannerAgent extends BaseAgent implements ISpecializedAgent {
       }
 
       // Store assignment pattern in memory
-      await this.memoryClient?.addMemory({
-        content: `Task assignment completed: ${tasks.length} tasks assigned to ${availableAgents.length} agents`,
-        metadata: {
-          type: 'task_assignment',
+      try {
+        const metaTaskAssign = unifiedMetadataService.create('task_assignment', 'PlannerAgent', {
+          system: {
+            source: 'planner_agent',
+            component: 'assign_tasks_to_agents',
+            userId: this.config.id,
+            agent: { id: this.config.id, type: 'planner' }
+          },
+          content: {
+            category: 'task_assignment',
+            tags: ['planner', 'assignment'],
+            sensitivity: 'internal',
+            relevanceScore: 0.45,
+            contextDependency: 'session'
+          }
+        });
+  interface TaskAssignExt { custom?: Record<string, unknown>; }
+  (metaTaskAssign as TaskAssignExt).custom = {
           taskCount: tasks.length,
           agentCount: availableAgents.length,
           assignmentPattern: Object.fromEntries(assignments),
-          agentId: this.config.id,
-          timestamp: services.timeService.now().iso,
-          constitutionallyCompliant: true,
           qualityScore: 88
-        }
-      });
+        };
+        await this.memoryClient?.addMemoryCanonical(
+          `Task assignment completed: ${tasks.length} tasks assigned to ${availableAgents.length} agents`,
+          metaTaskAssign,
+          this.config.id
+        );
+      } catch (err) {
+        console.warn('PlannerAgent canonical task_assignment store failed:', err);
+      }
 
       console.log(`👥 Assigned ${tasks.length} tasks to ${availableAgents.length} agents`);
+
+      // Update active session with assignments
+      if (this.activePlanningSession) {
+        const servicesNow = this.unifiedBackbone.getServices().timeService.now();
+        // Ensure all tasks are present in session (merge set)
+        for (const task of tasks) {
+          const existing = this.activePlanningSession.tasks.find(t => t.id === task.id);
+          if (!existing) this.activePlanningSession.tasks.push(task);
+        }
+        // Track assigned agents (unique)
+        const assignedIds = new Set<string>();
+        assignments.forEach((agentTasks, agentId) => { if (agentTasks.length > 0) assignedIds.add(agentId); });
+        this.activePlanningSession.assignedAgents = Array.from(assignedIds)
+          .map(id => availableAgents.find(a => a.agentId === id))
+          .filter((a): a is AgentCapabilityProfile => Boolean(a));
+        this.activePlanningSession.metadata.updatedAt = servicesNow;
+        this.updateActiveSessionMetrics();
+
+        try {
+          const metaSessionUpdate = unifiedMetadataService.create('planning_session_update', 'PlannerAgent', {
+            system: {
+              source: 'planner_agent',
+              component: 'planning_session_update',
+              sessionId: this.activePlanningSession.id,
+              userId: this.config.id,
+              agent: { id: this.config.id, type: 'planner' }
+            },
+            content: {
+              category: 'planning_session_update',
+              tags: ['planner', 'session', 'assignments'],
+              sensitivity: 'internal',
+              relevanceScore: 0.5,
+              contextDependency: 'session'
+            }
+          });
+          interface SessionUpdateExt { custom?: Record<string, unknown>; }
+          (metaSessionUpdate as SessionUpdateExt).custom = {
+            updateType: 'assignments',
+            taskCount: tasks.length,
+            agentCount: this.activePlanningSession.assignedAgents.length,
+            qualityScore: 89
+          };
+          await this.memoryClient?.addMemoryCanonical(
+            `Session ${this.activePlanningSession.id} task assignment updated (${tasks.length} tasks, ${this.activePlanningSession.assignedAgents.length} agents)`,
+            metaSessionUpdate,
+            this.config.id
+          );
+        } catch (err) {
+          console.warn('PlannerAgent canonical planning_session_update store failed:', err);
+        }
+      }
       return assignments;
     } catch (error) {
       // CANONICAL ERROR HANDLING: Use UnifiedBackboneService.errorHandler
@@ -847,20 +991,39 @@ export class PlannerAgent extends BaseAgent implements ISpecializedAgent {
       };
 
       // Store replanning insight
-      await this.memoryClient?.addMemory({
-        content: `Dynamic replanning: ${changeContext} → ${replanText}`,
-        metadata: {
-          type: 'replanning',
-          changeContext: changeContext,
-          urgency: urgency,
+      try {
+        const metaReplan = unifiedMetadataService.create('replanning', 'PlannerAgent', {
+          system: {
+            source: 'planner_agent',
+            component: 'generate_replan',
+            sessionId: currentSession.id,
+            userId: this.config.id,
+            agent: { id: this.config.id, type: 'planner' }
+          },
+          content: {
+            category: 'replanning',
+            tags: ['planner', 'replan', `urgency:${urgency}`],
+            sensitivity: 'internal',
+            relevanceScore: 0.6,
+            contextDependency: 'session'
+          }
+        });
+  interface ReplanExt { custom?: Record<string, unknown>; }
+  (metaReplan as ReplanExt).custom = {
+          changeContext,
+          urgency,
           originalSessionId: currentSession.id,
           newSessionId: replanSession.id,
-          agentId: this.config.id,
-          timestamp: services.timeService.now().iso,
-          constitutionallyCompliant: true,
-          qualityScore: 87
-        }
-      });
+            qualityScore: 87
+        };
+        await this.memoryClient?.addMemoryCanonical(
+          `Dynamic replanning: ${changeContext} → ${replanText}`,
+          metaReplan,
+          this.config.id
+        );
+      } catch (err) {
+        console.warn('PlannerAgent canonical replanning store failed:', err);
+      }
 
       console.log(`🔄 Generated replan for: ${changeContext} (urgency: ${urgency})`);
       return replanSession;
@@ -1088,39 +1251,43 @@ export class PlannerAgent extends BaseAgent implements ISpecializedAgent {
       // Analyze message for planning intent
       const planningIntent = await this.analyzePlanningIntent(message);
       
-      let response: string;
-      
-      switch (planningIntent.type) {
-        case 'create_plan':
-          response = await this.handleCreatePlanRequest(message, context);
-          break;
-        case 'decompose_task':
-          response = await this.handleTaskDecompositionRequest(message, context);
-          break;
-        case 'assign_tasks':
-          response = await this.handleTaskAssignmentRequest(message, context);
-          break;
-        case 'replan':
-          response = await this.handleReplanRequest(message, context);
-          break;
-        case 'status_update':
-          response = await this.handleStatusUpdateRequest(message, context);
-          break;
-        default:
-          response = await this.handleGeneralPlanningQuery(message, context);
-      }
-
-      return {
-        content: response,
-        metadata: {
-          agentId: this.config.id,
-          timestamp: services.timeService.now().iso,
-          planningIntent: planningIntent.type,
-          confidence: planningIntent.confidence,
-          constitutionallyCompliant: true,
-          qualityScore: 90
+      // For high-level explanatory intents, use handcrafted templates; otherwise delegate to BaseAgent constitutional loop
+      const useTemplate = ['create_plan','decompose_task','assign_tasks','replan','status_update','general_planning'].includes(planningIntent.type);
+      let agentResponse: AgentResponse;
+      if (useTemplate) {
+        let responseText: string;
+        switch (planningIntent.type) {
+          case 'create_plan':
+            responseText = await this.handleCreatePlanRequest(message, context); break;
+          case 'decompose_task':
+            responseText = await this.handleTaskDecompositionRequest(message, context); break;
+          case 'assign_tasks':
+            responseText = await this.handleTaskAssignmentRequest(message, context); break;
+          case 'replan':
+            responseText = await this.handleReplanRequest(message, context); break;
+          case 'status_update':
+            responseText = await this.handleStatusUpdateRequest(message, context); break;
+          default:
+            responseText = await this.handleGeneralPlanningQuery(message, context); break;
         }
+        agentResponse = { content: responseText, actions: [], memories: [], metadata: {} };
+      } else {
+        // Delegate to BaseAgent (will invoke constitutional loop if configured)
+        agentResponse = await super.processMessage(context, message);
+      }
+      // Attach planning intent metadata and constitutional pass-through
+      agentResponse.metadata = {
+        ...(agentResponse.metadata || {}),
+        agentId: this.config.id,
+        timestamp: services.timeService.now().iso,
+        planningIntent: planningIntent.type,
+        confidence: planningIntent.confidence,
+        // Preserve constitutional fields from base response if present
+        constitutionalScore: agentResponse.metadata?.constitutionalScore,
+        constitutionalValid: agentResponse.metadata?.constitutionalValid,
+        qualityScore: agentResponse.metadata?.qualityScore || 90
       };
+      return agentResponse;
     } catch (error) {
       // CANONICAL ERROR HANDLING: Use UnifiedBackboneService.errorHandler
       const errorHandler = this.unifiedBackbone.getServices().errorHandler;
@@ -1542,6 +1709,29 @@ Need help with replanning or task adjustments?`;
 - Emergent insight generation
 
 How can I assist with your planning needs today?`;
+  }
+
+  // =============================================================================
+  // SESSION METRICS & QUALITY UPDATES
+  // =============================================================================
+  private updateActiveSessionMetrics(): void {
+    if (!this.activePlanningSession) return;
+    const session = this.activePlanningSession;
+    const total = session.tasks.length || 1; // avoid div by zero
+    const completed = session.tasks.filter(t => t.status === 'completed').length;
+    const blocked = session.tasks.filter(t => t.status === 'blocked').length;
+    const avgQuality = session.tasks.reduce((acc, t) => acc + (t.metadata.qualityScore || 0), 0) / total;
+    // Simple feasibility heuristic: fewer blocked tasks & moderate complexity distribution
+    const complexityWeights = { simple: 1, moderate: 2, complex: 3, expert: 4 } as const;
+    const avgComplexity = session.tasks.reduce((acc, t) => acc + complexityWeights[t.complexity], 0) / total;
+    const feasibility = Math.max(0, 100 - (avgComplexity - 2) * 15 - blocked * 5);
+    // Resource optimization heuristic: ratio of assigned agents to tasks & workload spread
+    const assignedAgents = session.assignedAgents.length || 1;
+    const optimization = Math.min(100, (assignedAgents / total) * 100 * 0.6 + (completed / total) * 40);
+
+    session.qualityMetrics.planningScore = Math.round(avgQuality);
+    session.qualityMetrics.feasibilityRating = Math.round(feasibility);
+    session.qualityMetrics.resourceOptimization = Math.round(optimization);
   }
 }
 

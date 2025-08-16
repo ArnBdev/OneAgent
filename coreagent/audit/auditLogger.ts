@@ -6,6 +6,7 @@
  */
 
 import { promises as fs } from 'fs';
+import type { Stats } from 'fs';
 import * as path from 'path';
 import { createUnifiedTimestamp } from '../utils/UnifiedBackboneService';
 
@@ -18,7 +19,7 @@ export interface AuditLogEntry {
   sessionId?: string;
   agentType?: string;
   requestId?: string;
-  metadata?: Record<string, any>;
+  metadata?: Record<string, unknown>;
 }
 
 export interface AuditLoggerConfig {
@@ -66,33 +67,36 @@ export class SimpleAuditLogger {
     this.flushTimer = setInterval(() => {
       this.flushBuffer().catch(console.error);
     }, this.config.flushInterval);
+
+    // Do not keep the process alive solely for the flush timer
+    this.flushTimer?.unref?.();
   }
 
   /**
    * Logs a general information event
    */
-  async logInfo(category: string, message: string, metadata?: Record<string, any>): Promise<void> {
+  async logInfo(category: string, message: string, metadata?: Record<string, unknown>): Promise<void> {
     return this.log('INFO', category, message, metadata);
   }
 
   /**
    * Logs a warning event
    */
-  async logWarning(category: string, message: string, metadata?: Record<string, any>): Promise<void> {
+  async logWarning(category: string, message: string, metadata?: Record<string, unknown>): Promise<void> {
     return this.log('WARN', category, message, metadata);
   }
 
   /**
    * Logs an error event
    */
-  async logError(category: string, message: string, metadata?: Record<string, any>): Promise<void> {
+  async logError(category: string, message: string, metadata?: Record<string, unknown>): Promise<void> {
     return this.log('ERROR', category, message, metadata);
   }
 
   /**
    * Logs a security-related event
    */
-  async logSecurity(category: string, message: string, metadata?: Record<string, any>): Promise<void> {
+  async logSecurity(category: string, message: string, metadata?: Record<string, unknown>): Promise<void> {
     return this.log('SECURITY', category, message, metadata);
   }
 
@@ -103,7 +107,7 @@ export class SimpleAuditLogger {
     level: AuditLogEntry['level'],
     category: string,
     message: string,
-    metadata?: Record<string, any>
+  metadata?: Record<string, unknown>
   ): Promise<void> {
     if (this.isShuttingDown) return;
 
@@ -216,7 +220,7 @@ export class SimpleAuditLogger {
         // Clean up old files
         await this.cleanupOldLogs();
       }
-    } catch (error) {
+  } catch {
       // File might not exist yet, which is fine
     }
   }
@@ -227,36 +231,36 @@ export class SimpleAuditLogger {
   private async cleanupOldLogs(): Promise<void> {
     try {
       const files = await fs.readdir(this.config.logDirectory);
-      const logFiles = files
+      const logFiles: { name: string; path: string; stats: Stats | null }[] = files
         .filter(f => f.startsWith('audit-') && f.endsWith('.log'))
         .map(f => ({
           name: f,
           path: path.join(this.config.logDirectory, f),
-          stats: null as any
+          stats: null
         }));
 
       // Get file stats
       for (const file of logFiles) {
         try {
           file.stats = await fs.stat(file.path);
-        } catch (error) {
+        } catch {
           continue;
         }
       }
 
       // Sort by modification time (newest first)
       logFiles
-        .filter(f => f.stats)
+        .filter((f): f is { name: string; path: string; stats: Stats } => f.stats !== null)
         .sort((a, b) => b.stats.mtime.getTime() - a.stats.mtime.getTime())
         .slice(this.config.maxFiles) // Keep only the newest N files
-        .forEach(async (file) => {
+    .forEach(async (file) => {
           try {
             await fs.unlink(file.path);
           } catch (error) {
             console.error(`Failed to delete old log file ${file.name}:`, error);
           }
         });
-    } catch (error) {
+  } catch (error) {
       console.error('Failed to cleanup old logs:', error);
     }
   }

@@ -1,7 +1,7 @@
 import type { AgentCard } from '../../types/oneagent-backbone-types';
 import { unifiedAgentCommunicationService } from '../../utils/UnifiedAgentCommunicationService';
 import { OneAgentMemory } from '../../memory/OneAgentMemory';
-import { createUnifiedId, createUnifiedTimestamp } from '../../utils/UnifiedBackboneService';
+import { createUnifiedId, createUnifiedTimestamp, unifiedMetadataService } from '../../utils/UnifiedBackboneService';
 
 /**
  * HybridAgentOrchestrator
@@ -36,16 +36,29 @@ export class HybridAgentOrchestrator {
    */
   private async logOperation(operation: string, metadata: Record<string, unknown>): Promise<void> {
     try {
-      await this.memory.addMemory({
-        content: `Orchestrator operation: ${operation}`,
-        metadata: {
-          entityType: 'orchestrator_operation',
-          orchestratorId: this.orchestratorId,
-          operation,
-          timestamp: createUnifiedTimestamp(),
-          ...metadata
+      const unifiedMeta = unifiedMetadataService.create('orchestrator_operation', 'HybridAgentOrchestrator', {
+        system: {
+          source: 'hybrid_orchestrator',
+          component: 'HybridAgentOrchestrator',
+          userId: 'system_orchestration'
+        },
+        content: {
+          category: 'orchestrator_operation',
+          tags: ['orchestrator', operation],
+          sensitivity: 'internal',
+          relevanceScore: 0.2,
+          contextDependency: 'session'
         }
       });
+      // attach custom domain data
+  interface OrchestratorOpExtension { custom?: Record<string, unknown>; }
+  (unifiedMeta as OrchestratorOpExtension).custom = {
+        orchestratorId: this.orchestratorId,
+        operation,
+        timestamp: createUnifiedTimestamp().iso,
+        ...metadata
+      };
+      await this.memory.addMemoryCanonical(`Orchestrator operation: ${operation}` , unifiedMeta, 'system_orchestration');
     } catch (error) {
       console.warn(`Failed to log orchestrator operation: ${error}`);
     }
@@ -202,20 +215,40 @@ export class HybridAgentOrchestrator {
       const messageId = await this.sendMessageToAgent(agent.id, instructions, sessionId);
       
       // Log successful assignment in memory for audit trail
-      await this.memory.addMemory({
-        content: `Task assigned to ${agent.name}: ${taskContext.summary || 'Task execution'}`,
-        metadata: {
-          entityType: 'task_assignment',
+      try {
+        const meta = unifiedMetadataService.create('task_assignment', 'HybridAgentOrchestrator', {
+          system: {
+            source: 'hybrid_orchestrator',
+            component: 'HybridAgentOrchestrator',
+            userId: 'system_orchestration',
+            sessionId
+          },
+          content: {
+            category: 'task_assignment',
+            tags: ['task', 'assignment', agent.name],
+            sensitivity: 'internal',
+            relevanceScore: 0.3,
+            contextDependency: 'session'
+          }
+        });
+  interface TaskAssignmentExtension { custom?: Record<string, unknown>; }
+  (meta as TaskAssignmentExtension).custom = {
           taskId,
           agentId: agent.id,
-          agentName: agent.name,
-          messageId,
-          sessionId,
-          orchestratorId: this.orchestratorId,
-          timestamp: createUnifiedTimestamp(),
-          status: 'assigned'
-        }
-      });
+            agentName: agent.name,
+            messageId,
+            sessionId,
+            orchestratorId: this.orchestratorId,
+            status: 'assigned'
+        };
+        await this.memory.addMemoryCanonical(
+          `Task assigned to ${agent.name}: ${taskContext.summary || 'Task execution'}`,
+          meta,
+          'system_orchestration'
+        );
+      } catch (storeErr) {
+        console.warn('Failed to store task assignment memory (canonical):', storeErr);
+      }
       
       await this.logOperation('task_assignment_completed', { 
         taskId,
@@ -438,12 +471,13 @@ export class HybridAgentOrchestrator {
       // Search for orchestrator operations in memory
       const operations = await this.memory.searchMemory({
         query: `orchestratorId:${this.orchestratorId}`,
-        user_id: 'system_orchestration',
+        userId: 'system_orchestration',
         limit: 100
       });
-
-      const totalOperations = operations.results.length;
-      const successfulOps = operations.results.filter((op: Record<string, unknown>) => {
+      const list = operations?.results || [];
+      const totalOperations = list.length;
+  interface OperationRecord { metadata?: Record<string, unknown>; content?: string }
+  const successfulOps = list.filter((op: OperationRecord) => {
         const metadata = op.metadata as Record<string, unknown> | undefined;
         const operation = String(metadata?.operation || '');
         return !operation.includes('failed') && !operation.includes('error');
@@ -452,9 +486,9 @@ export class HybridAgentOrchestrator {
       const successRate = totalOperations > 0 ? (successfulOps / totalOperations) * 100 : 0;
 
       // Extract recent activity
-      const recentActivity = operations.results
+      const recentActivity = (list as OperationRecord[])
         .slice(0, 10)
-        .map((op: Record<string, unknown>) => {
+        .map((op: OperationRecord) => {
           const metadata = op.metadata as Record<string, unknown> | undefined;
           return `${metadata?.operation}: ${op.content}`;
         })

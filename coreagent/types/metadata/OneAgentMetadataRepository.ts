@@ -11,7 +11,6 @@
  */
 
 import {
-  OneAgentBaseMetadata,
   AnyMetadata,
   MetadataType,
   MetadataRepository,
@@ -23,8 +22,7 @@ import {
   SyncResult,
   ConstitutionalAIMetadata,
   QualityMetadata,
-  SemanticMetadata,
-  ContextMetadata
+  SemanticMetadata
 } from './OneAgentUnifiedMetadata.js';
 import { OneAgentUnifiedBackbone } from '../../utils/UnifiedBackboneService.js';
 
@@ -64,7 +62,7 @@ export class OneAgentMetadataRepository implements MetadataRepository {
     // Validate metadata
     const validation = await this.validate(metadata);
     if (!validation.isValid) {
-      throw new Error(`Invalid metadata: ${validation.errors.map((e: any) => e.message).join(', ')}`);
+      throw new Error(`Invalid metadata: ${validation.errors.map((e) => e.message).join(', ')}`);
     }
 
     // Enhance with Constitutional AI validation
@@ -192,7 +190,7 @@ export class OneAgentMetadataRepository implements MetadataRepository {
     // Re-validate
     const validation = await this.validate(updated);
     if (!validation.isValid) {
-      throw new Error(`Invalid metadata updates: ${validation.errors.map((e: any) => e.message).join(', ')}`);
+      throw new Error(`Invalid metadata updates: ${validation.errors.map((e) => e.message).join(', ')}`);
     }
 
     // Re-analyze if significant changes
@@ -323,7 +321,7 @@ export class OneAgentMetadataRepository implements MetadataRepository {
   async search<T extends AnyMetadata>(query: string, options: SearchOptions = {}): Promise<T[]> {
     const results: Array<{ metadata: T; score: number }> = [];
 
-    for (const [id, metadata] of this.storage) {
+  for (const [, metadata] of this.storage) {
       let score = 0;
 
       // Basic text search
@@ -424,11 +422,11 @@ export class OneAgentMetadataRepository implements MetadataRepository {
 
     // Add relationship in both directions
     fromMetadata.semantic.relationships.relatedIds.push(toId);
-    fromMetadata.semantic.relationships.relationshipTypes[toId] = relationshipType as any;
+  fromMetadata.semantic.relationships.relationshipTypes[toId] = relationshipType as 'parent' | 'child' | 'sibling' | 'reference' | 'similar';
     fromMetadata.semantic.relationships.strength[toId] = strength;
 
     toMetadata.semantic.relationships.relatedIds.push(fromId);
-    toMetadata.semantic.relationships.relationshipTypes[fromId] = this.getInverseRelationship(relationshipType) as any;
+  toMetadata.semantic.relationships.relationshipTypes[fromId] = (this.getInverseRelationship(relationshipType) as 'parent' | 'child' | 'sibling' | 'reference' | 'similar');
     toMetadata.semantic.relationships.strength[fromId] = strength;
 
     // Update both metadata objects

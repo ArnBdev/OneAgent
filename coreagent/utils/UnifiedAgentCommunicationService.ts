@@ -21,7 +21,6 @@ import {
     AgentRegistration,
     AgentId,
     AgentFilter,
-    AgentCard,
     AgentCardWithHealth,
     AgentMessage,
     MessageId,
@@ -37,12 +36,13 @@ import {
     MessagePriority,
     SessionCoherence,
     EmergentInsight,
-    BusinessWorkflowTemplate,
-    WorkflowInstance,
-    WorkflowProgress,
-    NLACSMessage
+    NLACSMessage,
+        MemoryRecord,
+        AgentCommunicationExtension,
+        AgentCommunicationEvent
 } from '../types/oneagent-backbone-types';
 import { OneAgentMemory } from '../memory/OneAgentMemory';
+import { unifiedMonitoringService } from '../monitoring/UnifiedMonitoringService';
 import { createUnifiedId, createUnifiedTimestamp, unifiedMetadataService } from '../utils/UnifiedBackboneService';
 import { ToolDescriptor } from '../OneAgentEngine';
 import { ConsensusEngine } from '../coordination/ConsensusEngine';
@@ -52,15 +52,47 @@ export class UnifiedAgentCommunicationService implements UnifiedAgentCommunicati
     private static instance: UnifiedAgentCommunicationService;
     private memory: OneAgentMemory;
     private eventHandlers: { [event: string]: ((payload: unknown) => void)[] } = {};
+    // Fast test mode ephemeral registry (used when ONEAGENT_FAST_TEST_MODE=1 and memory searches are bypassed)
+    private fastTestAgents?: Map<string, A2AAgent>;
+    private fastTestSessions?: Map<string, A2AGroupSession>;
+    private fastTestMessages?: Map<string, A2AMessage[]>;
+    private silentLogging: boolean = process.env.ONEAGENT_SILENCE_COMM_LOGS === '1';
     
     // Phase 3 Enhanced Coordination Engines
     private consensusEngine: ConsensusEngine;
     private insightSynthesisEngine: InsightSynthesisEngine;
+    // Rate limiting: agent-session windows
+    private messageWindows: Map<string, number[]> = new Map();
+    // Simple per-session operation queue to serialize mutations (join/leave)
+    private sessionLocks: Map<string, Promise<unknown>> = new Map();
+
+    // Configuration (future: externalize to unified config)
+    private readonly RATE_LIMIT_MAX_MESSAGES = 30; // messages
+    private readonly RATE_LIMIT_WINDOW_MS = 60_000; // 60s
+
+    // Helper error codes
+    private error(code: string, message: string): Error {
+        const err = new Error(message) as Error & { code?: string };
+        err.code = code; return err;
+    }
+
+    private async runSafely<T>(operation: string, fn: () => Promise<T>, meta?: Record<string, unknown>): Promise<T> {
+        const start = (globalThis.performance?.now?.() ?? Date.now());
+        try {
+            const result = await fn();
+            const durationMs = (globalThis.performance?.now?.() ?? Date.now()) - start;
+            unifiedMonitoringService.trackOperation('UnifiedAgentCommunicationService', operation, 'success', { ...(meta || {}), durationMs });
+            return result;
+        } catch (error) {
+            const durationMs = (globalThis.performance?.now?.() ?? Date.now()) - start;
+            unifiedMonitoringService.trackOperation('UnifiedAgentCommunicationService', operation, 'error', { ...(meta || {}), durationMs, error: error instanceof Error ? error.message : String(error) });
+            throw error;
+        }
+    }
 
     // Singleton pattern ensures one canonical instance
     public static getInstance(): UnifiedAgentCommunicationService {
         if (!UnifiedAgentCommunicationService.instance) {
-            // Pass the canonical memory system instance
             const memoryInstance = OneAgentMemory.getInstance();
             UnifiedAgentCommunicationService.instance = new UnifiedAgentCommunicationService(memoryInstance);
         }
@@ -69,9 +101,24 @@ export class UnifiedAgentCommunicationService implements UnifiedAgentCommunicati
 
     private constructor(memory: OneAgentMemory) {
         this.memory = memory;
-        this.consensusEngine = new ConsensusEngine();
-        this.insightSynthesisEngine = new InsightSynthesisEngine();
-        console.log('✅ UnifiedAgentCommunicationService initialized with Phase 3 enhanced coordination engines.');
+        if (process.env.ONEAGENT_FAST_TEST_MODE === '1') {
+            // Defer heavy engine initialization to improve fast test startup time
+            // Engines can be lazily created on first use if demanded by a test (not currently triggered in fast path)
+            // This preserves canonical architecture while optimizing CI runtime.
+            this.consensusEngine = null as unknown as ConsensusEngine;
+            this.insightSynthesisEngine = null as unknown as InsightSynthesisEngine;
+            if (!this.silentLogging) console.log('🧪 FAST_TEST_MODE: Skipping immediate consensus/insight engine initialization');
+        } else {
+            this.consensusEngine = new ConsensusEngine();
+            this.insightSynthesisEngine = new InsightSynthesisEngine();
+            if (!this.silentLogging) console.log('✅ UnifiedAgentCommunicationService initialized with Phase 3 enhanced coordination engines.');
+        }
+        if (process.env.ONEAGENT_FAST_TEST_MODE === '1') {
+            this.fastTestAgents = new Map();
+            this.fastTestSessions = new Map();
+            this.fastTestMessages = new Map();
+            if (!this.silentLogging) console.log('🧪 FAST_TEST_MODE active: using in-memory agent registry fallback');
+        }
     }
 
     /**
@@ -195,6 +242,7 @@ export class UnifiedAgentCommunicationService implements UnifiedAgentCommunicati
      * The agent's definition is stored persistently in the memory system.
      */
     async registerAgent(agent: AgentRegistration): Promise<AgentId> {
+        return this.runSafely('registerAgent', async () => {
         const agentId = agent.id || createUnifiedId('agent', agent.name);
         const agentRecord: A2AAgent = {
             id: agentId,
@@ -204,6 +252,11 @@ export class UnifiedAgentCommunicationService implements UnifiedAgentCommunicati
             status: 'online',
             metadata: agent.metadata || {},
         };
+
+        // Fast test mode: store in ephemeral map for discovery without memory backend lookups
+        if (this.fastTestAgents) {
+            this.fastTestAgents.set(agentId, agentRecord);
+        }
 
         const content = `Agent Registration: ${agent.name}`;
         const metadata = {
@@ -226,8 +279,12 @@ export class UnifiedAgentCommunicationService implements UnifiedAgentCommunicati
         };
         const memoryId = await this.memory.addMemoryCanonical(content, metadata, 'system_registry');
 
-        console.log(`🤖 Agent registered via canonical service: ${agent.name} (${agentId}) -> Memory ID: ${memoryId}`);
-        return agentId;
+    if (!this.silentLogging) console.log(`🤖 Agent registered via canonical service: ${agent.name} (${agentId}) -> Memory ID: ${memoryId}`);
+    // Fire lifecycle event for observers
+    this.emit('agent_registered', { agent: agentRecord });
+    // removed direct monitoring increment (handled via recordOpStatus earlier if needed)
+    return agentId;
+    });
     }
 
     /**
@@ -235,7 +292,34 @@ export class UnifiedAgentCommunicationService implements UnifiedAgentCommunicati
      * Searches the canonical memory system for registered agents.
      */
     async discoverAgents(filter: AgentFilter & { health?: 'healthy' | 'degraded' | 'critical' | 'offline'; role?: string; }): Promise<AgentCardWithHealth[]> {
-        const metadata_filter: Record<string, unknown> = { 'agentData.entityType': 'A2AAgent' };
+        return this.runSafely('discoverAgents', async () => {
+        // Fast test mode short-circuit: return from in-memory registry
+        if (this.fastTestAgents) {
+            const candidates = Array.from(this.fastTestAgents.values()).filter(agent => {
+                if (filter.status && agent.status !== filter.status) return false;
+                if (filter.capabilities && filter.capabilities.length) {
+                    return filter.capabilities.every(c => agent.capabilities.includes(c));
+                }
+                return true;
+            });
+            return candidates.map(agent => ({
+                id: agent.id,
+                name: agent.name,
+                capabilities: agent.capabilities,
+                health: {
+                    status: 'healthy',
+                    uptime: 0,
+                    memoryUsage: 0,
+                    responseTime: 0,
+                    errorRate: 0,
+                    lastActivity: new Date(agent.lastActive.iso)
+                },
+                status: agent.status,
+                lastActive: new Date(agent.lastActive.iso),
+                metadata: agent.metadata
+            }));
+        }
+    const metadata_filter: Record<string, unknown> = { entityType: 'A2AAgent' };
 
         if (filter.status) {
             metadata_filter['agentData.status'] = filter.status;
@@ -247,9 +331,8 @@ export class UnifiedAgentCommunicationService implements UnifiedAgentCommunicati
             limit: filter.limit || 100,
             metadata_filter: metadata_filter,
         });
-
-        const agents = searchResults.results
-            .map((result: Record<string, unknown>) => (result.metadata as Record<string, unknown>)?.agentData as A2AAgent)
+        const agents = (searchResults?.results || [])
+            .map((result: MemoryRecord) => (result.metadata as Record<string, unknown>)?.agentData as A2AAgent)
             .filter((agent: A2AAgent): agent is A2AAgent => {
                 if (!agent) return false;
                 if (filter.capabilities && filter.capabilities.length > 0) {
@@ -262,10 +345,10 @@ export class UnifiedAgentCommunicationService implements UnifiedAgentCommunicati
                 name: agent.name,
                 capabilities: agent.capabilities,
                 health: {
-                    status: 'healthy' as const,
-                    uptime: createUnifiedTimestamp().unix * 1000 - new Date(agent.lastActive.iso).getTime(),
-                    memoryUsage: 50,
-                    responseTime: 100,
+                    status: 'healthy',
+                    uptime: createUnifiedTimestamp().unix - new Date(agent.lastActive.iso).getTime(),
+                    memoryUsage: 0,
+                    responseTime: 0,
                     errorRate: 0,
                     lastActivity: new Date(agent.lastActive.iso)
                 },
@@ -275,14 +358,44 @@ export class UnifiedAgentCommunicationService implements UnifiedAgentCommunicati
             }));
         
         console.log(`🔍 Agent discovery found ${agents.length} agents.`);
-        return agents;
+    // removed gauge call – discovery count can be derived by monitoring if needed
+    return agents;
+    });
     }
 
     /**
      * Creates a new communication session for agents to collaborate.
      * The session is stored persistently in the memory system.
      */
+    
     async createSession(sessionConfig: SessionConfig & { context?: Record<string, unknown>; nlacs?: boolean }): Promise<SessionId> {
+        return this.runSafely('createSession', async () => {
+        if (this.fastTestSessions) {
+            // In fast test mode reuse any active session with same name from in-memory map
+            for (const s of this.fastTestSessions.values()) {
+                if (s.name === sessionConfig.name && s.status === 'active') {
+                    console.log(`♻️ [FAST_TEST_MODE] Reusing existing active session ${s.id} for name ${sessionConfig.name}`);
+                    return s.id;
+                }
+            }
+        } else {
+            // Deduplicate active session with same name via memory search
+            const existing = await this.memory.searchMemory({
+                query: `session ${sessionConfig.name}`,
+                user_id: 'system_session_manager',
+                limit: 1,
+                metadata_filter: { 'sessionData.name': sessionConfig.name, entityType: 'A2ASession', 'sessionData.status': 'active' }
+            });
+            if (existing?.results?.length) {
+                interface SessionMetadataWrapper { sessionData?: A2AGroupSession }
+                const existingWrapper = existing.results[0].metadata as unknown as SessionMetadataWrapper | undefined;
+                const existingSession = existingWrapper?.sessionData;
+                if (existingSession) {
+                    console.log(`♻️ Reusing existing active session ${existingSession.id} for name ${sessionConfig.name}`);
+                    return existingSession.id;
+                }
+            }
+        }
         const sessionId = createUnifiedId('session', sessionConfig.name);
         const sessionRecord: A2AGroupSession = {
             id: sessionId,
@@ -301,24 +414,29 @@ export class UnifiedAgentCommunicationService implements UnifiedAgentCommunicati
             },
         };
 
-        const sessionMetadata = unifiedMetadataService.create('session_creation', 'UnifiedAgentCommunicationService', {
-            system: {
-                source: 'session_manager',
-                component: 'UnifiedAgentCommunicationService',
-                sessionId,
-            },
-            content: {
-                category: 'agent_coordination',
-                tags: ['session', 'creation', sessionConfig.mode || 'collaborative'],
-                sensitivity: 'internal',
-                relevanceScore: 1.0,
-                contextDependency: 'session'
-            },
-            business: {
-                entityType: 'A2ASession',
-                sessionData: sessionRecord,
-            }
-        });
+        // Canonical metadata: expose entityType and sessionData at top-level for efficient filtering
+        const sessionMetadata = {
+            ...unifiedMetadataService.create('session_creation', 'UnifiedAgentCommunicationService', {
+                system: {
+                    source: 'session_manager',
+                    component: 'UnifiedAgentCommunicationService',
+                    sessionId,
+                },
+                content: {
+                    category: 'agent_coordination',
+                    tags: ['session', 'creation', sessionConfig.mode || 'collaborative'],
+                    sensitivity: 'internal',
+                    relevanceScore: 1.0,
+                    contextDependency: 'session'
+                },
+                business: {
+                    entityType: 'A2ASession',
+                    sessionData: sessionRecord,
+                }
+            }),
+            entityType: 'A2ASession',
+            sessionData: sessionRecord,
+        };
         
         await this.memory.addMemoryCanonical(
             `Session Created: ${sessionConfig.name} - Topic: ${sessionConfig.topic}`,
@@ -326,8 +444,15 @@ export class UnifiedAgentCommunicationService implements UnifiedAgentCommunicati
             'system_session_manager'
         );
 
-        console.log(`🤝 Session created via canonical service: ${sessionConfig.name} (${sessionId})`);
-        return sessionId;
+        if (this.fastTestSessions) {
+            this.fastTestSessions.set(sessionId, sessionRecord);
+        }
+
+    if (!this.silentLogging) console.log(`🤝 Session created via canonical service: ${sessionConfig.name} (${sessionId})`);
+    this.emit('session_created', { sessionId, session: sessionRecord });
+    // removed direct monitoring increment
+    return sessionId;
+    });
     }
 
     /**
@@ -335,6 +460,13 @@ export class UnifiedAgentCommunicationService implements UnifiedAgentCommunicati
      * The message is stored in memory, creating a permanent, auditable transcript.
      */
     async sendMessage(message: AgentMessage): Promise<MessageId> {
+        return this.runSafely('sendMessage', async () => {
+        // Validate session & participants
+        const session = await this.getSessionInfo(message.sessionId);
+        if (!session) throw this.error('SESSION_NOT_FOUND', `Session ${message.sessionId} not found`);
+        if (!session.participants.includes(message.fromAgent)) throw this.error('SENDER_NOT_IN_SESSION', `Agent ${message.fromAgent} not in session ${message.sessionId}`);
+        if (message.toAgent && !session.participants.includes(message.toAgent)) throw this.error('RECIPIENT_NOT_IN_SESSION', `Agent ${message.toAgent} not in session ${message.sessionId}`);
+        this.enforceRateLimit(message.fromAgent, message.sessionId);
         const messageId = createUnifiedId('message', message.fromAgent);
         const messageRecord: A2AMessage = {
             id: messageId,
@@ -347,92 +479,144 @@ export class UnifiedAgentCommunicationService implements UnifiedAgentCommunicati
             metadata: message.metadata,
         };
 
-        const messageMetadata = unifiedMetadataService.create('agent_message', 'UnifiedAgentCommunicationService', {
-            system: {
-                source: 'messaging_service',
-                component: 'UnifiedAgentCommunicationService',
-                sessionId: message.sessionId,
-                agent: { id: message.fromAgent, type: 'specialized' },
-            },
-            content: {
-                category: 'agent_communication',
-                tags: ['message', message.messageType || 'update', `from:${message.fromAgent}`, `to:${message.toAgent || 'all'}`],
-                sensitivity: 'internal',
-                relevanceScore: 1.0,
-                contextDependency: 'session'
-            },
-            relationships: {
-                parent: message.sessionId,
-                children: [],
-                related: [],
-                dependencies: []
-            },
-            business: {
-                entityType: 'A2AMessage',
-                messageData: messageRecord,
-            }
-        });
+        // Canonical metadata: expose entityType and messageData at top-level for efficient filtering
+        const messageMetadata = {
+            ...unifiedMetadataService.create('agent_message', 'UnifiedAgentCommunicationService', {
+                system: {
+                    source: 'messaging_service',
+                    component: 'UnifiedAgentCommunicationService',
+                    sessionId: message.sessionId,
+                    agent: { id: message.fromAgent, type: 'specialized' },
+                },
+                content: {
+                    category: 'agent_communication',
+                    tags: ['message', message.messageType || 'update', `from:${message.fromAgent}`, `to:${message.toAgent || 'all'}`],
+                    sensitivity: 'internal',
+                    relevanceScore: 1.0,
+                    contextDependency: 'session'
+                },
+                relationships: {
+                    parent: message.sessionId,
+                    children: [],
+                    related: [],
+                    dependencies: []
+                },
+                business: {
+                    entityType: 'A2AMessage',
+                    messageData: messageRecord,
+                }
+            }),
+            entityType: 'A2AMessage',
+            messageData: messageRecord,
+        };
         
         await this.memory.addMemoryCanonical(
             message.content,
             messageMetadata,
             'system_messaging'
         );
+
+        if (this.fastTestMessages) {
+            const arr = this.fastTestMessages.get(message.sessionId) || [];
+            arr.push(messageRecord);
+            this.fastTestMessages.set(message.sessionId, arr);
+        }
         
-        console.log(`📨 Message sent in session ${message.sessionId}: ${message.fromAgent} -> ${message.toAgent || 'all'}`);
-        return messageId;
+    if (!this.silentLogging) console.log(`📨 Message sent in session ${message.sessionId}: ${message.fromAgent} -> ${message.toAgent || 'all'}`);
+    this.emit('message_sent', { message: messageRecord });
+    if (messageRecord.toAgent) {
+        this.emit('message_received', { message: messageRecord, recipient: messageRecord.toAgent });
+    } else {
+        // Broadcast: notify for each participant except sender
+        session.participants.filter(a => a !== messageRecord.fromAgent).forEach(recipient => {
+            this.emit('message_received', { message: messageRecord, recipient });
+        });
+    }
+    // removed direct monitoring increment
+    return messageId;
+    });
     }
 
     /**
      * Retrieves the message history for a given session from memory.
      */
     async getMessageHistory(sessionId: SessionId, limit: number = 100): Promise<A2AMessage[]> {
-        const searchResults = await this.memory.searchMemory({
-            query: `message history for session ${sessionId}`,
-            user_id: 'system_history',
-            limit,
-            metadata_filter: { 'messageData.sessionId': sessionId },
+        return this.runSafely('getMessageHistory', async () => {
+            if (this.fastTestMessages) {
+                const msgs = this.fastTestMessages.get(sessionId) || [];
+                return msgs.slice(-limit);
+            }
+            const searchResults = await this.memory.searchMemory({
+                query: `message history for session ${sessionId}`,
+                user_id: 'system_history',
+                limit,
+                metadata_filter: { 'messageData.sessionId': sessionId },
+            });
+            const messages = (searchResults?.results || [])
+                .map((result: MemoryRecord) => (result.metadata as Record<string, unknown>)?.messageData as A2AMessage)
+                .filter((message: A2AMessage): message is A2AMessage => Boolean(message))
+                .sort((a: A2AMessage, b: A2AMessage) => new Date(a.timestamp.iso).getTime() - new Date(b.timestamp.iso).getTime());
+            return messages;
         });
-
-        const messages = searchResults.results
-            .map((result: Record<string, unknown>) => (result.metadata as Record<string, unknown>)?.messageData as A2AMessage)
-            .filter((message: A2AMessage): message is A2AMessage => Boolean(message))
-            .sort((a: A2AMessage, b: A2AMessage) => new Date(a.timestamp.iso).getTime() - new Date(b.timestamp.iso).getTime());
-
-        return messages;
     }
 
     /**
      * Retrieves information about a specific session from memory.
      */
     async getSessionInfo(sessionId: SessionId): Promise<SessionInfo | null> {
-         const searchResults = await this.memory.searchMemory({
+        return this.runSafely('getSessionInfo', async () => {
+    if (this.fastTestSessions) {
+        const fast = this.fastTestSessions.get(sessionId) || null;
+        return fast as unknown as SessionInfo | null;
+    }
+    const searchResults = await this.memory.searchMemory({
             query: `info for session ${sessionId}`,
             user_id: 'system_session_manager',
             limit: 1,
             metadata_filter: { 'sessionData.id': sessionId, entityType: 'A2ASession' },
         });
-
-        if (searchResults.length > 0 && searchResults[0].metadata?.sessionData) {
-            return searchResults[0].metadata?.sessionData as SessionInfo;
-        }
-
-        return null;
+    const record = searchResults?.results?.[0];
+    interface SessionMetadataWrapper { sessionData?: SessionInfo }
+    const metaWrapper = record?.metadata as unknown as SessionMetadataWrapper | undefined;
+    const data = metaWrapper?.sessionData;
+        return data || null;
+        });
     }
     
     // The methods below are placeholders to satisfy the interface.
     // They can be implemented by building upon the memory-driven primitives above.
 
-    async joinSession(sessionId: SessionId, _agentId: AgentId): Promise<boolean> {
-        // Implementation: Search for session, update participant list in memory, save back.
-        console.warn(`joinSession for ${sessionId} not fully implemented.`);
-        return true;
+    async joinSession(sessionId: SessionId, agentId: AgentId): Promise<boolean> {
+        return this.runSafely('joinSession', async () => {
+        return this.serializeSessionOp(sessionId, async () => {
+            const session = await this.getSessionInfo(sessionId);
+            if (!session) throw this.error('SESSION_NOT_FOUND', `Session ${sessionId} not found`);
+            if (!session.participants.includes(agentId)) {
+                session.participants.push(agentId);
+                await this.persistSessionUpdate(session, `Agent ${agentId} joined session`);
+                this.emit('session_participant_joined', { sessionId, agentId });
+            }
+            // removed direct monitoring increment
+            return true;
+        });
+        });
     }
 
-    async leaveSession(sessionId: SessionId, _agentId: AgentId): Promise<boolean> {
-        // Implementation: Search for session, remove participant, save back.
-        console.warn(`leaveSession for ${sessionId} not fully implemented.`);
-        return true;
+    async leaveSession(sessionId: SessionId, agentId: AgentId): Promise<boolean> {
+        return this.runSafely('leaveSession', async () => {
+        return this.serializeSessionOp(sessionId, async () => {
+            const session = await this.getSessionInfo(sessionId);
+            if (!session) throw this.error('SESSION_NOT_FOUND', `Session ${sessionId} not found`);
+            const idx = session.participants.indexOf(agentId);
+            if (idx >= 0) {
+                session.participants.splice(idx, 1);
+                await this.persistSessionUpdate(session, `Agent ${agentId} left session`);
+                this.emit('session_participant_left', { sessionId, agentId });
+            }
+            // removed direct monitoring increment
+            return true;
+        });
+        });
     }
 
     async broadcastMessage(message: AgentMessage): Promise<MessageId> {
@@ -444,7 +628,7 @@ export class UnifiedAgentCommunicationService implements UnifiedAgentCommunicati
     /**
      * Event-driven coordination: subscribe to agent lifecycle and communication events
      */
-    on(event: string, handler: (payload: unknown) => void): void {
+        on(event: AgentCommunicationEvent, handler: (payload: unknown) => void): void {
         if (!this.eventHandlers[event]) {
             this.eventHandlers[event] = [];
         }
@@ -452,10 +636,18 @@ export class UnifiedAgentCommunicationService implements UnifiedAgentCommunicati
         console.log(`🎯 Event handler registered for: ${event}`);
     }
 
+    off(event: AgentCommunicationEvent, handler: (payload: unknown) => void): void {
+        const handlers = this.eventHandlers[event];
+        if (!handlers) return;
+        const idx = handlers.indexOf(handler);
+        if (idx >= 0) handlers.splice(idx, 1);
+        if (!this.silentLogging) console.log(`🧹 Event handler removed for: ${event}`);
+    }
+
     /**
      * Extensibility: register new orchestration logic, protocols, or agent types
      */
-    registerExtension(extension: { name: string; description?: string; apply: (service: UnifiedAgentCommunicationService) => void }): void {
+    registerExtension(extension: AgentCommunicationExtension): void {
         console.log(`🔌 Registering extension: ${extension.name}`);
         try {
             extension.apply(this);
@@ -488,6 +680,7 @@ export class UnifiedAgentCommunicationService implements UnifiedAgentCommunicati
      * Supports advanced facilitation, consensus building, and insight synthesis
      */
     async createBusinessSession(config: EnhancedSessionConfig): Promise<SessionId> {
+        return this.runSafely('createBusinessSession', async () => {
         const sessionId = createUnifiedId('session', config.name);
         console.log(`🚀 Creating enhanced business session: ${config.name}`);
 
@@ -548,7 +741,9 @@ export class UnifiedAgentCommunicationService implements UnifiedAgentCommunicati
         });
 
         console.log(`✅ Enhanced business session created: ${config.name} (${sessionId})`);
-        return sessionId;
+    // removed direct monitoring increment
+    return sessionId;
+    });
     }
 
     /**
@@ -556,6 +751,7 @@ export class UnifiedAgentCommunicationService implements UnifiedAgentCommunicati
      * Uses Constitutional AI to ensure productive and safe discussions
      */
     async facilitateDiscussion(sessionId: SessionId, facilitationRules: FacilitationRules): Promise<void> {
+        return this.runSafely('facilitateDiscussion', async () => {
         console.log(`🎯 Facilitating discussion for session: ${sessionId}`);
 
         const facilitationMetadata = unifiedMetadataService.create('facilitation_rules', 'UnifiedAgentCommunicationService', {
@@ -585,7 +781,9 @@ export class UnifiedAgentCommunicationService implements UnifiedAgentCommunicati
 
         // Emit facilitation start event
         this.emit('discussion_facilitation_started', { sessionId, rules: facilitationRules });
-        console.log(`✅ Discussion facilitation active for session: ${sessionId}`);
+    console.log(`✅ Discussion facilitation active for session: ${sessionId}`);
+    // removed direct monitoring increment
+    });
     }
 
     /**
@@ -593,6 +791,7 @@ export class UnifiedAgentCommunicationService implements UnifiedAgentCommunicati
      * Integrates with ConsensusEngine for sophisticated agreement analysis
      */
     async buildConsensus(sessionId: SessionId, proposal: string): Promise<ConsensusResult> {
+        return this.runSafely('buildConsensus', async () => {
         console.log(`🤝 Building consensus for proposal in session: ${sessionId}`);
 
         // Get session info and message history
@@ -624,6 +823,10 @@ export class UnifiedAgentCommunicationService implements UnifiedAgentCommunicati
         };
 
         // Use consensus engine for democratic decision-making
+        // Lazy init if skipped in fast mode
+        if (!this.consensusEngine) {
+            this.consensusEngine = new ConsensusEngine();
+        }
         const consensusResult = await this.consensusEngine.buildConsensus(
             sessionInfo.participants,
             proposal,
@@ -639,7 +842,17 @@ export class UnifiedAgentCommunicationService implements UnifiedAgentCommunicati
         }
 
         console.log(`${consensusResult.agreed ? '✅' : '⚠️'} Consensus ${consensusResult.agreed ? 'reached' : 'not reached'} for session: ${sessionId}`);
+        // Persist consensus result
+        const consensusMetadata = unifiedMetadataService.create('consensus_result', 'UnifiedAgentCommunicationService', {
+            system: { source: 'consensus_engine', component: 'UnifiedAgentCommunicationService', sessionId },
+            content: { category: 'consensus', tags: ['consensus', proposal], sensitivity: 'internal', relevanceScore: 1.0, contextDependency: 'session' },
+            business: { entityType: 'ConsensusResult', consensusData: consensusResult }
+        });
+        await this.memory.addMemoryCanonical(`Consensus Result: ${proposal} -> ${consensusResult.agreed ? 'AGREED' : 'NOT AGREED'}`, consensusMetadata, 'system_consensus');
+    // removed direct monitoring increment
+    // removed direct monitoring increment
         return consensusResult;
+        });
     }
 
     /**
@@ -647,6 +860,7 @@ export class UnifiedAgentCommunicationService implements UnifiedAgentCommunicati
      * Uses InsightSynthesisEngine for breakthrough detection and novel connections
      */
     async synthesizeInsights(sessionId: SessionId): Promise<EmergentInsight[]> {
+        return this.runSafely('synthesizeInsights', async () => {
         console.log(`✨ Synthesizing insights for session: ${sessionId}`);
 
         // Get session context and message history
@@ -678,6 +892,9 @@ export class UnifiedAgentCommunicationService implements UnifiedAgentCommunicati
         };
 
         // Use insight synthesis engine for breakthrough detection
+        if (!this.insightSynthesisEngine) {
+            this.insightSynthesisEngine = new InsightSynthesisEngine();
+        }
         const breakthroughInsights = await this.insightSynthesisEngine.detectBreakthroughMoments(discussionContext);
         const novelConnections = await this.insightSynthesisEngine.identifyNovelConnections(discussionContext);
 
@@ -729,8 +946,20 @@ export class UnifiedAgentCommunicationService implements UnifiedAgentCommunicati
             connectionCount: novelConnections.length
         });
 
-        console.log(`✨ Synthesized ${emergentInsights.length} insights for session: ${sessionId}`);
+        // Persist each insight
+        for (const insight of emergentInsights) {
+            const insightMetadata = unifiedMetadataService.create('emergent_insight', 'UnifiedAgentCommunicationService', {
+                system: { source: 'insight_synthesis', component: 'UnifiedAgentCommunicationService', sessionId },
+                content: { category: 'insight', tags: ['insight', insight.type], sensitivity: 'internal', relevanceScore: insight.relevanceScore || 0.9, contextDependency: 'session' },
+                business: { entityType: 'EmergentInsight', insightData: insight }
+            });
+            await this.memory.addMemoryCanonical(`Emergent Insight: ${insight.type} – ${insight.content.substring(0,120)}`, insightMetadata, 'system_insights');
+        }
+    // removed direct monitoring increment
+    // removed direct monitoring increment
+        console.log(`✨ Synthesized & persisted ${emergentInsights.length} insights for session: ${sessionId}`);
         return emergentInsights;
+        });
     }
 
     /**
@@ -738,8 +967,9 @@ export class UnifiedAgentCommunicationService implements UnifiedAgentCommunicati
      * Activates live message routing and coherence monitoring
      */
     async enableRealTimeMode(sessionId: SessionId): Promise<void> {
+        return this.runSafely('enableRealTimeMode', async () => {
         console.log(`⚡ Enabling real-time mode for session: ${sessionId}`);
-
+        const ts = createUnifiedTimestamp();
         const realtimeMetadata = unifiedMetadataService.create('realtime_mode', 'UnifiedAgentCommunicationService', {
             system: {
                 source: 'realtime_coordination',
@@ -756,7 +986,7 @@ export class UnifiedAgentCommunicationService implements UnifiedAgentCommunicati
             business: {
                 entityType: 'RealTimeMode',
                 sessionId,
-                enabledAt: new Date().toISOString()
+                enabledAt: ts.iso
             }
         });
         
@@ -767,7 +997,9 @@ export class UnifiedAgentCommunicationService implements UnifiedAgentCommunicati
         );
 
         this.emit('realtime_mode_enabled', { sessionId });
-        console.log(`⚡ Real-time mode active for session: ${sessionId}`);
+    // removed direct monitoring increment
+    console.log(`⚡ Real-time mode active for session: ${sessionId}`);
+    });
     }
 
     /**
@@ -775,15 +1007,16 @@ export class UnifiedAgentCommunicationService implements UnifiedAgentCommunicati
      * Ensures critical messages are delivered immediately
      */
     async routeWithPriority(message: NLACSMessage, priority: MessagePriority): Promise<void> {
+        return this.runSafely('routeWithPriority', async () => {
         console.log(`📨 Routing priority message: ${priority.level} - ${message.content.substring(0, 50)}...`);
-
+        const ts = createUnifiedTimestamp();
         // Enhanced message metadata with priority information
         const enhancedMessage = {
             ...message,
             metadata: {
                 ...message.metadata,
                 priority: priority,
-                routedAt: new Date().toISOString(),
+                routedAt: ts.iso,
                 enhancedRouting: true
             }
         };
@@ -820,7 +1053,9 @@ export class UnifiedAgentCommunicationService implements UnifiedAgentCommunicati
             this.emit('urgent_message_alert', { message: enhancedMessage, priority });
         }
 
-        console.log(`📨 Priority message routed: ${priority.level} priority`);
+    // removed direct monitoring increment
+    console.log(`📨 Priority message routed: ${priority.level} priority`);
+    });
     }
 
     /**
@@ -828,6 +1063,7 @@ export class UnifiedAgentCommunicationService implements UnifiedAgentCommunicati
      * Ensures discussions stay focused and productive
      */
     async maintainCoherence(sessionId: SessionId): Promise<SessionCoherence> {
+        return this.runSafely('maintainCoherence', async () => {
         console.log(`🎯 Monitoring coherence for session: ${sessionId}`);
 
         const sessionInfo = await this.getSessionInfo(sessionId);
@@ -898,7 +1134,9 @@ export class UnifiedAgentCommunicationService implements UnifiedAgentCommunicati
         }
 
         console.log(`🎯 Session coherence: ${coherenceScore.toFixed(2)} (${issues.length} issues identified)`);
-        return coherenceResult;
+    // removed direct monitoring increment
+    return coherenceResult;
+    });
     }
 
     /**
@@ -1042,6 +1280,45 @@ export class UnifiedAgentCommunicationService implements UnifiedAgentCommunicati
         }
         
         return Array.from(new Set(recommendations)); // Remove duplicates
+    }
+
+    // =====================
+    // INTERNAL HELPERS
+    // =====================
+    private enforceRateLimit(agentId: AgentId, sessionId: SessionId): void {
+        const key = `${agentId}::${sessionId}`;
+        const now = Date.now();
+        const window = this.messageWindows.get(key) || [];
+        const filtered = window.filter(ts => now - ts < this.RATE_LIMIT_WINDOW_MS);
+        if (filtered.length >= this.RATE_LIMIT_MAX_MESSAGES) {
+            throw this.error('RATE_LIMIT_EXCEEDED', `Agent ${agentId} exceeded ${this.RATE_LIMIT_MAX_MESSAGES} messages / ${this.RATE_LIMIT_WINDOW_MS/1000}s in session ${sessionId}`);
+        }
+        filtered.push(now);
+        this.messageWindows.set(key, filtered);
+    }
+
+    private async serializeSessionOp<T>(sessionId: SessionId, fn: () => Promise<T>): Promise<T> {
+        const prev = this.sessionLocks.get(sessionId) || Promise.resolve();
+        let release: (v: unknown) => void;
+        const p = new Promise(res => release = res);
+        this.sessionLocks.set(sessionId, prev.then(() => p));
+        try {
+            const result = await fn();
+            release!(null);
+            return result;
+        } finally {
+            if (this.sessionLocks.get(sessionId) === p) this.sessionLocks.delete(sessionId);
+        }
+    }
+
+    private async persistSessionUpdate(session: A2AGroupSession | SessionInfo, activity: string): Promise<void> {
+        const ts = createUnifiedTimestamp();
+        const metadata = unifiedMetadataService.create('session_update', 'UnifiedAgentCommunicationService', {
+            system: { source: 'session_update', component: 'UnifiedAgentCommunicationService', sessionId: session.id },
+            content: { category: 'agent_coordination', tags: ['session','update'], sensitivity: 'internal', relevanceScore: 0.9, contextDependency: 'session' },
+            business: { entityType: 'A2ASessionUpdate', sessionData: session, activity, updatedAt: ts }
+        });
+        await this.memory.addMemoryCanonical(`Session Update: ${activity}`, metadata, 'system_session_manager');
     }
 }
 

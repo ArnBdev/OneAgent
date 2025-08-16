@@ -20,13 +20,6 @@ console.log('🚀 OneAgent System Demo - Starting...');
 console.log('====================================\n');
 
 // Mock interfaces for demo purposes
-interface MockUser {
-  id: string;
-  name: string;
-  createdAt: string;
-  lastActiveAt: string;
-}
-
 interface MockConversationContext {
   userId: string;
   sessionId: string;
@@ -35,7 +28,7 @@ interface MockConversationContext {
   contextCategory: 'general' | 'coding' | 'office' | 'fitness';
   privacyLevel: 'public' | 'standard' | 'private';
   projectScope: 'default' | 'personal' | 'professional';
-  metadata: Record<string, any>;
+  metadata: Record<string, unknown>;
 }
 
 interface MockConversationMessage {
@@ -58,17 +51,13 @@ interface MockIntentAnalysis {
   suggestedMeetingParticipants?: string[];
 }
 
-interface MockAgentResponse {
-  message: string;
-  handoffTo?: string;
-  requiresTeamMeeting?: boolean;
-  confidence: number;
-  contextContinuity: MockConversationContext;
-}
+// Removed unused MockUser and MockAgentResponse types
 
 // Mock OneAgent System for Demo
+type AgentDescriptor = { id: string; skills: string[]; isActive: boolean };
+
 class OneAgentDemo {
-  private specialists: Map<string, any> = new Map();
+  private specialists: Map<string, AgentDescriptor> = new Map();
   private conversationContext!: MockConversationContext;
   private conversationHistory: MockConversationMessage[] = [];
 

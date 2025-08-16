@@ -66,8 +66,9 @@ class ProductionVerifier {
         throw new Error(`TypeScript compilation errors: ${stderr}`);
       }
       return 'TypeScript compilation clean (0 errors)';
-    } catch (error: any) {
-      if (error.message.includes('TypeScript compilation errors')) {
+    } catch (error: unknown) {
+      const msg = error instanceof Error ? error.message : String(error ?? '');
+      if (msg.includes('TypeScript compilation errors')) {
         throw error;
       }
       // If the command fails but not due to TS errors, it's likely no errors

@@ -36,7 +36,7 @@ async function runTest() {
     let sessionId = '';
 
     // --- Helper to run requests and assert success ---
-    async function processAndAssert(request: OneAgentRequest): Promise<any> {
+    async function processAndAssert<T = unknown>(request: OneAgentRequest): Promise<T> {
         console.log(`\n▶️  Executing: ${request.method}`);
         const response = await engine.processRequest(request);
         
@@ -47,8 +47,8 @@ async function runTest() {
         }
         
         console.log(`✅ SUCCESS: ${request.method}`);
-        console.log('   Response Data:', JSON.stringify(response.data, null, 2));
-        return response.data;
+    console.log('   Response Data:', JSON.stringify(response.data, null, 2));
+    return response.data as T;
     }
 
     try {
@@ -71,7 +71,8 @@ async function runTest() {
         });
 
         // 3. Discover Agents with 'testing' capability
-        const discoveredAgents = await processAndAssert({
+    type AgentSummary = { id: string; name?: string; capabilities?: string[] };
+    const discoveredAgents = await processAndAssert<AgentSummary[]>({
             id: createUnifiedId('mcp'),
             type: 'tool_call',
             method: 'oneagent_a2a_discover_agents',
@@ -81,7 +82,8 @@ async function runTest() {
         console.assert(discoveredAgents.length === 2, '❌ FAILED: Should have discovered 2 agents.');
 
         // 4. Create a session
-        const sessionData = await processAndAssert({
+    type SessionInfo = { id: string };
+    const sessionData = await processAndAssert<SessionInfo>({
             id: createUnifiedId('mcp'),
             type: 'tool_call',
             method: 'oneagent_a2a_create_session',
@@ -101,7 +103,8 @@ async function runTest() {
         });
 
         // 6. Get message history
-        const history = await processAndAssert({
+    type MessageRecord = { message: string };
+    const history = await processAndAssert<MessageRecord[]>({
             id: createUnifiedId('mcp'),
             type: 'tool_call',
             method: 'oneagent_a2a_get_message_history',

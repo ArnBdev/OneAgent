@@ -6,6 +6,41 @@
 
 ---
 
+## ♻️ **[2025-08-10] Canonical Memory Write Path Finalization**
+
+### ✅ Deprecated Path Removed
+- Removed legacy `addMemory(data: object)` implementation and supporting `performAddMemory` + sanitization-only legacy flow.
+- All memory writes now funneled through `addMemoryCanonical(content, metadata, userId)` (ergonomic alias `addMemory` retained pointing to canonical).
+
+### 🧩 Batch & Tool Migration
+- `BatchMemoryOperations` now transforms queued operations into UnifiedMetadata and invokes canonical writer.
+- Tools migrated: `webSearch`, `geminiEmbeddings`, `SimpleTestContent` (test harness) to canonical metadata service.
+
+### 🛠 Structural Improvements
+- Introduced typed `BatchOperationResult` / `BatchOperationError` replacing `any[]`.
+- Added new test `tests/memory/batch-canonical-metadata.test.ts` validating batch canonicalization path.
+
+### 📐 Rationale
+Eliminating the legacy polymorphic payload path enforces a single, analyzable metadata schema (UnifiedMetadata), unlocking reliable analytics, learning engines, and future adaptive search improvements without adapter proliferation.
+
+### 🚦 Follow-Up (Optional)
+- Potential simplification of `adaptSearchResponse` once server guarantees unified shape.
+- Expand test coverage for search result metadata round‑trip.
+
+### 🧪 Monitoring Import Optimization
+- Added `ONEAGENT_DISABLE_AUTO_MONITORING` environment flag to suppress automatic monitoring instantiation for short-lived scripts/tests.
+- Converted monitoring timers to use `unref()` so they no longer keep the Node.js event loop alive.
+
+### 🔗 Communication Consolidation & Monitoring Operation Field
+- Introduced `UnifiedAgentCommunicationService` singleton as sole A2A pathway (repaired prior corruption, wrapped all public methods with `runSafely`).
+- Added deprecation guard stubs (`DeprecatedCommunication.ts`) for legacy class names preventing parallel system reintroduction.
+- Implemented conformance test (`communication-conformance.test.ts`) validating canonical flow & absence of legacy patterns.
+- Added explicit `operation` field to `MonitoringEvent` schema; `trackOperation` now records durations and exposes op names (more reliable than substring matching on message).
+- Added rate limit enforcement test (`communication-rate-limit.test.ts`) covering 30 messages / 60s constraint.
+- Enhanced `verify-build.js` to run communication tests and output observed operations.
+
+---
+
 ## 🚀 **[2025-06-12] Memory System Migration - MAJOR UPDATE**
 
 ### ✅ **COMPLETED: Memory System Unification**

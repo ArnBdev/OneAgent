@@ -145,7 +145,7 @@ export class OneAgentEngine extends EventEmitter {
         apiKey: process.env.MEM0_API_KEY || 'demo-key'
       };
     }
-    this.memorySystem = new OneAgentMemory(memoryConfig);
+  this.memorySystem = OneAgentMemory.getInstance(memoryConfig);
     this.initializeCoreSystems();
   }
 

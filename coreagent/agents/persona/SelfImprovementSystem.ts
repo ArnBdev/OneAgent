@@ -13,7 +13,6 @@ import { EventEmitter } from 'events';
 import { personaLoader, PersonaConfig } from './PersonaLoader';
 import { OneAgentMemory, OneAgentMemoryConfig } from '../../memory/OneAgentMemory';
 // ALITA Integration
-import { ALITA } from '../evolution';
 import { createUnifiedTimestamp } from '../../utils/UnifiedBackboneService';
 
 export interface PerformanceMetrics {
@@ -32,7 +31,7 @@ export interface ImprovementSuggestion {
   category: 'prompt' | 'capability' | 'communication' | 'quality';
   priority: 'low' | 'medium' | 'high' | 'critical';
   description: string;
-  proposedChange: any;
+  proposedChange: Record<string, unknown>;
   expectedImprovement: string;
   riskLevel: 'low' | 'medium' | 'high';
 }
@@ -43,7 +42,7 @@ export interface ImprovementSuggestion {
 export interface ALITAImprovementSuggestion extends ImprovementSuggestion {
   evolutionTrigger: boolean;
   evolutionAggressiveness?: 'conservative' | 'moderate' | 'aggressive';
-  profileChanges?: any[];
+  profileChanges?: Record<string, unknown>[];
 }
 
 export interface SelfEvaluationResult {
@@ -80,7 +79,7 @@ export class SelfImprovementSystem extends EventEmitter {
       apiKey: process.env.MEM0_API_KEY || 'demo-key',
       apiUrl: process.env.MEM0_API_URL
     };
-    this.memorySystem = new OneAgentMemory(memoryConfig);
+  this.memorySystem = OneAgentMemory.getInstance(memoryConfig);
   }
 
   public static getInstance(): SelfImprovementSystem {
@@ -140,18 +139,17 @@ export class SelfImprovementSystem extends EventEmitter {
     
     this.performanceHistory.set(metrics.agentId, history);
     // Store in memory for persistence
-    await this.memorySystem.addMemory({
-      id: this.generateUnifiedId('performance_metrics', metrics.agentId),
-      agentId: metrics.agentId,
-      metrics,
-      timestamp: new Date().toISOString(),
-      type: 'learnings',
-      metadata: {
+    await this.memorySystem.addMemoryCanonical(
+      `Performance Metrics for ${metrics.agentId}: ${JSON.stringify(metrics)}`,
+      {
         type: 'performance_metrics',
-        agentId: metrics.agentId,
-        metrics
-      }
-    });
+        system: { userId: 'system', source: 'self_improvement', component: 'performance-tracking' },
+        content: { category: 'agent_metrics', tags: ['performance','metrics'], sensitivity: 'internal', relevanceScore: 0.7, contextDependency: 'global' },
+        contextual: { agentId: metrics.agentId },
+        quality: { score: metrics.averageQualityScore / 100, reliability: 0.9 }
+      } as unknown as Partial<import('../../types/oneagent-backbone-types').UnifiedMetadata>,
+      'system'
+    );
     
     // Check if immediate evaluation is needed
     if (this.needsImmediateAttention(metrics)) {
@@ -191,34 +189,17 @@ export class SelfImprovementSystem extends EventEmitter {
       recommendedActions
     };
     // Store evaluation results
-    await this.memorySystem.addMemory({
-      id: this.generateUnifiedId('self_evaluation', agentId),
-      agentId,
-      userId: 'system',
-      timestamp: new Date(),
-      content: `Self-evaluation for ${agentId}: ${overallHealth} health, ${improvements.length} improvement suggestions`,
-      context: {
-        userId: agentId,
-        agentId,
-        sessionId: this.generateUnifiedId('self_evaluation'),
-        conversationId: this.generateUnifiedId('self_evaluation'),
-        messageType: 'system',
-        platform: 'oneagent'
-      },
-      outcome: {
-        success: true,
-        satisfaction: 'high',
-        learningsExtracted: improvements.length,
-        qualityScore: 0.9
-      },
-      metadata: {
+    await this.memorySystem.addMemoryCanonical(
+      `Self-evaluation for ${agentId}: ${overallHealth} health, ${improvements.length} suggestions`,
+      {
         type: 'self_evaluation',
-        agentId,
-        evaluation,
-        timestamp: evaluation.timestamp
-      },
-      type: 'conversations'
-    });
+        system: { userId: 'system', source: 'self_improvement', component: 'evaluation', sessionId: this.generateUnifiedId('self_evaluation') },
+        content: { category: 'agent_evaluation', tags: ['self','evaluation', overallHealth], sensitivity: 'internal', relevanceScore: 0.8, contextDependency: 'session' },
+        contextual: { agentId, improvements: improvements.length, overallHealth },
+        quality: { score: 0.9 }
+      } as unknown as Partial<import('../../types/oneagent-backbone-types').UnifiedMetadata>,
+      'system'
+    );
     
     // Apply high-priority improvements automatically
     await this.applyAutomaticImprovements(agentId, improvements);
@@ -329,23 +310,17 @@ export class SelfImprovementSystem extends EventEmitter {
         
         console.log(`[SelfImprovementSystem] Auto-applied improvement for ${agentId}: ${suggestion.description}`);
         // Record the improvement
-        await this.memorySystem.addMemory({
-          id: this.generateUnifiedId('auto_improvement', agentId),
-          agentId,
-          learningType: 'pattern',
-          content: `Auto-applied improvement: ${suggestion.description}`,
-          confidence: 1.0,
-          applicationCount: 1,
-          lastApplied: new Date(),
-          sourceConversations: [],
-          metadata: {
+        await this.memorySystem.addMemoryCanonical(
+          `Auto-applied improvement: ${suggestion.description}`,
+          {
             type: 'auto_improvement',
-            agentId,
-            suggestion,
-            timestamp: new Date().toISOString()
-          },
-          type: 'learnings'
-        });
+            system: { userId: 'system', source: 'self_improvement', component: 'auto-apply' },
+            content: { category: 'agent_improvement', tags: ['auto','improvement', suggestion.category], sensitivity: 'internal', relevanceScore: 0.75, contextDependency: 'global' },
+            contextual: { agentId, priority: suggestion.priority, category: suggestion.category },
+            quality: { score: 1.0 }
+          } as unknown as Partial<import('../../types/oneagent-backbone-types').UnifiedMetadata>,
+          'system'
+        );
         
       } catch (error) {
         console.error(`[SelfImprovementSystem] Failed to apply improvement for ${agentId}:`, error);
@@ -511,13 +486,15 @@ export class SelfImprovementSystem extends EventEmitter {
     }
     
     // Schedule new evaluation
-    const timer = setInterval(async () => {
+  const timer = setInterval(async () => {
       try {
         await this.performSelfEvaluation(agentId);
       } catch (error) {
         console.error(`[SelfImprovementSystem] Scheduled evaluation failed for ${agentId}:`, error);
       }
     }, intervalMs);
+  // Let process exit naturally in short-lived scripts/tests
+  (timer as unknown as NodeJS.Timer).unref?.();
     
     this.evaluationSchedule.set(agentId, timer);
   }
@@ -536,20 +513,13 @@ export class SelfImprovementSystem extends EventEmitter {
    * Load historical performance data from memory
    */
   private async loadPerformanceHistory(): Promise<void> {
-    try {      const memories = await this.memorySystem.searchMemory({
-        query: 'performance_metrics',
-        agentIds: ['system'],
-        maxResults: 1000,
-        type: 'learnings'
-      });
-      
+    try {
       // Remove redeclaration and use a unique variable name for the loaded memories
-      const loadedMemories = await this.memorySystem.searchMemory({
+      const loadedResult = await this.memorySystem.searchMemory({
         query: 'performance_metrics',
-        agentIds: ['system'],
-        maxResults: 1000,
-        type: 'learnings'
+        limit: 1000
       });
+      const loadedMemories = loadedResult?.results || [];
       for (const memory of loadedMemories) {
         if (memory.metadata?.type === 'performance_metrics' && memory.metadata?.metrics) {
           const metrics = memory.metadata.metrics as PerformanceMetrics;

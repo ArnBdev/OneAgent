@@ -1,17 +1,12 @@
 /**
- * Gemini Embeddings Tool for OneAgent
- * 
- * Provides semantic search, similarity matching, and embedding-based
- * memory enhancement for the OneAgent system using Google Gemini embeddings.
- * Updated to use UnifiedMemoryClient.
+ * Gemini Embeddings Tool for OneAgent (Canonical)
+ * Provides semantic/embedding powered memory operations using Gemini + OneAgentMemory.
  */
-
 import { GeminiClient } from './geminiClient';
-import { OneAgentMemory, OneAgentMemoryConfig } from '../memory/OneAgentMemory';
+import { OneAgentMemory } from '../memory/OneAgentMemory';
 import { EmbeddingResult, EmbeddingTaskType } from '../types/gemini';
 import { globalProfiler } from '../performance/profiler';
-import { createUnifiedTimestamp, generateUnifiedId } from '../utils/UnifiedBackboneService';
-import { IdType } from '../types/oneagent-backbone-types';
+import { createUnifiedTimestamp, createUnifiedId, OneAgentUnifiedBackbone, unifiedMetadataService } from '../utils/UnifiedBackboneService';
 
 export interface SemanticSearchOptions {
   taskType?: EmbeddingTaskType;
@@ -23,7 +18,7 @@ export interface SemanticSearchOptions {
 export interface MemoryEmbeddingOptions extends SemanticSearchOptions {
   workflowId?: string;
   sessionId?: string;
-  memoryType?: 'short_term' | 'long_term' | 'workflow' | 'session';
+  memoryType?: 'conversation' | 'learning' | 'pattern' | 'short_term' | 'long_term' | 'workflow' | 'session';
 }
 
 export interface SemanticSearchResult {
@@ -49,41 +44,34 @@ export interface EmbeddingAnalytics {
   processingTime: number;
 }
 
-/**
- * Gemini Embeddings Tool
- * Integrates Gemini embeddings with UnifiedMemoryClient for semantic operations
- */
+interface MemoryLike {
+  id: string;
+  type?: string;
+  content: string;
+  agentId?: string;
+  similarity?: number;
+  relevanceScore?: number;
+  timestamp?: string | number | Date;
+  metadata?: Record<string, unknown>;
+  summary?: string;
+  embeddingResult?: EmbeddingResult;
+}
+
 export class GeminiEmbeddingsTool {
-  private geminiClient: GeminiClient;
-  private memorySystem: OneAgentMemory;
-  private cache = require('../utils/UnifiedBackboneService').OneAgentUnifiedBackbone.getInstance().cache;
+  private readonly geminiClient: GeminiClient;
+  private readonly memorySystem: OneAgentMemory;
+  private readonly cache = OneAgentUnifiedBackbone.getInstance().cache;
 
   constructor(geminiClient: GeminiClient, memorySystem?: OneAgentMemory) {
     this.geminiClient = geminiClient;
-    if (memorySystem) {
-      this.memorySystem = memorySystem;
-    } else {
-      const memoryConfig: OneAgentMemoryConfig = {
-        apiKey: process.env.MEM0_API_KEY || 'demo-key',
-        apiUrl: process.env.MEM0_API_URL
-      };
-      this.memorySystem = require('../utils/UnifiedBackboneService').UnifiedBackboneService.memory;
-    }
-    console.log('🔢 GeminiEmbeddingsTool initialized with canonical OneAgentMemory');
+    this.memorySystem = memorySystem || OneAgentMemory.getInstance();
   }
 
-  /**
-   * Perform semantic search across memories using canonical memory system
-   */
-  async semanticSearch(
-    query: string,
-    options?: MemoryEmbeddingOptions
-  ): Promise<{ results: SemanticSearchResult[]; analytics: EmbeddingAnalytics }> {
-    const startTime = createUnifiedTimestamp().unix;
-    const operationId = generateUnifiedId('operation', query);
+  async semanticSearch(query: string, options?: MemoryEmbeddingOptions): Promise<{ results: SemanticSearchResult[]; analytics: EmbeddingAnalytics }> {
+    const start = createUnifiedTimestamp().unix;
+    const opId = createUnifiedId('operation', 'semantic-search');
     try {
-      globalProfiler.startOperation(operationId, 'semantic-search');
-      // If mem0 supports embedding-based search, delegate to it:
+      globalProfiler.startOperation(opId, 'semantic-search');
       const searchResults = await this.memorySystem.searchMemory({
         type: 'conversations',
         query,
@@ -92,148 +80,78 @@ export class GeminiEmbeddingsTool {
         embeddingModel: options?.model || 'gemini-embedding-001',
         semanticSearch: true
       });
-      // Map results to SemanticSearchResult format
-      const results: SemanticSearchResult[] = (searchResults?.results || []).map((memory: unknown) => {
-        const memoryItem = memory as {
-          id: string;
-          type?: string;
-          content: string;
-          agentId?: string;
-          similarity?: number;
-          relevanceScore?: number;
-          timestamp?: string | Date;
-          metadata?: Record<string, unknown>;
-          summary?: string;
-          embeddingResult?: EmbeddingResult;
-        };
+      const results: SemanticSearchResult[] = (searchResults?.results || []).map(r => {
+        const item = r as unknown as MemoryLike;
         return {
           memory: {
-            id: memoryItem.id,
-            type: memoryItem.type || 'conversation',
-            content: memoryItem.content,
-            agentId: memoryItem.agentId || 'default',
-            relevanceScore: memoryItem.similarity || memoryItem.relevanceScore || 0,
-            timestamp: memoryItem.timestamp ? new Date(memoryItem.timestamp) : new Date(),
-            metadata: memoryItem.metadata || {},
-            summary: memoryItem.summary || undefined
+            id: String(item.id || ''),
+            type: String(item.type || 'conversation'),
+            content: String(item.content || ''),
+            agentId: String(item.agentId || 'default'),
+            relevanceScore: Number(item.similarity || item.relevanceScore || 0),
+            timestamp: item.timestamp ? new Date(item.timestamp) : new Date(),
+            metadata: (item.metadata as Record<string, unknown>) || {},
+            summary: (item.summary as string) || undefined
           },
-          similarity: memoryItem.similarity || memoryItem.relevanceScore || 0,
-          embeddingResult: memoryItem.embeddingResult || undefined
+            similarity: Number(item.similarity || item.relevanceScore || 0),
+            embeddingResult: item.embeddingResult
         };
       });
       const analytics: EmbeddingAnalytics = {
-        totalMemories: searchResults?.total || results.length,
+        totalMemories: searchResults?.totalFound || searchResults?.totalResults || results.length,
         searchResults: results.length,
-        averageSimilarity: results.length > 0 ? results.reduce((sum, r) => sum + r.similarity, 0) / results.length : 0,
-        topSimilarity: results.length > 0 ? results[0].similarity : 0,
-        processingTime: createUnifiedTimestamp().unix - startTime
+        averageSimilarity: results.length ? results.reduce((s, r) => s + r.similarity, 0) / results.length : 0,
+        topSimilarity: results[0]?.similarity || 0,
+        processingTime: createUnifiedTimestamp().unix - start
       };
-      globalProfiler.endOperation(operationId, true);
+      globalProfiler.endOperation(opId, true);
       return { results, analytics };
     } catch (error) {
-      globalProfiler.endOperation(operationId, false, error?.toString());
-      console.error('❌ Semantic search failed:', error);
+      globalProfiler.endOperation(opId, false, String(error));
       return {
         results: [],
-        analytics: {
-          totalMemories: 0,
-          searchResults: 0,
-          averageSimilarity: 0,
-          topSimilarity: 0,
-          processingTime: createUnifiedTimestamp().unix - startTime
-        }
+        analytics: { totalMemories: 0, searchResults: 0, averageSimilarity: 0, topSimilarity: 0, processingTime: createUnifiedTimestamp().unix - start }
       };
     }
   }
 
-  /**
-   * Store memory with embedding if required (otherwise use canonical addMemory)
-   */
-  async storeMemoryWithEmbedding(
-    content: string,
-    agentId: string,
-    userId: string,
-    memoryType: 'conversation' | 'learning' | 'pattern' = 'conversation',
-    metadata?: Record<string, unknown>
-  ): Promise<{ memoryId: string; embedding?: EmbeddingResult }> {
-    const operationId = generateUnifiedId('memory', agentId);
+  async storeMemoryWithEmbedding(content: string, agentId: string, userId: string, memoryType: 'conversation' | 'learning' | 'pattern' = 'conversation', metadata?: Record<string, unknown>): Promise<{ memoryId: string; embedding?: EmbeddingResult }> {
+    const opId = createUnifiedId('memory', agentId);
     try {
-      globalProfiler.startOperation(operationId, 'store-memory-embedding');
-      // If mem0 supports embedding, just add memory
-      const memoryData: Record<string, unknown> = {
-        id: generateUnifiedId(memoryType === 'conversation' ? 'conversation' : memoryType as IdType, agentId),
-        agentId,
-        userId,
-        content,
-        timestamp: new Date(),
-        metadata: {
-          type: memoryType,
-          agentId,
-          ...(metadata || {})
-        }
-      };
-      await this.memorySystem.addMemory({
-        ...memoryData
+      globalProfiler.startOperation(opId, 'store-memory-embedding');
+      const unified = unifiedMetadataService.create(memoryType, 'GeminiEmbeddingsTool', {
+        system: { userId, component: 'gemini-embeddings', source: 'GeminiEmbeddingsTool', agent: { id: agentId, type: 'specialized' } },
+        content: { category: memoryType, tags: ['embedding', memoryType, agentId], sensitivity: 'internal', relevanceScore: 0.6, contextDependency: 'session' },
+        custom: { agentId, ...(metadata || {}) }
       });
-      globalProfiler.endOperation(operationId, true);
-      return { memoryId: memoryData.id as string };
+      const memoryId = await this.memorySystem.addMemoryCanonical(content, unified, userId);
+      globalProfiler.endOperation(opId, true);
+      return { memoryId };
     } catch (error) {
-      globalProfiler.endOperation(operationId, false, error?.toString());
-      console.error('❌ Memory storage with embedding failed:', error);
+      globalProfiler.endOperation(opId, false, String(error));
       throw error;
     }
   }
 
-  /**
-   * Calculate cosine similarity between two embeddings (utility, not used if mem0 handles search)
-   */
-  private calculateCosineSimilarity(embedding1: number[], embedding2: number[]): number {
-    if (embedding1.length !== embedding2.length) {
-      throw new Error('Embeddings must have the same length');
-    }
-    let dotProduct = 0;
-    let norm1 = 0;
-    let norm2 = 0;
-    for (let i = 0; i < embedding1.length; i++) {
-      dotProduct += embedding1[i] * embedding2[i];
-      norm1 += embedding1[i] * embedding1[i];
-      norm2 += embedding2[i] * embedding2[i];
-    }
-    return dotProduct / (Math.sqrt(norm1) * Math.sqrt(norm2));
+  private calculateCosineSimilarity(a: number[], b: number[]): number {
+    if (a.length !== b.length) throw new Error('Embedding length mismatch');
+    let dot = 0, n1 = 0, n2 = 0;
+    for (let i = 0; i < a.length; i++) { dot += a[i] * b[i]; n1 += a[i] * a[i]; n2 += b[i] * b[i]; }
+    return dot / (Math.sqrt(n1) * Math.sqrt(n2));
   }
 
-  /**
-   * Find similar memories (delegates to semanticSearch)
-   */
-  async findSimilarMemories(
-    queryText: string,
-    _searchQuery?: unknown,
-    options?: MemoryEmbeddingOptions
-  ): Promise<{
-    results: SemanticSearchResult[];
-    analytics: EmbeddingAnalytics;
-  }> {
+  async findSimilarMemories(queryText: string, _searchQuery?: unknown, options?: MemoryEmbeddingOptions) {
     return this.semanticSearch(queryText, options);
   }
 
-  /**
-   * Clear embedding cache (utility)
-   */
-  clearCache(): void {
-    this.cache.clear();
-    console.log('🧹 Canonical cache cleared');
-  }
-
-  /**
-   * Get cache statistics (utility)
-   */
+  clearCache(): void { this.cache.clear(); }
   getCacheStats(): { size: number; keys: string[] } {
-    // Canonical cache stats
-    return {
-      size: this.cache.memoryCache.size,
-      keys: Array.from(this.cache.memoryCache.keys())
-    };
+  // Expose limited stats without accessing private internals
+  interface CacheIntrospection { listKeys?: () => string[] }
+  const introspect = this.cache as unknown as CacheIntrospection;
+  const keys = typeof introspect.listKeys === 'function' ? introspect.listKeys() || [] : [];
+    return { size: Array.isArray(keys) ? keys.length : 0, keys };
   }
 }
-// All memory and embedding operations are now handled by the canonical OneAgentMemory (mem0) system.
-// This tool only provides custom embedding logic if required by future workflows.
+
+// Canonical: All embedding operations rely on OneAgentMemory + Gemini; no parallel systems created.

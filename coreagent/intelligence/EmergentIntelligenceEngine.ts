@@ -1,5 +1,5 @@
 import { OneAgentMemory } from '../memory/OneAgentMemory';
-import { unifiedBackbone, createUnifiedTimestamp } from '../utils/UnifiedBackboneService';
+import { createUnifiedTimestamp, OneAgentUnifiedMetadataService } from '../utils/UnifiedBackboneService';
 
 export interface Insight {
   id: string;
@@ -8,7 +8,7 @@ export interface Insight {
   content: string;
   confidence: number;
   timestamp: Date;
-  metadata?: any;
+  metadata?: Record<string, unknown>;
 }
 
 export interface SynthesizedIntelligence {
@@ -17,7 +17,7 @@ export interface SynthesizedIntelligence {
   content: string;
   confidence: number;
   timestamp: Date;
-  metadata?: any;
+  metadata?: Record<string, unknown>;
 }
 
 export interface BreakthroughInsight extends Insight {
@@ -36,7 +36,7 @@ export interface CrossDomainConnection {
   strength: number;
   type: string;
   insights: Insight[];
-  metadata?: any;
+  metadata?: Record<string, unknown>;
 }
 
 export interface InstitutionalMemory {
@@ -44,14 +44,29 @@ export interface InstitutionalMemory {
   content: string;
   domain: string;
   timestamp: Date;
-  metadata?: any;
+  metadata?: Record<string, unknown>;
 }
 
 export interface MemoryEvolution {
   timestamp: Date;
   changeType: string;
   description: string;
-  metadata?: any;
+  metadata?: Record<string, unknown>;
+}
+
+// Conversation record used for learning pattern evolution
+interface ConversationRecord {
+  domain: string;
+  outcome?: string;
+  confidence: number;
+  content?: string;
+}
+
+interface PatternAnalysis {
+  successPatterns: ConversationRecord[];
+  improvementAreas: ConversationRecord[];
+  domainDistribution: { [k: string]: number };
+  outcomeTypes: { [k: string]: number };
 }
 
 export interface InstitutionalMemoryEvolution {
@@ -67,9 +82,11 @@ export interface InstitutionalMemoryEvolution {
  */
 export class EmergentIntelligenceEngine {
   private memory: OneAgentMemory;
+  private metadataService: OneAgentUnifiedMetadataService;
 
   constructor(memory: OneAgentMemory) {
     this.memory = memory;
+  this.metadataService = OneAgentUnifiedMetadataService.getInstance();
   }
 
   /**
@@ -150,6 +167,7 @@ export class EmergentIntelligenceEngine {
       domain: string;
       outcome: string;
       confidence: number;
+  content?: string;
     }>;
   }): Promise<{
     evolutionType: string;
@@ -350,15 +368,15 @@ export class EmergentIntelligenceEngine {
       limit: 20
     });
     
-    return searchResults.map((memory: any) => ({
-      id: memory.id,
+  return (searchResults?.results || []).map((memory) => ({
+      id: memory.id as string,
       type: 'domain_insight',
       domain: domain,
-      content: memory.content,
+      content: memory.content as string,
       confidence: 0.8,
-      timestamp: new Date(memory.timestamp || createUnifiedTimestamp().unix),
-      metadata: memory.metadata
-    }));
+      timestamp: new Date(),
+      metadata: memory.metadata as Record<string, unknown>
+    })) as Insight[];
   }
 
   private async findCrossDomainInsights(domain: string): Promise<Insight[]> {
@@ -368,18 +386,18 @@ export class EmergentIntelligenceEngine {
       limit: 15
     });
     
-    return searchResults.map((memory: any) => ({
-      id: memory.id,
+  return (searchResults?.results || []).map((memory) => ({
+      id: memory.id as string,
       type: 'cross_domain_insight',
       domain: 'cross-domain',
-      content: memory.content,
+      content: memory.content as string,
       confidence: 0.7,
-      timestamp: new Date(memory.timestamp || createUnifiedTimestamp().unix),
-      metadata: memory.metadata
-    }));
+      timestamp: new Date(),
+      metadata: memory.metadata as Record<string, unknown>
+    })) as Insight[];
   }
 
-  private createBasicSynthesis(request: any): {
+  private createBasicSynthesis(request: { domain: string }): {
     synthesisType: string;
     qualityScore: number;
     confidence: number;
@@ -405,7 +423,7 @@ export class EmergentIntelligenceEngine {
     return 'basic';
   }
 
-  private async generateIntelligenceSynthesis(allInsights: Insight[], request: any): Promise<string> {
+  private async generateIntelligenceSynthesis(allInsights: Insight[], request: { domain: string; context: string }): Promise<string> {
     const synthesis = `Intelligence synthesis for ${request.domain} in ${request.context}: ` +
       `Analyzed ${allInsights.length} insights across multiple domains. ` +
       `Key patterns identified: ${allInsights.map(i => i.content.substring(0, 50)).join(', ')}`;
@@ -422,7 +440,7 @@ export class EmergentIntelligenceEngine {
     return connections;
   }
 
-  private async generateActionableRecommendations(allInsights: Insight[], request: any): Promise<string[]> {
+  private async generateActionableRecommendations(allInsights: Insight[], request: { domain: string; timeframe: string; priority: string }): Promise<string[]> {
     const recommendations = [
       `Focus on ${request.domain} optimization based on ${allInsights.length} insights`,
       `Implement cross-domain learning patterns`,
@@ -460,33 +478,29 @@ export class EmergentIntelligenceEngine {
     ];
   }
 
-  private async storeSynthesisInMemory(result: any, request: any): Promise<void> {
-    await this.memory.addMemory({
-      content: `Intelligence Synthesis: ${result.synthesisType} - ${result.synthesizedIntelligence}`,
-      metadata: {
-        type: 'intelligence_synthesis',
-        domain: request.domain,
-        qualityScore: result.qualityScore,
-        confidence: result.confidence,
-        timestamp: createUnifiedTimestamp().unix,
-        category: 'phase4_intelligence'
-      }
-    });
+  private async storeSynthesisInMemory(result: { synthesisType: string; synthesizedIntelligence: string; qualityScore: number; confidence: number }, request: { domain: string }): Promise<void> {
+    await this.memory.addMemoryCanonical(
+      `Intelligence Synthesis: ${result.synthesisType} - ${result.synthesizedIntelligence}`,
+      this.metadataService.create('intelligence_synthesis', 'EmergentIntelligenceEngine', {
+        system: { source: 'emergent_intelligence', component: 'synthesis', userId: 'system' },
+        content: { category: 'phase4_intelligence', tags: ['intelligence','synthesis', result.synthesisType], sensitivity: 'internal', relevanceScore: 0.9, contextDependency: 'global' },
+        contextual: { domain: request.domain, qualityScore: result.qualityScore, confidence: result.confidence }
+      }),
+      'system'
+    );
   }
 
   // Helper methods for evolveLearningPatterns
-  private analyzeLearningPatterns(conversationHistory: any[]): any {
-    const patterns = {
+  private analyzeLearningPatterns(conversationHistory: ConversationRecord[]): PatternAnalysis {
+    return {
       successPatterns: conversationHistory.filter(conv => conv.confidence > 0.7),
       improvementAreas: conversationHistory.filter(conv => conv.confidence < 0.5),
-      domainDistribution: this.analyzeDomainDistribution(conversationHistory),
-      outcomeTypes: this.analyzeOutcomeTypes(conversationHistory)
+      domainDistribution: this.analyzeDomainDistribution(conversationHistory.map(ch => ({ domain: ch.domain }))),
+  outcomeTypes: this.analyzeOutcomeTypes(conversationHistory as ConversationRecord[])
     };
-    
-    return patterns;
   }
 
-  private determineEvolutionType(conversationHistory: any[]): string {
+  private determineEvolutionType(conversationHistory: Array<{ confidence: number }>): string {
     const avgConfidence = conversationHistory.reduce((sum, conv) => sum + conv.confidence, 0) / conversationHistory.length;
     
     if (avgConfidence > 0.8) return 'breakthrough';
@@ -495,7 +509,7 @@ export class EmergentIntelligenceEngine {
     return 'remedial';
   }
 
-  private generateLearningPatterns(patterns: any): string[] {
+  private generateLearningPatterns(patterns: { successPatterns: ConversationRecord[]; domainDistribution: { [k: string]: number }; outcomeTypes: { [k: string]: number } }): string[] {
     const newPatterns = [
       `Success pattern: ${patterns.successPatterns.length} high-confidence conversations`,
       `Domain focus: ${Object.keys(patterns.domainDistribution)[0] || 'general'}`,
@@ -505,7 +519,7 @@ export class EmergentIntelligenceEngine {
     return newPatterns;
   }
 
-  private identifyImprovedPatterns(patterns: any): string[] {
+  private identifyImprovedPatterns(patterns: { successPatterns: ConversationRecord[] }): string[] {
     return [
       `Confidence improvement in ${patterns.successPatterns.length} conversations`,
       `Domain expertise enhancement`,
@@ -513,7 +527,7 @@ export class EmergentIntelligenceEngine {
     ];
   }
 
-  private identifyRetiredPatterns(patterns: any): string[] {
+  private identifyRetiredPatterns(patterns: { improvementAreas: ConversationRecord[] }): string[] {
     return [
       `Low-confidence patterns: ${patterns.improvementAreas.length} conversations`,
       `Outdated domain approaches`,
@@ -521,16 +535,16 @@ export class EmergentIntelligenceEngine {
     ];
   }
 
-  private determineLearningTrajectory(patterns: any, evolutionType: string): string {
+  private determineLearningTrajectory(patterns: { successPatterns: ConversationRecord[]; improvementAreas: ConversationRecord[] }, evolutionType: string): string {
     return `${evolutionType} learning trajectory based on ${patterns.successPatterns.length} successful patterns and ${patterns.improvementAreas.length} improvement areas`;
   }
 
-  private calculateLearningQualityImprovement(patterns: any): number {
+  private calculateLearningQualityImprovement(patterns: { successPatterns: ConversationRecord[]; improvementAreas: ConversationRecord[] }): number {
     const successRate = patterns.successPatterns.length / (patterns.successPatterns.length + patterns.improvementAreas.length);
     return Math.round(successRate * 100) / 100;
   }
 
-  private generateEvolutionRecommendations(patterns: any, evolutionType: string): string[] {
+  private generateEvolutionRecommendations(patterns: { successPatterns: ConversationRecord[]; improvementAreas: ConversationRecord[] }, evolutionType: string): string[] {
     return [
       `Focus on ${evolutionType} evolution strategies`,
       `Enhance successful patterns: ${patterns.successPatterns.length} identified`,
@@ -540,7 +554,7 @@ export class EmergentIntelligenceEngine {
     ];
   }
 
-  private calculateEvolutionConfidence(patterns: any, conversationHistory: any[]): number {
+  private calculateEvolutionConfidence(patterns: { successPatterns: ConversationRecord[] }, conversationHistory: Array<{ confidence: number }>): number {
     const sampleSize = conversationHistory.length;
     const successRate = patterns.successPatterns.length / sampleSize;
     const sampleBonus = Math.min(sampleSize / 50, 0.3);
@@ -549,21 +563,19 @@ export class EmergentIntelligenceEngine {
     return Math.round(confidence * 100) / 100;
   }
 
-  private async storeEvolutionInMemory(result: any): Promise<void> {
-    await this.memory.addMemory({
-      content: `Learning Pattern Evolution: ${result.evolutionType} - ${result.learningTrajectory}`,
-      metadata: {
-        type: 'learning_evolution',
-        evolutionType: result.evolutionType,
-        qualityImprovement: result.qualityImprovement,
-        confidence: result.confidence,
-        timestamp: createUnifiedTimestamp().unix,
-        category: 'phase4_intelligence'
-      }
-    });
+  private async storeEvolutionInMemory(result: { evolutionType: string; learningTrajectory: string; qualityImprovement: number; confidence: number }): Promise<void> {
+    await this.memory.addMemoryCanonical(
+      `Learning Pattern Evolution: ${result.evolutionType} - ${result.learningTrajectory}`,
+      this.metadataService.create('learning_evolution', 'EmergentIntelligenceEngine', {
+        system: { source: 'emergent_intelligence', component: 'evolution', userId: 'system' },
+        content: { category: 'phase4_intelligence', tags: ['learning','evolution', result.evolutionType], sensitivity: 'internal', relevanceScore: 0.85, contextDependency: 'global' },
+        contextual: { evolutionType: result.evolutionType, qualityImprovement: result.qualityImprovement, confidence: result.confidence }
+      }),
+      'system'
+    );
   }
 
-  private analyzeDomainDistribution(conversationHistory: any[]): { [key: string]: number } {
+  private analyzeDomainDistribution(conversationHistory: Array<{ domain: string }>): { [key: string]: number } {
     const distribution: { [key: string]: number } = {};
     conversationHistory.forEach(conv => {
       distribution[conv.domain] = (distribution[conv.domain] || 0) + 1;
@@ -571,7 +583,7 @@ export class EmergentIntelligenceEngine {
     return distribution;
   }
 
-  private analyzeOutcomeTypes(conversationHistory: any[]): { [key: string]: number } {
+  private analyzeOutcomeTypes(conversationHistory: ConversationRecord[]): { [key: string]: number } {
     const outcomes: { [key: string]: number } = {};
     conversationHistory.forEach(conv => {
       const outcomeType = conv.confidence > 0.7 ? 'successful' : 'needsImprovement';
@@ -581,44 +593,42 @@ export class EmergentIntelligenceEngine {
   }
 
   // Helper methods for detectBreakthroughInsights
-  private calculateImpact(conversation: any): number {
+  private calculateImpact(conversation: ConversationRecord): number {
     return Math.min(conversation.confidence * 1.2, 1.0);
   }
 
-  private identifyRelatedDomains(conversation: any): string[] {
+  private identifyRelatedDomains(conversation: ConversationRecord): string[] {
     const domains = [conversation.domain];
-    if (conversation.content.includes('cross-domain')) {
+    if ((conversation.content || '').includes('cross-domain')) {
       domains.push('cross-domain');
     }
     return domains;
   }
 
-  private analyzeEmergencePattern(conversation: any): string {
+  private analyzeEmergencePattern(conversation: ConversationRecord): string {
     if (conversation.confidence > 0.9) return 'breakthrough';
     if (conversation.confidence > 0.8) return 'emerging';
     return 'incremental';
   }
 
-  private calculateQuality(conversation: any): number {
+  private calculateQuality(conversation: ConversationRecord): number {
     return conversation.confidence * 0.95;
   }
 
-  private calculateNovelty(conversation: any): number {
+  private calculateNovelty(conversation: ConversationRecord): number {
     return Math.min(conversation.confidence * 1.1, 1.0);
   }
 
   private async storeBreakthroughInsight(insight: BreakthroughInsight): Promise<void> {
-    await this.memory.addMemory({
-      content: `Breakthrough Insight: ${insight.content}`,
-      metadata: {
-        type: 'breakthrough_insight',
-        domain: insight.domain,
-        impact: insight.impact,
-        confidence: insight.confidence,
-        timestamp: createUnifiedTimestamp().unix,
-        category: 'phase4_intelligence'
-      }
-    });
+    await this.memory.addMemoryCanonical(
+      `Breakthrough Insight: ${insight.content}`,
+      this.metadataService.create('breakthrough_insight', 'EmergentIntelligenceEngine', {
+        system: { source: 'emergent_intelligence', component: 'breakthrough', userId: 'system' },
+        content: { category: 'phase4_intelligence', tags: ['breakthrough','insight', insight.domain], sensitivity: 'internal', relevanceScore: 0.92, contextDependency: 'global' },
+        contextual: { domain: insight.domain, impact: insight.impact, confidence: insight.confidence }
+      }),
+      'system'
+    );
   }
 
   // Helper methods for synthesizeInsights
@@ -726,16 +736,15 @@ export class EmergentIntelligenceEngine {
   }
 
   private async storeSynthesis(synthesis: SynthesizedIntelligence): Promise<void> {
-    await this.memory.addMemory({
-      content: `Synthesis: ${synthesis.content}`,
-      metadata: {
-        type: 'synthesis',
-        synthesisId: synthesis.id,
-        confidence: synthesis.confidence,
-        timestamp: createUnifiedTimestamp().unix,
-        category: 'phase4_intelligence'
-      }
-    });
+    await this.memory.addMemoryCanonical(
+      `Synthesis: ${synthesis.content}`,
+      this.metadataService.create('synthesis', 'EmergentIntelligenceEngine', {
+        system: { source: 'emergent_intelligence', component: 'cross-domain', userId: 'system' },
+        content: { category: 'phase4_intelligence', tags: ['synthesis','cross-domain'], sensitivity: 'internal', relevanceScore: 0.88, contextDependency: 'global' },
+        contextual: { synthesisId: synthesis.id, confidence: synthesis.confidence }
+      }),
+      'system'
+    );
   }
 
   // Helper methods for evolveInstitutionalMemory
@@ -763,26 +772,24 @@ export class EmergentIntelligenceEngine {
   }
 
   private async storeMemoryEvolution(evolution: MemoryEvolution, updatedKnowledge: InstitutionalMemory): Promise<void> {
-    await this.memory.addMemory({
-      content: `Memory Evolution: ${evolution.description}`,
-      metadata: {
-        type: 'memory_evolution',
-        evolutionId: `evolution-${createUnifiedTimestamp().unix}`,
-        changeType: evolution.changeType,
-        timestamp: createUnifiedTimestamp().unix,
-        category: 'phase4_intelligence'
-      }
-    });
+    await this.memory.addMemoryCanonical(
+      `Memory Evolution: ${evolution.description}`,
+      this.metadataService.create('memory_evolution', 'EmergentIntelligenceEngine', {
+        system: { source: 'emergent_intelligence', component: 'memory-evolution', userId: 'system' },
+        content: { category: 'phase4_intelligence', tags: ['memory','evolution', evolution.changeType], sensitivity: 'internal', relevanceScore: 0.8, contextDependency: 'global' },
+        contextual: { evolutionId: `evolution-${createUnifiedTimestamp().unix}`, changeType: evolution.changeType }
+      }),
+      'system'
+    );
     
-    await this.memory.addMemory({
-      content: `Updated Knowledge: ${updatedKnowledge.content}`,
-      metadata: {
-        type: 'institutional_memory',
-        knowledgeId: updatedKnowledge.id,
-        domain: updatedKnowledge.domain,
-        timestamp: createUnifiedTimestamp().unix,
-        category: 'phase4_intelligence'
-      }
-    });
+    await this.memory.addMemoryCanonical(
+      `Updated Knowledge: ${updatedKnowledge.content}`,
+      this.metadataService.create('institutional_memory', 'EmergentIntelligenceEngine', {
+        system: { source: 'emergent_intelligence', component: 'institutional-memory', userId: 'system' },
+        content: { category: 'phase4_intelligence', tags: ['knowledge','update', updatedKnowledge.domain], sensitivity: 'internal', relevanceScore: 0.75, contextDependency: 'global' },
+        contextual: { knowledgeId: updatedKnowledge.id, domain: updatedKnowledge.domain }
+      }),
+      'system'
+    );
   }
 }

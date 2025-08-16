@@ -27,5 +27,6 @@
   "typescript.preferences.completeFunctionCalls": true,
   "typescript.suggest.completeFunctionCalls": true,
   "editor.inlineSuggest.enabled": true,
-  "editor.suggest.preview": true
+  "editor.suggest.preview": true,
+  "terminal.integrated.suggest.enabled": true
 }

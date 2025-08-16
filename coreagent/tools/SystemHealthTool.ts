@@ -4,7 +4,7 @@
  */
 
 import { UnifiedMCPTool, ToolExecutionResult, InputSchema } from './UnifiedMCPTool';
-import { oneAgentConfig } from '../config';
+import { UnifiedBackboneService } from '../utils/UnifiedBackboneService';
 
 interface SystemHealthArgs {
   includeDetails?: boolean;
@@ -89,7 +89,7 @@ export class SystemHealthTool extends UnifiedMCPTool {
         healthMetrics.components.mcp = {
           status: 'operational',
           protocol: 'HTTP MCP 2024-11-05',
-          port: oneAgentConfig.mcpPort,
+          port: UnifiedBackboneService.getResolvedConfig().mcpPort,
           toolsAvailable: 7,
           resourcesAvailable: 3,
           promptsAvailable: 2,

@@ -11,12 +11,77 @@
  * @created June 23, 2025
  */
 
-import { OneAgentMemory, OneAgentMemoryConfig } from '../memory/OneAgentMemory';
-import { ConversationData, ConversationMetadata, MemorySearchResult, MemoryRecord, IntelligenceInsight } from '../types/oneagent-backbone-types';
+import { OneAgentMemory } from '../memory/OneAgentMemory';
+import { ConversationData, ConversationMetadata, MemorySearchResult, MemoryRecord, IntelligenceInsight, CommunicationStyle, ExpertiseLevel, IntentCategory, ContextCategory, PrivacyLevel, SessionContext } from '../types/oneagent-backbone-types';
 import { createUnifiedTimestamp, createUnifiedId, unifiedMetadataService } from '../utils/UnifiedBackboneService';
 import { OneAgentUnifiedBackbone } from '../utils/UnifiedBackboneService';
 import { ConstitutionalAI } from '../agents/base/ConstitutionalAI';
 import { PromptEngine } from '../agents/base/PromptEngine';
+
+// Local helper types to remove explicit any while keeping behavior
+type StoreMetadata = Partial<{
+  sessionId: string;
+  communicationStyle: string;
+  expertiseLevel: string;
+  intentCategory: string;
+  contextCategory: string;
+  contextTags: string[];
+  privacyLevel: string;
+  qualityScore: number;
+}>;
+
+// Minimal shape used by internal analysis helpers
+interface GenericMemoryEntry {
+  content?: string;
+  description?: string;
+  timestamp?: string | number | Date;
+  id?: string;
+  conversationId?: string;
+  participants?: string[];
+  userId?: string;
+  endTime?: Date | string | number;
+  topics?: string[];
+  topicTags?: string[];
+  keyInsights?: string[];
+  decisions?: string[];
+  actionItems?: string[];
+  qualityScore?: number;
+  constitutionalCompliant?: boolean;
+  userSatisfaction?: number;
+  goalAchievement?: number;
+  newKnowledge?: string[];
+  improvedUnderstanding?: string[];
+  skillDemonstrations?: string[];
+  sessionContext?: unknown;
+  sessionId?: string;
+  contextTags?: string[];
+  privacyLevel?: string;
+  communicationStyle?: string;
+  expertiseLevel?: string;
+  technicalLevel?: string;
+  domain?: string;
+  principleApplications?: string[];
+  ethicalConsiderations?: string[];
+  safetyMeasures?: string[];
+  responseTimings?: number[];
+  qualityTrends?: number[];
+  engagementLevels?: number[];
+  messageCount?: number;
+  conversationLength?: number;
+  taskCompleted?: boolean;
+  responseTime?: number;
+  metadata?: { confidence?: number; quality?: number };
+}
+
+export interface MemoryAnalyticsSummary {
+  totalConversations: number;
+  averageQuality: number;
+  insights: IntelligenceInsight[];
+  searchTime: number;
+  constitutionalCompliance: boolean;
+  categoryBreakdown: Record<string, number>;
+  averageImportance: number; // 0-100 scale
+}
 
 export interface MemoryIntelligenceOptions {
   enableSemanticSearch?: boolean;
@@ -35,7 +100,7 @@ export class MemoryIntelligence {
     memorySystem?: OneAgentMemory,
     options: MemoryIntelligenceOptions = {}
   ) {
-    this.memorySystem = memorySystem || new OneAgentMemory({});
+  this.memorySystem = memorySystem || OneAgentMemory.getInstance({});
     this.unifiedBackbone = OneAgentUnifiedBackbone.getInstance();
     this.options = {
       enableSemanticSearch: true,
@@ -68,11 +133,16 @@ export class MemoryIntelligence {
         limit: options.maxResults || this.options.maxResults || 20,
         semanticSearch: true
       });
-      const memoryEntries = memoryResults || [];
+      const memoryEntries = (memoryResults?.results || []) as MemoryRecord[];
       // Ensure all entries are converted to ConversationData
-      const conversations: ConversationData[] = Array.isArray(memoryEntries)
-        ? memoryEntries.map((entry) => this.isConversationData(entry) ? entry : this.convertToConversationData(entry))
-        : [];
+      const conversations: ConversationData[] = memoryEntries.map((entry) => {
+        try {
+          const raw = JSON.parse(entry.content) as GenericMemoryEntry | ConversationData;
+          return this.isConversationData(raw) ? raw : this.convertToConversationData(raw as GenericMemoryEntry);
+        } catch {
+          return this.convertToConversationData({ content: entry.content, timestamp: entry.lastAccessed } as GenericMemoryEntry);
+        }
+      });
       // Optionally validate results for compliance
       if (this.options.enableConstitutionalValidation) {
         for (const conv of conversations) {
@@ -250,12 +320,14 @@ export class MemoryIntelligence {
     }
     const memoryObj = this.mapConversationDataToMemory(conversationData, userId);
     // Replace storeConversation with addMemory to 'conversations' collection
-    const result = await this.memorySystem.addMemory({
-      collection: 'conversations',
-      record: memoryObj
-    });
-    // The canonical bridge returns a string (memoryId), so just return it directly
-    return result;
+    const memId = await this.memorySystem.addMemoryCanonical(JSON.stringify(memoryObj), {
+      system: { userId, source: 'memoryIntelligence', component: 'conversation-store' },
+      content: { category: 'conversation', tags: ['conversation','bridge'], sensitivity: 'internal', relevanceScore: 0.7, contextDependency: 'session' },
+      quality: { score: 0.8, constitutionalCompliant: true, validationLevel: 'basic', confidence: 0.75 },
+      relationships: { parent: undefined, children: [], related: [], dependencies: [] },
+      analytics: { accessCount: 0, lastAccessPattern: 'write', usageContext: [] }
+    }, userId);
+    return memId;
   }
 
   /**
@@ -296,26 +368,26 @@ export class MemoryIntelligence {
   async storeMemory(
     _content: string,
     userId: string,
-    metadata: Record<string, any> = {}
+    metadata: StoreMetadata = {}
   ): Promise<string> {
     const metadataTimestamp = this.unifiedBackbone.getServices().timeService.now();
     const conversationMetadata: ConversationMetadata = {
       userId,
-      sessionId: metadata.sessionId || 'system',
+      sessionId: typeof metadata.sessionId === 'string' ? metadata.sessionId : 'system',
       timestamp: new Date(metadataTimestamp.utc),
       messageAnalysis: {
-        communicationStyle: metadata.communicationStyle || 'formal',
-        expertiseLevel: metadata.expertiseLevel || 'intermediate',
-        intentCategory: metadata.intentCategory || 'question',
-        contextCategory: metadata.contextCategory || 'TECHNICAL',
-        contextTags: metadata.contextTags || [],
-        privacyLevel: metadata.privacyLevel || 'general',
+        communicationStyle: this.asCommunicationStyle(metadata.communicationStyle),
+        expertiseLevel: this.asExpertiseLevel(metadata.expertiseLevel),
+        intentCategory: this.asIntentCategory(metadata.intentCategory),
+        contextCategory: this.asContextCategory(metadata.contextCategory),
+        contextTags: Array.isArray(metadata.contextTags) ? metadata.contextTags : [],
+        privacyLevel: this.asPrivacyLevel(metadata.privacyLevel),
         sentimentScore: 0.5,
         complexityScore: 0.5,
         urgencyLevel: 0.5
       },
       qualityMetrics: {
-        overallScore: metadata.qualityScore || 0.8,
+        overallScore: typeof metadata.qualityScore === 'number' ? metadata.qualityScore : 0.8,
         dimensions: {},
         improvementSuggestions: []
       },
@@ -332,8 +404,9 @@ export class MemoryIntelligence {
   /**
    * Categorize memory content
    */
-  async categorizeMemory(memory: any): Promise<string> {
-    const content = memory.content || memory.description || '';
+  async categorizeMemory(memory: unknown): Promise<string> {
+    const gm = (memory || {}) as GenericMemoryEntry;
+  const content = (gm.content || gm.description || '').toString();
     if (content.includes('task') || content.includes('instruction')) {
       return 'task_instructions';
     } else if (content.includes('preference') || content.includes('like')) {
@@ -348,10 +421,11 @@ export class MemoryIntelligence {
   /**
    * Calculate importance score for memory
    */
-  async calculateImportanceScore(memory: any): Promise<{ overall: number; [key: string]: number }> {
-    const content = memory.content || memory.description || '';
-    const recency = memory.timestamp ? 
-      Math.max(0, 100 - (createUnifiedTimestamp().unix - new Date(memory.timestamp).getTime()) / (1000 * 60 * 60 * 24)) : 50;
+  async calculateImportanceScore(memory: GenericMemoryEntry): Promise<{ overall: number; [key: string]: number }> {
+    const content = (memory.content || memory.description || '').toString();
+    const ts = memory.timestamp ? new Date(memory.timestamp) : null;
+    const nowUnix = createUnifiedTimestamp().unix;
+    const recency = ts ? Math.max(0, 100 - (nowUnix - ts.getTime()) / (1000 * 60 * 60 * 24)) : 50;
     return {
       overall: Math.round((recency + 50) / 2),
       recency: Math.round(recency),
@@ -364,17 +438,38 @@ export class MemoryIntelligence {
   /**
    * Generate memory analytics
    */
-  async generateMemoryAnalytics(userId: string): Promise<Record<string, any>> {
+  async generateMemoryAnalytics(userId: string): Promise<MemoryAnalyticsSummary> {
     try {
       const searchResult = await this.intelligentSearch('', userId, { maxResults: 100 });
       const conversations = searchResult.metadata?.conversations || [];
       const insights = searchResult.metadata?.insights || [];
+      // Build category breakdown using available topical signals
+      const categoryBreakdown: Record<string, number> = {};
+      for (const c of conversations as ConversationData[]) {
+        const category = (c.topicTags && c.topicTags[0]) || (c.topics && c.topics[0]) || c.domain || 'general';
+        categoryBreakdown[category] = (categoryBreakdown[category] || 0) + 1;
+      }
+      // Compute average importance using recency/heuristics
+      const importanceScores = await Promise.all(
+        (conversations as ConversationData[]).map(async (c) => {
+          const score = await this.calculateImportanceScore({
+            description: Array.isArray(c.topics) ? c.topics.join(' ') : '',
+            timestamp: (c as ConversationData).timestamp || (c as ConversationData).startTime
+          } as GenericMemoryEntry);
+          return score.overall; // 0-100
+        })
+      );
+      const averageImportance = importanceScores.length > 0
+        ? Math.round(importanceScores.reduce((a, b) => a + b, 0) / importanceScores.length)
+        : 0;
       return {
-        totalConversations: searchResult.totalResults,
-        averageQuality: this.calculateAverageQuality(conversations),
+        totalConversations: (searchResult.totalResults ?? searchResult.totalFound) || 0,
+        averageQuality: this.calculateAverageQuality(conversations as ConversationData[]),
         insights,
         searchTime: searchResult.searchTime,
-        constitutionalCompliance: conversations.every((c: ConversationData) => c.constitutionalCompliant)
+        constitutionalCompliance: (conversations as ConversationData[]).every((c) => c.constitutionalCompliant),
+        categoryBreakdown,
+        averageImportance
       };
     } catch {
       return {
@@ -382,7 +477,9 @@ export class MemoryIntelligence {
         averageQuality: 0,
         insights: [],
         searchTime: 0,
-        constitutionalCompliance: true
+        constitutionalCompliance: true,
+        categoryBreakdown: {},
+        averageImportance: 0
       };
     }
   }
@@ -390,7 +487,7 @@ export class MemoryIntelligence {
   /**
    * Get analytics data
    */
-  async getAnalytics(userId: string): Promise<Record<string, any>> {
+  async getAnalytics(userId: string): Promise<MemoryAnalyticsSummary> {
     return this.generateMemoryAnalytics(userId);
   }
 
@@ -401,7 +498,7 @@ export class MemoryIntelligence {
     const insights: IntelligenceInsight[] = [];
     if (conversations.length === 0) return insights;
     insights.push({
-      id: this.generateUnifiedId('insight'),
+      id: createUnifiedId('analysis', 'trend'),
       type: 'trend',
       title: 'Conversation Volume Analysis',
       description: `Found ${conversations.length} relevant conversations`,
@@ -426,7 +523,7 @@ export class MemoryIntelligence {
     const avgQuality = this.calculateAverageQuality(conversations);
     if (avgQuality > 0) {
       insights.push({
-        id: this.generateUnifiedId('insight'),
+        id: createUnifiedId('analysis', 'quality'),
         type: 'suggestion',
         title: 'Conversation Quality Assessment',
         description: `Average conversation quality: ${(avgQuality * 100).toFixed(1)}%`,
@@ -455,45 +552,46 @@ export class MemoryIntelligence {
   /**
    * Convert memory entry to ConversationData format
    */
-  private convertToConversationData(memory: any): ConversationData {
+  private convertToConversationData(memory: GenericMemoryEntry): ConversationData {
     const conversionTimestamp = this.unifiedBackbone.getServices().timeService.now();
     return {
-      conversationId: memory.id || memory.conversationId || this.generateUnifiedId('conv'),
+      conversationId: memory.id || memory.conversationId || createUnifiedId('conversation', 'fallback'),
       participants: memory.participants || [memory.userId || 'unknown'],
-      startTime: memory.timestamp || new Date(conversionTimestamp.utc),
-      endTime: memory.endTime,
+      startTime: memory.timestamp ? new Date(memory.timestamp) : new Date(conversionTimestamp.utc),
+      endTime: memory.endTime ? new Date(memory.endTime) : undefined,
       topics: memory.topics || [],
       topicTags: memory.topicTags || [],
       keyInsights: memory.keyInsights || [],
       decisions: memory.decisions || [],
       actionItems: memory.actionItems || [],
-      overallQuality: memory.qualityScore || 0.8,
-      qualityScore: memory.qualityScore || 0.8,
+      overallQuality: typeof memory.qualityScore === 'number' ? memory.qualityScore : 0.8,
+      qualityScore: typeof memory.qualityScore === 'number' ? memory.qualityScore : 0.8,
       constitutionalCompliance: memory.constitutionalCompliant !== false ? 1.0 : 0.0,
       constitutionalCompliant: memory.constitutionalCompliant !== false,
-      userSatisfaction: memory.userSatisfaction || 0.8,
-      goalAchievement: memory.goalAchievement || 0.8,
+      userSatisfaction: typeof memory.userSatisfaction === 'number' ? memory.userSatisfaction : 0.8,
+      goalAchievement: typeof memory.goalAchievement === 'number' ? memory.goalAchievement : 0.8,
       newKnowledge: memory.newKnowledge || [],
       improvedUnderstanding: memory.improvedUnderstanding || [],
       skillDemonstrations: memory.skillDemonstrations || [],
-      sessionContext: memory.sessionContext || {
+      sessionContext: this.isSessionContext(memory.sessionContext) ? (memory.sessionContext as SessionContext) : {
         sessionId: memory.sessionId || 'unknown',
         userId: memory.userId || 'unknown',
-        startTime: memory.timestamp || new Date(conversionTimestamp.utc),
-        lastActivity: memory.timestamp || new Date(conversionTimestamp.utc),
+        startTime: memory.timestamp ? new Date(memory.timestamp) : new Date(conversionTimestamp.utc),
+        lastActivity: memory.timestamp ? new Date(memory.timestamp) : new Date(conversionTimestamp.utc),
         currentTopic: memory.topics?.[0] || 'general',
         conversationMode: 'problem_solving',
-        contextTags: memory.contextTags || [],
-        privacyLevel: memory.privacyLevel || 'general',
-        qualityTargets: { accuracy: 0.9, helpfulness: 0.8, clarity: 0.8 },
-        communicationStyle: memory.communicationStyle || 'formal',
-        expertiseLevel: memory.expertiseLevel || 'intermediate',
-        technicalLevel: memory.technicalLevel || 'intermediate',
-        domainContext: memory.domain || 'general',
-        memoryEnabled: true,
-        aiEnabled: true,
-        constitutionalCompliance: memory.constitutionalCompliant !== false,
-        transparencyMaintained: true,
+        sessionType: 'quick_query',
+        expectedDuration: 300,
+        goalDefinition: 'Provide helpful assistance',
+        constitutionalMode: 'balanced',
+        validationLevel: 'enhanced',
+        responseQuality: [typeof memory.qualityScore === 'number' ? memory.qualityScore : 0.8],
+        userSatisfaction: [typeof memory.userSatisfaction === 'number' ? memory.userSatisfaction : 0.8],
+        goalProgress: typeof memory.goalAchievement === 'number' ? memory.goalAchievement : 0.8,
+        relevantMemories: [],
+        newLearnings: [],
+        constitutionalCompliance: memory.constitutionalCompliant !== false ? 1.0 : 0.0,
+        helpfulnessScore: 0.9,
         accuracyMaintained: true
       },
       principleApplications: memory.principleApplications || [],
@@ -502,7 +600,7 @@ export class MemoryIntelligence {
       responseTimings: memory.responseTimings || [memory.responseTime || 1000],
       qualityTrends: memory.qualityTrends || [memory.qualityScore || 0.8],
       engagementLevels: memory.engagementLevels || [0.8],
-      timestamp: memory.timestamp || new Date(conversionTimestamp.utc),
+      timestamp: memory.timestamp ? new Date(memory.timestamp) : new Date(conversionTimestamp.utc),
       userId: memory.userId,
       messageCount: memory.messageCount || 1,
       conversationLength: memory.conversationLength || 1,
@@ -519,9 +617,9 @@ export class MemoryIntelligence {
    * Map ConversationData to ConversationMemory for canonical storage
    * Canonical, production-grade format for mem0 API (Gemini backend)
    */
-  private mapConversationDataToMemory(data: ConversationData, userId: string): any {
+  private mapConversationDataToMemory(data: ConversationData, userId: string): Record<string, unknown> {
     return {
-      id: data.conversationId || this.generateUnifiedId('conv'),
+      id: data.conversationId || createUnifiedId('memory', 'conversation_fallback'),
       agentId: data.participants?.[0] || 'unknown',
       userId: userId,
       timestamp: data.timestamp || new Date(),
@@ -596,14 +694,14 @@ export class MemoryIntelligence {
   /**
    * Type guard to check if an object is ConversationData
    */
-  private isConversationData(obj: any): obj is ConversationData {
-    return obj && typeof obj === 'object' && 'conversationId' in obj && 'participants' in obj && 'startTime' in obj;
+  private isConversationData(obj: unknown): obj is ConversationData {
+    return !!obj && typeof obj === 'object' && 'conversationId' in obj && 'participants' in obj && 'startTime' in obj;
   }
 
   /**
    * Assess memory quality for user-facing intelligence
    */
-  async assessMemoryQuality(memory: any, context: any): Promise<any> {
+  async assessMemoryQuality(memory: { content: string }, context?: { toolName?: string }): Promise<unknown> {
     // Only validate user-facing memory, not canonical memory tool operations
     const canonicalMemoryTools = [
       'oneagent_memory_add',
@@ -620,6 +718,38 @@ export class MemoryIntelligence {
       context
     );
     return validation;
+  }
+
+  // --- enum/type guards
+  private asCommunicationStyle(value?: unknown): CommunicationStyle {
+    const allowed: CommunicationStyle[] = ['formal','casual','technical','conversational'];
+    return (typeof value === 'string' && allowed.includes(value as CommunicationStyle)) ? value as CommunicationStyle : 'formal';
+  }
+
+  private asExpertiseLevel(value?: unknown): ExpertiseLevel {
+    const allowed: ExpertiseLevel[] = ['beginner','intermediate','advanced','expert'];
+    return (typeof value === 'string' && allowed.includes(value as ExpertiseLevel)) ? value as ExpertiseLevel : 'intermediate';
+  }
+
+  private asIntentCategory(value?: unknown): IntentCategory {
+    const allowed: IntentCategory[] = ['question','request','complaint','compliment','exploration'];
+    return (typeof value === 'string' && allowed.includes(value as IntentCategory)) ? value as IntentCategory : 'question';
+  }
+
+  private asContextCategory(value?: unknown): ContextCategory {
+    const allowed: ContextCategory[] = ['WORKPLACE','PRIVATE','PROJECT','TECHNICAL','FINANCIAL','HEALTH','EDUCATIONAL','CREATIVE','ADMINISTRATIVE','GENERAL'];
+    return (typeof value === 'string' && allowed.includes(value as ContextCategory)) ? value as ContextCategory : 'TECHNICAL';
+  }
+
+  private asPrivacyLevel(value?: unknown): PrivacyLevel {
+    const allowed: PrivacyLevel[] = ['public','internal','confidential','restricted'];
+    return (typeof value === 'string' && allowed.includes(value as PrivacyLevel)) ? value as PrivacyLevel : 'internal';
+  }
+
+  private isSessionContext(obj: unknown): obj is SessionContext {
+    if (!obj || typeof obj !== 'object') return false;
+    const o = obj as Partial<SessionContext>;
+    return !!(o.sessionId && o.userId && o.startTime && o.lastActivity && o.currentTopic && o.conversationMode && o.responseQuality && o.userSatisfaction);
   }
 
   /**

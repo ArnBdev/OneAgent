@@ -15,7 +15,7 @@ import * as path from 'path';
 import { watch, FSWatcher } from 'chokidar';
 import { EventEmitter } from 'events';
 import { OneAgentMemory, OneAgentMemoryConfig } from '../../memory/OneAgentMemory';
-import { createUnifiedTimestamp } from '../../utils/UnifiedBackboneService';
+import { createUnifiedTimestamp, unifiedMetadataService } from '../../utils/UnifiedBackboneService';
 
 export interface PersonaConfig {
   id: string;
@@ -80,7 +80,7 @@ export class PersonaLoader extends EventEmitter {
       apiKey: process.env.MEM0_API_KEY || 'demo-key',
       apiUrl: process.env.MEM0_API_URL
     };
-    this.memorySystem = new OneAgentMemory(memoryConfig);
+  this.memorySystem = OneAgentMemory.getInstance(memoryConfig);
   }
 
   /**
@@ -175,15 +175,15 @@ export class PersonaLoader extends EventEmitter {
   /**
    * Validate persona configuration structure
    */
-  private validatePersonaConfig(persona: any, filename: string): void {
-    const requiredFields = [
+  private validatePersonaConfig(persona: Partial<PersonaConfig>, filename: string): void {
+    const requiredFields: (keyof PersonaConfig)[] = [
       'id', 'name', 'type', 'version', 'role', 'style',
       'constitutionalPrinciples', 'capabilities', 'quality_standards'
     ];
 
     for (const field of requiredFields) {
-      if (!persona[field]) {
-        throw new Error(`Missing required field '${field}' in ${filename}`);
+      if ((persona as Record<string, unknown>)[field as string] === undefined || (persona as Record<string, unknown>)[field as string] === null) {
+        throw new Error(`Missing required field '${field as string}' in ${filename}`);
       }
     }
 
@@ -193,7 +193,8 @@ export class PersonaLoader extends EventEmitter {
     }
 
     // Validate quality standards
-    if (!persona.quality_standards.minimum_score || persona.quality_standards.minimum_score < 0 || persona.quality_standards.minimum_score > 100) {
+    const qs = persona.quality_standards;
+    if (!qs || typeof qs.minimum_score !== 'number' || qs.minimum_score < 0 || qs.minimum_score > 100) {
       throw new Error(`Invalid quality_standards.minimum_score in ${filename}`);
     }
   }
@@ -347,41 +348,33 @@ Please respond according to your persona configuration and quality standards.`;
    */
   private async storePersonaInMemory(persona: PersonaConfig, template: PromptTemplate): Promise<void> {
     try {
-      const conversationData = {
-        id: this.generateUnifiedId('persona_config', persona.id),
-        agentId: persona.id,
-        userId: 'oneagent_system',
-        timestamp: new Date(),
-        content: `Persona Configuration: ${persona.name} (${persona.id}) - ${persona.role}`,
-        context: {
-          userId: persona.id,
-          agentId: persona.id,
+      const content = `Persona Configuration Registered: ${persona.name} (${persona.id}) - Role: ${persona.role} - Version: ${persona.version}`;
+      const metadata = unifiedMetadataService.create('persona_config', 'PersonaLoader', {
+        system: {
+          source: 'persona_loader',
+          component: 'PersonaLoader',
           sessionId: this.generateUnifiedId('persona_config'),
-          conversationId: this.generateUnifiedId('persona_config'),
-          messageType: 'system',
-          platform: 'oneagent'
+          userId: 'oneagent_system'
         },
-        outcome: {
-          success: true,
-          satisfaction: 'high',
-          learningsExtracted: 1,
-          qualityScore: persona.quality_standards.minimum_score / 100
-        },
-        metadata: {
-          type: 'persona_config',
-          agentId: persona.id,
-          version: persona.version,
-          qualityScore: persona.quality_standards.minimum_score,
-          constitutionalPrinciples: persona.constitutionalPrinciples,
-          capabilities: persona.capabilities.primary,
-          systemPrompt: template.systemPrompt
+        content: {
+          category: 'persona_config',
+          tags: ['persona', persona.type, persona.version],
+          sensitivity: 'internal',
+          relevanceScore: persona.quality_standards.minimum_score / 100,
+          contextDependency: 'session'
         }
-      };
-
-      await this.memorySystem.addMemory({
-        ...conversationData,
-        type: 'conversations'
       });
+      // Attach additional domain-specific fields under extensions/custom block
+  interface MetadataWithCustom { custom?: Record<string, unknown>; }
+  (metadata as MetadataWithCustom).custom = {
+        agentId: persona.id,
+        version: persona.version,
+        qualityScore: persona.quality_standards.minimum_score,
+        constitutionalPrinciples: persona.constitutionalPrinciples,
+        capabilities: persona.capabilities.primary,
+        systemPrompt: template.systemPrompt
+      };
+      await this.memorySystem.addMemoryCanonical(content, metadata, 'oneagent_system');
     } catch (error) {
       console.error(`[PersonaLoader] Failed to store persona in memory:`, error);
     }
@@ -411,7 +404,7 @@ Please respond according to your persona configuration and quality standards.`;
   /**
    * Generate dynamic prompt for agent
    */
-  public generatePrompt(agentId: string, userMessage: string, context: any = {}, memoryContext: any[] = []): string {
+  public generatePrompt(agentId: string, userMessage: string, context: Record<string, unknown> = {}, memoryContext: { content: string }[] = []): string {
     const template = this.promptTemplates.get(agentId);
     if (!template) {
       throw new Error(`No prompt template found for agent: ${agentId}`);
@@ -420,10 +413,10 @@ Please respond according to your persona configuration and quality standards.`;
     const memoryText = memoryContext.length > 0 
       ? memoryContext.map(m => `- ${m.content}`).join('\n')
       : 'No relevant past context';
-
+    const ctx = context as Record<string, unknown> & { requestType?: string };
     const userPrompt = template.userPromptTemplate
-      .replace('{requestType}', context.requestType || 'general')
-      .replace('{context}', JSON.stringify(context, null, 2))
+      .replace('{requestType}', ctx.requestType ?? 'general')
+      .replace('{context}', JSON.stringify(ctx, null, 2))
       .replace('{memoryContext}', memoryText)
       .replace('{userMessage}', userMessage);
 

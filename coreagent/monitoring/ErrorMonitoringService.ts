@@ -18,7 +18,7 @@ export interface ErrorContext {
   taskType?: string;
   timestamp?: Date;
   severity?: 'low' | 'medium' | 'high' | 'critical';
-  metadata?: Record<string, any>;
+  metadata?: Record<string, unknown>;
   /**
    * Name of the tool (if error is associated with a tool call)
    */
@@ -197,7 +197,7 @@ export class ErrorMonitoringService {
       );
       // Check if error handling meets Constitutional AI principles
       return validation.isValid && validation.score >= 75;
-    } catch {
+  } catch {
       return false; // Default to non-compliant if validation fails
     }
   }

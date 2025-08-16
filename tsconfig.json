@@ -17,6 +17,6 @@
       "module": "CommonJS"
     }
   },
-  "include": ["coreagent/**/*"],
+  "include": ["coreagent/**/*", "scripts/**/*.ts"],
   "exclude": ["node_modules"]
 }

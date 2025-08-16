@@ -13,6 +13,7 @@ export { InstructionsConverter } from './InstructionsConverter';
 import { ProfileManager } from './ProfileManager';
 import { EvolutionEngine } from './EvolutionEngine';
 import { InstructionsConverter } from './InstructionsConverter';
+import type { EvolutionRecord } from './AgentProfile';
 
 /**
  * ALITA System - Main interface for agent evolution
@@ -126,7 +127,7 @@ export class ALITASystem {
   async getStatus(): Promise<{
     initialized: boolean;
     currentProfile?: string;
-    evolutionStatus: any;
+  evolutionStatus: { isEvolving: boolean; lastEvolution?: string };
     lastEvolution?: string;
   }> {
     const profile = this.profileManager.getCurrentProfile();
@@ -185,7 +186,7 @@ export class ALITASystem {
   /**
    * Get evolution history
    */
-  async getEvolutionHistory(): Promise<any[]> {
+  async getEvolutionHistory(): Promise<EvolutionRecord[]> {
     const profile = this.profileManager.getCurrentProfile();
     return profile?.evolutionHistory || [];
   }

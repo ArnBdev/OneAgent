@@ -13,11 +13,11 @@
 
 import { OneAgentMemory } from '../../memory/OneAgentMemory';
 // import { UnifiedBackboneService } from '../../utils/UnifiedBackboneService';
-import { OneAgentUnifiedBackbone, generateUnifiedId } from '../../utils/UnifiedBackboneService';
+import { OneAgentUnifiedBackbone, unifiedBackbone as canonicalUnifiedBackbone, generateUnifiedId, unifiedMetadataService, createUnifiedTimestamp } from '../../utils/UnifiedBackboneService';
 import { SmartGeminiClient } from '../../tools/SmartGeminiClient';
 import { User } from '../../types/user';
 import { MemoryIntelligence } from '../../intelligence/memoryIntelligence';
-import { NLACSMessage, EmergentInsight, ConversationThread, NLACSCapability, MemoryRecord, UnifiedMetadata, A2AMessage, AgentId, SessionId, MessageId } from '../../types/oneagent-backbone-types';
+import { NLACSMessage, EmergentInsight, ConversationThread, NLACSCapability, MemoryRecord, UnifiedMetadata, A2AMessage, AgentId, SessionId, MessageId, UnifiedAgentContext } from '../../types/oneagent-backbone-types';
 import { unifiedAgentCommunicationService } from '../../utils/UnifiedAgentCommunicationService';
 import { 
   PromptEngine, 
@@ -83,6 +83,9 @@ export abstract class BaseAgent {
   protected aiClient?: SmartGeminiClient;
   protected isInitialized: boolean = false;
   protected unifiedBackbone: OneAgentUnifiedBackbone;
+  // Unified context injected by AgentFactory (canonical) providing
+  // time/metadata/session grounding. Set via setUnifiedContext() post-construction.
+  protected unifiedContext?: UnifiedAgentContext;
   
   // Advanced Prompt Engineering Components
   protected promptEngine?: PromptEngine;
@@ -96,6 +99,7 @@ export abstract class BaseAgent {
 
   // Canonical A2A/NLACS communication via unified service only
   protected comm = unifiedAgentCommunicationService;
+  private boundMessageHandler?: (payload: unknown) => void;
   
   // =============================================================================
   // NLACS (Natural Language Agent Coordination System) Extensions - Phase 1
@@ -110,7 +114,8 @@ export abstract class BaseAgent {
    */
   constructor(config: AgentConfig, promptConfig?: PromptConfig) {
     this.config = config;
-    this.unifiedBackbone = new OneAgentUnifiedBackbone();
+    // Use canonical singleton to avoid parallel backbone instances
+    this.unifiedBackbone = OneAgentUnifiedBackbone.getInstance ? OneAgentUnifiedBackbone.getInstance() : (canonicalUnifiedBackbone as OneAgentUnifiedBackbone);
     // Initialize enhanced prompt engine if config provided
     if (promptConfig) {
       this.promptEngine = new PromptEngine(promptConfig);
@@ -187,7 +192,8 @@ export abstract class BaseAgent {
     try {
       // Initialize memory client if enabled
       if (this.config.memoryEnabled) {
-        this.memoryClient = new OneAgentMemory({ userId: 'default-user' });
+        // Use canonical singleton to prevent parallel memory systems
+        this.memoryClient = OneAgentMemory.getInstance({ userId: 'default-user' });
         this.memoryIntelligence = new MemoryIntelligence();
       }
 
@@ -253,7 +259,17 @@ export abstract class BaseAgent {
       // Initialize Personality Engine
       this.personalityEngine = new PersonalityEngine();
 
-      // Canonical agent communication is initialized via UnifiedBackboneService only.
+      // Subscribe to canonical A2A message events and route relevant ones to handler
+      this.boundMessageHandler = (payload: unknown) => {
+        const msg = (payload as { message?: A2AMessage }).message;
+        if (!msg) return;
+        // Route if message is for this agent (direct) or broadcast (no toAgent)
+        const isRecipient = !msg.toAgent || msg.toAgent === (this.config.id as AgentId);
+        if (!isRecipient) return;
+        // If agent tracks sessions, optionally filter by known sessions; otherwise accept
+        void this.handleA2AIncomingMessage(msg);
+      };
+      this.comm.on('message_sent', this.boundMessageHandler);
 
       this.isInitialized = true;
       console.log(`✅ BaseAgent ${this.config.id} initialized successfully`);
@@ -282,6 +298,10 @@ export abstract class BaseAgent {
    */
   async cleanup(): Promise<void> {
     this.isInitialized = false;
+    if (this.boundMessageHandler) {
+      this.comm.off('message_sent', this.boundMessageHandler);
+      this.boundMessageHandler = undefined;
+    }
     console.log(`🧹 BaseAgent ${this.config.id} cleaned up`);
   }
 
@@ -302,38 +322,20 @@ export abstract class BaseAgent {
     const capabilityStrings = capabilities.map(c => `${c.type}:${c.description}`);
     
     // Log with canonical backbone metadata
-    const services = this.unifiedBackbone.getServices();
-    const metadata = services.metadataService.create('nlacs_enable', 'agent_system', {
-      content: {
-        category: 'system',
-        tags: ['nlacs', 'enable', `agent:${this.config.id}`, ...capabilities.map(c => `capability:${c.type}`)],
-        sensitivity: 'internal' as const,
-        relevanceScore: 0.9,
-        contextDependency: 'session' as const
-      },
-      system: {
-        source: 'agent_system',
-        component: 'nlacs_enable',
-        agent: {
-          id: this.config.id,
-          type: 'specialized'
-        }
-      }
-    });
+  // Removed direct variable usage; canonical metadata built in call below
     
     console.log(`🧠 NLACS enabled for ${this.config.id} with capabilities: ${capabilityStrings.join(', ')}`);
     
     // Store in OneAgent memory with canonical metadata
-    this.memoryClient?.addMemory({
-      content: `NLACS capabilities enabled: ${capabilityStrings.join(', ')}`,
-      metadata: {
-        ...metadata,
-        type: 'nlacs_initialization',
+    this.memoryClient?.addMemoryCanonical(
+      `NLACS capabilities enabled: ${capabilityStrings.join(', ')}`,
+      this.buildCanonicalAgentMetadata('nlacs_initialization', this.config.id, {
         agentId: this.config.id,
-        capabilities: capabilityStrings, // Store as strings, not objects
-        timestamp: services.timeService.now().iso // Store as ISO string, not object
-      }
-    }).catch(error => {
+        capabilities: capabilityStrings,
+        originalType: 'nlacs_initialization'
+      }),
+      this.config.id
+    ).catch(error => {
       console.error('Failed to store NLACS initialization in memory:', error);
     });
   }
@@ -353,51 +355,22 @@ export abstract class BaseAgent {
       const joinTimestamp = services.timeService.now();
       
       // Create canonical metadata for discussion participation
-      const participationMetadata = services.metadataService.create('join_discussion', 'agent_system', {
-        content: {
-          category: 'communication',
-          tags: ['nlacs', 'join', 'discussion', `agent:${this.config.id}`, `discussion:${discussionId}`],
-          sensitivity: 'internal' as const,
-          relevanceScore: 0.9,
-          contextDependency: 'session' as const
-        },
-        system: {
-          source: 'agent_system',
-          component: 'nlacs_discussion',
-          agent: {
-            id: this.config.id,
-            type: 'specialized'
-          }
-        }
-      });
+  // Directly constructing canonical metadata via buildCanonicalAgentMetadata later
 
       console.log(`💬 ${this.config.id} joining discussion: ${discussionId} at ${joinTimestamp.iso}`);
       
       // Store participation in OneAgent memory with canonical structure
-      await this.memoryClient?.addMemory({
-        content: `Joined NLACS discussion: ${discussionId}`,
-        metadata: {
-          ...participationMetadata,
-          type: 'nlacs_participation',
-          discussionId: discussionId,
+      await this.memoryClient?.addMemoryCanonical(
+        `Joined NLACS discussion: ${discussionId}`,
+        this.buildCanonicalAgentMetadata('nlacs_participation', this.config.id, {
+          discussionId,
           agentId: this.config.id,
           joinedAt: joinTimestamp,
           context: context || 'standard_participation',
-          capabilities: this.nlacsCapabilities,
-          // Canonical backbone metadata
-          backbone: {
-            temporal: {
-              created: joinTimestamp,
-              lastUpdated: joinTimestamp
-            },
-            lineage: {
-              source: 'nlacs_coordinator',
-              action: 'join_discussion',
-              agentId: this.config.id
-            }
-          }
-        }
-      });
+          capabilities: this.nlacsCapabilities
+        }),
+        this.config.id
+      );
       
       return true;
     } catch (error) {
@@ -458,39 +431,19 @@ export abstract class BaseAgent {
       };
 
       // Store contribution in OneAgent memory with canonical structure
-      await this.memoryClient?.addMemory({
-        content: `NLACS Discussion Contribution: ${content}`,
-        metadata: {
-          type: 'nlacs_contribution',
-          discussionId: discussionId,
+      await this.memoryClient?.addMemoryCanonical(
+        `NLACS Discussion Contribution: ${content}`,
+        this.buildCanonicalAgentMetadata('nlacs_contribution', this.config.id, {
+          discussionId,
           messageId: message.id,
-          messageType: messageType,
+          messageType,
           agentId: this.config.id,
           contributedAt: contributionTimestamp,
           contentLength: content.length,
-          context: context || 'standard_contribution',
-          // Canonical backbone metadata integration
-          backbone: {
-            temporal: {
-              created: contributionTimestamp,
-              lastUpdated: contributionTimestamp
-            },
-            metadata: {
-              agentId: this.config.id,
-              protocol: 'nlacs',
-              version: '5.0.0',
-              messageType: messageType,
-              discussionId: discussionId
-            },
-            lineage: {
-              source: 'nlacs_discussion',
-              action: 'contribute_message',
-              agentId: this.config.id,
-              messageId: message.id
-            }
-          }
-        }
-      });
+          context: context || 'standard_contribution'
+        }),
+        this.config.id
+      );
 
       console.log(`💬 ${this.config.id} contributed to discussion ${discussionId}: ${messageType} at ${contributionTimestamp}`);
       return message;
@@ -561,41 +514,18 @@ export abstract class BaseAgent {
 
       // Store insights in OneAgent memory with canonical backbone structure
       for (const insight of insights) {
-        await this.memoryClient?.addMemory({
-          content: `Emergent Insight: ${insight.content}`,
-          metadata: {
-            type: 'emergent_insight',
+        await this.memoryClient?.addMemoryCanonical(
+          `Emergent Insight: ${insight.content}`,
+          this.buildCanonicalAgentMetadata('emergent_insight', this.config.id, {
             insightId: insight.id,
             insightType: insight.type,
             confidence: insight.confidence,
-            agentId: this.config.id,
             context: context || 'conversation_analysis',
             contributingAgents: insight.contributors,
-            sourceMessageIds: insight.sources,
-            // Canonical backbone metadata
-            backbone: {
-              temporal: {
-                created: analysisTimestamp,
-                lastUpdated: analysisTimestamp,
-                discoveredAt: analysisTimestamp
-              },
-              metadata: {
-                agentId: this.config.id,
-                protocol: 'nlacs',
-                version: '5.0.0',
-                insightType: insight.type,
-                confidence: insight.confidence
-              },
-              lineage: {
-                source: 'nlacs_insight_generation',
-                action: 'generate_emergent_insight',
-                agentId: this.config.id,
-                insightId: insight.id,
-                analysisTimestamp: analysisTimestamp
-              }
-            }
-          }
-        });
+            sourceMessageIds: insight.sources
+          }),
+          this.config.id
+        );
       }
 
       console.log(`🧠 ${this.config.id} generated ${insights.length} emergent insights at ${analysisTimestamp}`);
@@ -665,43 +595,20 @@ export abstract class BaseAgent {
         `Cross-conversation synthesis based on ${allInsights.length} insights from ${conversationThreads.length} threads`;
 
       // Store synthesis in OneAgent memory with canonical backbone structure
-      await this.memoryClient?.addMemory({
-        content: `Knowledge Synthesis: ${synthesis}`,
-        metadata: {
-          type: 'knowledge_synthesis',
+      await this.memoryClient?.addMemoryCanonical(
+        `Knowledge Synthesis: ${synthesis}`,
+        this.buildCanonicalAgentMetadata('knowledge_synthesis', this.config.id, {
           synthesisId: generateUnifiedId('knowledge', this.config.id),
-          synthesisQuestion: synthesisQuestion,
+          synthesisQuestion,
           sourceThreadIds: conversationThreads.map(t => t.id),
           sourceInsightIds: allInsights.map(i => i.id),
           insightCount: allInsights.length,
           threadCount: conversationThreads.length,
-          agentId: this.config.id,
           synthesisLength: synthesis.length,
-          // Canonical backbone metadata
-          backbone: {
-            temporal: {
-              created: synthesisTimestamp,
-              lastUpdated: synthesisTimestamp,
-              synthesizedAt: synthesisTimestamp
-            },
-            metadata: {
-              agentId: this.config.id,
-              protocol: 'nlacs',
-              version: '5.0.0',
-              synthesisType: 'cross_conversation',
-              questionCategory: this.categorizeSynthesisQuestion(synthesisQuestion)
-            },
-            lineage: {
-              source: 'nlacs_knowledge_synthesis',
-              action: 'synthesize_cross_conversation',
-              agentId: this.config.id,
-              synthesisId: generateUnifiedId('knowledge', this.config.id),
-              sourceThreads: conversationThreads.map(t => t.id),
-              timestamp: synthesisTimestamp
-            }
-          }
-        }
-      });
+          questionCategory: this.categorizeSynthesisQuestion(synthesisQuestion)
+        }),
+        this.config.id
+      );
 
       console.log(`🔄 ${this.config.id} synthesized knowledge from ${conversationThreads.length} conversations at ${synthesisTimestamp}`);
       return synthesis;
@@ -787,42 +694,18 @@ export abstract class BaseAgent {
       }
 
       // Store pattern analysis in OneAgent memory with canonical structure
-      await this.memoryClient?.addMemory({
-        content: `Conversation Pattern Analysis: ${patterns.length} patterns, ${insights.length} insights`,
-        metadata: {
-          type: 'pattern_analysis',
+      await this.memoryClient?.addMemoryCanonical(
+        `Conversation Pattern Analysis: ${patterns.length} patterns, ${insights.length} insights`,
+        this.buildCanonicalAgentMetadata('pattern_analysis', this.config.id, {
           analysisId: generateUnifiedId('analysis', this.config.id),
-          agentId: this.config.id,
           patternCount: patterns.length,
           insightCount: insights.length,
           messageCount: conversationHistory.length,
           participantCount: participants.size,
-          conversationDuration: timeSpan,
-          // Canonical backbone metadata
-          backbone: {
-            temporal: {
-              created: analysisTimestamp,
-              lastUpdated: analysisTimestamp,
-              analyzedAt: analysisTimestamp
-            },
-            metadata: {
-              agentId: this.config.id,
-              protocol: 'nlacs',
-              version: '5.0.0',
-              analysisType: 'conversation_pattern',
-              messageCount: conversationHistory.length,
-              participantCount: participants.size
-            },
-            lineage: {
-              source: 'nlacs_pattern_analysis',
-              action: 'extract_conversation_patterns',
-              agentId: this.config.id,
-              analysisId: generateUnifiedId('analysis', this.config.id),
-              timestamp: analysisTimestamp
-            }
-          }
-        }
-      });
+          conversationDuration: timeSpan
+        }),
+        this.config.id
+      );
 
       console.log(`📊 ${this.config.id} extracted ${patterns.length} conversation patterns and ${insights.length} insights at ${analysisTimestamp}`);
       return { patterns, insights };
@@ -907,16 +790,31 @@ export abstract class BaseAgent {
       console.warn('Memory client not initialized');
       return;
     }
-    
-    await this.memoryClient.addMemory({
-      content,
-      metadata: {
-        userId,
-        agentId: this.config.id,
-        timestamp: new Date(this.unifiedBackbone.getServices().timeService.now().utc),
-        ...metadata
-      }
-    });
+    const ts = createUnifiedTimestamp();
+    const unified = this.buildCanonicalAgentMetadata('agent_event', userId, metadata, ts);
+    await this.memoryClient.addMemoryCanonical(content, unified, userId);
+  }
+
+  /**
+   * Build canonical agent metadata with consistent structure
+   */
+  protected buildCanonicalAgentMetadata(
+    type: string,
+    userId: string,
+    extra?: Record<string, unknown>,
+    timestamp: ReturnType<typeof createUnifiedTimestamp> = createUnifiedTimestamp()
+  ): Partial<UnifiedMetadata> {
+    return unifiedMetadataService.create(type, 'BaseAgent', {
+      system: { userId, component: this.config.id, source: 'BaseAgent', agent: { id: this.config.id, type: 'specialized' } },
+      content: { category: type, tags: ['agent', this.config.id, type], sensitivity: 'internal', relevanceScore: 0.7, contextDependency: 'session' },
+      temporal: { created: timestamp, updated: timestamp, accessed: timestamp, contextSnapshot: {
+        timeOfDay: timestamp.contextual.timeOfDay,
+        dayOfWeek: new Date(timestamp.unix).toLocaleDateString(undefined, { weekday: 'long' }),
+        businessContext: true,
+        energyContext: timestamp.contextual.energyLevel
+      } },
+      ...(extra || {})
+    } as unknown as Partial<UnifiedMetadata>);
   }
 
   /**
@@ -934,7 +832,7 @@ export abstract class BaseAgent {
       limit
     });
     
-    return results.results || [];
+  return results?.results || [];
   }
 
   /**
@@ -1119,16 +1017,14 @@ export abstract class BaseAgent {
    */
   async processMessage(context: AgentContext, message: string): Promise<AgentResponse> {
     this.validateContext(context);
-    
-    // Search for relevant memories
+    // Enhanced path: use prompt engine + constitutional loop if configured
+    if (this.promptEngine && this.constitutionalAI) {
+      return await this.generateWithConstitutionalLoop(context, message);
+    }
+    // Fallback legacy path
     const memories = await this.searchMemories(context.user.id, message);
-    
-    // Generate response using prompt engineering
     const response = await this.generateResponse(message, memories);
-    
-    // Store interaction in memory
     await this.addMemory(context.user.id, `User: ${message}\nAgent: ${response}`);
-    
     return this.createResponse(response, [], memories);
   }
 
@@ -1137,5 +1033,69 @@ export abstract class BaseAgent {
    */
   public setNLACSEnabled(enabled: boolean): void {
     this.nlacsEnabled = enabled;
+  }
+
+  // =============================================================================
+  // Constitutional AI End-to-End Generation Loop
+  // =============================================================================
+  protected async generateWithConstitutionalLoop(context: AgentContext, message: string): Promise<AgentResponse> {
+    const userId = context.user.id;
+    const memories = await this.searchMemories(userId, message);
+    const enhancedPrompt = await this.promptEngine!.buildEnhancedPrompt(message, memories, context, 'medium');
+    const raw = await this.generateResponse(enhancedPrompt, memories);
+    const validation = await this.constitutionalAI!.validateResponse(raw, message, { phase: 'initial' });
+    let finalContent = validation.refinedResponse || raw;
+    // Optional second pass if below threshold
+    if (!validation.isValid) {
+      const second = await this.constitutionalAI!.validateResponse(finalContent, message, { phase: 'refinement' });
+      finalContent = second.refinedResponse || finalContent;
+    }
+    await this.addMemory(userId, `ConstitutionalInteraction:\nUser: ${message}\nResponse: ${finalContent}\nScore: ${validation.score}`, {
+      type: 'constitutional_interaction',
+      qualityScore: validation.score,
+      violations: validation.violations.map(v => v.principleId),
+      refined: validation.refinedResponse !== raw
+    });
+    return {
+      content: finalContent,
+      actions: [],
+      memories,
+      metadata: {
+        agentId: this.config.id,
+        timestamp: new Date(this.unifiedBackbone.getServices().timeService.now().utc),
+        constitutionalScore: validation.score,
+        constitutionalValid: validation.isValid,
+        violations: validation.violations,
+        refinementApplied: validation.refinedResponse !== raw
+      }
+    };
+  }
+
+  // =============================================================================
+  // Unified Context Injection (AgentFactory -> BaseAgent)
+  // =============================================================================
+  /**
+   * Inject the canonical UnifiedAgentContext created by UnifiedBackboneService.
+   * This provides consistent temporal + metadata grounding across all agents.
+   * Must be called by AgentFactory immediately after instantiation and before initialize().
+   */
+  public setUnifiedContext(context: UnifiedAgentContext): void {
+    // Augment with direct service references for convenience (non-parallel; sourced from backbone)
+    const services = this.unifiedBackbone.getServices();
+    this.unifiedContext = {
+      ...context,
+      timeService: services.timeService,
+      metadataService: services.metadataService
+    };
+  }
+
+  /**
+   * Accessor for the injected unified context. Throws if not yet set to fail fast.
+   */
+  protected getUnifiedContext(): UnifiedAgentContext {
+    if (!this.unifiedContext) {
+      throw new Error('UnifiedAgentContext not set. Ensure AgentFactory.setUnifiedContext was called before initialize().');
+    }
+    return this.unifiedContext;
   }
 }

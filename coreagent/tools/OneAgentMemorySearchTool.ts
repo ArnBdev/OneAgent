@@ -39,18 +39,18 @@ export class OneAgentMemorySearchTool extends UnifiedMCPTool {
     }
     try {
       const { query, userId, limit } = args;
-      const result = await this.memoryClient.searchMemory({ query, userId, limit });
+  const result = await this.memoryClient.searchMemory({ query, userId, limit });
       // Structured, typed output
       return {
         success: true,
         data: {
-          results: result?.data?.results || result?.results || result,
+          results: result?.results || [],
           query,
           userId: userId || null,
           limit: limit || 5,
-          message: result?.message || 'Memory search completed',
-          error: result?.error || null,
-          timestamp: result?.timestamp || new Date().toISOString()
+          message: 'Memory search completed',
+          error: null,
+          timestamp: new Date().toISOString()
         }
       };
     } catch (error) {

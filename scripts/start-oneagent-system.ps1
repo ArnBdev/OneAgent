@@ -34,17 +34,61 @@ if (-not $NoBanner) {
     Write-Host " OneAgent System Startup " -ForegroundColor Green
     Write-Host "===============================" -ForegroundColor Green
     Write-Host "This script will launch BOTH the memory server and the MCP server in parallel." -ForegroundColor Yellow
+    Write-Host "Environment is read from .env at repo root by each server; ensure MEM0_API_KEY is set for authenticated memory ops." -ForegroundColor Yellow
     Write-Host "To stop all servers, close their terminal windows or use Task Manager." -ForegroundColor Yellow
     Write-Host "" 
 }
 
+# Resolve ports from environment (canonical), with safe defaults
+$memPort = if ($env:ONEAGENT_MEMORY_PORT) { [int]$env:ONEAGENT_MEMORY_PORT } else { 8010 }
+$mcpPort = if ($env:ONEAGENT_MCP_PORT) { [int]$env:ONEAGENT_MCP_PORT } else { 8083 }
+
 # Start Memory Server (Python/FastAPI/Uvicorn)
-$memoryServerCmd = "uvicorn servers.oneagent_memory_server:app --host 127.0.0.1 --port 8010 --reload"
+$memoryServerCmd = "uvicorn servers.oneagent_memory_server:app --host 127.0.0.1 --port $memPort --reload"
 Start-ProcessWithBanner -Name "Memory Server (mem0)" -Command $memoryServerCmd -WorkingDirectory "$PSScriptRoot/.."
 
 # Start MCP Server (Node/TSX)
-$mcpServerCmd = "npx tsx coreagent/server/unified-mcp-server.ts"
+$mcpServerCmd = "npx --yes tsx coreagent/server/unified-mcp-server.ts"
 Start-ProcessWithBanner -Name "MCP Server (Node/TSX)" -Command $mcpServerCmd -WorkingDirectory "$PSScriptRoot/.."
+
+function Wait-HttpReady {
+    param(
+        [string]$Url,
+        [int]$TimeoutSec = 45,
+        [int]$DelayMs = 500
+    )
+    $deadline = (Get-Date).AddSeconds($TimeoutSec)
+    while ((Get-Date) -lt $deadline) {
+        try {
+            # Accept any HTTP response (including 404) as a sign the server socket is open
+            $resp = Invoke-WebRequest -Uri $Url -Method Get -UseBasicParsing -TimeoutSec 5 -SkipHttpErrorCheck
+            if ($resp.StatusCode -ge 200 -and $resp.StatusCode -lt 500) { return $true }
+        } catch {
+            Start-Sleep -Milliseconds $DelayMs
+        }
+    }
+    return $false
+}
+
+# Optional readiness checks (prefer explicit health endpoints where available)
+$memProbeUrl = "http://127.0.0.1:$memPort/health"  # memory server exposes /health
+$mcpProbeUrl = "http://127.0.0.1:$mcpPort/health"
+
+$memReady = Wait-HttpReady -Url $memProbeUrl -TimeoutSec 30
+$mcpReady = Wait-HttpReady -Url $mcpProbeUrl -TimeoutSec 45
+
+if ($memReady -and $mcpReady) {
+    Write-Host "[OneAgent] Both servers are UP and responding." -ForegroundColor Green
+    Write-Host "[Memory]   $memProbeUrl" -ForegroundColor DarkGray
+    Write-Host "[MCP]      $mcpProbeUrl" -ForegroundColor DarkGray
+} else {
+    if (-not $memReady) { Write-Host "[OneAgent] Memory server did not respond in time." -ForegroundColor Yellow }
+    if (-not $mcpReady) { Write-Host "[OneAgent] MCP server did not respond in time." -ForegroundColor Yellow }
+}
 
 Write-Host "[OneAgent] Both servers launched. Check their windows for output." -ForegroundColor Green
 Write-Host "[OneAgent] To stop, close the corresponding terminal windows." -ForegroundColor Yellow
+
+# Quick env visibility
+$mem0KeySet = [bool]$env:MEM0_API_KEY
+Write-Host ("[OneAgent] MEM0_API_KEY set: {0}" -f $mem0KeySet) -ForegroundColor DarkGray

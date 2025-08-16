@@ -49,7 +49,7 @@ export interface CapabilityDefinition {
     averageQuality: number;
     lastUsed?: string;
   };
-  parameters?: Record<string, any>;
+  parameters?: Record<string, unknown>;
 }
 
 export interface FrameworkPreferences {
@@ -99,8 +99,8 @@ export interface EvolutionRecord {
 export interface EvolutionChange {
   category: 'personality' | 'instructions' | 'capabilities' | 'frameworks' | 'quality';
   field: string;
-  oldValue: any;
-  newValue: any;
+  oldValue: unknown;
+  newValue: unknown;
   reasoning: string;
   expectedImprovement: string;
   confidence: number;
@@ -156,7 +156,7 @@ export interface ProfileValidationResult {
  */
 export interface EvolutionContext {
   currentProfile: AgentProfile;
-  recentConversations: any[];
+  recentConversations: unknown[];
   performanceMetrics: {
     qualityScores: number[];
     userSatisfaction: number[];

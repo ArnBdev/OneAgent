@@ -10,12 +10,13 @@ import {
   AgentProfile, 
   EvolutionContext, 
   EvolutionRecord, 
-  EvolutionChange,
-  ProfileValidationResult 
+  EvolutionChange
 } from './AgentProfile';
 import { ProfileManager } from './ProfileManager';
 // Canonical memory bridge for all memory operations
 import { OneAgentMemory, OneAgentMemoryConfig } from '../../memory/OneAgentMemory';
+// Canonical time + error systems
+import { createUnifiedTimestamp, getUnifiedErrorHandler } from '../../utils/UnifiedBackboneService';
 
 export interface EvolutionAnalysis {
   currentPerformance: {
@@ -55,15 +56,17 @@ export class EvolutionEngine extends EventEmitter {
   private isEvolving: boolean = false;
   // Canonical memory bridge instance
   private memorySystem: OneAgentMemory;
+  // Canonical error handler
+  private readonly errorHandler = getUnifiedErrorHandler();
 
   private constructor() {
     super();
     this.profileManager = ProfileManager.getInstance();
-    const memoryConfig: OneAgentMemoryConfig = {
+  const memoryConfig: OneAgentMemoryConfig = {
       apiKey: process.env.MEM0_API_KEY || 'demo-key',
       apiUrl: process.env.MEM0_API_URL
     };
-    this.memorySystem = new OneAgentMemory(memoryConfig);
+  this.memorySystem = OneAgentMemory.getInstance(memoryConfig);
   }
 
   public static getInstance(): EvolutionEngine {
@@ -115,9 +118,10 @@ export class EvolutionEngine extends EventEmitter {
       
       return evolvedProfile;
     } catch (error) {
-      this.emit('evolution_failed', error);
-      console.error('❌ Profile evolution failed:', error);
-      throw error;
+  this.emit('evolution_failed', error);
+  // Canonical error handling
+      await this.errorHandler.handleError(error instanceof Error ? error : String(error), { operation: 'evolveProfile' });
+  throw error;
     } finally {
       this.isEvolving = false;
     }
@@ -150,7 +154,7 @@ export class EvolutionEngine extends EventEmitter {
         memoryInsights
       };
     } catch (error) {
-      console.error('Failed to gather evolution context:', error);
+      await this.errorHandler.handleError(error instanceof Error ? error : String(error), { operation: 'gatherEvolutionContext', userId: profile.memoryConfig.userId });
       
       // Return minimal context if memory system unavailable
       return {
@@ -175,7 +179,7 @@ export class EvolutionEngine extends EventEmitter {
   private async analyzePerformance(context: EvolutionContext): Promise<EvolutionAnalysis> {
     console.log('🔍 Analyzing current performance...');
 
-    const { currentProfile, performanceMetrics, userFeedback, memoryInsights } = context;    // Calculate current performance scores
+  const { currentProfile, performanceMetrics } = context; // Calculate current performance scores
     const overallQuality = this.calculateAverageScore(performanceMetrics.qualityScores);
     const userSatisfaction = this.calculateAverageScore(performanceMetrics.userSatisfaction);
     const constitutionalCompliance = this.assessConstitutionalCompliance();
@@ -211,7 +215,7 @@ export class EvolutionEngine extends EventEmitter {
   private async generateRecommendations(analysis: EvolutionAnalysis, options: EvolutionOptions): Promise<EvolutionChange[]> {
     console.log('💡 Generating evolution recommendations...');
 
-    const recommendations: EvolutionChange[] = [];
+  // Note: recommendations array not directly used here; we filter analysis.recommendations instead
     const { aggressiveness, focusAreas } = options;
 
     // Filter recommendations based on aggressiveness
@@ -301,7 +305,7 @@ export class EvolutionEngine extends EventEmitter {
 
     // Create evolution record
     const evolutionRecord: EvolutionRecord = {
-      timestamp: new Date().toISOString(),
+      timestamp: createUnifiedTimestamp().iso,
       version: evolvedProfile.metadata.version,
       trigger: options.trigger,
       changes,
@@ -339,7 +343,7 @@ export class EvolutionEngine extends EventEmitter {
     try {
       const evolutionSummary = {
         version: evolvedProfile.metadata.version,
-        timestamp: new Date().toISOString(),
+        timestamp: createUnifiedTimestamp().iso,
         trigger: options.trigger,
         changesApplied: changes.length,
         categories: [...new Set(changes.map(c => c.category))],
@@ -354,29 +358,38 @@ export class EvolutionEngine extends EventEmitter {
       await this.profileManager.saveProfile(evolvedProfile);
 
     } catch (error) {
-      console.error('Failed to document evolution:', error);
+      await this.errorHandler.handleError(error instanceof Error ? error : String(error), { operation: 'documentEvolution', userId: evolvedProfile.memoryConfig.userId });
       // Don't throw - evolution succeeded even if documentation failed
     }
   }
 
   // Helper methods for memory integration
-  private async getRecentConversations(userId: string): Promise<any[]> {
+  private async getRecentConversations(userId: string): Promise<unknown[]> {
     try {
       // Use canonical memory bridge to fetch recent conversations (limit 10)
-      return await this.memorySystem.searchMemory({ collection: 'conversations', query: { userId, limit: 10 } });
+  const res = await this.memorySystem.searchMemory({ query: userId, limit: 10 });
+  return Array.isArray(res?.results) ? (res?.results as unknown[]) : [];
     } catch (error) {
-      console.error('Failed to get recent conversations:', error);
+      await this.errorHandler.handleError(error instanceof Error ? error : String(error), { operation: 'getRecentConversations', userId });
       return [];
     }
   }
 
   // Remove unused userId parameter to fix lint error
-  private async getPerformanceMetrics(): Promise<any> {
+  private async getPerformanceMetrics(): Promise<{ qualityScores: number[]; userSatisfaction: number[]; errorRates: number[]; responseTime: number[]; capabilityUsage: Record<string, number>; }> {
     try {
       // Use canonical memory bridge to fetch quality metrics
-      return await this.memorySystem.searchMemory({ collection: 'metrics', query: {} });
+  await this.memorySystem.searchMemory({ query: 'metrics', limit: 20 });
+  // For now, return baseline metrics; can be extended to map memory results
+  return {
+        qualityScores: [85],
+        userSatisfaction: [80],
+        errorRates: [5],
+        responseTime: [1000],
+        capabilityUsage: {}
+      };
     } catch (error) {
-      console.error('Failed to get performance metrics:', error);
+      await this.errorHandler.handleError(error instanceof Error ? error : String(error), { operation: 'getPerformanceMetrics' });
       return {
         qualityScores: [85],
         userSatisfaction: [80],
@@ -387,34 +400,47 @@ export class EvolutionEngine extends EventEmitter {
     }
   }
 
-  private async getUserFeedback(): Promise<any> {
+  private async getUserFeedback(): Promise<{ positive: string[]; negative: string[]; suggestions: string[]; }> {
     try {
       // No direct method; fallback to empty feedback structure
       return { positive: [], negative: [], suggestions: [] };
     } catch (error) {
-      console.error('Failed to get user feedback:', error);
+      await this.errorHandler.handleError(error instanceof Error ? error : String(error), { operation: 'getUserFeedback' });
       return { positive: [], negative: [], suggestions: [] };
     }
   }
 
-  private async getMemoryInsights(): Promise<any> {
+  private async getMemoryInsights(): Promise<{ patterns: string[]; successfulStrategies: string[]; problematicAreas: string[]; }> {
     try {
       // Use canonical memory bridge to fetch system analytics
-      return await this.memorySystem.searchMemory({ collection: 'analytics', query: {} });
+  await this.memorySystem.searchMemory({ query: 'analytics', limit: 20 });
+  return { patterns: [], successfulStrategies: [], problematicAreas: [] };
     } catch (error) {
-      console.error('Failed to get memory insights:', error);
+      await this.errorHandler.handleError(error instanceof Error ? error : String(error), { operation: 'getMemoryInsights' });
       return { patterns: [], successfulStrategies: [], problematicAreas: [] };
     }
   }
 
-  private async storeEvolutionRecord(record: any): Promise<void> {
+  private async storeEvolutionRecord(record: Record<string, unknown>): Promise<void> {
     try {
       // Store as a learning in the canonical memory system
       // Canonical memory usage: single object argument
-      await this.memorySystem.addMemory({ collection: 'learnings', record: { ...record } });
+      await this.memorySystem.addMemoryCanonical(
+        JSON.stringify(record),
+        {
+          type: 'evolution_record',
+          content: {
+            category: 'evolution',
+            tags: ['profile_evolution'],
+            sensitivity: 'internal',
+            relevanceScore: 1.0,
+            contextDependency: 'user'
+          }
+        }
+      );
       console.log('Evolution record stored:', record);
     } catch (error) {
-      console.error('Failed to store evolution record:', error);
+      await this.errorHandler.handleError(error instanceof Error ? error : String(error), { operation: 'storeEvolutionRecord' });
     }
   }
 
@@ -437,7 +463,7 @@ export class EvolutionEngine extends EventEmitter {
     return effectiveness;
   }
 
-  private identifyPerformanceIssues(): any[] {
+  private identifyPerformanceIssues(): Array<{ category: string; severity: 'low' | 'medium' | 'high'; description: string; frequency: number; examples: string[]; }> {
     // Simplified issue identification
     return [
       {
@@ -450,7 +476,7 @@ export class EvolutionEngine extends EventEmitter {
     ];
   }
 
-  private findImprovementOpportunities(): any[] {
+  private findImprovementOpportunities(): Array<{ category: string; potential: number; effort: number; risk: number; description: string; }> {
     // Simplified opportunity identification
     return [
       {
@@ -551,7 +577,7 @@ export class EvolutionEngine extends EventEmitter {
   }
   /**
    * Get evolution engine status
-   */  getStatus(): { isEvolving: boolean; lastEvolution?: string } {
+  */  getStatus(): { isEvolving: boolean; lastEvolution?: string } {
     const profile = this.profileManager.getCurrentProfile();
     const result: { isEvolving: boolean; lastEvolution?: string } = {
       isEvolving: this.isEvolving

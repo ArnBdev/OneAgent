@@ -290,8 +290,8 @@ export interface OneAgentBaseMetadata {
     conflicts: Array<{
       system: string;
       field: string;
-      localValue: any;
-      remoteValue: any;
+      localValue: unknown;
+      remoteValue: unknown;
       resolvedAt?: Date;
       resolution?: 'local' | 'remote' | 'merge' | 'manual';
     }>;
@@ -310,7 +310,7 @@ export interface OneAgentBaseMetadata {
   };
   
   // Extension Points
-  extensions: Record<string, any>; // For domain-specific extensions
+  extensions: Record<string, unknown>; // For domain-specific extensions
   
   // System Metadata
   system: {
@@ -611,7 +611,7 @@ export type AnyMetadata =
 export interface MetadataFactory {
   create<T extends AnyMetadata>(type: MetadataType, data: Partial<T>): T;
   validate<T extends AnyMetadata>(metadata: T): boolean;
-  migrate<T extends AnyMetadata>(metadata: any, fromVersion: string, toVersion: string): T;
+  migrate<T extends AnyMetadata>(metadata: Record<string, unknown>, fromVersion: string, toVersion: string): T;
   merge<T extends AnyMetadata>(metadata1: T, metadata2: T): T;
 }
 
@@ -710,8 +710,8 @@ export interface SyncResult {
   systemId: string;
   conflicts: Array<{
     field: string;
-    localValue: any;
-    remoteValue: any;
+  localValue: unknown;
+  remoteValue: unknown;
     resolved: boolean;
     resolution?: 'local' | 'remote' | 'merge';
   }>;

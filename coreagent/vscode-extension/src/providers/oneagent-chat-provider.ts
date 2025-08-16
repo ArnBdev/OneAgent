@@ -1,5 +1,5 @@
 import * as vscode from 'vscode';
-import { OneAgentClient } from '../connection/oneagent-client';
+import { OneAgentClient, AIAssistantResponse } from '../connection/oneagent-client';
 import { createUnifiedTimestamp } from '../utils/unified-backbone';
 
 // Canonical timestamp function using UnifiedBackboneService
@@ -51,23 +51,24 @@ export class OneAgentChatProvider {
             }
             
             // Display response with quality indicator
-            if (aiResponse.data?.qualityScore !== undefined) {
-                const qualityEmoji = this.getQualityEmoji(aiResponse.data.qualityScore);
-                const grade = this.getQualityGrade(aiResponse.data.qualityScore);
-                response.markdown(`${qualityEmoji} **Quality Score**: ${aiResponse.data.qualityScore}% (Grade: ${grade})\n\n`);
+            const aiData = (aiResponse.data || {}) as AIAssistantResponse;
+            if (aiData.qualityScore !== undefined) {
+                const qualityEmoji = this.getQualityEmoji(aiData.qualityScore);
+                const grade = this.getQualityGrade(aiData.qualityScore);
+                response.markdown(`${qualityEmoji} **Quality Score**: ${aiData.qualityScore}% (Grade: ${grade})\n\n`);
             }
             
             // Display main content
-            if (aiResponse.data?.content) {
-                response.markdown(aiResponse.data.content);
-            } else if (aiResponse.data?.response) {
-                response.markdown(aiResponse.data.response);
+            if (aiData.content) {
+                response.markdown(aiData.content);
+            } else if (aiData.response) {
+                response.markdown(aiData.response);
             } else {
                 response.markdown('Response received but content format was unexpected.');
             }
             
             // Add Constitutional AI compliance note
-            if (config.enableConstitutionalAI && aiResponse.data?.constitutionalCompliance) {
+            if (config.enableConstitutionalAI && aiData.constitutionalCompliance) {
                 response.markdown('\n\n✅ **Constitutional AI Validated**: Response meets accuracy, transparency, helpfulness, and safety standards');
             }
             
@@ -75,7 +76,7 @@ export class OneAgentChatProvider {
             try {
                 const userId = vscode.env.machineId;
                 const userMessage = request.prompt;
-                const assistantResponse = aiResponse.data?.content || aiResponse.data?.response;
+                const assistantResponse = aiData.content || aiData.response || '';
                   // Store basic interaction with Memory Intelligence
                 await this.client.memoryCreate({
                     content: `User: ${userMessage}\nAssistant: ${assistantResponse}`,
@@ -91,8 +92,8 @@ export class OneAgentChatProvider {
                         timestamp: createUnifiedTimestamp().iso,
                         userMessage,
                         assistantResponse,
-                        qualityScore: aiResponse.data?.qualityScore,
-                        constitutionalCompliance: aiResponse.data?.constitutionalCompliance,
+                        qualityScore: aiData.qualityScore,
+                        constitutionalCompliance: aiData.constitutionalCompliance,
                         context: {
                             activeFile: vscode.window.activeTextEditor?.document.fileName,
                             workspaceFolder: vscode.workspace.workspaceFolders?.[0]?.name,
@@ -110,12 +111,12 @@ export class OneAgentChatProvider {
                 // Trigger ALITA Auto-Evolution if configured
                 const evolutionConfig = vscode.workspace.getConfiguration('oneagent');
                 if (evolutionConfig.get('autoEvolution', false)) {
-                    this.triggerALITAEvolution(userMessage, assistantResponse, aiResponse.data);
+                    this.triggerALITAEvolution(userMessage, assistantResponse, aiData);
                 }
                 
                 // Auto-sync to settings.json if enabled
                 if (evolutionConfig.get('autoSyncSettings', true)) {
-                    this.syncToSettingsJson(userMessage, assistantResponse, aiResponse.data);
+                    this.syncToSettingsJson(userMessage, assistantResponse, aiData);
                 }
                 
             } catch (error) {
@@ -210,7 +211,7 @@ export class OneAgentChatProvider {
     }
     
     // ALITA Auto-Evolution Integration
-    private async triggerALITAEvolution(userMessage: string, assistantResponse: string, responseData: any): Promise<void> {
+    private async triggerALITAEvolution(userMessage: string, assistantResponse: string, responseData: AIAssistantResponse): Promise<void> {
         try {
             // Analyze conversation patterns for evolution triggers
             const shouldEvolve = await this.shouldTriggerEvolution(userMessage, assistantResponse, responseData);
@@ -238,14 +239,14 @@ export class OneAgentChatProvider {
         }
     }
     
-    private async shouldTriggerEvolution(userMessage: string, assistantResponse: string, responseData: any): Promise<boolean> {
+    private async shouldTriggerEvolution(userMessage: string, assistantResponse: string, responseData: AIAssistantResponse): Promise<boolean> {
         // Evolution triggers based on conversation analysis
         const triggers = [
-            responseData?.qualityScore < 70, // Low quality response
+            (responseData.qualityScore ?? 100) < 70, // Low quality response
             userMessage.toLowerCase().includes('improve') || userMessage.toLowerCase().includes('better'),
             userMessage.toLowerCase().includes('error') || userMessage.toLowerCase().includes('wrong'),
             assistantResponse.length < 50, // Very short responses might indicate inadequacy
-            responseData?.constitutionalCompliance === false
+            responseData.constitutionalCompliance === false
         ];
         
         // Trigger if any condition is met and it's been some time since last evolution
@@ -253,7 +254,7 @@ export class OneAgentChatProvider {
     }
     
     // Settings.json Auto-Sync Integration
-    private async syncToSettingsJson(userMessage: string, assistantResponse: string, responseData: any): Promise<void> {
+    private async syncToSettingsJson(userMessage: string, assistantResponse: string, responseData: AIAssistantResponse): Promise<void> {
         try {
             // Extract learnable preferences from conversation
             const preferences = this.extractUserPreferences(userMessage, assistantResponse, responseData);
@@ -281,40 +282,40 @@ export class OneAgentChatProvider {
         }
     }
     
-    private extractUserPreferences(userMessage: string, _assistantResponse: string, responseData: any): Record<string, any> {
-        const preferences: Record<string, any> = {};
+    private extractUserPreferences(userMessage: string, _assistantResponse: string, responseData: AIAssistantResponse): Record<string, unknown> {
+        const preferences: Record<string, unknown> = {};
         const message = userMessage.toLowerCase();
         
         // Quality threshold learning
         if (responseData?.qualityScore) {
             if (message.includes('good') || message.includes('excellent') || message.includes('perfect')) {
-                if (responseData.qualityScore < 90) {
-                    preferences.qualityThreshold = Math.min(responseData.qualityScore + 5, 95);
+                if ((responseData.qualityScore ?? 0) < 90) {
+                    preferences['qualityThreshold'] = Math.min((responseData.qualityScore ?? 0) + 5, 95);
                 }
             } else if (message.includes('bad') || message.includes('poor') || message.includes('wrong')) {
-                if (responseData.qualityScore > 70) {
-                    preferences.qualityThreshold = Math.max(responseData.qualityScore + 10, 85);
+                if ((responseData.qualityScore ?? 0) > 70) {
+                    preferences['qualityThreshold'] = Math.max((responseData.qualityScore ?? 0) + 10, 85);
                 }
             }
         }
         
         // Constitutional AI preference learning
         if (message.includes('be more careful') || message.includes('safety') || message.includes('validate')) {
-            preferences.enableConstitutionalAI = true;
+            preferences['enableConstitutionalAI'] = true;
         }
         
         // Memory retention learning
         if (message.includes('remember') || message.includes('context') || message.includes('previous')) {
-            preferences.memoryRetention = 'long_term';
+            preferences['memoryRetention'] = 'long_term';
         } else if (message.includes('forget') || message.includes('clear') || message.includes('reset')) {
-            preferences.memoryRetention = 'session';
+            preferences['memoryRetention'] = 'session';
         }
         
         // Evolution preferences
         if (message.includes('improve') || message.includes('evolve') || message.includes('learn')) {
-            preferences.autoEvolution = true;
+            preferences['autoEvolution'] = true;
         } else if (message.includes('stop learning') || message.includes('no changes')) {
-            preferences.autoEvolution = false;
+            preferences['autoEvolution'] = false;
         }
         
         return preferences;

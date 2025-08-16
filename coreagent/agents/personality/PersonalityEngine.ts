@@ -16,6 +16,7 @@
 import { ConstitutionalAI, ValidationResult } from '../base/ConstitutionalAI';
 import { OneAgentMemory, OneAgentMemoryConfig } from '../../memory/OneAgentMemory';
 import { PersonaLoader } from '../persona/PersonaLoader';
+import { unifiedMetadataService } from '../../utils/UnifiedBackboneService';
 
 export interface PersonalityTraits {
   id: string;
@@ -293,7 +294,7 @@ export class PersonalityEngine {
       apiKey: process.env.MEM0_API_KEY || 'demo-key',
       apiUrl: process.env.MEM0_API_URL
     };
-    this.memorySystem = new OneAgentMemory(memoryConfig);
+  this.memorySystem = OneAgentMemory.getInstance(memoryConfig);
     this.personaLoader = PersonaLoader.getInstance();
     this.initializeDefaultProfiles();
   }
@@ -670,17 +671,26 @@ export class PersonalityEngine {
     validation: ValidationResult
   ): Promise<void> {
     try {
-      await this.memorySystem.addMemory({
-        agentId,
-        timestamp: new Date().toISOString(),
-        authenticityScore,
-        validation,
-        response,
-        constitutional_compliance: validation.isValid,
-        response_length: response.length,
-        personality_markers_count: this.extractPersonalityMarkers(response, this.personalityProfiles.get(agentId)!).length,
-        type: 'personality_evolution'
+      const metadata = unifiedMetadataService.create('personality_evolution', 'PersonalityEngine', {
+        system: {
+          source: 'personality_engine',
+          component: 'PersonalityEngine',
+          userId: agentId
+        },
+        content: {
+          category: 'personality_evolution',
+          tags: ['personality', 'evolution'],
+          sensitivity: 'internal',
+          relevanceScore: authenticityScore,
+          contextDependency: 'session'
+        }
       });
+      interface PersonalityEvolutionExtension { authenticityScore?: number; validation?: ValidationResult; response_length?: number; markersCount?: number }
+      (metadata as PersonalityEvolutionExtension).authenticityScore = authenticityScore;
+      (metadata as PersonalityEvolutionExtension).validation = validation;
+      (metadata as PersonalityEvolutionExtension).response_length = response.length;
+      (metadata as PersonalityEvolutionExtension).markersCount = this.extractPersonalityMarkers(response, this.personalityProfiles.get(agentId)!).length;
+      await this.memorySystem.addMemoryCanonical(response, metadata, agentId);
     } catch (error) {
       console.error('Failed to store personality evolution data:', error);
     }
@@ -717,12 +727,23 @@ export class PersonalityEngine {
     updates: Partial<PersonalityProfile>
   ): Promise<void> {
     try {
-      await this.memorySystem.addMemory({
-        agentId,
-        timestamp: new Date().toISOString(),
-        updates,
-        type: 'personality_profile_update'
+      const metadata = unifiedMetadataService.create('personality_profile_update', 'PersonalityEngine', {
+        system: {
+          source: 'personality_engine',
+          component: 'PersonalityEngine',
+          userId: agentId
+        },
+        content: {
+          category: 'personality_profile_update',
+          tags: ['personality', 'profile', 'update'],
+          sensitivity: 'internal',
+          relevanceScore: 0.5,
+          contextDependency: 'session'
+        }
       });
+      interface PersonalityProfileUpdateExtension { updates?: Partial<PersonalityProfile> }
+      (metadata as PersonalityProfileUpdateExtension).updates = updates;
+      await this.memorySystem.addMemoryCanonical(`Personality profile update for ${agentId}`, metadata, agentId);
     } catch (error) {
       console.error('Failed to store personality profile update:', error);
     }
@@ -737,20 +758,20 @@ export class PersonalityEngine {
     improvementTrend: number;
   }> {
     try {
-      const evolutionData = await this.memorySystem.searchMemory({
+      const evolutionResult = await this.memorySystem.searchMemory({
         query: agentId,
-        limit: 100,
-        type: 'personality_evolution'
+        limit: 100
       });
-      if (!evolutionData || evolutionData.length === 0) {
+      const evolutionData = evolutionResult?.results || [];
+      if (evolutionData.length === 0) {
         return { averageScore: 0, totalInteractions: 0, improvementTrend: 0 };
       }
-      const scores = evolutionData.map((memory: Record<string, unknown>) => {
+      const scores = evolutionData.map((memory: { content: string }) => {
         try {
-          return memory.authenticity_score || 0;
-        } catch {
-          return 0;
-        }
+          const parsed = JSON.parse(memory.content) as Record<string, unknown>;
+          const score = (parsed.authenticity_score || parsed.authenticityScore) as number | undefined;
+          return typeof score === 'number' ? score : 0;
+        } catch { return 0; }
       });
       const averageScore = scores.reduce((sum: number, score: number) => sum + score, 0) / scores.length;
       const recentScores = scores.slice(-10);
@@ -760,7 +781,7 @@ export class PersonalityEngine {
       const improvementTrend = recentAvg - earlyAvg;
       return {
         averageScore,
-        totalInteractions: evolutionData.length,
+  totalInteractions: evolutionData.length,
         improvementTrend
       };
     } catch (error) {

@@ -6,15 +6,14 @@
  */
 
 import { OneAgentA2AProtocol, AgentCard } from '../coreagent/protocols/a2a/A2AProtocol';
-import { oneAgentConfig } from '../coreagent/config/index';
-import { v4 as uuidv4 } from 'uuid';
+import { UnifiedBackboneService, createUnifiedId } from '../coreagent/utils/UnifiedBackboneService';
 
 // Test Agent Card for integration testing
 const testAgentCard: AgentCard = {
-  protocolVersion: oneAgentConfig.a2aProtocolVersion,
+  protocolVersion: UnifiedBackboneService.getResolvedConfig().a2aProtocolVersion,
   name: "OneAgent-Test",
   version: "1.0.0",
-  url: oneAgentConfig.a2aBaseUrl,
+  url: UnifiedBackboneService.getResolvedConfig().a2aBaseUrl,
   description: "Test agent for A2A protocol validation",
   defaultInputModes: ["text"],
   defaultOutputModes: ["text"],
@@ -69,9 +68,9 @@ async function testA2AProtocol() {
       method: "message/send",
       params: {
         message: {
+          id: createUnifiedId('message', 'a2a_test'),
           role: "user" as const,
           parts: [{ kind: "text" as const, text: "Test message via A2A protocol" }],
-          messageId: uuidv4(),
           kind: "message" as const
         }
       },
@@ -88,8 +87,8 @@ async function testA2AProtocol() {
     console.log('4️⃣ Testing Agent discovery...');
     try {
       // This will fail since we don't have a real agent URL, but tests the method
-      await protocol.discoverAgent(`${oneAgentConfig.mcpUrl}/agent`);
-    } catch (error) {
+  await protocol.discoverAgent(`${UnifiedBackboneService.getResolvedConfig().mcpUrl}/agent`);
+  } catch {
       console.log('✅ Agent discovery method functional (expected error for test URL)');
     }
     console.log('   Discovery endpoint ready for production use\n');
@@ -97,16 +96,16 @@ async function testA2AProtocol() {
     // 5. Test Message Sending
     console.log('5️⃣ Testing Message sending...');
     const testMessage = {
+      id: createUnifiedId('message', 'a2a_test'),
       role: "user" as const,
       parts: [{ kind: "text" as const, text: "Hello from OneAgent A2A!" }],
-      messageId: uuidv4(),
       kind: "message" as const
     };
     
     try {
       // This will fail since we don't have a real agent URL, but tests the method
-      await protocol.sendMessageToAgent(`${oneAgentConfig.mcpUrl}/agent`, testMessage);
-    } catch (error) {
+  await protocol.sendMessageToAgent(`${UnifiedBackboneService.getResolvedConfig().mcpUrl}/agent`, testMessage);
+  } catch {
       console.log('✅ Message sending method functional (expected error for test URL)');
     }
     console.log('   Message transport ready for production use\n');

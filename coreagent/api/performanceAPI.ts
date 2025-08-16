@@ -10,13 +10,24 @@ import { MemoryIntelligence } from '../intelligence/memoryIntelligence';
 import { GeminiClient } from '../tools/geminiClient';
 import { OneAgentMemory } from '../memory/OneAgentMemory';
 import { GeminiEmbeddingsTool } from '../tools/geminiEmbeddings';
-import { createUnifiedTimestamp } from '../utils/UnifiedBackboneService';
+import { createUnifiedTimestamp, createUnifiedId, getUnifiedErrorHandler } from '../utils/UnifiedBackboneService';
 
-export interface PerformanceAPIResponse<T = any> {
+// Canonical API error details (aligned with unified error system)
+export interface PerformanceAPIErrorDetails {
+  id: string;
+  type: string; // classification
+  severity: string;
+  message: string;
+  timestamp: string;
+}
+
+export interface PerformanceAPIResponse<T = unknown> {
   success: boolean;
   data?: T;
-  error?: string;
-  timestamp: string;
+  error?: string; // Backward compatibility (human-readable summary)
+  errorDetails?: PerformanceAPIErrorDetails; // Structured canonical error info
+  timestamp: string; // Unified timestamp (utc)
+  traceId?: string; // Optional operation trace / correlation id
 }
 
 export interface SystemStatus {
@@ -24,7 +35,6 @@ export interface SystemStatus {
     totalOperations: number;
     averageLatency: number;
     errorRate: number;
-    activeOperations: number;
   };
   memory: {
     totalMemories: number;
@@ -54,6 +64,10 @@ export class PerformanceAPI {
   private geminiClient: GeminiClient;
   private memoryClient: OneAgentMemory;
   private embeddingsTool: GeminiEmbeddingsTool;
+  private errorHandler = getUnifiedErrorHandler();
+
+  // Component identifier for unified error context
+  private readonly component = 'PerformanceAPI';
   constructor(
     memoryIntelligence: MemoryIntelligence,
     geminiClient: GeminiClient,
@@ -71,20 +85,31 @@ export class PerformanceAPI {
    */
   async getSystemStatus(): Promise<PerformanceAPIResponse<SystemStatus>> {
     try {
-      const report = globalProfiler.generateReport();
-      const memoryResult = await this.memoryClient.searchMemory({
+  const report = await globalProfiler.generateReport();
+  const memorySearch = await this.memoryClient.searchMemory({
         query: 'system',
         limit: 100,
         type: 'system'
       });
-      const memoryData = memoryResult.results || [];
-      const analytics = await this.memoryIntelligence.generateMemoryAnalytics('system');
-        // Test service connections
+  const memoryData = memorySearch?.results || [];
+  await this.memoryIntelligence.generateMemoryAnalytics('system');
+      // Integrate unified error metrics (non-critical augmentation)
+      let validationErrors = 0;
+      try {
+        const metricsAccessor = this.errorHandler as unknown as { getMetrics?: () => { errorsByType?: Record<string, number> } };
+        const metrics = metricsAccessor.getMetrics?.();
+        if (metrics?.errorsByType?.VALIDATION) {
+          validationErrors = metrics.errorsByType.VALIDATION;
+        }
+      } catch { /* ignore metric augmentation failures */ }
+
+      // Test service connections
       const services: SystemStatus['services'] = {
         gemini: 'unknown',
         mem0: 'unknown',
         embedding: 'unknown'
-      };      try {
+      };
+      try {
         // Test connection by attempting a simple search
         await this.memoryClient.searchMemory({
           query: 'test',
@@ -94,35 +119,47 @@ export class PerformanceAPI {
         services.mem0 = 'connected';
       } catch {
         services.mem0 = 'error';
-      }try {
+      }
+      try {
         // Test would go here - for now assume embeddings work if memory works
         services.embedding = services.mem0 === 'connected' ? 'connected' : 'unknown';
         services.gemini = 'connected'; // Assume Gemini is available if we got this far
       } catch {
         services.embedding = 'error';
         services.gemini = 'error';
-      }      const status: SystemStatus = {
+      }
+      // Derive category breakdown and importance locally to avoid tight coupling
+      const categoryBreakdown: Record<string, number> = {};
+      for (const r of memoryData as Array<{ metadata?: { content?: { tags?: string[]; category?: string }, quality?: { score?: number } } }>) {
+        const cat = r.metadata?.content?.tags?.[0] || r.metadata?.content?.category || 'general';
+        categoryBreakdown[cat] = (categoryBreakdown[cat] || 0) + 1;
+      }
+      const importanceSamples: number[] = (memoryData as Array<{ metadata?: { quality?: { score?: number } } }>).map(r =>
+        Math.round(((r.metadata?.quality?.score ?? 0.7) * 100))
+      );
+      const avgImportanceScore = importanceSamples.length ? Math.round(importanceSamples.reduce((a,b)=>a+b,0)/importanceSamples.length) : 0;
+
+      const status: SystemStatus = {
         performance: {
           totalOperations: report.totalOperations,
           averageLatency: report.averageLatency,
-          errorRate: report.errorRate,
-          activeOperations: Object.keys(globalProfiler['activeOperations'] || {}).length
+          errorRate: report.errorRate
         },
         memory: {
           totalMemories: memoryData.length,
-          categoryBreakdown: analytics.categoryBreakdown,
-          avgImportanceScore: analytics.averageImportance,
-          topCategories: Object.entries(analytics.categoryBreakdown)
+          categoryBreakdown,
+          avgImportanceScore,
+          topCategories: Object.entries(categoryBreakdown)
             .sort(([, a], [, b]) => (b as number) - (a as number))
             .slice(0, 5)
             .map(([category]) => category)
         },
         security: {
-          validationErrors: 0,
+          validationErrors,
           rateLimitViolations: 0,
           authenticationFailures: 0,
           securityAlertsActive: 0,
-          lastSecurityScan: new Date().toISOString()
+          lastSecurityScan: createUnifiedTimestamp().utc
         },
         services
       };
@@ -130,14 +167,26 @@ export class PerformanceAPI {
       return {
         success: true,
         data: status,
-        timestamp: new Date().toISOString()
+        timestamp: createUnifiedTimestamp().utc
       };
 
     } catch (error) {
+      const entry = await this.errorHandler.handleError(error as Error, {
+        component: this.component,
+        operation: 'getSystemStatus'
+      });
       return {
         success: false,
-        error: error instanceof Error ? error.message : 'Unknown error',
-        timestamp: new Date().toISOString()
+        error: 'Failed to retrieve system status',
+        errorDetails: {
+          id: entry.id,
+          type: entry.type,
+          severity: entry.severity,
+          message: entry.message,
+          timestamp: entry.timestamp.utc
+        },
+        timestamp: createUnifiedTimestamp().utc,
+        traceId: entry.id
       };
     }
   }
@@ -147,46 +196,63 @@ export class PerformanceAPI {
    */
   async getPerformanceMetrics(): Promise<PerformanceAPIResponse> {
     try {
-      const report = globalProfiler.generateReport();
-      
-      return {
-        success: true,
-        data: report,
-        timestamp: new Date().toISOString()
-      };
-
+      const report = await globalProfiler.generateReport();
+      return { success: true, data: report, timestamp: createUnifiedTimestamp().utc };
     } catch (error) {
+      const entry = await this.errorHandler.handleError(error as Error, {
+        component: this.component,
+        operation: 'getPerformanceMetrics'
+      });
       return {
         success: false,
-        error: error instanceof Error ? error.message : 'Unknown error',
-        timestamp: new Date().toISOString()
+        error: 'Failed to retrieve performance metrics',
+        errorDetails: {
+          id: entry.id,
+          type: entry.type,
+          severity: entry.severity,
+          message: entry.message,
+          timestamp: entry.timestamp.utc
+        },
+        timestamp: createUnifiedTimestamp().utc,
+        traceId: entry.id
       };
     }
   }
 
   /**
    * Get memory intelligence analytics
-   */  async getMemoryAnalytics(filter?: any): Promise<PerformanceAPIResponse> {
+  */  async getMemoryAnalytics(filter?: { query?: string; limit?: number; userId?: string }): Promise<PerformanceAPIResponse> {
     try {
-      const memoryResult = await this.memoryClient.searchMemory({
+      await this.memoryClient.searchMemory({
         query: filter?.query || '',
         limit: filter?.limit || 100,
         type: 'system'
       });
-      const memoryData = memoryResult.results || [];
       const analytics = await this.memoryIntelligence.generateMemoryAnalytics(filter?.userId || 'system');
       
       return {
         success: true,
         data: analytics,
-        timestamp: new Date().toISOString()
+        timestamp: createUnifiedTimestamp().utc
       };
 
     } catch (error) {
+      const entry = await this.errorHandler.handleError(error as Error, {
+        component: this.component,
+        operation: 'getMemoryAnalytics'
+      });
       return {
         success: false,
-        error: error instanceof Error ? error.message : 'Unknown error',
-        timestamp: new Date().toISOString()
+        error: 'Failed to generate memory analytics',
+        errorDetails: {
+          id: entry.id,
+          type: entry.type,
+          severity: entry.severity,
+          message: entry.message,
+          timestamp: entry.timestamp.utc
+        },
+        timestamp: createUnifiedTimestamp().utc,
+        traceId: entry.id
       };
     }
   }
@@ -194,26 +260,31 @@ export class PerformanceAPI {
   /**
    * Search memories with intelligence
    */
-  async searchMemories(query?: string, filter?: any): Promise<PerformanceAPIResponse> {
+  async searchMemories(query?: string, filter?: { limit?: number; userId?: string; type?: string; topK?: number; similarityThreshold?: number; model?: 'gemini-embedding-001' | 'text-embedding-004' | 'gemini-embedding-exp-03-07' }): Promise<PerformanceAPIResponse> {
     try {
       let results;
       
       if (query) {
         // Use semantic search
-        const searchResults = await this.embeddingsTool.semanticSearch(query, filter);
+        const searchResults = await this.embeddingsTool.semanticSearch(query, {
+          topK: filter?.topK,
+          similarityThreshold: filter?.similarityThreshold,
+          model: filter?.model
+        });
         results = {
           memories: searchResults.results.map(r => r.memory),
           analytics: searchResults.analytics,
           searchType: 'semantic'
-        };      } else {
+        };
+      } else {
         // Use basic search
-        const memoryResult = await this.memoryClient.searchMemory({
-          query: filter?.query || '',
+        const memoryResults = await this.memoryClient.searchMemory({
+          query: query,
           limit: filter?.limit || 50,
           type: 'system'
         });
         results = {
-          memories: memoryResult.results || [],
+          memories: memoryResults?.results || [],
           searchType: 'basic'
         };
       }
@@ -221,14 +292,27 @@ export class PerformanceAPI {
       return {
         success: true,
         data: results,
-        timestamp: new Date().toISOString()
+        timestamp: createUnifiedTimestamp().utc
       };
 
     } catch (error) {
+      const entry = await this.errorHandler.handleError(error as Error, {
+        component: this.component,
+        operation: 'searchMemories',
+        query
+      });
       return {
         success: false,
-        error: error instanceof Error ? error.message : 'Unknown error',
-        timestamp: new Date().toISOString()
+        error: 'Memory search failed',
+        errorDetails: {
+          id: entry.id,
+          type: entry.type,
+          severity: entry.severity,
+          message: entry.message,
+          timestamp: entry.timestamp.utc
+        },
+        timestamp: createUnifiedTimestamp().utc,
+        traceId: entry.id
       };
     }
   }
@@ -238,24 +322,26 @@ export class PerformanceAPI {
    */
   async createMemory(
     content: string,
-    metadata?: Record<string, any>,
+    metadata?: Record<string, unknown>,
     userId?: string,
     agentId?: string,
-    // workflowId?: string  // Currently unused
   ): Promise<PerformanceAPIResponse> {
-    try {      // Categorize and score the memory (create temporary memory object)
+    try {
+      // Categorize and score the memory (create temporary memory object)
       const tempMemory = { 
         id: 'temp', 
         content, 
         metadata: metadata || {},
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString()
+        createdAt: createUnifiedTimestamp().utc,
+        updatedAt: createUnifiedTimestamp().utc
       };
       
       const category = await this.memoryIntelligence.categorizeMemory(tempMemory);
-      const importance = await this.memoryIntelligence.calculateImportanceScore(tempMemory);      // Store with embedding and intelligence
+      const importance = await this.memoryIntelligence.calculateImportanceScore(tempMemory);
+      // Store with embedding and intelligence
       const result = await this.embeddingsTool.storeMemoryWithEmbedding(
-        content,        agentId || 'oneagent-system',
+        content,
+        agentId || 'oneagent-system',
         userId || 'system',
         'learning',
         {
@@ -266,21 +352,35 @@ export class PerformanceAPI {
       );
 
       return {
-        success: true,        data: {
+        success: true,
+        data: {
           memoryId: result.memoryId,
-          embedding: result.embedding,intelligence: {
-            category: category,
-            importance: importance
+          embedding: result.embedding,
+          intelligence: {
+            category,
+            importance
           }
         },
-        timestamp: new Date().toISOString()
+        timestamp: createUnifiedTimestamp().utc
       };
 
     } catch (error) {
+      const entry = await this.errorHandler.handleError(error as Error, {
+        component: this.component,
+        operation: 'createMemory'
+      });
       return {
         success: false,
-        error: error instanceof Error ? error.message : 'Unknown error',
-        timestamp: new Date().toISOString()
+        error: 'Failed to create memory',
+        errorDetails: {
+          id: entry.id,
+          type: entry.type,
+          severity: entry.severity,
+          message: entry.message,
+          timestamp: entry.timestamp.utc
+        },
+        timestamp: createUnifiedTimestamp().utc,
+        traceId: entry.id
       };
     }
   }
@@ -288,21 +388,34 @@ export class PerformanceAPI {
   /**
    * Get similar memories
    */
-  async getSimilarMemories(memoryId: string, options?: any): Promise<PerformanceAPIResponse> {
+  async getSimilarMemories(memoryId: string, options?: { limit?: number }): Promise<PerformanceAPIResponse> {
     try {
       const results = await this.embeddingsTool.findSimilarMemories(memoryId, options);
       
       return {
         success: true,
         data: results,
-        timestamp: new Date().toISOString()
+        timestamp: createUnifiedTimestamp().utc
       };
 
     } catch (error) {
+      const entry = await this.errorHandler.handleError(error as Error, {
+        component: this.component,
+        operation: 'getSimilarMemories',
+        memoryId
+      });
       return {
         success: false,
-        error: error instanceof Error ? error.message : 'Unknown error',
-        timestamp: new Date().toISOString()
+        error: 'Failed to retrieve similar memories',
+        errorDetails: {
+          id: entry.id,
+          type: entry.type,
+          severity: entry.severity,
+          message: entry.message,
+          timestamp: entry.timestamp.utc
+        },
+        timestamp: createUnifiedTimestamp().utc,
+        traceId: entry.id
       };
     }
   }
@@ -317,14 +430,26 @@ export class PerformanceAPI {
       return {
         success: true,
         data: { message: 'Performance data cleared' },
-        timestamp: new Date().toISOString()
+        timestamp: createUnifiedTimestamp().utc
       };
 
     } catch (error) {
+      const entry = await this.errorHandler.handleError(error as Error, {
+        component: this.component,
+        operation: 'clearPerformanceData'
+      });
       return {
         success: false,
-        error: error instanceof Error ? error.message : 'Unknown error',
-        timestamp: new Date().toISOString()
+        error: 'Failed to clear performance data',
+        errorDetails: {
+          id: entry.id,
+          type: entry.type,
+          severity: entry.severity,
+          message: entry.message,
+          timestamp: entry.timestamp.utc
+        },
+        timestamp: createUnifiedTimestamp().utc,
+        traceId: entry.id
       };
     }
   }
@@ -332,22 +457,25 @@ export class PerformanceAPI {
   /**
    * Record a performance event with metadata
    */
-  async recordEvent(eventType: string, data: Record<string, any>): Promise<void> {
+  async recordEvent(eventType: string, data: Record<string, unknown>): Promise<void> {
     try {
-      const operationId = this.generateUnifiedId('event', eventType);
+      const operationId = createUnifiedId('operation', `event_${eventType}`);
       globalProfiler.startOperation(operationId, eventType, data);
       globalProfiler.endOperation(operationId, true);
     } catch (error) {
-      // Silently handle errors to prevent disrupting main operations
-      console.warn(`Failed to record event ${eventType}:`, error);
+      await this.errorHandler.handleError(error as Error, {
+        component: this.component,
+        operation: 'recordEvent',
+        eventType
+      });
     }
   }
 
   /**
    * Record security-related events and metrics
    */
-  async recordSecurityEvent(eventType: string, metadata: Record<string, any>): Promise<void> {
-    const operationId = this.generateUnifiedId('security', eventType);
+  async recordSecurityEvent(eventType: string, metadata: Record<string, unknown>): Promise<void> {
+    const operationId = createUnifiedId('operation', `security_${eventType}`);
     globalProfiler.startOperation(operationId, `security_${eventType}`, metadata);
     globalProfiler.endOperation(operationId, true);
   }
@@ -363,21 +491,33 @@ export class PerformanceAPI {
         rateLimitViolations: 0, // Would be tracked by ContextManager
         authenticationFailures: 0, // Would be tracked by authentication system
         securityAlertsActive: 0, // Would be tracked by PerformanceBridge
-        lastSecurityScan: new Date().toISOString(),
+    lastSecurityScan: createUnifiedTimestamp().utc,
         securityLevel: 'operational' as 'secure' | 'operational' | 'warning' | 'critical'
       };
 
       return {
         success: true,
         data: securityStatus,
-        timestamp: new Date().toISOString()
+        timestamp: createUnifiedTimestamp().utc
       };
 
     } catch (error) {
+      const entry = await this.errorHandler.handleError(error as Error, {
+        component: this.component,
+        operation: 'getSecurityMetrics'
+      });
       return {
         success: false,
-        error: error instanceof Error ? error.message : 'Unknown error',
-        timestamp: new Date().toISOString()
+        error: 'Failed to retrieve security metrics',
+        errorDetails: {
+          id: entry.id,
+          type: entry.type,
+          severity: entry.severity,
+          message: entry.message,
+          timestamp: entry.timestamp.utc
+        },
+        timestamp: createUnifiedTimestamp().utc,
+        traceId: entry.id
       };
     }
   }
@@ -385,18 +525,5 @@ export class PerformanceAPI {
   /**
    * Generate unified ID following canonical architecture
    */
-  private generateUnifiedId(type: string, context?: string): string {
-    const timestamp = createUnifiedTimestamp().unix;
-    const randomSuffix = this.generateSecureRandomSuffix();
-    const prefix = context ? `${type}_${context}` : type;
-    return `${prefix}_${timestamp}_${randomSuffix}`;
-  }
-  
-  private generateSecureRandomSuffix(): string {
-    // Use crypto.randomUUID() for better randomness, fallback to Math.random()
-    if (typeof crypto !== 'undefined' && crypto.randomUUID) {
-      return crypto.randomUUID().split('-')[0]; // Use first segment
-    }
-    return Math.random().toString(36).substr(2, 9);
-  }
+  // Removed local ID generation to enforce canonical createUnifiedId usage (anti-parallel system compliance)
 }

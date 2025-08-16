@@ -196,7 +196,7 @@ export class SystemIntegrationVerifier {
   private static verifyAgentInterfaces(): boolean {
     try {
       // Mock agent config for testing
-      const testConfig: AgentConfig = {
+  const _testConfig: AgentConfig = {
         id: 'test-agent',
         name: 'Test Agent',
         description: 'Integration test agent',
@@ -204,6 +204,8 @@ export class SystemIntegrationVerifier {
         memoryEnabled: true,
         aiEnabled: true
       };
+      // Mark as used to satisfy linting rules without altering behavior
+      void _testConfig;
       
       // Test that all agents implement ISpecializedAgent interface
       // This is verified at compile time by TypeScript

@@ -4,6 +4,9 @@
 import { UnifiedMCPTool, ToolExecutionResult } from './UnifiedMCPTool';
 import { OneAgentMemory } from '../memory/OneAgentMemory';
 
+interface PatchResultDataShape { id?: string; userId?: string; metadata?: Record<string, unknown>; updatedAt?: string; }
+interface PatchResultShape { data?: PatchResultDataShape; message?: string; error?: string; timestamp?: string }
+
 interface MemoryEditArgs {
   memoryId: string;
   userId?: string;
@@ -41,7 +44,7 @@ export class OneAgentMemoryEditTool extends UnifiedMCPTool {
       const { memoryId, userId, update } = args;
       const patch: Record<string, unknown> = { ...update };
       if (userId) patch.userId = userId;
-      const result = await this.memoryClient.patchMemory(memoryId, patch);
+  const result = await this.memoryClient.patchMemory(memoryId, patch) as unknown as PatchResultShape | undefined;
       // Structured, typed output
       return {
         success: true,

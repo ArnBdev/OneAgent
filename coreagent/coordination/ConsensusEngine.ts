@@ -122,28 +122,32 @@ export class ConsensusEngine {
       console.warn('⚠️ Consensus validation issues:', validation.issues);
     }
 
-    // Store consensus result in memory
-    await this.memory.addMemory({
-      content: `Consensus Result: ${consensusResult.agreed ? 'AGREEMENT' : 'NO CONSENSUS'} - ${proposal}`,
-      user_id: 'system_consensus',
-      metadata: {
-        ...unifiedMetadataService.create('consensus_result', 'ConsensusEngine', {
-          system: {
-            source: 'consensus_building',
-            component: 'ConsensusEngine'
-          },
-          content: {
-            category: 'democratic_decision',
-            tags: ['consensus', 'democracy', 'decision-making'],
-            sensitivity: 'internal',
-            relevanceScore: consensusLevel,
-            contextDependency: 'session'
-          }
-        }),
-        entityType: 'ConsensusResult',
-        consensusData: consensusResult
-      }
-    });
+    // Store consensus result in canonical memory system
+    try {
+      const metadata = unifiedMetadataService.create('consensus_result', 'ConsensusEngine', {
+        system: {
+          source: 'consensus_building',
+          component: 'ConsensusEngine',
+          userId: 'system_consensus'
+        },
+        content: {
+          category: 'democratic_decision',
+          tags: ['consensus', 'democracy', 'decision-making'],
+          sensitivity: 'internal',
+          relevanceScore: consensusLevel,
+          contextDependency: 'session'
+        }
+      });
+  interface ConsensusMetadataExtension { consensusData?: ConsensusResult }
+  (metadata as ConsensusMetadataExtension).consensusData = consensusResult; // attach domain-specific payload
+      await this.memory.addMemoryCanonical(
+        `Consensus Result: ${consensusResult.agreed ? 'AGREEMENT' : 'NO CONSENSUS'} - ${proposal}`,
+        metadata,
+        'system_consensus'
+      );
+    } catch (memErr) {
+      console.warn('ConsensusEngine memory store failed:', memErr);
+    }
 
     console.log(`🤝 Consensus building complete: ${consensusResult.agreed ? 'AGREEMENT' : 'NO CONSENSUS'} (${(consensusLevel * 100).toFixed(1)}%)`);
     return consensusResult;

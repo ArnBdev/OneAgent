@@ -38,7 +38,7 @@ interface ComponentHealth {
   responseTime: number;
   errorRate: number;
   lastCheck: Date;
-  details: Record<string, any>;
+  details: Record<string, unknown>;
 }
 
 interface ComponentHealthMap {
@@ -209,10 +209,18 @@ export class HealthMonitoringService extends EventEmitter {
     }
   };
 
+  private static initLogged = false;
   constructor() {
     super();
-    
-    console.log('🏥 HealthMonitoringService initialized - Professional monitoring ready');
+    if (process.env.ONEAGENT_DISABLE_AUTO_MONITORING) {
+      if (!HealthMonitoringService.initLogged) {
+        console.log('🏥 HealthMonitoringService instantiation skipped (auto monitoring disabled)');
+        HealthMonitoringService.initLogged = true;
+      }
+    } else if (!HealthMonitoringService.initLogged) {
+      console.log('🏥 HealthMonitoringService initialized - Professional monitoring ready');
+      HealthMonitoringService.initLogged = true;
+    }
   }
 
   // =====================================
@@ -222,6 +230,11 @@ export class HealthMonitoringService extends EventEmitter {
   async startMonitoring(): Promise<void> {
     if (this.isMonitoring) {
       console.warn('⚠️ Health monitoring already active');
+      return;
+    }
+
+    if (process.env.ONEAGENT_DISABLE_AUTO_MONITORING) {
+      console.log('🛑 startMonitoring aborted: ONEAGENT_DISABLE_AUTO_MONITORING set');
       return;
     }
 
@@ -239,6 +252,8 @@ export class HealthMonitoringService extends EventEmitter {
         this.emit('monitoring_error', error);
       }
     }, this.config.monitoringInterval);
+  // Allow process to exit naturally in short-lived scripts (does not keep event loop alive)
+  this.monitoringInterval?.unref?.();
     
     console.log('✅ Health monitoring started - Professional observability active');
     this.emit('monitoring_started');
@@ -250,9 +265,9 @@ export class HealthMonitoringService extends EventEmitter {
     }
 
     this.isMonitoring = false;
-      if (this.monitoringInterval) {
+    if (this.monitoringInterval) {
       clearInterval(this.monitoringInterval);
-      this.monitoringInterval = undefined as any;
+      this.monitoringInterval = undefined as unknown as NodeJS.Timeout;
     }
     
     console.log('🛑 Health monitoring stopped');
@@ -755,5 +770,11 @@ export class HealthMonitoringService extends EventEmitter {
   }
 }
 
-// Export singleton instance
-export const healthMonitoringService = new HealthMonitoringService();
+// Lazy singleton accessor to prevent automatic interval side-effects on bare require
+let _healthMonitoringService: HealthMonitoringService | null = null;
+export const healthMonitoringService = (() => {
+  if (!_healthMonitoringService) {
+    _healthMonitoringService = new HealthMonitoringService();
+  }
+  return _healthMonitoringService;
+})();

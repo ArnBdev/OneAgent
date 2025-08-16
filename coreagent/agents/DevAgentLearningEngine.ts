@@ -20,7 +20,7 @@ import { CodeAnalysisResult } from './AdvancedCodeAnalysisEngine';
 import { getEnhancedTimeContext } from '../utils/EnhancedTimeAwareness.js';
 import { OneAgentUnifiedBackbone } from '../utils/UnifiedBackboneService.js';
 import { OneAgentMemory } from '../memory/OneAgentMemory';
-import { createUnifiedTimestamp } from '../utils/UnifiedBackboneService';
+import { createUnifiedTimestamp, unifiedMetadataService } from '../utils/UnifiedBackboneService';
 
 export interface LearnedPattern {
   id: string;
@@ -568,23 +568,31 @@ export class DevAgentLearningEngine {
    */
   private async storeNewPattern(pattern: LearnedPattern): Promise<LearnedPattern> {
     try {
-      await this.memoryBridge.addMemory({
-        id: `learned_pattern_${pattern.id}_${createUnifiedTimestamp().unix}`,
-        agentId: this.agentId,
-        learningType: 'pattern',
-        content: JSON.stringify(pattern),
+      const meta = unifiedMetadataService.create('learned_pattern', 'DevAgentLearningEngine', {
+        system: {
+          source: 'dev_agent_learning',
+          component: 'DevAgentLearningEngine',
+          userId: 'dev_agent'
+        },
+        content: {
+          category: 'learned_pattern',
+          tags: ['learning', pattern.category, pattern.language],
+          sensitivity: 'internal',
+          relevanceScore: pattern.confidence,
+          contextDependency: 'session'
+        }
+      });
+      interface PatternExt { custom?: Record<string, unknown>; }
+      (meta as PatternExt).custom = {
+        patternId: pattern.id,
+        language: pattern.language,
+        framework: pattern.framework,
+        category: pattern.category,
         confidence: pattern.confidence,
         applicationCount: pattern.timesUsed,
-        lastApplied: new Date(),
-        sourceConversations: [],
-        metadata: {
-          type: 'learned_pattern',
-          language: pattern.language,
-          framework: pattern.framework,
-          category: pattern.category
-        },
-        type: 'learned-patterns'
-      });
+        lastApplied: createUnifiedTimestamp().iso
+      };
+      await this.memoryBridge.addMemoryCanonical(JSON.stringify(pattern), meta, 'dev_agent');
       return pattern;
     } catch (error) {
       console.error('[LearningEngine] Failed to store new pattern:', error);
@@ -735,18 +743,18 @@ export class DevAgentLearningEngine {
         semanticSearch: true,
         type: 'learned-patterns'
       });
-      const patterns: LearnedPattern[] = [];
-      for (const memory of (memoryResult || []).slice(0, maxResults)) {
-        // Canonical: expect metadata.type === 'learned_pattern' and content is valid JSON
-        if (memory.metadata?.type === 'learned_pattern') {
-          try {
-            const pattern: LearnedPattern = JSON.parse(memory.content);
-            patterns.push(pattern);
-          } catch (error) {
-            console.warn('[LearningEngine] Failed to parse stored pattern (canonical):', error);
+      const list = memoryResult?.results || [];
+      const patterns: LearnedPattern[] = list.slice(0, maxResults).map(mem => {
+        try {
+          interface MemoryLike { metadata?: { type?: string }; }
+          if ((mem as MemoryLike).metadata?.type === 'learned_pattern') {
+            return JSON.parse(mem.content) as LearnedPattern;
           }
+        } catch (e) {
+          console.warn('[LearningEngine] Failed to parse pattern memory:', e);
         }
-      }
+        return null;
+      }).filter((p): p is LearnedPattern => !!p);
       return patterns;
     } catch (error) {
       console.error('[LearningEngine] Failed to search patterns in memory:', error);
@@ -804,23 +812,32 @@ export class DevAgentLearningEngine {
     await this.updatePatternInMemory(pattern);
     return pattern;
   }  private async updatePatternInMemory(pattern: LearnedPattern): Promise<void> {
-    await this.memoryBridge.addMemory({
-      id: `learned_pattern_${pattern.id}_${createUnifiedTimestamp().unix}`,
-      agentId: this.agentId,
-      learningType: 'pattern',
-      content: JSON.stringify(pattern),
+    const meta = unifiedMetadataService.create('learned_pattern', 'DevAgentLearningEngine', {
+      system: {
+        source: 'dev_agent_learning',
+        component: 'DevAgentLearningEngine',
+        userId: 'dev_agent'
+      },
+      content: {
+        category: 'learned_pattern',
+        tags: ['learning', pattern.category, pattern.language, 'update'],
+        sensitivity: 'internal',
+        relevanceScore: pattern.confidence,
+        contextDependency: 'session'
+      }
+    });
+    interface PatternUpdateExt { custom?: Record<string, unknown>; }
+    (meta as PatternUpdateExt).custom = {
+      patternId: pattern.id,
+      language: pattern.language,
+      framework: pattern.framework,
+      category: pattern.category,
       confidence: pattern.confidence,
       applicationCount: pattern.timesUsed,
-      lastApplied: new Date(),
-      sourceConversations: [],
-      metadata: {
-        type: 'learned_pattern',
-        language: pattern.language,
-        framework: pattern.framework,
-        category: pattern.category
-      },
-      type: 'learned-patterns'
-    });
+      lastApplied: createUnifiedTimestamp().iso,
+      updated: true
+    };
+    await this.memoryBridge.addMemoryCanonical(JSON.stringify(pattern), meta, 'dev_agent');
   }
 
   private async removePattern(patternId: string): Promise<void> {

@@ -243,15 +243,10 @@ export class AdvancedCodeAnalysisEngine {
         });
       }
 
-      const documentationResults: DocumentationResult[] = [];
-      for (const query of queries) {
-        // Canonical: Use UnifiedBackboneService.context7.queryDocumentation
-        // TODO: Use canonical Context7 documentation query utility/service here
-        // Placeholder: Replace with canonical Context7 documentation query
-        // const results = await unifiedContext7Documentation.queryDocumentation(query);
-        const results: DocumentationResult[] = [];
-        documentationResults.push(...results);
-      }
+  const documentationResults: DocumentationResult[] = [];
+  // Canonical: Use UnifiedBackboneService.context7.queryDocumentation
+  // TODO: Integrate canonical Context7 documentation query utility/service here
+  // Placeholder: documentation retrieval disabled until canonical service is wired
 
       return documentationResults
         .sort((a, b) => b.relevanceScore - a.relevanceScore)

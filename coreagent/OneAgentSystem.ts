@@ -17,7 +17,7 @@ import {
   ProjectScope,
   UnifiedTimestamp
 } from './types/oneagent-backbone-types.js';
-import { createUnifiedTimestamp } from './utils/UnifiedBackboneService';
+import { createUnifiedTimestamp, createUnifiedId } from './utils/UnifiedBackboneService';
 
 // Import existing agent infrastructure
 import { AgentFactory, AgentFactoryConfig } from './agents/base/AgentFactory';
@@ -477,7 +477,7 @@ export class OneAgentSystem extends EventEmitter {
    */
   private addToConversationHistory(from: string, content: string): void {
     const message: ConversationMessage = {
-      id: `msg_${createUnifiedTimestamp().unix}_${Math.random().toString(36).substr(2, 9)}`,
+  id: createUnifiedId('message', 'conversation'),
       timestamp: createUnifiedTimestamp(),
       from,
       content,

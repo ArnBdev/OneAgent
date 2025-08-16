@@ -19,6 +19,7 @@ import {
   UnifiedMetadataService 
 } from './oneagent-backbone-types';
 import { createUnifiedTimestamp } from '../utils/UnifiedBackboneService';
+import { environmentConfig } from '../config/EnvironmentConfig';
 
 // =============================================================================
 // CANONICAL AGENT CARD INTERFACE
@@ -281,7 +282,7 @@ export function createTestAgentCard(overrides: Partial<AgentCard> = {}): AgentCa
     agentType: 'test',
     description: 'Test agent for development',
     version: '1.0.0',
-    url: 'http://localhost:3000',
+  url: environmentConfig.endpoints.ui.url,
     status: 'active',
     health: 'healthy',
     lastHeartbeat: now,

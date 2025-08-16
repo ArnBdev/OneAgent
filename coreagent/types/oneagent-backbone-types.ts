@@ -763,6 +763,7 @@ export interface UnifiedAgentCommunicationInterface {
      * Event-driven coordination: subscribe to agent lifecycle and communication events
      */
     on(event: AgentCommunicationEvent, handler: (payload: unknown) => void): void;
+  off(event: AgentCommunicationEvent, handler: (payload: unknown) => void): void;
 
     /**
      * Extensibility: register new orchestration logic, protocols, or agent types

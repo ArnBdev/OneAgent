@@ -150,15 +150,15 @@ export class OneAgentTimeAwareness {
    */
   public getEnhancedTimeContext(): EnhancedTimeContext {
     const basicTime = OneAgentUnifiedBackbone.getInstance().getServices().timeService.getContext();
-    const unifiedTime = createUnifiedTimestamp();
-    const now = new Date(unifiedTime.unix * 1000); // Convert from canonical timestamp
+  const unifiedTime = createUnifiedTimestamp();
+  const now = new Date(unifiedTime.unix); // unix is already in ms
     
     return {
       ...basicTime,
       
       // Real-time awareness
       realTime: {
-        unix: unifiedTime.unix * 1000, // Use canonical time
+  unix: unifiedTime.unix, // Already ms
         utc: now.toISOString(),
         local: now.toLocaleString(),
         timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
@@ -188,12 +188,12 @@ export class OneAgentTimeAwareness {
     requiresRealTime?: boolean;
   } = {}): TemporalMetadata {
     const timeContext = this.getEnhancedTimeContext();
-    const unifiedTime = createUnifiedTimestamp();
+  const unifiedTime = createUnifiedTimestamp();
     
     return {
       realTime: {
-        createdAtUnix: unifiedTime.unix * 1000, // Use canonical time
-        updatedAtUnix: unifiedTime.unix * 1000,
+  createdAtUnix: unifiedTime.unix, // Already ms
+  updatedAtUnix: unifiedTime.unix,
         timezoneCaptured: timeContext.realTime.timezone,
         utcOffset: timeContext.realTime.offset
       },
@@ -252,8 +252,8 @@ export class OneAgentTimeAwareness {
    * Get life coaching appropriate time context
    */
   private getLifeContext(now: Date): EnhancedTimeContext['lifeContext'] {
-    const dayNames = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
-    const dayOfWeek = dayNames[now.getDay()] as any;
+  const dayNames = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'] as const;
+  const dayOfWeek = dayNames[now.getDay()];
     const hour = now.getHours();
     const month = now.getMonth();
     
@@ -386,7 +386,7 @@ export class OneAgentTimeAwareness {
            timeContext.lifeContext.timeOfDay === 'evening';
   }
   
-  private inferTimeframe(_timeContext: EnhancedTimeContext, options: any): TemporalMetadata['lifeCoaching']['goalTimeline']['timeframe'] {
+  private inferTimeframe(_timeContext: EnhancedTimeContext, options: { deadline?: Date }): TemporalMetadata['lifeCoaching']['goalTimeline']['timeframe'] {
     if (options.deadline) {
       const daysToDeadline = Math.floor((options.deadline.getTime() - createUnifiedTimestamp().unix) / (1000 * 60 * 60 * 24));
       if (daysToDeadline <= 1) return 'daily';

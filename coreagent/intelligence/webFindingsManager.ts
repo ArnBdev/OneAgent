@@ -395,9 +395,11 @@ export class WebFindingsManager {
 
   private setupCleanupInterval(): void {
     if (this.config.storage.autoCleanupInterval > 0) {
-      setInterval(() => {
+  const t = setInterval(() => {
         this.cleanupFindings().catch(console.error);
-      }, this.config.storage.autoCleanupInterval);
+  }, this.config.storage.autoCleanupInterval);
+  // Avoid holding the process open for background cleanup
+  t.unref?.();
     }
   }
 
@@ -436,7 +438,7 @@ export class WebFindingsManager {
       tags.push('documentation');
     } else if (queryLower.includes('error') || queryLower.includes('troubleshoot') || queryLower.includes('fix')) {
       category = 'troubleshooting';
-      importance += 0.15;
+      importance += 0.2;
       tags.push('troubleshooting');
     } else if (queryLower.includes('tutorial') || queryLower.includes('guide') || queryLower.includes('how to')) {
       category = 'research';
@@ -464,7 +466,7 @@ export class WebFindingsManager {
     };
   }
 
-  private async classifyFetchFinding(url: string, response: WebFetchResponse, extracted: any): Promise<WebFetchFinding['classification']> {
+  private async classifyFetchFinding(url: string, response: WebFetchResponse, extracted: WebFetchFinding['extracted']): Promise<WebFetchFinding['classification']> {
     // Basic classification based on URL and content
     let category: WebFetchFinding['classification']['category'] = 'other';
     let importance = 0.5;
@@ -554,7 +556,7 @@ export class WebFindingsManager {
 
     try {
       let content: string;
-      let metadata: Record<string, any>;
+      let metadata: Record<string, unknown>;
 
       if ('query' in finding) {
         // Search finding
@@ -582,7 +584,7 @@ export class WebFindingsManager {
       await this.memoryIntelligence.storeMemory(content, finding.metadata.userId || 'system', metadata);
       console.log(`💾 Finding persisted to memory system: ${finding.id}`);
 
-    } catch (error) {
+  } catch (error) {
       console.error('❌ Failed to persist to memory system:', error);
     }
   }
@@ -595,7 +597,7 @@ export class WebFindingsManager {
       await fs.mkdir(path.dirname(filepath), { recursive: true });
       await fs.writeFile(filepath, JSON.stringify(finding, null, 2));
 
-    } catch (error) {
+  } catch (error) {
       console.error('❌ Failed to save finding to disk:', error);
     }
   }
@@ -637,12 +639,12 @@ export class WebFindingsManager {
               if (this.matchesSearchOptions(finding, options)) {
                 findings.push(finding);
               }
-            } catch (error) {
+    } catch {
               console.warn(`⚠️ Failed to parse search finding: ${filename}`);
             }
           }
         }
-      } catch (error) {
+  } catch {
         // Directory might not exist yet
       }
 
@@ -659,17 +661,17 @@ export class WebFindingsManager {
               if (this.matchesSearchOptions(finding, options)) {
                 findings.push(finding);
               }
-            } catch (error) {
+    } catch {
               console.warn(`⚠️ Failed to parse fetch finding: ${filename}`);
             }
           }
         }
-      } catch (error) {
+  } catch {
         // Directory might not exist yet
       }
 
       return findings;
-    } catch (error) {
+  } catch (error) {
       console.error('❌ Failed to search persistent storage:', error);
       return [];
     }
@@ -737,14 +739,15 @@ export class WebFindingsManager {
   private calculateCacheSize(): { sizeInMB: number; oldestEntry: string; newestEntry: string } {
     let totalSize = 0;
     const currentTime = createUnifiedTimestamp();
-    let oldestTime = currentTime.unix;
-    let newestTime = 0;
+    let oldestTime = currentTime.unix; // ms
+    let newestTime = 0; // ms
+    let entries = 0;
 
     // Calculate search cache size
     for (const finding of Array.from(this.searchCache.values())) {
       const findingSize = JSON.stringify(finding).length;
       totalSize += findingSize;
-      
+      entries++;
       const timestamp = new Date(finding.metadata.timestamp).getTime();
       oldestTime = Math.min(oldestTime, timestamp);
       newestTime = Math.max(newestTime, timestamp);
@@ -754,16 +757,19 @@ export class WebFindingsManager {
     for (const finding of Array.from(this.fetchCache.values())) {
       const findingSize = JSON.stringify(finding).length;
       totalSize += findingSize;
-      
+      entries++;
       const timestamp = new Date(finding.metadata.timestamp).getTime();
       oldestTime = Math.min(oldestTime, timestamp);
       newestTime = Math.max(newestTime, timestamp);
     }
 
+    const oldestIso = entries > 0 ? new Date(oldestTime).toISOString() : currentTime.iso;
+    const newestIso = entries > 0 ? new Date((newestTime || oldestTime)).toISOString() : currentTime.iso;
+
     return {
       sizeInMB: totalSize / (1024 * 1024),
-      oldestEntry: new Date(oldestTime * 1000).toISOString(),
-      newestEntry: new Date(newestTime * 1000).toISOString()
+      oldestEntry: oldestIso,
+      newestEntry: newestIso
     };
   }
 
@@ -790,12 +796,12 @@ export class WebFindingsManager {
               const finding: WebSearchFinding = JSON.parse(content);
               searchFindings++;
               totalImportance += finding.classification.importance;
-            } catch (error) {
+    } catch {
               // Skip corrupted files
             }
           }
         }
-      } catch (error) {
+  } catch {
         // Directory might not exist
       }
 
@@ -814,12 +820,12 @@ export class WebFindingsManager {
               const finding: WebFetchFinding = JSON.parse(content);
               fetchFindings++;
               totalImportance += finding.classification.importance;
-            } catch (error) {
+    } catch {
               // Skip corrupted files
             }
           }
         }
-      } catch (error) {
+  } catch {
         // Directory might not exist
       }
 
@@ -832,7 +838,7 @@ export class WebFindingsManager {
         avgImportance: totalFindings > 0 ? totalImportance / totalFindings : 0,
         storageSize: totalSize / (1024 * 1024) // Convert to MB
       };
-    } catch (error) {
+  } catch (error) {
       console.error('❌ Failed to calculate persistent stats:', error);
       return {
         totalFindings: 0,
@@ -847,11 +853,11 @@ export class WebFindingsManager {
   private async cleanupCache(): Promise<{ expired: number; lowImportance: number }> {
     let expired = 0;
     let lowImportance = 0;
-    const now = createUnifiedTimestamp();
+  const now = createUnifiedTimestamp();
 
     // Clean search cache
     for (const [key, finding] of Array.from(this.searchCache.entries())) {
-      const age = now.unix - new Date(finding.storage.lastAccessed).getTime();
+  const age = new Date(now.iso).getTime() - new Date(finding.storage.lastAccessed).getTime();
       if (age > finding.storage.ttl) {
         this.searchCache.delete(key);
         expired++;
@@ -863,7 +869,7 @@ export class WebFindingsManager {
 
     // Clean fetch cache
     for (const [key, finding] of Array.from(this.fetchCache.entries())) {
-      const age = now.unix - new Date(finding.storage.lastAccessed).getTime();
+  const age = new Date(now.iso).getTime() - new Date(finding.storage.lastAccessed).getTime();
       if (age > finding.storage.ttl) {
         this.fetchCache.delete(key);
         expired++;
@@ -881,7 +887,7 @@ export class WebFindingsManager {
     let lowImportance = 0;
     const duplicates = 0;
     let spaceSaved = 0;
-    const now = createUnifiedTimestamp();
+  const now = createUnifiedTimestamp();
 
     try {
       // Cleanup search findings
@@ -896,7 +902,7 @@ export class WebFindingsManager {
               const content = await fs.readFile(filepath, 'utf-8');
               const finding: WebSearchFinding = JSON.parse(content);
               
-              const age = now.unix - new Date(finding.storage.lastAccessed).getTime();
+              const age = new Date(now.iso).getTime() - new Date(finding.storage.lastAccessed).getTime();
               const shouldDelete = age > finding.storage.ttl || 
                                  finding.classification.importance < 0.3;
               
@@ -907,12 +913,12 @@ export class WebFindingsManager {
                 if (age > finding.storage.ttl) expired++;
                 else lowImportance++;
               }
-            } catch (error) {
+    } catch {
               // Skip corrupted files
             }
           }
         }
-      } catch (error) {
+  } catch {
         // Directory might not exist
       }
 
@@ -928,7 +934,7 @@ export class WebFindingsManager {
               const content = await fs.readFile(filepath, 'utf-8');
               const finding: WebFetchFinding = JSON.parse(content);
               
-              const age = now.unix - new Date(finding.storage.lastAccessed).getTime();
+              const age = new Date(now.iso).getTime() - new Date(finding.storage.lastAccessed).getTime();
               const shouldDelete = age > finding.storage.ttl || 
                                  finding.classification.importance < 0.3;
               
@@ -939,12 +945,12 @@ export class WebFindingsManager {
                 if (age > finding.storage.ttl) expired++;
                 else lowImportance++;
               }
-            } catch (error) {
+    } catch {
               // Skip corrupted files
             }
           }
         }
-      } catch (error) {
+  } catch {
         // Directory might not exist
       }
 
@@ -954,8 +960,8 @@ export class WebFindingsManager {
         duplicates, 
         spaceSaved: spaceSaved / (1024 * 1024) // Convert to MB
       };
-    } catch (error) {
-      console.error('❌ Failed to cleanup persistent storage:', error);
+  } catch {
+      console.error('❌ Failed to cleanup persistent storage');
       return { expired: 0, lowImportance: 0, duplicates: 0, spaceSaved: 0 };
     }
   }
@@ -967,7 +973,7 @@ export class WebFindingsManager {
     try {
       const urlObj = new URL(url);
       return urlObj.hostname;
-    } catch (error) {
+  } catch {
       // If URL parsing fails, return the URL as-is
       return url;
     }

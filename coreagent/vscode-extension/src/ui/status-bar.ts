@@ -24,9 +24,11 @@ export class OneAgentStatusBar implements vscode.Disposable {
         this.updateStatus();
         
         // Set up periodic updates every 30 seconds
-        this.updateInterval = setInterval(() => {
+    this.updateInterval = setInterval(() => {
             this.updateStatus();
         }, 30000);
+    // Allow extension host to exit when idle
+    (this.updateInterval as unknown as NodeJS.Timer).unref?.();
         
         // Listen for configuration changes
         this.disposables.push(
@@ -63,7 +65,7 @@ export class OneAgentStatusBar implements vscode.Disposable {
                         this.statusBarItem.color = new vscode.ThemeColor('statusBarItem.warningForeground');
                         this.statusBarItem.tooltip = 'OneAgent connected but health check failed - Click for details';
                     }
-                } catch (error) {
+                } catch {
                     // Basic connection works but detailed health failed
                     this.statusBarItem.text = "$(check) OneAgent Ready";
                     this.statusBarItem.backgroundColor = undefined;
@@ -105,10 +107,12 @@ export class OneAgentStatusBar implements vscode.Disposable {
         this.statusBarItem.text = message;
         this.statusBarItem.tooltip = 'OneAgent Professional - Temporary message';
         
-        setTimeout(() => {
+    const t = setTimeout(() => {
             this.statusBarItem.text = originalText;
             this.statusBarItem.tooltip = originalTooltip;
         }, durationMs);
+    // Do not keep extension host alive solely for timeout
+    (t as unknown as NodeJS.Timer).unref?.();
     }
     
     /**

@@ -102,15 +102,18 @@ export class PerformanceMonitor {
     let totalSuccesses = 0;
     let totalOperations = 0;
 
-    for (const [operation, _] of this.metrics) {
-      const metrics = await this.getMetrics(operation);
+    this.metrics.forEach((_v, operation) => {
+      // We'll accumulate synchronously using existing stored samples (avoid awaiting inside forEach)
+      const m = this.metrics.get(operation)!;
+      const avg = m.latencies.length ? m.latencies.reduce((s,l)=>s+l,0)/m.latencies.length : 0;
+      const errRate = m.total ? m.errors / m.total : 0;
+      const metrics: OperationMetrics = { averageLatency: avg, errorRate: errRate, successCount: m.successes, totalOperations: m.total };
       operations[operation] = metrics;
-      
       totalLatency += metrics.averageLatency * metrics.totalOperations;
       totalErrors += metrics.totalOperations * metrics.errorRate;
       totalSuccesses += metrics.successCount;
       totalOperations += metrics.totalOperations;
-    }
+    });
 
     const overall = {
       averageLatency: totalOperations > 0 ? totalLatency / totalOperations : 0,
@@ -157,60 +160,77 @@ export class PerformanceMonitor {
     averageLatency: number;
     exceededBy: number;
   }[]> {
-    const slowOperations = [];
+  const slowOperations: { operation: string; averageLatency: number; exceededBy: number }[] = [];
     
-    for (const [operation, _] of this.metrics) {
-      const metrics = await this.getMetrics(operation);
-      if (metrics.averageLatency > latencyThreshold) {
-        slowOperations.push({
-          operation,
-          averageLatency: metrics.averageLatency,
-          exceededBy: metrics.averageLatency - latencyThreshold
-        });
+    this.metrics.forEach((_v, operation) => {
+      const m = this.metrics.get(operation)!;
+      const avg = m.latencies.length ? m.latencies.reduce((s,l)=>s+l,0)/m.latencies.length : 0;
+      if (avg > latencyThreshold) {
+        slowOperations.push({ operation, averageLatency: avg, exceededBy: avg - latencyThreshold });
       }
-    }
-
+    });
     return slowOperations.sort((a, b) => b.exceededBy - a.exceededBy);
   }
 
-  /**
-   * Performance alert system
-   * WHY: Proactive monitoring and alerting
-   */
-  async checkPerformanceAlerts(): Promise<{
-    alerts: string[];
-    recommendations: string[];
-  }> {
-    const alerts: string[] = [];
-    const recommendations: string[] = [];
-    
-    const summary = await this.getPerformanceSummary();
-    
-    // Check overall health
-    if (summary.healthStatus === 'CRITICAL') {
-      alerts.push('CRITICAL: System performance severely degraded');
-      recommendations.push('Immediate investigation required - consider scaling or optimization');
-    } else if (summary.healthStatus === 'WARNING') {
-      alerts.push('WARNING: System performance below targets');
-      recommendations.push('Monitor closely and consider performance optimization');
-    }
-
-    // Check specific operations
-    const slowOps = await this.getSlowOperations();
-    if (slowOps.length > 0) {
-      alerts.push(`${slowOps.length} operations exceed 50ms target`);
-      recommendations.push(`Focus optimization on: ${slowOps.slice(0, 3).map(op => op.operation).join(', ')}`);
-    }
-
-    // Check error rates
-    if (summary.overall.errorRate > 0.05) {
-      alerts.push(`High error rate: ${(summary.overall.errorRate * 100).toFixed(2)}%`);
-      recommendations.push('Investigate error causes and improve error handling');
-    }
-
-    return { alerts, recommendations };
+  // >>> Canonical Extensions (no parallel systems) >>>
+  // Ingest duration from operation_metric event metadata (durationMs) into canonical store
+  recordDurationFromEvent(operation: string, durationMs: number): void {
+    if (typeof durationMs !== 'number' || !isFinite(durationMs) || durationMs < 0) return;
+    const op = this.getOrCreateOperationMetrics(operation);
+    op.latencies.push(durationMs);
+    op.successes += 1;
+    op.total += 1;
+    if (op.latencies.length > this.maxSampleSize) op.latencies.shift();
   }
 
+  private computePercentile(sorted: number[], p: number): number {
+    if (!sorted.length) return 0;
+    const idx = Math.min(sorted.length - 1, Math.ceil((p / 100) * sorted.length) - 1);
+    return sorted[idx];
+  }
+
+  async getDetailedMetrics(operation: string): Promise<{ operation: string; count: number; avgLatency: number; p95: number; p99: number; errorRate: number; recentErrors: number; recommendations: string[]; }> {
+    const op = this.getOrCreateOperationMetrics(operation);
+    const sorted = [...op.latencies].sort((a,b)=>a-b);
+    const avgLatency = sorted.length ? sorted.reduce((s,v)=>s+v,0)/sorted.length : 0;
+    const p95 = this.computePercentile(sorted,95);
+    const p99 = this.computePercentile(sorted,99);
+    const errorRate = op.total ? op.errors / op.total : 0;
+    const recommendations: string[] = [];
+    if (p95 > 3000) recommendations.push(`High p95 latency (${p95.toFixed(0)}ms) - investigate batching or dependency latency.`);
+    if (errorRate > 0.1) recommendations.push(`Elevated error rate ${(errorRate*100).toFixed(1)}% - improve error handling/retries.`);
+    if (!recommendations.length) recommendations.push('Operation performance within targets.');
+    return { operation, count: op.total, avgLatency, p95, p99, errorRate, recentErrors: op.errors, recommendations };
+  }
+
+  async getGlobalReport(): Promise<{ totalOperations: number; averageLatency: number; p95Latency: number; p99Latency: number; errorRate: number; operationBreakdown: Record<string, { count: number; avgDuration: number; errorCount: number; p95: number; p99: number }>; recommendations: string[]; }> {
+    type InternalMetrics = { latencies: number[]; errors: number; successes: number; total: number };
+    const operationBreakdown: Record<string, { count: number; avgDuration: number; errorCount: number; p95: number; p99: number }> = {};
+    const all: number[] = [];
+    let totalErrors = 0; let total = 0;
+    this.metrics.forEach((data, operation) => {
+      const d = data as InternalMetrics;
+      const sorted = d.latencies.slice().sort((a,b)=>a-b);
+      const avg = sorted.length ? sorted.reduce((s,v)=>s+v,0)/sorted.length : 0;
+      const p95 = this.computePercentile(sorted,95);
+      const p99 = this.computePercentile(sorted,99);
+      operationBreakdown[operation] = { count: d.total, avgDuration: avg, errorCount: d.errors, p95, p99 };
+      sorted.forEach(v=>all.push(v));
+      totalErrors += d.errors;
+      total += d.total;
+    });
+    const sortedAll = all.sort((a,b)=>a-b);
+    const averageLatency = sortedAll.length ? sortedAll.reduce((s,v)=>s+v,0)/sortedAll.length : 0;
+    const p95Latency = this.computePercentile(sortedAll,95);
+    const p99Latency = this.computePercentile(sortedAll,99);
+    const errorRate = total ? totalErrors / total : 0;
+    const recommendations: string[] = [];
+    if (p95Latency > 3000) recommendations.push('System-wide high p95 latency - profile hotspots.');
+    if (errorRate > 0.1) recommendations.push('High overall error rate - audit failing operations.');
+    if (!recommendations.length) recommendations.push('Overall performance within targets.');
+    return { totalOperations: total, averageLatency, p95Latency, p99Latency, errorRate, operationBreakdown, recommendations };
+  }
+  // <<< Canonical Extensions End <<<
   // Private helper methods
   private getOrCreateOperationMetrics(operation: string) {
     if (!this.metrics.has(operation)) {

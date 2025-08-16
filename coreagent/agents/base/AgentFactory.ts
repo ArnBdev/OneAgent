@@ -7,7 +7,7 @@
 
 import { BaseAgent, AgentConfig } from './BaseAgent';
 import { ISpecializedAgent } from './ISpecializedAgent';
-import { PromptConfig } from './PromptEngine';
+import { PromptConfig, AgentPersona } from './PromptEngine';
 import { OfficeAgent } from '../specialized/OfficeAgent';
 import { FitnessAgent } from '../specialized/FitnessAgent';
 import { DevAgent } from '../specialized/DevAgent';
@@ -15,7 +15,7 @@ import { CoreAgent } from '../specialized/CoreAgent';
 import { TriageAgent } from '../specialized/TriageAgent';
 import { PlannerAgent } from '../specialized/PlannerAgent';
 import { ValidationAgent } from '../specialized/ValidationAgent';
-import { unifiedBackbone, createUnifiedTimestamp } from '../../utils/UnifiedBackboneService.js';
+import { unifiedBackbone, createUnifiedId } from '../../utils/UnifiedBackboneService';
 // Fix: Use canonical AgentType from coreagent/types/oneagent-backbone-types
 import type { AgentType as CanonicalAgentType } from '../../types/oneagent-backbone-types';
 
@@ -83,34 +83,94 @@ const AGENT_TYPE_PERSONA_MAP: Record<string, string> = {
 };
 
 function buildPromptConfig(factoryConfig: AgentFactoryConfig): PromptConfig | undefined {
-  // Load persona YAML (override or mapped default)
-  let persona: Record<string, unknown> | undefined = undefined;
-  if (factoryConfig.personaYaml) {
-    persona = loadYamlFile(factoryConfig.personaYaml) as Record<string, unknown>;
-  } else if (factoryConfig.type && AGENT_TYPE_PERSONA_MAP[factoryConfig.type]) {
-    persona = loadYamlFile(AGENT_TYPE_PERSONA_MAP[factoryConfig.type]) as Record<string, unknown>;
-  } else if (Object.keys(personaYamls).length > 0) {
-    // Use first persona YAML as default (or improve selection logic)
-    persona = personaYamls[Object.keys(personaYamls)[0]] as Record<string, unknown>;
-  }
-  // Load quality YAML (override or default)
-  let quality: Record<string, unknown> | undefined = undefined;
-  if (factoryConfig.qualityYaml) {
-    quality = loadYamlFile(factoryConfig.qualityYaml) as Record<string, unknown>;
-  } else if (qualityYamls['constitutional-ai']) {
-    quality = qualityYamls['constitutional-ai'] as Record<string, unknown>;
-  }
-  
-  // If we can't load the required configuration, return undefined
-  // This will cause agents to fall back to their default prompt configuration
-  if (!persona || !quality) {
+  try {
+    // Load persona YAML (override or mapped default)
+  // Use unknown then refine
+  let personaRaw: unknown;
+    if (factoryConfig.personaYaml) {
+      personaRaw = loadYamlFile(factoryConfig.personaYaml);
+    } else if (factoryConfig.type && AGENT_TYPE_PERSONA_MAP[factoryConfig.type]) {
+      personaRaw = loadYamlFile(AGENT_TYPE_PERSONA_MAP[factoryConfig.type]);
+    } else if (Object.keys(personaYamls).length > 0) {
+      personaRaw = personaYamls[Object.keys(personaYamls)[0]];
+    }
+
+    // Load quality YAML (override or default)
+  let qualityRaw: unknown;
+    if (factoryConfig.qualityYaml) {
+      qualityRaw = loadYamlFile(factoryConfig.qualityYaml);
+    } else if (qualityYamls['constitutional-ai']) {
+      qualityRaw = qualityYamls['constitutional-ai'];
+    }
+
+    if (!personaRaw || !qualityRaw) return undefined; // fallback to defaults
+
+    // Map persona YAML -> AgentPersona
+  interface PersonaRaw { [k: string]: unknown; role?: string; name?: string; style?: string; core_principles?: string[]; coreStrength?: string; communication_style?: { tone?: string }; frameworks?: { primary?: string; secondary?: string }; principles?: string[]; capabilities?: { frameworks?: string[] }; quality_standards?: { minimum_score?: number }; }
+  const pRaw = personaRaw as PersonaRaw | undefined; // limited scope
+    const agentPersona: AgentPersona = {
+      role: pRaw?.role || pRaw?.name || `${factoryConfig.type} agent`,
+      style: pRaw?.style || pRaw?.communication_style?.tone || 'professional',
+      coreStrength: (pRaw?.core_principles && Array.isArray(pRaw.core_principles) && pRaw.core_principles[0]) || pRaw?.coreStrength || 'multi-domain reasoning',
+      principles: Array.isArray(pRaw?.core_principles) ? pRaw!.core_principles : (pRaw?.principles || []),
+      frameworks: (() => {
+        const primary = pRaw?.frameworks?.primary;
+        const secondary = pRaw?.frameworks?.secondary;
+        const arr: string[] = [];
+        if (primary) arr.push(primary as string);
+        if (secondary) arr.push(secondary as string);
+        return arr;
+      })()
+    };
+
+    // Map quality YAML -> constitutional principles + threshold
+  interface QualityRaw { [k: string]: unknown; principles?: Record<string, { name?: string; description?: string; validation_rules?: string[]; severity?: string }>; scoring_criteria?: Record<string, { weight?: number }>; validation_process?: { quality_threshold?: number }; }
+  const qRaw = qualityRaw as QualityRaw | undefined;
+  const principlesSection = qRaw?.principles || {};
+  const scoring = qRaw?.scoring_criteria || {};
+  const validationProcess = qRaw?.validation_process || {};
+
+    const allowedCategories = new Set(['accuracy','transparency','helpfulness','safety']);
+    const constitutionalPrinciples = Object.keys(principlesSection).filter(k => allowedCategories.has(k)).map((key: string) => {
+      const entry = (principlesSection as Record<string, { name?: string; description?: string; validation_rules?: string[]; severity?: string }>)[key];
+      const weight = scoring[key]?.weight ? Number(scoring[key].weight) / 10 : 1; // normalize
+      return {
+        id: key,
+        name: entry.name || key,
+        description: entry.description || '',
+        category: key as 'accuracy'|'transparency'|'helpfulness'|'safety',
+        weight: weight || 1,
+        isViolated: false,
+        confidence: 1,
+        validationRule: Array.isArray(entry.validation_rules) ? entry.validation_rules.join('; ') : 'content.length > 0',
+        severityLevel: (entry.severity || 'medium') as 'low'|'medium'|'high'|'critical'
+      };
+    });
+
+    if (constitutionalPrinciples.length === 0) return undefined;
+
+  const qualityThreshold = Number((pRaw?.quality_standards && pRaw.quality_standards.minimum_score) || validationProcess.quality_threshold) || 85;
+
+    const enabledFrameworks: string[] = [];
+    if (Array.isArray(pRaw?.capabilities?.frameworks)) {
+      enabledFrameworks.push(...pRaw.capabilities.frameworks);
+    }
+    if (Array.isArray(agentPersona.frameworks)) enabledFrameworks.push(...agentPersona.frameworks);
+
+    // Build PromptConfig
+    const promptConfig: PromptConfig = {
+      agentPersona,
+      constitutionalPrinciples,
+      enabledFrameworks: Array.from(new Set(enabledFrameworks)),
+      enableCoVe: true,   // default enable advanced verification
+      enableRAG: true,    // enable retrieval context
+      qualityThreshold
+    };
+    return promptConfig;
+  } catch (err) {
+    console.warn('Failed to build prompt config from YAML:', err);
     return undefined;
   }
-  
-  // TODO: Properly map YAML structure to EnhancedPromptConfig
-  // For now, return undefined to use default configuration in BaseAgent
-  // This allows the system to work while we implement proper YAML mapping
-  return undefined;
 }
 
 // Define supported agent types for mappings
@@ -203,12 +263,11 @@ export class AgentFactory {
     const modelSelection = AgentFactory.selectOptimalModel(factoryConfig);
     // Create unified agent context for consistent time/metadata across all agents
     const backboneAgentType = factoryConfig.type;
-    const timestamp = createUnifiedTimestamp();
     const unifiedContext = unifiedBackbone.createAgentContext(
       factoryConfig.id,
       backboneAgentType as CanonicalAgentType,
       {
-        sessionId: factoryConfig.sessionId || this.generateSecureUnifiedId('session', timestamp.unix.toString()),
+        sessionId: factoryConfig.sessionId || createUnifiedId('session', backboneAgentType),
         ...(factoryConfig.userId && { userId: factoryConfig.userId }),
         capabilities: factoryConfig.customCapabilities || (isSupportedAgentType(factoryConfig.type) ? AgentFactory.DEFAULT_CAPABILITIES[factoryConfig.type] : []),
         memoryEnabled: factoryConfig.memoryEnabled ?? true,
@@ -248,7 +307,7 @@ export class AgentFactory {
         agent = new TriageAgent(agentConfig, promptConfig);
         break;
       case 'planner':
-        agent = new PlannerAgent(agentConfig);
+        agent = new PlannerAgent(agentConfig, promptConfig);
         break;
       case 'validator':
         agent = new ValidationAgent(agentConfig);
@@ -459,23 +518,5 @@ export class AgentFactory {
       costPerInteraction: Math.round(costPerInteraction * 10000) / 10000,
       recommendations
     };
-  }
-
-  /**
-   * Generate secure unified ID following canonical architecture
-   */
-  private static generateSecureUnifiedId(type: string, context?: string): string {
-    const timestamp = createUnifiedTimestamp().unix;
-    const randomSuffix = this.generateSecureRandomSuffix();
-    const prefix = context ? `${type}_${context}` : type;
-    return `${prefix}_${timestamp}_${randomSuffix}`;
-  }
-  
-  private static generateSecureRandomSuffix(): string {
-    // Use crypto.randomUUID() for better randomness, fallback to Math.random()
-    if (typeof crypto !== 'undefined' && crypto.randomUUID) {
-      return crypto.randomUUID().split('-')[0]; // Use first segment
-    }
-    return Math.random().toString(36).substr(2, 9);
   }
 }

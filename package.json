@@ -10,7 +10,7 @@
     "server:unified": "npx tsx coreagent/server/unified-mcp-server.ts",
     "server:unified:dev": "npx nodemon --exec npx tsx coreagent/server/unified-mcp-server.ts",
     "memory:server": "python servers/oneagent_memory_server.py",
-    "test": "node scripts/dev-utils.js test",
+  "test": "node scripts/dev-utils.cjs test",
     "test:api": "ts-node tests/test-real-api.ts",
     "test:key": "ts-node tests/test-api-key.ts",
     "test:imports": "ts-node tests/test-import.ts",
@@ -35,11 +35,18 @@
     "lint": "eslint . --ext .ts --fix",
     "lint:check": "eslint . --ext .ts",
     "type-check": "tsc --noEmit",
-    "verify": "npm run type-check && npm run lint:check",
-    "format": "echo \"Formatting setup needed - add Prettier configuration\"",
+  "verify": "npm run type-check && npm run lint:check",
+  "verify:runtime": "npm run verify && npm run smoke:runtime",
+  "verify:final": "ts-node scripts/final-verification.ts",
+  "guardrails": "node scripts/guardrails-scan.cjs",
+  "smoke": "ts-node tests/canonical/unified-systems.smoke.test.ts",
+  "smoke:mcp": "ts-node tests/smoke/mcp-startup.smoke.ts",
+  "smoke:runtime": "ts-node scripts/runtime-smoke.ts",
+  "format": "npx prettier --write .",
     "ui:dev": "vite",
     "ui:build": "vite build",
-    "ui:preview": "vite preview"
+  "ui:preview": "vite preview",
+  "test:ops": "node ./tests/monitoring/operation-metrics-summary.test.ts"
   },
   "keywords": [
     "ai",
@@ -53,6 +60,7 @@
   ],
   "author": "Arne",
   "license": "MIT",
+  "type": "commonjs",
   "engines": {
     "node": ">=22.0.0",
     "npm": ">=10.0.0"
@@ -103,6 +111,7 @@
     "ts-node": "^10.9.2",
     "typescript": "^5.3.0",
     "typescript-eslint": "^8.36.0",
-    "vite": "^4.4.0"
+  "vite": "^4.4.0",
+  "tsx": "^4.20.4"
   }
 }

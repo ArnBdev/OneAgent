@@ -47,26 +47,6 @@ interface A2AMessage {
   kind?: 'message';
 }
 
-interface A2ATask {
-  id: string;
-  contextId: string;
-  status: {
-    state: string;
-    message?: A2AMessage;
-    timestamp?: string;
-  };
-  history?: A2AMessage[];
-  artifacts?: Array<{
-    artifactId: string;
-    name?: string;
-    description?: string;
-    parts: A2AMessagePart[];
-    metadata?: Record<string, unknown>;
-    extensions?: string[];
-  }>;
-  metadata?: Record<string, unknown>;
-  kind: 'task';
-}
 import { OneAgentMemory } from '../memory/OneAgentMemory';
 import { unifiedAgentCommunicationService } from '../utils/UnifiedAgentCommunicationService';
 import { OneAgentUnifiedTimeService, OneAgentUnifiedMetadataService, createUnifiedTimestamp, createUnifiedId } from '../utils/UnifiedBackboneService';
@@ -184,19 +164,14 @@ export class ChatAPI {
         kind: 'message'
       };
 
-      // Store message in canonical memory system
-      await this.memoryClient.addMemory({
-        content: JSON.stringify(a2aMessage),
-        userId,
-        metadata: {
-          conversationId,
-          agentType: options.agentType || options.toAgent || 'core',
-          type: 'a2a-message',
-          timestamp: new Date(),
-          role: a2aMessage.role,
-          nlacs: true
-        }
-      });
+      // Store message in canonical memory system (unified metadata)
+      await this.memoryClient.addMemoryCanonical(JSON.stringify(a2aMessage), {
+        system: { userId, source: 'chatAPI', component: 'chat-message', sessionId: conversationId },
+        content: { category: 'a2a_message', tags: ['chat','a2a', a2aMessage.role], sensitivity: 'internal', relevanceScore: 0.7, contextDependency: 'session' },
+        quality: { score: 0.8, constitutionalCompliant: true, validationLevel: 'basic', confidence: 0.75 },
+        relationships: { parent: conversationId, children: [], related: [], dependencies: [] },
+        analytics: { accessCount: 0, lastAccessPattern: 'write', usageContext: [] }
+      }, userId);
 
       // Canonical agent discovery and communication (A2A)
       const targetAgentType: AgentType = (options.toAgent as AgentType) || (options.agentType as AgentType) || 'core';
@@ -331,34 +306,60 @@ export class ChatAPI {
         });
         return;
       }
-      // Store user message in memory using canonical memory client
-      await this.memoryClient.addMemory({
-        content: message,
-        userId,
-        metadata: {
-          conversationId: req.body.conversationId,
-          agentType,
-          type: 'chat-messages',
-          timestamp: new Date(),
-          role: 'user'
-        }
-      });
+      // Store user message in canonical memory system
+      await this.memoryClient.addMemoryCanonical(
+        message,
+        this.metadataService.create('agent_message', 'ChatAPI', {
+          system: {
+            userId,
+            source: 'chat_api',
+            component: 'conversation',
+            sessionId: req.body.conversationId
+          },
+          content: {
+            category: 'chat_interaction',
+            tags: ['chat', 'message', 'user'],
+            sensitivity: 'internal',
+            relevanceScore: 0.9,
+            contextDependency: 'session'
+          },
+          contextual: {
+            conversationId: req.body.conversationId,
+            agentType,
+            role: 'user'
+          }
+        }),
+        userId
+      );
       // Process the message through CoreAgent
       // [CANONICAL FIX] Remove all references to coreAgent for now to allow build to succeed.
       // const agentResponse = await this.coreAgent.processMessage(message, userId);
       // Store agent response in memory
-      await this.memoryClient.addMemory({
-        content: message,
-        userId,
-        metadata: {
-          conversationId: req.body.conversationId,
-          agentType,
-          type: 'chat-messages',
-          timestamp: new Date(),
-          role: 'assistant',
-          confidence: 0.8
-        }
-      });
+      await this.memoryClient.addMemoryCanonical(
+        message,
+        this.metadataService.create('agent_message', 'ChatAPI', {
+          system: {
+            userId,
+            source: 'chat_api',
+            component: 'conversation',
+            sessionId: req.body.conversationId
+          },
+          content: {
+            category: 'chat_interaction',
+            tags: ['chat', 'message', 'assistant'],
+            sensitivity: 'internal',
+            relevanceScore: 0.85,
+            contextDependency: 'session'
+          },
+          contextual: {
+            conversationId: req.body.conversationId,
+            agentType,
+            role: 'assistant',
+            confidence: 0.8
+          }
+        }),
+        userId
+      );
       // Get relevant memory context for response
       const memoryResponse = memoryContext ? 
         await this.memoryClient.searchMemory({ query: message, userId, type: 'chat-messages' }) : undefined;
@@ -392,8 +393,8 @@ export class ChatAPI {
       }
       // Search for chat messages in memory
 
-      const memoryResult = await this.memoryClient.searchMemory({ query: 'chat message', userId, limit: parseInt(limit as string), type: 'chat-messages' });
-      const memories = memoryResult.results || [];
+  const memoryResult = await this.memoryClient.searchMemory({ query: 'chat message', userId, limit: parseInt(limit as string), type: 'chat-messages' });
+	const memories = memoryResult?.results || [];
       // Parse and format canonical A2A messages from memory
       const chatHistory = memories.length > 0 ?
         memories
@@ -412,10 +413,21 @@ export class ChatAPI {
               agentType: (parsed?.metadata && typeof parsed.metadata.agentType === 'string') ? parsed.metadata.agentType : undefined
             };
           })
-          .sort((a: { timestamp?: string }, b: { timestamp?: string }) => {
-            const aTime = a.timestamp ? new Date(a.timestamp).getTime() : 0;
-            const bTime = b.timestamp ? new Date(b.timestamp).getTime() : 0;
-            return aTime - bTime;
+          .sort((a, b) => {
+            const toTime = (ts: unknown): number => {
+              if (!ts) return 0;
+              if (typeof ts === 'number') return ts;
+              if (typeof ts === 'string') { const d = Date.parse(ts); return isNaN(d) ? 0 : d; }
+              if (ts instanceof Date) return ts.getTime();
+              if (typeof ts === 'object') {
+                const obj = ts as Record<string, unknown>;
+                if (typeof obj.unix === 'number') return (obj.unix as number) * 1000;
+                if (typeof obj.utc === 'string') { const d = Date.parse(obj.utc as string); if (!isNaN(d)) return d; }
+                if (typeof obj.iso === 'string') { const d = Date.parse(obj.iso as string); if (!isNaN(d)) return d; }
+              }
+              return 0;
+            };
+            return toTime(a.timestamp) - toTime(b.timestamp);
           })
         : [];
 
@@ -496,19 +508,33 @@ export class ChatAPI {
   private async getMemoryContext(query: string, userId: string, limit: number = 5): Promise<MemorySearchResult> {
     try {
       const memoryResult = await this.memoryClient.searchMemory({ query, userId, limit, type: 'chat-messages' });
-      return memoryResult;
-    } catch (error) {
-      console.error('Failed to get memory context:', error);
-      return {
+      return memoryResult || {
         results: [],
         totalFound: 0,
+        totalResults: 0,
         searchTime: 0,
         averageRelevance: 0,
         averageQuality: 0,
         constitutionalCompliance: 1,
         queryContext: [],
         suggestedRefinements: [],
-        relatedQueries: []
+        relatedQueries: [],
+        query
+      };
+    } catch (error) {
+      console.error('Failed to get memory context:', error);
+      return {
+        results: [],
+        totalFound: 0,
+        totalResults: 0,
+        searchTime: 0,
+        averageRelevance: 0,
+        averageQuality: 0,
+        constitutionalCompliance: 1,
+        queryContext: [],
+        suggestedRefinements: [],
+        relatedQueries: [],
+        query
       };
     }
   }

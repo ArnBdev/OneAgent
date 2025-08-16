@@ -4,7 +4,7 @@
  */
 
 import { OneAgentMemory } from './OneAgentMemory';
-import { createUnifiedTimestamp } from '../utils/UnifiedBackboneService';
+import { createUnifiedTimestamp, unifiedMetadataService } from '../utils/UnifiedBackboneService';
 
 export interface BatchOperation {
   type: 'add' | 'search' | 'edit' | 'delete';
@@ -12,10 +12,12 @@ export interface BatchOperation {
   id?: string;
 }
 
+export interface BatchOperationResult { type: string; result: unknown; id?: string }
+export interface BatchOperationError { type: string; error: string; id?: string }
 export interface BatchResult {
   success: boolean;
-  results: any[];
-  errors: any[];
+  results: BatchOperationResult[];
+  errors: BatchOperationError[];
   processingTime: number;
 }
 
@@ -49,6 +51,8 @@ export class BatchMemoryOperations {
       this.batchTimer = setTimeout(() => {
         this.processBatch();
       }, this.batchTimeout);
+  // Do not keep the process alive solely for batch flush
+  (this.batchTimer as unknown as NodeJS.Timer).unref?.();
     }
   }
 
@@ -72,8 +76,8 @@ export class BatchMemoryOperations {
 
     console.log(`[BatchMemoryOperations] Processing batch of ${operations.length} operations`);
 
-    const results: any[] = [];
-    const errors: any[] = [];
+  const results: BatchOperationResult[] = [];
+  const errors: BatchOperationError[] = [];
 
     // Group operations by type for efficient processing
     const grouped = this.groupOperationsByType(operations);
@@ -98,7 +102,7 @@ export class BatchMemoryOperations {
       }
     } catch (error) {
       console.error('[BatchMemoryOperations] Batch processing error:', error);
-      errors.push({ error: error instanceof Error ? error.message : String(error), operations: operations.length });
+  errors.push({ type: 'batch', error: error instanceof Error ? error.message : String(error) });
     }
 
     const processingTime = createUnifiedTimestamp().unix - startTime;
@@ -131,11 +135,48 @@ export class BatchMemoryOperations {
   /**
    * Process batch add operations
    */
-  private async processBatchAdd(operations: BatchOperation[], results: any[], errors: any[]): Promise<void> {
+  private async processBatchAdd(operations: BatchOperation[], results: BatchOperationResult[], errors: BatchOperationError[]): Promise<void> {
     for (const op of operations) {
       try {
-        const result = await this.memory.addMemory(op.data);
-        results.push({ type: 'add', result, id: op.id });
+        // Derive canonical fields from legacy/op data
+        const data = op.data as Record<string, unknown>;
+        const content = typeof data.content === 'string'
+          ? data.content
+          : typeof data.text === 'string'
+            ? data.text
+            : JSON.stringify({ ...(data || {}), metadata: undefined });
+        const userId = typeof data.userId === 'string'
+          ? data.userId
+          : typeof (data as Record<string, unknown>).user_id === 'string'
+            ? String((data as Record<string, unknown>).user_id)
+            : 'default-user';
+        const rawMeta = (data.metadata as Record<string, unknown>) || {};
+        const type = (rawMeta.type as string) || 'batch_memory';
+
+        // Build partial UnifiedMetadata (let addMemoryCanonical finalize timestamps/system)
+        const metadata = {
+          type,
+          system: {
+            userId,
+            source: 'BatchMemoryOperations',
+            component: 'batch-processor'
+          },
+          content: {
+            category: 'batch',
+            tags: ['batch', 'memory', type],
+            sensitivity: 'internal',
+            relevanceScore: 0.5,
+            contextDependency: 'session'
+          },
+          custom: {
+            originalMetadata: rawMeta,
+            batchId: op.id,
+            queuedAt: createUnifiedTimestamp().iso
+          }
+        } as unknown as ReturnType<typeof unifiedMetadataService.create>; // treated as Partial<UnifiedMetadata>
+
+        const newId = await this.memory.addMemoryCanonical(content, metadata, userId);
+        results.push({ type: 'add', result: { id: newId }, id: op.id });
       } catch (error) {
         errors.push({ type: 'add', error: error instanceof Error ? error.message : String(error), id: op.id });
       }
@@ -145,7 +186,7 @@ export class BatchMemoryOperations {
   /**
    * Process batch search operations
    */
-  private async processBatchSearch(operations: BatchOperation[], results: any[], errors: any[]): Promise<void> {
+  private async processBatchSearch(operations: BatchOperation[], results: BatchOperationResult[], errors: BatchOperationError[]): Promise<void> {
     for (const op of operations) {
       try {
         const result = await this.memory.searchMemory(op.data);
@@ -159,7 +200,7 @@ export class BatchMemoryOperations {
   /**
    * Process batch edit operations
    */
-  private async processBatchEdit(operations: BatchOperation[], results: any[], errors: any[]): Promise<void> {
+  private async processBatchEdit(operations: BatchOperation[], results: BatchOperationResult[], errors: BatchOperationError[]): Promise<void> {
     for (const op of operations) {
       try {
         // Note: editMemory method needs to be implemented in OneAgentMemory
@@ -174,7 +215,7 @@ export class BatchMemoryOperations {
   /**
    * Process batch delete operations
    */
-  private async processBatchDelete(operations: BatchOperation[], results: any[], errors: any[]): Promise<void> {
+  private async processBatchDelete(operations: BatchOperation[], results: BatchOperationResult[], errors: BatchOperationError[]): Promise<void> {
     for (const op of operations) {
       try {
         const data = op.data as Record<string, unknown>;

@@ -26,9 +26,11 @@ import { createUnifiedTimestamp, createUnifiedId, OneAgentUnifiedBackbone } from
  */
 export interface MonitoringEvent {
   id: string;
-  type: 'health_check' | 'performance_alert' | 'constitutional_violation' | 'predictive_alert' | 'system_recovery';
+    type: 'health_check' | 'performance_alert' | 'constitutional_violation' | 'predictive_alert' | 'system_recovery' | 'operation_metric' | 'diagnostic_log';
   severity: 'info' | 'warning' | 'error' | 'critical';
   component: string;
+  // Explicit operation name when applicable (set for operation_metric; may be present for others)
+  operation?: string;
   message: string;
   data: Record<string, unknown>;
   timestamp: string;
@@ -82,7 +84,7 @@ export class UnifiedMonitoringService extends EventEmitter {
   constructor(performanceMonitor?: PerformanceMonitor, healthMonitoringService?: HealthMonitoringService, triageAgent?: TriageAgent) {
     super();
     this.performanceMonitor = performanceMonitor || new PerformanceMonitor();
-    this.healthMonitoringService = healthMonitoringService || new HealthMonitoringService();
+  this.healthMonitoringService = healthMonitoringService || new HealthMonitoringService();
     if (triageAgent) this.triageAgent = triageAgent;
     this.setupEventForwarding();
   }
@@ -119,6 +121,7 @@ export class UnifiedMonitoringService extends EventEmitter {
       type,
       severity,
       component,
+      operation: typeof data.operation === 'string' ? data.operation : undefined,
       message,
       data,
       timestamp: createUnifiedTimestamp().iso
@@ -147,7 +150,11 @@ export class UnifiedMonitoringService extends EventEmitter {
 
     try {
       // Start underlying monitoring services
-      await this.healthMonitoringService.startMonitoring();
+      if (!process.env.ONEAGENT_DISABLE_MONITORING) {
+        await this.healthMonitoringService.startMonitoring();
+      } else {
+        console.log('[UnifiedMonitoringService] Monitoring disabled via ONEAGENT_DISABLE_MONITORING env flag');
+      }
 
       // Start unified monitoring loop with Constitutional AI validation
       this.monitoringInterval = setInterval(async () => {
@@ -159,7 +166,9 @@ export class UnifiedMonitoringService extends EventEmitter {
               error: error instanceof Error ? error.message : String(error) 
             });
         }
-      }, this.config.monitoringInterval);
+  }, this.config.monitoringInterval);
+  // Allow process exit in short-lived scripts/tests
+  this.monitoringInterval?.unref?.();
 
       console.log('✅ UnifiedMonitoringService started - Constitutional AI monitoring active');
       this.emit('monitoring_started');
@@ -287,7 +296,7 @@ export class UnifiedMonitoringService extends EventEmitter {
         constitutionalAI: { status: 'healthy', complianceRate: 100, operational: true }
       },
       metrics: {
-        uptime: createUnifiedTimestamp().unix * 1000 - ((healthReport.performance as unknown as Record<string, unknown>)?.startTime as number || createUnifiedTimestamp().unix * 1000),
+  uptime: createUnifiedTimestamp().unix - ((healthReport.performance as unknown as Record<string, unknown>)?.startTime as number || createUnifiedTimestamp().unix),
         errorRate: 0,
         performanceScore: 95
       }
@@ -300,10 +309,125 @@ export class UnifiedMonitoringService extends EventEmitter {
   }
 
   /**
+   * Canonical operation tracking entry point.
+   * Records lightweight operation metrics as monitoring events without introducing a parallel metrics store.
+   * Constitutional AI Principles:
+   *  - Accuracy: Only records provided data, no speculative aggregation.
+   *  - Transparency: Emits explicit operation_metric event with component & operation.
+   *  - Helpfulness: Enables downstream analysis (frequency, error ratio) via existing eventHistory.
+   *  - Safety: Avoids unbounded custom state or duplicate counters.
+   */
+  trackOperation(
+    component: string,
+    operation: string,
+    status: 'success' | 'error',
+    meta: Record<string, unknown> = {}
+  ): void {
+    // Severity heuristic: errors escalate for visibility
+    const severity: MonitoringEvent['severity'] = status === 'error' ? 'warning' : 'info';
+    const data = { operation, status, ...meta } as Record<string, unknown>;
+    this.handleMonitoringEvent(
+      'operation_metric',
+      severity,
+      component,
+      `operation:${operation} status:${status}`,
+      data
+    );
+    // Canonical latency ingestion: if durationMs provided, feed into PerformanceMonitor (no parallel store)
+    const duration = meta?.durationMs;
+    if (typeof duration === 'number' && isFinite(duration) && duration >= 0) {
+      try {
+        this.performanceMonitor.recordDurationFromEvent(operation, duration);
+      } catch (err) {
+        // Fall back to monitoring event instead of throwing
+        this.handleMonitoringEvent('diagnostic_log', 'warning', 'unified-monitoring', 'Failed to ingest operation duration', {
+          operation,
+          duration,
+          error: err instanceof Error ? err.message : String(err)
+        });
+      }
+    }
+  }
+
+  /**
+   * Derive aggregate operation metrics from existing monitoring events (no parallel state).
+   * Returns counts per component/operation and error ratios. Computation is on-demand and lightweight.
+   * This preserves the single source of truth (eventHistory) while enabling analytics.
+   */
+  summarizeOperationMetrics(options: { window?: number; componentFilter?: string } = {}): {
+    generatedAt: string;
+    totalOperations: number;
+    components: Record<string, {
+      operations: Record<string, { success: number; error: number; total: number; errorRate: number }>;
+      totals: { success: number; error: number; total: number; errorRate: number };
+    }>;
+  } {
+    const { window, componentFilter } = options;
+    const now = Date.now();
+    const cutoff = window ? now - window : 0;
+
+    const ops = this.eventHistory.filter(e => e.type === 'operation_metric' && (!componentFilter || e.component === componentFilter));
+    const filtered = window ? ops.filter(e => {
+      const ts = Date.parse(e.timestamp);
+      return isFinite(ts) ? ts >= cutoff : true;
+    }) : ops;
+
+    const components: Record<string, { operations: Record<string, { success: number; error: number; total: number; errorRate: number }>; totals: { success: number; error: number; total: number; errorRate: number } }> = {};
+
+    for (const ev of filtered) {
+      const { component } = ev;
+      const op = (ev.data.operation as string) || 'unknown';
+      const status = (ev.data.status as string) === 'error' ? 'error' : 'success';
+      if (!components[component]) {
+        components[component] = { operations: {}, totals: { success: 0, error: 0, total: 0, errorRate: 0 } };
+      }
+      const comp = components[component];
+      if (!comp.operations[op]) {
+        comp.operations[op] = { success: 0, error: 0, total: 0, errorRate: 0 };
+      }
+      const rec = comp.operations[op];
+      rec[status] += 1;
+      rec.total += 1;
+      comp.totals[status] += 1;
+      comp.totals.total += 1;
+    }
+
+    // finalize error rates
+    Object.values(components).forEach(c => {
+      Object.values(c.operations).forEach(r => {
+        r.errorRate = r.total ? r.error / r.total : 0;
+      });
+      c.totals.errorRate = c.totals.total ? c.totals.error / c.totals.total : 0;
+    });
+
+    const totalOperations = filtered.length;
+
+    return {
+      generatedAt: createUnifiedTimestamp().iso,
+      totalOperations,
+      components
+    };
+  }
+
+  /**
    * Get recent monitoring events
    */
   getRecentEvents(limit = 50): MonitoringEvent[] {
     return this.eventHistory.slice(-limit);
+  }
+
+  /**
+   * Wrapper exposing detailed metrics from canonical PerformanceMonitor (no parallel state)
+   */
+  async getDetailedOperationMetrics(operation: string) {
+    return this.performanceMonitor.getDetailedMetrics(operation);
+  }
+
+  /**
+   * Wrapper exposing global performance report from canonical PerformanceMonitor
+   */
+  async getGlobalPerformanceReport() {
+    return this.performanceMonitor.getGlobalReport();
   }
 
   /**
@@ -399,4 +523,27 @@ export class UnifiedMonitoringService extends EventEmitter {
 }
 
 // Export singleton instance
-export const unifiedMonitoringService = new UnifiedMonitoringService();
+// Optional auto-instantiation: can be disabled for lightweight scripts / tests
+// Set ONEAGENT_DISABLE_AUTO_MONITORING=1 to prevent creation on import
+// Export either a real monitoring service or a lightweight no-op stub when disabled.
+export const unifiedMonitoringService: UnifiedMonitoringService = process.env.ONEAGENT_DISABLE_AUTO_MONITORING
+  ? ({
+      // Minimal no-op implementation (cast to satisfy typing)
+      startMonitoring: async () => { /* monitoring disabled */ },
+      stopMonitoring: async () => { /* monitoring disabled */ },
+      trackOperation: (_component: string, _operation: string, _status: string, _meta?: Record<string, unknown>) => { /* no-op */ },
+  getRecentEvents: (_limit?: number) => [],
+      getSystemHealth: async () => ({ overall: 'healthy' }),
+      emit: () => true,
+      on: () => (unifiedMonitoringService as unknown as UnifiedMonitoringService),
+      once: () => (unifiedMonitoringService as unknown as UnifiedMonitoringService),
+      off: () => (unifiedMonitoringService as unknown as UnifiedMonitoringService),
+      addListener: () => (unifiedMonitoringService as unknown as UnifiedMonitoringService),
+      removeListener: () => (unifiedMonitoringService as unknown as UnifiedMonitoringService),
+      removeAllListeners: () => (unifiedMonitoringService as unknown as UnifiedMonitoringService),
+      listenerCount: () => 0,
+      listeners: () => [],
+      // Internal flags used occasionally
+      isMonitoring: false
+    } as unknown as UnifiedMonitoringService)
+  : new UnifiedMonitoringService();

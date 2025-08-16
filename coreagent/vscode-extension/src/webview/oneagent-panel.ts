@@ -42,12 +42,16 @@ export class OneAgentPanel implements vscode.WebviewViewProvider {
             }
         );
         
-        // Update every 60 seconds
-        setInterval(() => {
+        // Update every 60 seconds (non-critical timer, unref to not hold process open)
+        const refreshTimer = setInterval(() => {
             if (this._view?.visible) {
                 this.updateWebview();
             }
         }, 60000);
+        // Prevent this timer from blocking shutdown
+        if (typeof (refreshTimer as unknown as { unref?: () => void }).unref === 'function') {
+            (refreshTimer as unknown as { unref: () => void }).unref();
+        }
     }
     
     private async updateWebview() {
@@ -73,16 +77,22 @@ export class OneAgentPanel implements vscode.WebviewViewProvider {
         }
     }
     
-    private getWebviewContent(isConnected: boolean, healthData: any): string {
+    private getWebviewContent(isConnected: boolean, healthData: unknown): string {
         const config = this.client.getConfiguration();
         
         if (!isConnected) {
             return this.getOfflineWebviewContent(config);
         }
-        
-        const metrics = healthData?.metrics || {};
-        const components = healthData?.components || {};
-        const capabilities = healthData?.capabilities || [];
+    const hd = (healthData as Record<string, unknown>) || {};
+    const metrics = (hd.metrics as Record<string, unknown>) || {};
+        const components = (hd.components as Record<string, { status?: string }>) || {} as Record<string, { status?: string }>;
+        const capabilities = Array.isArray(hd.capabilities) ? (hd.capabilities as string[]) : [];
+
+    const version = typeof hd.version === 'string' ? hd.version : '1.0.0';
+    const qualityScore = typeof metrics.qualityScore === 'number' ? metrics.qualityScore : 0;
+    const totalOperations = typeof metrics.totalOperations === 'number' ? metrics.totalOperations : 0;
+    const averageLatency = typeof metrics.averageLatency === 'number' ? metrics.averageLatency : 0;
+    const errorRate = typeof metrics.errorRate === 'number' ? metrics.errorRate : 0;
         
         return `
         <!DOCTYPE html>
@@ -221,32 +231,32 @@ export class OneAgentPanel implements vscode.WebviewViewProvider {
                     <span class="status-indicator status-online"></span>
                     OneAgent Professional
                 </h2>
-                <div class="version">Version ${healthData?.version || '1.0.0'}</div>
+                <div class="version">Version ${version}</div>
             </div>
             
             <div class="section">
                 <div class="section-title">📊 Performance Metrics</div>
                 <div class="metric-card">
-                    <div class="metric-value">${Math.round(metrics.qualityScore || 0)}%</div>
+                    <div class="metric-value">${Math.round(qualityScore)}%</div>
                     <div class="metric-label">Quality Score</div>
                 </div>
                 <div class="metric-card">
-                    <div class="metric-value">${metrics.totalOperations || 0}</div>
+                    <div class="metric-value">${totalOperations}</div>
                     <div class="metric-label">Total Operations</div>
                 </div>
                 <div class="metric-card">
-                    <div class="metric-value">${metrics.averageLatency || 0}ms</div>
+                    <div class="metric-value">${averageLatency}ms</div>
                     <div class="metric-label">Average Latency</div>
                 </div>
                 <div class="metric-card">
-                    <div class="metric-value">${((metrics.errorRate || 0) * 100).toFixed(2)}%</div>
+                    <div class="metric-value">${(errorRate * 100).toFixed(2)}%</div>
                     <div class="metric-label">Error Rate</div>
                 </div>
             </div>
             
             <div class="section">
                 <div class="section-title">🔧 Components</div>
-                ${Object.entries(components).map(([name, comp]: [string, any]) => `
+                ${Object.entries(components).map(([name, comp]: [string, { status?: string }]) => `
                     <div class="component">
                         <span class="component-name">${this.formatComponentName(name)}</span>
                         <span class="component-status">${comp.status || 'unknown'}</span>
@@ -310,7 +320,8 @@ export class OneAgentPanel implements vscode.WebviewViewProvider {
         </html>`;
     }
     
-    private getOfflineWebviewContent(config: any): string {
+    private getOfflineWebviewContent(config: { serverUrl: string; enableConstitutionalAI?: boolean; qualityThreshold?: number } | unknown): string {
+        const cfg = (config as { serverUrl: string; enableConstitutionalAI?: boolean; qualityThreshold?: number }) || { serverUrl: '' };
         return `
         <!DOCTYPE html>
         <html lang="en">
@@ -390,7 +401,7 @@ export class OneAgentPanel implements vscode.WebviewViewProvider {
             
             <div class="config-item">
                 <span><strong>Server URL:</strong></span>
-                <span>${config.serverUrl}</span>
+                <span>${cfg.serverUrl}</span>
             </div>
             
             <div class="troubleshooting">
@@ -414,16 +425,19 @@ export class OneAgentPanel implements vscode.WebviewViewProvider {
                     vscode.postMessage({ type, command });
                 }
                 
-                // Auto-retry every 10 seconds
-                setInterval(() => {
+                // Auto-retry every 10 seconds (non-critical)
+                const retryTimer = setInterval(() => {
                     sendMessage('refresh');
                 }, 10000);
+                if (typeof (retryTimer as any).unref === 'function') {
+                    (retryTimer as any).unref();
+                }
             </script>
         </body>
         </html>`;
     }
     
-    private getErrorWebviewContent(error: any): string {
+    private getErrorWebviewContent(error: unknown): string {
         return `
         <!DOCTYPE html>
         <html lang="en">

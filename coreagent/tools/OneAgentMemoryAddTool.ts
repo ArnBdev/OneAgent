@@ -3,6 +3,7 @@
 // Integrates with backbone metadata, temporal/canonic methods, and intelligence system where applicable
 import { UnifiedMCPTool, ToolExecutionResult } from './UnifiedMCPTool';
 import { OneAgentMemory } from '../memory/OneAgentMemory';
+import { UnifiedMetadata } from '../types/oneagent-backbone-types';
 
 interface MemoryAddArgs {
   content: string;
@@ -44,32 +45,28 @@ export class OneAgentMemoryAddTool extends UnifiedMCPTool {
       // Use optimized add method for better quota management
       const useBatch = content.length < 100; // Use batching for smaller content
       
-      let result;
+      let memoryId: string | undefined;
       if (useBatch) {
-        // Queue for batch processing (reduces quota usage)
         await this.memoryClient.addMemoryBatch({ content, userId, metadata });
-        result = { 
-          message: 'Memory queued for batch processing',
-          data: { content, userId, metadata, batched: true }
-        };
       } else {
-        // Direct add for larger content
-        result = await this.memoryClient.addMemory({ content, userId, metadata });
+        // Always prefer canonical path; build minimal partial unified metadata if caller passed simple object
+        const meta = (metadata as Partial<UnifiedMetadata>) || { content: { category: 'general', tags: ['tool'], sensitivity: 'internal', relevanceScore: 0.5, contextDependency: 'session' } } as Partial<UnifiedMetadata>;
+        memoryId = await this.memoryClient.addMemoryCanonical(content, meta, userId);
       }
       
       // Structured, typed output
       return {
         success: true,
         data: {
-          id: result?.data?.id || result?.id,
-          content: result?.data?.content || content,
-          userId: result?.data?.userId || userId,
-          metadata: result?.data?.metadata || metadata || {},
-          createdAt: result?.data?.createdAt,
-          updatedAt: result?.data?.updatedAt,
-          message: result?.message || 'Memory created successfully',
-          error: result?.error || null,
-          timestamp: result?.timestamp || new Date().toISOString(),
+          id: memoryId,
+          content,
+          userId,
+          metadata: metadata || {},
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+          message: useBatch ? 'Memory queued for batch processing' : 'Memory created successfully (canonical)',
+          error: null,
+          timestamp: new Date().toISOString(),
           batched: useBatch
         }
       };

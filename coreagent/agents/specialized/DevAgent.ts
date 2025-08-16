@@ -11,7 +11,8 @@
  */
 
 import { BaseAgent, AgentConfig, AgentContext, AgentResponse } from '../base/BaseAgent';
-import type { AgentMessage } from '../../types/oneagent-backbone-types';
+import type { AgentMessage, MemoryRecord } from '../../types/oneagent-backbone-types';
+import { createUnifiedTimestamp, unifiedMetadataService } from '../../utils/UnifiedBackboneService';
 import { ISpecializedAgent } from '../base/ISpecializedAgent';
 import { PromptConfig } from '../base/PromptEngine';
 
@@ -70,6 +71,41 @@ export class DevAgent extends BaseAgent implements ISpecializedAgent {
     };
     this.conversationHistory.push(userMessage);
 
+    // Persist user message in unified memory (canonical) with timestamp
+    try {
+      const metadata = unifiedMetadataService.create('dev_agent_user_message', 'DevAgent', {
+        system: {
+          source: 'dev_agent',
+          component: 'DevAgent',
+          sessionId: context.sessionId,
+          userId: context.user.id
+        },
+        content: {
+          category: 'dev_agent_user_message',
+          tags: ['dev', 'user_message'],
+          sensitivity: 'internal',
+          relevanceScore: 0.1,
+          contextDependency: 'session'
+        }
+      });
+      await this.memoryClient?.addMemoryCanonical(message, metadata, context.user.id);
+    } catch (memoryErr) {
+      console.warn(`⚠️ DevAgent memory add failed: ${memoryErr}`);
+    }
+
+    // Attempt retrieval of prior similar memories for lightweight contextual enhancement
+    let priorMemories: MemoryRecord[] = [];
+    try {
+      const search = await this.memoryClient?.searchMemory({
+        query: message.slice(0, 80),
+        limit: 3,
+        filters: { type: 'dev_agent_user_message', agentId: this.config.id }
+      });
+  priorMemories = search?.results || [];
+    } catch (searchErr) {
+      console.warn(`⚠️ DevAgent memory search failed: ${searchErr}`);
+    }
+
     // Analyze the request type
     const requestType = this.analyzeRequestType(message);
     
@@ -90,7 +126,7 @@ export class DevAgent extends BaseAgent implements ISpecializedAgent {
     };
     this.conversationHistory.push(agentMessage);
 
-    return this.createDevResponse(aiResponse, requestType);
+  return this.createDevResponse(aiResponse, requestType, priorMemories);
   }
 
   /**
@@ -190,7 +226,8 @@ Provide helpful, actionable development guidance with specific examples where ap
   /**
    * Create specialized development response
    */
-  private createDevResponse(content: string, requestType: string): DevAgentResponse {
+  private createDevResponse(content: string, requestType: string, priorMemories: MemoryRecord[] = []): DevAgentResponse {
+    const ts = createUnifiedTimestamp();
     return {
       content,
       actions: [{
@@ -198,13 +235,14 @@ Provide helpful, actionable development guidance with specific examples where ap
         description: `Provided ${requestType} assistance`,
         parameters: { requestType }
       }],
-      memories: [], // Memories are handled separately
+      memories: priorMemories, // Surface a few contextual memories
       metadata: {
         agentId: this.config.id,
-        timestamp: new Date().toISOString(),
+        timestamp: ts.iso,
         requestType,
         capabilities: Object.keys(this.capabilities),
-        isRealAgent: true // NOT just metadata!
+        isRealAgent: true, // NOT just metadata!
+        priorMemoriesUsed: priorMemories.length
       }
     };
   }

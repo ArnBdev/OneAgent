@@ -3,9 +3,11 @@
 // This module provides a production-grade, type-safe interface for memory actions.
 
 import fetch from 'node-fetch';
+import type { RequestInit as NodeFetchRequestInit } from 'node-fetch';
 import { OneAgentUnifiedBackbone, createUnifiedId, createUnifiedTimestamp, unifiedMetadataService } from '../utils/UnifiedBackboneService';
+import { environmentConfig } from '../config/EnvironmentConfig';
 import { BatchMemoryOperations } from './BatchMemoryOperations';
-import { UnifiedMetadata, UnifiedTimestamp } from '../types/oneagent-backbone-types';
+import { UnifiedMetadata, MemorySearchResult, MemoryRecord } from '../types/oneagent-backbone-types';
 
 const MCP_PROTOCOL_VERSION = '2025-06-18';
 
@@ -20,8 +22,37 @@ export interface OneAgentMemoryConfig {
   batchTimeout?: number;
   requestTimeout?: number; // Add configurable request timeout
   enableConstitutionalValidation?: boolean; // Add Constitutional AI validation
-  [key: string]: any;
+  // Allow additional config keys with unknown values (explicitly typed)
+  [key: string]: unknown;
 }
+
+// =========================
+// Internal Type Interfaces
+// =========================
+interface AddMemoryCanonicalPayload {
+  content: string;
+  userId: string;
+  metadata: UnifiedMetadata | Partial<UnifiedMetadata>;
+}
+
+// LegacyAddMemoryPayload removed (deprecated path eliminated)
+
+// AddMemoryResponse removed with legacy method
+
+interface MemorySearchQuery {
+  user_id?: string; // legacy alias
+  userId?: string;
+  query?: string;
+  text?: string; // legacy alias
+  limit?: number;
+  [key: string]: unknown;
+}
+
+interface UpdateMemoryPayload { content?: string; userId?: string; user_id?: string; metadata?: Record<string, unknown>; [k: string]: unknown }
+interface PatchMemoryPayload { content?: string; userId?: string; metadata?: Record<string, unknown>; }
+
+// Generic loose JSON result (internal only)
+interface HTTPJsonResult { id?: string; data?: { id?: string; _id?: string; results?: unknown }; results?: unknown; [k: string]: unknown }
 
 /**
  * Canonical OneAgent memory client with singleton pattern
@@ -70,12 +101,18 @@ export class OneAgentMemory {
    * Uses UnifiedMetadata and UnifiedTimestamp for enhanced functionality
    */
   async addMemoryCanonical(content: string, metadata?: Partial<UnifiedMetadata>, userId?: string): Promise<string> {
+    if (process.env.ONEAGENT_FAST_TEST_MODE === '1') {
+      // Skip remote call for fast tests; return synthetic ID
+      return createUnifiedId('memory', userId || 'fast-test');
+    }
     // Generate canonical ID and timestamp
     const memoryId = createUnifiedId('memory', userId || 'default-user');
     const timestamp = createUnifiedTimestamp();
     
     // Create canonical metadata using UnifiedMetadataService
-    const canonicalMetadata = unifiedMetadataService.create('memory', 'OneAgentMemory', {
+  // Allow caller to override metadata type (for domain-specific memories like 'agent-message')
+  const overrideType = (metadata as Partial<UnifiedMetadata> | undefined)?.type || 'memory';
+  const canonicalMetadata = unifiedMetadataService.create(overrideType, 'OneAgentMemory', {
       ...metadata,
       temporal: {
         created: timestamp,
@@ -117,10 +154,18 @@ export class OneAgentMemory {
   }
 
   /**
+   * Canonical alias: addMemory (ergonomic name after legacy removal)
+   * Preferred usage going forward; internally delegates to addMemoryCanonical for continuity.
+   */
+  async addMemory(content: string, metadata?: Partial<UnifiedMetadata>, userId?: string): Promise<string> {
+    return this.addMemoryCanonical(content, metadata, userId);
+  }
+
+  /**
    * Perform memory add operation with canonical UnifiedMetadata
    */
-  private async performAddMemoryCanonical(data: any): Promise<any> {
-    const baseUrl = process.env.ONEAGENT_MEMORY_URL || this.config.apiUrl || 'http://localhost:8010';
+  private async performAddMemoryCanonical(data: AddMemoryCanonicalPayload): Promise<HTTPJsonResult | undefined> {
+  const baseUrl = this.config.apiUrl || environmentConfig.endpoints.memory.url;
     const endpoint = baseUrl.replace(/\/$/, '') + '/v1/memories';
     
     const timeoutMs = this.config.requestTimeout || 15000;
@@ -129,11 +174,12 @@ export class OneAgentMemory {
     
     try {
       const controller = typeof AbortController !== 'undefined' ? new AbortController() : undefined;
-      const timeout = setTimeout(() => controller && controller.abort(), timeoutMs);
+  const timeout = setTimeout(() => controller && controller.abort(), timeoutMs);
+  timeout.unref?.();
       const authHeader = `Bearer ${this.config.apiKey || process.env.MEM0_API_KEY}`;
       console.log(`[OneAgentMemory] [addMemoryCanonical] Authorization header: '${authHeader}'`);
       
-      const fetchOptions: any = {
+  const fetchOptions: NodeFetchRequestInit = {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -142,8 +188,9 @@ export class OneAgentMemory {
         },
         body: JSON.stringify(data),
       };
-      
-      if (controller && controller.signal) fetchOptions.signal = controller.signal as any;
+      if (controller && controller.signal) {
+        (fetchOptions as NodeFetchRequestInit & { signal?: AbortSignal }).signal = controller.signal;
+      }
       
       const res = await fetch(endpoint, fetchOptions);
       clearTimeout(timeout);
@@ -188,46 +235,15 @@ export class OneAgentMemory {
   }
 
   /**
-   * DEPRECATED: Legacy method - Use addMemoryCanonical() instead
-   * Converts legacy calls to canonical UnifiedMetadata format
-   */
-  async addMemory(data: any): Promise<any> {
-    console.warn('[OneAgentMemory] addMemory() is DEPRECATED. Use addMemoryCanonical() with UnifiedMetadata instead.');
-    
-    // Extract content and basic metadata
-    const content = data.content || data.text || data;
-    const userId = data.user_id || data.userId || 'default-user';
-    
-    // Create minimal UnifiedMetadata from legacy data
-    const basicMetadata = unifiedMetadataService.create('legacy-conversion', 'OneAgentMemory', {
-      system: {
-        userId,
-        source: 'legacy-addMemory',
-        component: 'memory-system'
-      },
-      content: {
-        category: data.metadata?.category || 'general',
-        tags: Array.isArray(data.metadata?.tags) ? data.metadata.tags : ['legacy'],
-        sensitivity: 'internal',
-        relevanceScore: 0.5,
-        contextDependency: 'session'
-      }
-    });
-    
-    // Forward to canonical method
-    return await this.addMemoryCanonical(content, basicMetadata, userId);
-  }
-
-  /**
    * Sanitize metadata for mem0 compatibility
    * mem0 only accepts str, int, float, bool, or None in metadata
    */
-  private sanitizeMetadata(metadata: any): Record<string, any> {
+  private sanitizeMetadata(metadata: Record<string, unknown>): Record<string, unknown> {
     if (!metadata || typeof metadata !== 'object') {
       return {};
     }
 
-    const sanitized: Record<string, any> = {};
+  const sanitized: Record<string, unknown> = {};
     
     for (const [key, value] of Object.entries(metadata)) {
       if (value === null || value === undefined) {
@@ -246,7 +262,7 @@ export class OneAgentMemory {
         // Serialize complex objects to JSON strings
         try {
           sanitized[key] = JSON.stringify(value);
-        } catch (error) {
+  } catch {
           // If JSON serialization fails, convert to string
           sanitized[key] = String(value);
         }
@@ -259,86 +275,47 @@ export class OneAgentMemory {
     return sanitized;
   }
 
-  /**
-   * Perform actual memory add operation
-   */
-  private async performAddMemory(data: any): Promise<any> {
-    const baseUrl = process.env.ONEAGENT_MEMORY_URL || this.config.apiUrl || 'http://localhost:8010';
-    const endpoint = baseUrl.replace(/\/$/, '') + '/v1/memories';
-    
-    // Sanitize metadata for mem0 compatibility
-    const sanitizedMetadata = this.sanitizeMetadata(data.metadata || {});
-    
-    const payload = {
-      content: data.content || data.text || data,
-      userId: data.user_id || data.userId || 'default-user',
-      metadata: sanitizedMetadata, // Use sanitized metadata
-    };
-    const timeoutMs = this.config.requestTimeout || 15000; // Configurable timeout, default 15 seconds
-    console.log(`[OneAgentMemory] [addMemory] POST ${endpoint}`);
-    console.log(`[OneAgentMemory] [addMemory] Payload:`, payload);
-    console.log(`[OneAgentMemory] [addMemory] Original metadata keys:`, Object.keys(data.metadata || {}));
-    console.log(`[OneAgentMemory] [addMemory] Sanitized metadata keys:`, Object.keys(sanitizedMetadata));
-    try {
-      const controller = typeof AbortController !== 'undefined' ? new AbortController() : undefined;
-      const timeout = setTimeout(() => controller && controller.abort(), timeoutMs);
-      const authHeader = `Bearer ${this.config.apiKey || process.env.MEM0_API_KEY}`;
-      console.log(`[OneAgentMemory] [addMemory] Authorization header: '${authHeader}'`);
-      const fetchOptions: any = {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': authHeader,
-          'MCP-Protocol-Version': MCP_PROTOCOL_VERSION,
-        },
-        body: JSON.stringify(payload),
-      };
-      if (controller && controller.signal) fetchOptions.signal = controller.signal as any;
-      const res = await fetch(endpoint, fetchOptions);
-      clearTimeout(timeout);
-      if (!res.ok) {
-        const text = await res.text();
-        throw new Error(`HTTP ${res.status}: ${text}`);
-      }
-      const json = await res.json();
-      console.log(`[OneAgentMemory] [addMemory] HTTP result:`, json);
-      return json;
-    } catch (httpError) {
-      this.handleError('addMemory', httpError);
-    }
-  }
+  // performAddMemory removed with legacy add path
 
   /**
    * Search memory (canonical RESTful implementation)
    */
-  async searchMemory(query: any): Promise<any> {
-    const baseUrl = process.env.ONEAGENT_MEMORY_URL || this.config.apiUrl || 'http://localhost:8010';
-    const userId = query.user_id || query.userId || 'default-user';
-    const q = query.query || query.text || query;
-    const limit = query.limit || 5;
+  async searchMemory(query: MemorySearchQuery | string): Promise<MemorySearchResult | undefined> {
+  if (process.env.ONEAGENT_FAST_TEST_MODE === '1') {
+    return { results: [], total: 0 } as unknown as MemorySearchResult;
+  }
+  const baseUrl = this.config.apiUrl || environmentConfig.endpoints.memory.url;
+  const qObj: MemorySearchQuery | undefined = typeof query === 'string' ? undefined : query;
+  const userId = qObj?.user_id || qObj?.userId || 'default-user';
+  const q = typeof query === 'string' ? query : (qObj?.query || qObj?.text || '');
+  const limit = qObj?.limit || 5;
     const endpoint = `${baseUrl.replace(/\/$/, '')}/v1/memories?userId=${encodeURIComponent(userId)}${q ? `&query=${encodeURIComponent(q)}` : ''}&limit=${limit}`;
     const timeoutMs = 10000;
     console.log(`[OneAgentMemory] [searchMemory] GET ${endpoint}`);
     try {
       const controller = typeof AbortController !== 'undefined' ? new AbortController() : undefined;
-      const timeout = setTimeout(() => controller && controller.abort(), timeoutMs);
-      const fetchOptions: any = {
+  const timeout = setTimeout(() => controller && controller.abort(), timeoutMs);
+  timeout.unref?.();
+  const fetchOptions: NodeFetchRequestInit = {
         method: 'GET',
         headers: {
           'Authorization': `Bearer ${this.config.apiKey || process.env.MEM0_API_KEY}`,
           'MCP-Protocol-Version': MCP_PROTOCOL_VERSION,
         },
       };
-      if (controller && controller.signal) fetchOptions.signal = controller.signal as any;
+  if (controller && controller.signal) {
+        (fetchOptions as NodeFetchRequestInit & { signal?: AbortSignal }).signal = controller.signal;
+      }
       const res = await fetch(endpoint, fetchOptions);
       clearTimeout(timeout);
       if (!res.ok) {
         const text = await res.text();
         throw new Error(`HTTP ${res.status}: ${text}`);
       }
-      const json = await res.json();
-      console.log(`[OneAgentMemory] [searchMemory] HTTP result:`, json);
-      return json;
+  const json = await res.json();
+  const adapted = this.adaptSearchResponse(json, typeof query === 'string' ? query : (query.query || query.text || ''));
+  console.log(`[OneAgentMemory] [searchMemory] Adapted result count:`, adapted.results.length);
+  return adapted;
     } catch (httpError) {
       this.handleError('searchMemory', httpError);
     }
@@ -347,8 +324,8 @@ export class OneAgentMemory {
   /**
    * Update a memory item (canonical RESTful implementation)
    */
-  async updateMemory(id: string, data: any): Promise<any> {
-    const baseUrl = process.env.ONEAGENT_MEMORY_URL || this.config.apiUrl || 'http://localhost:8010';
+  async updateMemory(id: string, data: UpdateMemoryPayload): Promise<HTTPJsonResult | undefined> {
+  const baseUrl = this.config.apiUrl || environmentConfig.endpoints.memory.url;
     const endpoint = `${baseUrl.replace(/\/$/, '')}/v1/memories/${id}`;
     
     // Sanitize metadata for mem0 compatibility
@@ -364,8 +341,9 @@ export class OneAgentMemory {
     console.log(`[OneAgentMemory] [updateMemory] Sanitized metadata keys:`, Object.keys(sanitizedMetadata));
     try {
       const controller = typeof AbortController !== 'undefined' ? new AbortController() : undefined;
-      const timeout = setTimeout(() => controller && controller.abort(), timeoutMs);
-      const fetchOptions: any = {
+  const timeout = setTimeout(() => controller && controller.abort(), timeoutMs);
+  timeout.unref?.();
+  const fetchOptions: NodeFetchRequestInit = {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -374,7 +352,9 @@ export class OneAgentMemory {
         },
         body: JSON.stringify(payload),
       };
-      if (controller && controller.signal) fetchOptions.signal = controller.signal as any;
+  if (controller && controller.signal) {
+        (fetchOptions as NodeFetchRequestInit & { signal?: AbortSignal }).signal = controller.signal;
+      }
       const res = await fetch(endpoint, fetchOptions);
       clearTimeout(timeout);
       if (!res.ok) {
@@ -392,22 +372,25 @@ export class OneAgentMemory {
   /**
    * Delete a memory item (canonical RESTful implementation)
    */
-  async deleteMemory(id: string, userId: string): Promise<any> {
-    const baseUrl = process.env.ONEAGENT_MEMORY_URL || this.config.apiUrl || 'http://localhost:8010';
+  async deleteMemory(id: string, userId: string): Promise<HTTPJsonResult | undefined> {
+  const baseUrl = this.config.apiUrl || environmentConfig.endpoints.memory.url;
     const endpoint = `${baseUrl.replace(/\/$/, '')}/v1/memories/${id}?userId=${encodeURIComponent(userId)}`;
     const timeoutMs = 10000;
     console.log(`[OneAgentMemory] [deleteMemory] DELETE ${endpoint}`);
     try {
       const controller = typeof AbortController !== 'undefined' ? new AbortController() : undefined;
-      const timeout = setTimeout(() => controller && controller.abort(), timeoutMs);
-      const fetchOptions: any = {
+  const timeout = setTimeout(() => controller && controller.abort(), timeoutMs);
+  timeout.unref?.();
+  const fetchOptions: NodeFetchRequestInit = {
         method: 'DELETE',
         headers: {
           'Authorization': `Bearer ${this.config.apiKey || process.env.MEM0_API_KEY}`,
           'MCP-Protocol-Version': MCP_PROTOCOL_VERSION,
         },
       };
-      if (controller && controller.signal) fetchOptions.signal = controller.signal as any;
+  if (controller && controller.signal) {
+        (fetchOptions as NodeFetchRequestInit & { signal?: AbortSignal }).signal = controller.signal;
+      }
       const res = await fetch(endpoint, fetchOptions);
       clearTimeout(timeout);
       if (!res.ok) {
@@ -425,21 +408,24 @@ export class OneAgentMemory {
   /**
    * Health check (canonical RESTful implementation)
    */
-  async ping(): Promise<any> {
-    const baseUrl = process.env.ONEAGENT_MEMORY_URL || this.config.apiUrl || 'http://localhost:8010';
+  async ping(): Promise<HTTPJsonResult | undefined> {
+  const baseUrl = this.config.apiUrl || environmentConfig.endpoints.memory.url;
     const endpoint = `${baseUrl.replace(/\/$/, '')}/ping`;
     const timeoutMs = 5000;
     try {
       const controller = typeof AbortController !== 'undefined' ? new AbortController() : undefined;
-      const timeout = setTimeout(() => controller && controller.abort(), timeoutMs);
-      const fetchOptions: any = {
+  const timeout = setTimeout(() => controller && controller.abort(), timeoutMs);
+  timeout.unref?.();
+  const fetchOptions: NodeFetchRequestInit = {
         method: 'GET',
         headers: {
           'Authorization': `Bearer ${this.config.apiKey || process.env.MEM0_API_KEY}`,
           'MCP-Protocol-Version': MCP_PROTOCOL_VERSION,
         },
       };
-      if (controller && controller.signal) fetchOptions.signal = controller.signal as any;
+  if (controller && controller.signal) {
+        (fetchOptions as NodeFetchRequestInit & { signal?: AbortSignal }).signal = controller.signal;
+      }
       const res = await fetch(endpoint, fetchOptions);
       clearTimeout(timeout);
       if (!res.ok) {
@@ -458,12 +444,12 @@ export class OneAgentMemory {
    * Partially update a memory item (PATCH, deeply integrated advanced metadata)
    * Supports extensible, nested, and typed metadata (backbone metadata system)
    */
-  async patchMemory(id: string, patch: Partial<{ content: any; userId: string; metadata: Record<string, any> }>): Promise<any> {
-    const baseUrl = process.env.ONEAGENT_MEMORY_URL || this.config.apiUrl || 'http://localhost:8010';
+  async patchMemory(id: string, patch: PatchMemoryPayload): Promise<HTTPJsonResult | undefined> {
+  const baseUrl = this.config.apiUrl || environmentConfig.endpoints.memory.url;
     const endpoint = `${baseUrl.replace(/\/$/, '')}/v1/memories/${id}`;
     
     // Deep merge for advanced metadata (backbone metadata system)
-    const payload: any = {};
+  const payload: Record<string, unknown> = {};
     if (patch.content !== undefined) payload.content = patch.content;
     if (patch.userId !== undefined) payload.userId = patch.userId;
     if (patch.metadata !== undefined) {
@@ -477,8 +463,9 @@ export class OneAgentMemory {
     console.log(`[OneAgentMemory] [patchMemory] Sanitized metadata keys:`, Object.keys(payload.metadata || {}));
     try {
       const controller = typeof AbortController !== 'undefined' ? new AbortController() : undefined;
-      const timeout = setTimeout(() => controller && controller.abort(), timeoutMs);
-      const fetchOptions: any = {
+  const timeout = setTimeout(() => controller && controller.abort(), timeoutMs);
+  timeout.unref?.();
+  const fetchOptions: NodeFetchRequestInit = {
         method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',
@@ -487,7 +474,9 @@ export class OneAgentMemory {
         },
         body: JSON.stringify(payload),
       };
-      if (controller && controller.signal) fetchOptions.signal = controller.signal as any;
+  if (controller && controller.signal) {
+        (fetchOptions as NodeFetchRequestInit & { signal?: AbortSignal }).signal = controller.signal;
+      }
       const res = await fetch(endpoint, fetchOptions);
       clearTimeout(timeout);
       if (!res.ok) {
@@ -516,7 +505,7 @@ export class OneAgentMemory {
   /**
    * Add to batch queue (optimized for quota management)
    */
-  async addMemoryBatch(data: any): Promise<void> {
+  async addMemoryBatch(data: Record<string, unknown>): Promise<void> {
     await this.batchOperations.queueOperation({
       type: 'add',
       data,
@@ -527,21 +516,21 @@ export class OneAgentMemory {
   /**
    * Search with caching
    */
-  async searchMemoryOptimized(query: any): Promise<any> {
-    const queryString = typeof query === 'string' ? query : query.query || query.text;
+  async searchMemoryOptimized(query: MemorySearchQuery | string): Promise<MemorySearchResult | undefined> {
+    const queryString = typeof query === 'string' ? query : (query.query || query.text || '');
     
     if (this.cachingEnabled && queryString) {
       // Simple search result caching could be added here
       console.log(`[OneAgentMemory] Optimized search for: ${queryString.substring(0, 50)}...`);
     }
     
-    return this.searchMemory(query);
+  return this.searchMemory(query);
   }
 
   /**
    * Get cache and batch statistics
    */
-  getOptimizationStats(): any {
+  getOptimizationStats(): { cache: unknown; batch: unknown; cachingEnabled: boolean } {
     return {
       cache: OneAgentUnifiedBackbone.getInstance().cache.getHealth(),
       batch: this.batchOperations.getBatchStatus(),
@@ -552,8 +541,8 @@ export class OneAgentMemory {
   /**
    * Flush batch operations immediately
    */
-  async flushBatch(): Promise<any> {
-    return await this.batchOperations.flushBatch();
+  async flushBatch(): Promise<unknown> {
+    return this.batchOperations.flushBatch();
   }
 
   /**
@@ -572,6 +561,53 @@ export class OneAgentMemory {
     }
     
     throw new Error(`[OneAgentMemory] ${method} failed: ${errMsg}`);
+  }
+
+  /**
+   * Normalize arbitrary memory service JSON into canonical MemorySearchResult
+   * Provides defensive defaults so upstream code can rely on array semantics.
+   */
+  private adaptSearchResponse(raw: HTTPJsonResult, originalQuery: string): MemorySearchResult {
+    const started = Date.now();
+    // Canonical server shape: { success: boolean, data: MemoryResponse[] | MemoryResponse, message?, ... }
+    const rawObj = raw as unknown as { data?: unknown };
+    const arr: unknown[] = Array.isArray(rawObj?.data)
+      ? rawObj.data as unknown[]
+      : (rawObj?.data ? [rawObj.data as unknown] : []);
+    const records: MemoryRecord[] = arr.map(r => {
+      const rec = r as Record<string, unknown>;
+      const meta: UnifiedMetadata = (rec.metadata as UnifiedMetadata) || unifiedMetadataService.create('memory-search', 'OneAgentMemory', {
+        system: { userId: (rec.userId as string) || 'default-user', source: 'memory-search', component: 'memory-system' },
+        content: { category: 'general', tags: ['search-fallback'], sensitivity: 'internal', relevanceScore: 0.5, contextDependency: 'session' }
+      });
+      return {
+        id: (rec.id as string) || createUnifiedId('memory', 'search'),
+        content: typeof rec.content === 'string' ? rec.content : JSON.stringify(rec),
+        metadata: meta,
+        relatedMemories: [],
+        conversationId: undefined,
+        parentMemory: undefined,
+        accessCount: 0,
+        lastAccessed: new Date(),
+        qualityScore: 0,
+        constitutionalStatus: 'compliant',
+        lastValidation: new Date()
+      } as MemoryRecord;
+    });
+    const duration = Math.max(1, Date.now() - started);
+    return {
+      results: records,
+      totalFound: records.length,
+      totalResults: records.length,
+      searchTime: duration,
+      averageRelevance: 0,
+      averageQuality: 0,
+      constitutionalCompliance: 1.0,
+      queryContext: [],
+      suggestedRefinements: [],
+      relatedQueries: [],
+      query: originalQuery || ''
+    };
   }
 }
 

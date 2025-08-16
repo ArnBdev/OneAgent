@@ -24,7 +24,6 @@
 
 import { BaseAgent, AgentConfig, AgentContext, AgentResponse, AgentAction } from '../base/BaseAgent';
 import { ISpecializedAgent, AgentHealthStatus } from '../base/ISpecializedAgent';
-import { OneAgentMemory, OneAgentMemoryConfig } from '../../memory/OneAgentMemory';
 import { MemoryRecord } from '../../types/oneagent-backbone-types';
 import { createUnifiedTimestamp } from '../../utils/UnifiedBackboneService';
 
@@ -33,29 +32,14 @@ export class TemplateAgent extends BaseAgent implements ISpecializedAgent {
   public readonly config: AgentConfig;
   private processedMessages: number = 0;
   private errors: string[] = [];
-  private readonly qualityThreshold: number = 85;
+  private readonly qualityThreshold: number = 85; // Local additional quality heuristic (constitutional loop uses its own threshold)
   private readonly timeZone: string = 'UTC';
   private lastActivity: Date = new Date(createUnifiedTimestamp().utc);
-  
-  // Constitutional AI validation principles for this agent domain
-  private readonly constitutionalPrinciples = {
-    accuracy: 'Prefer "I don\'t know" to speculation in template domain',
-    transparency: 'Explain template reasoning and acknowledge limitations',
-    helpfulness: 'Provide actionable template guidance with clear next steps',
-    safety: 'Avoid harmful template recommendations, consider security implications'
-  };
-
-  private memorySystem: OneAgentMemory;
 
   constructor(config: AgentConfig) {
     super(config);
     this.id = config.id || `template-agent-${createUnifiedTimestamp().unix}`;
     this.config = config;
-    const memoryConfig: OneAgentMemoryConfig = {
-      apiKey: process.env.MEM0_API_KEY || 'demo-key',
-      apiUrl: process.env.MEM0_API_URL
-    };
-    this.memorySystem = new OneAgentMemory(memoryConfig);
   }
   /**
    * Initialize the template agent with unified memory and constitutional AI
@@ -63,13 +47,12 @@ export class TemplateAgent extends BaseAgent implements ISpecializedAgent {
   async initialize(): Promise<void> {
     try {
       await super.initialize();
-      // Store initialization in memory as a conversation record
+      // Record initialization using canonical BaseAgent memory helper (singleton memory system)
       try {
-        await this.memorySystem.addMemory({
-          agentId: this.id,
-          content: `Template agent ${this.id} successfully initialized with unified memory system. Constitutional AI validation active.`,
+        await this.addMemory('system', `Template agent ${this.id} initialized. Constitutional AI + PromptEngine auto-enabled when provided via AgentFactory.`, {
+          type: 'system',
           timestamp: createUnifiedTimestamp().iso,
-          type: 'system'
+          agentId: this.id
         });
       } catch (memoryError) {
         console.warn(`⚠️ Could not store initialization memory: ${memoryError}`);
@@ -95,136 +78,61 @@ export class TemplateAgent extends BaseAgent implements ISpecializedAgent {
   async processMessage(context: AgentContext, message: string): Promise<AgentResponse> {
     const startTime = createUnifiedTimestamp().unix;
     this.lastActivity = new Date(createUnifiedTimestamp().utc);
-    
+    this.processedMessages++;
     try {
-      this.validateContext(context);
-      this.processedMessages++;
-
-      // 1. UNIFIED MEMORY INTEGRATION (with fallback)
-      let relevantMemories: MemoryRecord[] = [];
+      // Delegate core generation to BaseAgent (uses constitutional loop if promptEngine present)
+      const baseResponse = await super.processMessage(context, message);
+      // Analyze for template-specific suggested actions (non-destructive augmentation)
+      const suggestedActions = await this.analyzeTemplateTask(message);
+      // Augment metadata & record quality heuristic (reuse constitutional score if present)
+      const constitutionalScore = (baseResponse.metadata?.constitutionalScore as number | undefined) ?? 0;
+      const qualityScore = Math.max(constitutionalScore * 100, this.qualityThreshold); // simple heuristic placeholder
+      // Memory logging for processing summary
       try {
-        // Store current message in unified memory system
-        await this.memorySystem.addMemory({
-          agentType: 'template',
-          sessionId: context.sessionId,
-          timestamp: createUnifiedTimestamp().iso,
-          timeZone: this.timeZone,
-          messageType: 'user_input',
-          processingId: `proc_${createUnifiedTimestamp().unix}`,
-          content: message,
-          userId: context.user.id,
-          type: context.user.id
+        await this.addMemory(context.user.id, `Template processing summary. Actions: ${suggestedActions.length}. ConstitutionalScore: ${constitutionalScore}.`, {
+          type: 'template_processing',
+          actionsCount: suggestedActions.length,
+          constitutionalScore,
+          processingTime: createUnifiedTimestamp().unix - startTime,
+          timestamp: createUnifiedTimestamp().iso
         });
-        // Search for relevant context using semantic search
-        relevantMemories = await this.memorySystem.searchMemory({
-          query: message,
-          limit: 5,
-          userId: context.user.id,
-          type: context.user.id
-        });
-        console.log(`🧠 Retrieved ${relevantMemories.length} relevant memories for context enhancement`);
-      } catch (memoryError) {
-        console.warn(`⚠️ Memory operation failed, continuing with fallback: ${memoryError}`);
-        relevantMemories = []; // Graceful fallback
-      }      // 2. ANALYZE TASK FOR TEMPLATE-SPECIFIC ACTIONS
-      const actions = await this.analyzeTemplateTask(message);
-      
-      // 3. GENERATE AI RESPONSE WITH CONSTITUTIONAL AI PATTERNS
-      const prompt = this.buildTemplatePrompt(message, relevantMemories, context);
-      const aiResponse = await this.generateResponse(prompt, relevantMemories);
-      
-      // TODO: Implement Constitutional AI validation when available
-      // const validatedResponse = await this.applyConstitutionalValidation(aiResponse, message, context);
-      const finalResponse = aiResponse; // Placeholder until Constitutional AI is integrated
-      const qualityScore = 85; // Default quality score - implement actual scoring
-
-      // 5. QUALITY THRESHOLD ENFORCEMENT
-      if (qualityScore < this.qualityThreshold) {
-        console.warn(`⚠️ Response quality ${qualityScore}% below threshold ${this.qualityThreshold}%`);
-        
-        // Store quality improvement learning
-        try {
-          await this.addMemory(context.user.id, 
-            `Quality improvement needed: ${qualityScore}% < ${this.qualityThreshold}%. Refinement applied.`,
-            {
-              learningType: 'quality_improvement',
-              originalQuality: qualityScore,
-              threshold: this.qualityThreshold,
-              timestamp: createUnifiedTimestamp().iso
-            }
-          );
-        } catch (memoryError) {
-          console.warn(`⚠️ Could not store quality learning: ${memoryError}`);
+      } catch (memErr) {
+        console.warn(`⚠️ Could not store template processing summary: ${memErr}`);
+      }
+      return {
+        ...baseResponse,
+        actions: suggestedActions,
+        metadata: {
+          ...baseResponse.metadata,
+          templateAugmented: true,
+          actionsSuggested: suggestedActions.length,
+          processingTime: createUnifiedTimestamp().unix - startTime,
+          qualityScore,
+          timeZone: this.timeZone
         }
-      }
-
-      // 6. RECORD SUCCESSFUL PROCESSING FOR LEARNING
-      try {
-        await this.addMemory(context.user.id, 
-          `Successfully processed template request. Quality: ${qualityScore}%. Processing time: ${createUnifiedTimestamp().unix - startTime}ms`,
-          {
-            processingTime: createUnifiedTimestamp().unix - startTime,
-            qualityScore: qualityScore,
-            actionsCount: actions.length,
-            memoriesUsed: relevantMemories.length,
-            timestamp: createUnifiedTimestamp().iso,
-            type: context.user.id
-          }
-        );
-      } catch (memoryError) {
-        console.warn(`⚠️ Could not store processing record: ${memoryError}`);
-      }
-
-      // Create enhanced response with metadata
-      const response = this.createResponse(finalResponse, actions, relevantMemories);
-      response.metadata = {
-        ...response.metadata,
-        processingTime: createUnifiedTimestamp().unix - startTime,
-        qualityScore: qualityScore,
-        memoryEnhanced: relevantMemories.length > 0,
-        timeZone: this.timeZone,
-        constitutionalValidated: false // Will be true when Constitutional AI is integrated
       };
-      
-      return response;
-      
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
       this.errors.push(`Processing error: ${errorMessage}`);
-      console.error(`❌ TemplateAgent processing error:`, error);
-      
-      // Record error for learning and improvement
+      console.error('❌ TemplateAgent processing error:', error);
       try {
-        await this.addMemory(context.user.id, 
-          `Processing error encountered: ${errorMessage}. Fallback response provided.`,
-          {
-            errorType: 'processing_error',
-            errorMessage,
-            timestamp: createUnifiedTimestamp().iso,
-            processingTime: createUnifiedTimestamp().unix - startTime,
-            sessionId: context.sessionId,
-            type: context.user.id
-          }
-        );
-      } catch (memoryError) {
-        console.warn(`⚠️ Could not store error record: ${memoryError}`);
-      }      
-      // Create error response with enhanced metadata
-      const errorResponse = this.createResponse(
-        "I apologize, but I encountered an error processing your template request. Please try again, and I'll apply my error recovery protocols.",
-        [],
-        []
-      );
-      
-      errorResponse.metadata = {
-        ...errorResponse.metadata,
-        processingTime: createUnifiedTimestamp().unix - startTime,
-        qualityScore: 60, // Low quality due to error
-        errorRecovery: true,
-        constitutionalValidated: false
+        await this.addMemory(context.user.id, `Template processing error: ${errorMessage}`, {
+          type: 'processing_error',
+          timestamp: createUnifiedTimestamp().iso
+        });
+  } catch { /* memory logging failure ignored */ }
+      return {
+        content: "I encountered an internal error while processing your template request. Please try again.",
+        actions: [],
+        memories: [],
+        metadata: {
+          error: errorMessage,
+          processingTime: createUnifiedTimestamp().unix - startTime,
+          qualityScore: 50,
+            errorRecovery: true,
+          templateAugmented: false
+        }
       };
-      
-      return errorResponse;
     }
   }
 

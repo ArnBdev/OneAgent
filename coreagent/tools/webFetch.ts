@@ -12,11 +12,16 @@ import {
   WebFetchContent, 
   WebFetchMetadata,
   WebFetchConfig,
-  WebFetchError,
-  ContentExtractionResult
+  WebFetchError
 } from '../types/webFetch';
 
 export class WebFetchTool {
+  // Narrow error shape we care about when fetching
+  private static readonly HttpErrorShape = class {
+    code?: string;
+    message!: string;
+    response?: { status?: number; statusText?: string; headers?: Record<string, unknown>; data?: unknown };
+  };
   private client: AxiosInstance;
   private config: WebFetchConfig;
   private mockMode: boolean = false;
@@ -151,23 +156,31 @@ export class WebFetchTool {
       console.log(`✅ WebFetchTool: Successfully fetched ${content.size} bytes in ${fetchTime}ms`);
       return result;
 
-    } catch (error: any) {
+    } catch (error: unknown) {
       const fetchTime = createUnifiedTimestamp().unix - startTime;
-      console.error('❌ WebFetchTool error:', error.message);
+      const err = error as InstanceType<typeof WebFetchTool.HttpErrorShape> | undefined;
+      const message = (err && err.message) ? err.message : 'Fetch error';
+      const code = err?.code || 'FETCH_ERROR';
+      const statusCode = err?.response?.status;
+      const statusText = err?.response?.statusText;
+      const headers = err?.response?.headers;
+      const details = err?.response?.data;
+
+      console.error('❌ WebFetchTool error:', message);
       
       const webFetchError: WebFetchError = {
-        code: error.code || 'FETCH_ERROR',
-        message: error.message,
+        code,
+        message,
         url: options.url,
-        statusCode: error.response?.status,
-        details: error.response?.data
+        statusCode,
+        details
       };
 
       return {
         url: options.url,
-        statusCode: error.response?.status || 0,
-        statusText: error.response?.statusText || 'Error',
-        headers: error.response ? this.normalizeHeaders(error.response.headers) : {},
+        statusCode: statusCode || 0,
+        statusText: statusText || 'Error',
+        headers: headers ? this.normalizeHeaders(headers) : {},
         content: {
           raw: '',
           text: '',
@@ -353,8 +366,8 @@ export class WebFetchTool {
         
         wordCount = cleanText.split(/\s+/).filter(word => word.length > 0).length;
         
-      } catch (error) {
-        console.warn('⚠️ HTML parsing failed, using raw content:', error);
+      } catch (err) {
+        console.warn('⚠️ HTML parsing failed, using raw content:', err);
         cleanText = rawContent.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
       }
     }
@@ -364,7 +377,7 @@ export class WebFetchTool {
       try {
         const jsonData = JSON.parse(rawContent);
         cleanText = JSON.stringify(jsonData, null, 2);
-      } catch (error) {
+  } catch {
         console.warn('⚠️ JSON parsing failed, using raw content');
       }
     }
@@ -479,8 +492,8 @@ export class WebFetchTool {
       
       return metadata;
       
-    } catch (error) {
-      console.warn('⚠️ Metadata extraction failed:', error);
+    } catch (err) {
+      console.warn('⚠️ Metadata extraction failed:', err);
       return {};
     }
   }
@@ -574,7 +587,7 @@ export class WebFetchTool {
   /**
    * Normalize response headers
    */
-  private normalizeHeaders(headers: any): Record<string, string> {
+  private normalizeHeaders(headers: Record<string, unknown>): Record<string, string> {
     const normalized: Record<string, string> = {};
     for (const [key, value] of Object.entries(headers)) {
       if (typeof value === 'string') {
@@ -587,7 +600,8 @@ export class WebFetchTool {
   /**
    * Create error response
    */
-  private createErrorResponse(url: string, error: any): WebFetchResponse {
+  private createErrorResponse(url: string, error: unknown): WebFetchResponse {
+    const message = typeof error === 'object' && error && 'message' in error ? String((error as { message: unknown }).message) : 'Unknown error';
     return {
       url,
       statusCode: 0,
@@ -604,7 +618,7 @@ export class WebFetchTool {
       fetchTime: 0,
       timestamp: new Date().toISOString(),
       success: false,
-      error: error.message || 'Unknown error'
+      error: message
     };
   }
 

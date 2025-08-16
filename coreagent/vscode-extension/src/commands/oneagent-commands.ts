@@ -1,5 +1,5 @@
 import * as vscode from 'vscode';
-import { OneAgentClient } from '../connection/oneagent-client';
+import { OneAgentClient, ConstitutionalValidationResponse, QualityScoreResponse, MemoryItem as UIMemoryItem, MemorySearchResponse, SystemHealthResponse, ProfileStatusResponse } from '../connection/oneagent-client';
 
 export function registerCommands(context: vscode.ExtensionContext, client: OneAgentClient) {
     
@@ -34,9 +34,10 @@ export function registerCommands(context: vscode.ExtensionContext, client: OneAg
                 progress.report({ increment: 100, message: "Validation complete" });
                 
                 if (result.success) {
-                    const isCompliant = result.data?.isCompliant ?? false;
-                    const score = result.data?.score;
-                    const feedback = result.data?.feedback || 'No specific feedback available';
+                    const data = (result.data || {}) as ConstitutionalValidationResponse;
+                    const isCompliant = data.isCompliant ?? false;
+                    const score = data.score;
+                    const feedback = data.feedback || 'No specific feedback available';
                     
                     const message = isCompliant 
                         ? `✅ Constitutional AI Validation: COMPLIANT${score ? ` (Score: ${score}%)` : ''}`
@@ -92,9 +93,10 @@ export function registerCommands(context: vscode.ExtensionContext, client: OneAg
                 progress.report({ increment: 100, message: "Analysis complete" });
                 
                 if (result.success) {
-                    const score = result.data?.qualityScore ?? result.data?.score;
-                    const grade = result.data?.grade || getGradeFromScore(score);
-                    const suggestions = result.data?.suggestions || [];
+                    const data = (result.data || {}) as QualityScoreResponse;
+                    const score = data.qualityScore ?? data.score ?? 0;
+                    const grade = data.grade || getGradeFromScore(score);
+                    const suggestions = data.suggestions || [];
                     
                     const emoji = score >= 90 ? '🌟' : score >= 80 ? '✅' : score >= 70 ? '⚠️' : '❌';
                     const message = `${emoji} Quality Score: ${score}% (Grade: ${grade})`;
@@ -212,17 +214,17 @@ export function registerCommands(context: vscode.ExtensionContext, client: OneAg
                     
                     progress.report({ increment: 100, message: "Search complete" });
                       if (result.success && result.data?.memories?.length) {
-                        const memories = result.data.memories;
+                        const memories = (result.data as MemorySearchResponse).memories as UIMemoryItem[];
                         
-                        interface MemoryItem extends vscode.QuickPickItem {
-                            memory: any;
+                        interface MemoryQuickPickItem extends vscode.QuickPickItem {
+                            memory: UIMemoryItem;
                         }
                         
-                        const items: MemoryItem[] = memories.map((memory: any) => ({
+                        const items: MemoryQuickPickItem[] = memories.map((memory) => ({
                             label: `$(file-text) ${memory.content.substring(0, 60)}${memory.content.length > 60 ? '...' : ''}`,
-                            description: `${memory.memoryType} | ${memory.timestamp || 'Unknown time'}`,
+                            description: `${memory.memoryType ?? 'Unknown'} | ${memory.timestamp ? String(memory.timestamp) : 'Unknown time'}`,
                             detail: memory.content,
-                            memory: memory
+                            memory
                         }));
                         
                         const selected = await vscode.window.showQuickPick(items, {
@@ -258,10 +260,10 @@ export function registerCommands(context: vscode.ExtensionContext, client: OneAg
                 progress.report({ increment: 100, message: "Health check complete" });
                 
                 if (result.success) {
-                    const health = result.data;
-                    const status = health?.status || 'unknown';
-                    const qualityScore = health?.metrics?.qualityScore || 0;
-                    const version = health?.version || 'unknown';
+                    const health = (result.data || {}) as SystemHealthResponse;
+                    const status = health.status || 'unknown';
+                    const qualityScore = health.metrics?.qualityScore || 0;
+                    const version = health.version || 'unknown';
                     
                     const emoji = status === 'healthy' ? '✅' : '❌';
                     const message = `${emoji} OneAgent ${status.toUpperCase()} | Quality: ${qualityScore}% | Version: ${version}`;
@@ -402,7 +404,7 @@ export function registerCommands(context: vscode.ExtensionContext, client: OneAg
                 progress.report({ increment: 100, message: "Status retrieved" });
                 
                 if (result.success) {
-                    const status = result.data;
+                    const status = (result.data || {}) as ProfileStatusResponse;
                     const evolutionReady = status.evolutionReadiness || 'Not Available';
                     const qualityScore = status.qualityScore || 'N/A';
                     
@@ -610,7 +612,7 @@ function showQualityReport(score: number, grade: string, suggestions: string[]) 
     </html>`;
 }
 
-function showMemoryDetails(memory: any) {
+function showMemoryDetails(memory: UIMemoryItem) {
     const panel = vscode.window.createWebviewPanel(
         'memoryDetails',
         'OneAgent Memory Details',
@@ -658,7 +660,7 @@ function showMemoryDetails(memory: any) {
         
         <div class="metadata">
             <p><span class="label">Type:</span> ${memory.memoryType || 'Unknown'}</p>
-            <p><span class="label">Created:</span> ${memory.timestamp || 'Unknown'}</p>
+            <p><span class="label">Created:</span> ${memory.timestamp ? String(memory.timestamp) : 'Unknown'}</p>
             <p><span class="label">ID:</span> ${memory.id || 'Unknown'}</p>
         </div>
         
@@ -669,7 +671,7 @@ function showMemoryDetails(memory: any) {
     </html>`;
 }
 
-function showSystemHealthDetails(health: any) {
+function showSystemHealthDetails(health: SystemHealthResponse) {
     const panel = vscode.window.createWebviewPanel(
         'systemHealth',
         'OneAgent System Health',
@@ -677,8 +679,8 @@ function showSystemHealthDetails(health: any) {
         { enableScripts: true }
     );
     
-    const components = health?.components || {};
-    const metrics = health?.metrics || {};
+    const components: Record<string, { status?: string; port?: number; version?: string; provider?: string }> = health.components || {} as Record<string, { status?: string; port?: number; version?: string; provider?: string }>;
+    const metrics = health.metrics || {};
     
     panel.webview.html = `
     <!DOCTYPE html>
@@ -733,7 +735,7 @@ function showSystemHealthDetails(health: any) {
         </div>
         
         <h2>🔧 Components</h2>
-        ${Object.entries(components).map(([name, comp]: [string, any]) => `
+    ${Object.entries(components).map(([name, comp]) => `
             <div class="component">
                 <h3>${name}</h3>
                 <div class="metric"><span class="label">Status:</span> <span class="value">${comp.status || 'Unknown'}</span></div>
@@ -751,15 +753,16 @@ function showSystemHealthDetails(health: any) {
     </html>`;
 }
 
-function getBMADWebviewContent(analysis: any): string {
+function getBMADWebviewContent(analysis: unknown): string {
     // Extract variables to avoid template literal scope issues
-    const summary = analysis?.summary || 'No summary available';
-    const confidence = analysis?.confidence || 0;
-    const complexity = analysis?.complexity || 'Unknown';
-    const recommendations = analysis?.recommendations || ['No specific recommendations available'];
-    const riskAssessment = analysis?.riskAssessment || 'No risk assessment available';
-    const successMetrics = analysis?.successMetrics || 'No success metrics defined';
-    const timeline = analysis?.timeline || 'No timeline considerations provided';
+    const a = (analysis as Record<string, unknown>) || {};
+    const summary = typeof a.summary === 'string' ? a.summary : 'No summary available';
+    const confidence = typeof a.confidence === 'number' ? a.confidence : 0;
+    const complexity = typeof a.complexity === 'string' ? a.complexity : 'Unknown';
+    const recommendations = Array.isArray(a.recommendations) ? (a.recommendations as string[]) : ['No specific recommendations available'];
+    const riskAssessment = typeof a.riskAssessment === 'string' ? a.riskAssessment : 'No risk assessment available';
+    const successMetrics = typeof a.successMetrics === 'string' ? a.successMetrics : 'No success metrics defined';
+    const timeline = typeof a.timeline === 'string' ? a.timeline : 'No timeline considerations provided';
     
     return `
     <!DOCTYPE html>
@@ -1034,7 +1037,7 @@ function getDashboardWebviewContent(): string {
 
 // New v4.0.0 Professional Helper Functions
 
-function showSemanticAnalysisReport(_analysis: any, analysisType: string) {
+function showSemanticAnalysisReport(_analysis: unknown, analysisType: string) {
     const panel = vscode.window.createWebviewPanel(
         'semanticAnalysis',
         'OneAgent Semantic Analysis',
@@ -1076,7 +1079,7 @@ function showSemanticAnalysisReport(_analysis: any, analysisType: string) {
     </html>`;
 }
 
-function showEnhancedSearchResults(data: any) {
+function showEnhancedSearchResults(data: unknown) {
     const panel = vscode.window.createWebviewPanel(
         'enhancedSearch',
         'OneAgent Enhanced Search Results',
@@ -1084,7 +1087,8 @@ function showEnhancedSearchResults(data: any) {
         { enableScripts: true }
     );
 
-    const results = data?.results || [];
+    const d = (data as { results?: unknown[] }) || {};
+    const results = Array.isArray(d.results) ? d.results : [];
     
     panel.webview.html = `<!DOCTYPE html>
     <html>
@@ -1101,19 +1105,25 @@ function showEnhancedSearchResults(data: any) {
         <h2>🔍 Enhanced Search Results</h2>
         <p>Found ${results.length} quality-filtered results</p>
         
-        ${results.map((result: any) => `
+    ${results.map((result) => {
+        const r = (result as Record<string, unknown>) || {};
+        const title = typeof r.title === 'string' ? r.title : 'No title';
+        const url = typeof r.url === 'string' ? r.url : '';
+        const summary = typeof r.summary === 'string' ? r.summary : (typeof r.snippet === 'string' ? r.snippet : '');
+        const q = typeof r.qualityScore === 'number' ? r.qualityScore : undefined;
+        return `
             <div class="result">
-                <h3>${result.title || 'No title'}</h3>
-                <div class="url">${result.url || ''}</div>
-                <div class="summary">${result.summary || result.snippet || ''}</div>
-                ${result.qualityScore ? `<span class="quality-badge">Quality: ${result.qualityScore}%</span>` : ''}
+        <h3>${title}</h3>
+        <div class="url">${url}</div>
+        <div class="summary">${summary}</div>
+        ${q !== undefined ? `<span class="quality-badge">Quality: ${q}%</span>` : ''}
             </div>
-        `).join('')}
+    `;}).join('')}
     </body>
     </html>`;
 }
 
-function showEvolutionAnalytics(data: any) {
+function showEvolutionAnalytics(data: unknown) {
     const panel = vscode.window.createWebviewPanel(
         'evolutionAnalytics',
         'OneAgent Evolution Analytics',
@@ -1137,15 +1147,15 @@ function showEvolutionAnalytics(data: any) {
         
         <div class="metric-card">
             <h3>Quality Trends</h3>
-            <p>Average Quality Score: ${data?.averageQuality || 'N/A'}%</p>
-            <p>Quality Trend: <span class="${(data?.qualityTrend || 0) >= 0 ? 'trend-up' : 'trend-down'}">${(data?.qualityTrend || 0) >= 0 ? '📈' : '📉'} ${data?.qualityTrend || 0}%</span></p>
+            <p>Average Quality Score: ${(data as Record<string, unknown>)?.averageQuality ?? 'N/A'}%</p>
+            <p>Quality Trend: <span class="${(((data as Record<string, unknown>)?.qualityTrend as number) || 0) >= 0 ? 'trend-up' : 'trend-down'}">${((((data as Record<string, unknown>)?.qualityTrend as number) || 0) >= 0) ? '📈' : '📉'} ${((data as Record<string, unknown>)?.qualityTrend as number) || 0}%</span></p>
         </div>
         
         <div class="metric-card">
             <h3>Capability Evolution</h3>
-            <p>New Capabilities: ${data?.newCapabilities || 0}</p>
-            <p>Enhanced Capabilities: ${data?.enhancedCapabilities || 0}</p>
-            <p>Evolution Events: ${data?.evolutionEvents || 0}</p>
+            <p>New Capabilities: ${((data as Record<string, unknown>)?.newCapabilities as number) || 0}</p>
+            <p>Enhanced Capabilities: ${((data as Record<string, unknown>)?.enhancedCapabilities as number) || 0}</p>
+            <p>Evolution Events: ${((data as Record<string, unknown>)?.evolutionEvents as number) || 0}</p>
         </div>
         
         <div class="metric-card">
@@ -1158,7 +1168,7 @@ function showEvolutionAnalytics(data: any) {
     </html>`;
 }
 
-function showProfileStatusDetails(status: any) {
+function showProfileStatusDetails(status: ProfileStatusResponse) {
     const panel = vscode.window.createWebviewPanel(
         'profileStatus',
         'OneAgent Profile Status',
@@ -1184,7 +1194,7 @@ function showProfileStatusDetails(status: any) {
         <div class="status-grid">
             <div class="status-card status-good">
                 <h3>Quality Score</h3>
-                <p>${status?.qualityScore || 'N/A'}%</p>
+                <p>${status?.qualityScore ?? 'N/A'}%</p>
             </div>
             
             <div class="status-card ${status?.evolutionReadiness === 'Ready' ? 'status-good' : 'status-warning'}">
@@ -1203,17 +1213,18 @@ function showProfileStatusDetails(status: any) {
             </div>
         </div>
         
-        ${status?.lastEvolution ? `
+    ${status?.lastEvolution ? `
             <div class="status-card">
                 <h3>Last Evolution</h3>
-                <p>${new Date(status.lastEvolution).toLocaleString()}</p>
+        <p>${new Date(String(status.lastEvolution)).toLocaleString()}</p>
             </div>
         ` : ''}
     </body>
     </html>`;
 }
 
-function showEvolutionResults(evolution: any) {
+function showEvolutionResults(evolution: { type?: string; qualityImprovement?: number; newFeatures?: unknown[]; newCapabilities?: string[]; enhancedCapabilities?: string[] } | unknown) {
+    const evo = (evolution as { type?: string; qualityImprovement?: number; newFeatures?: unknown[]; newCapabilities?: string[]; enhancedCapabilities?: string[] }) || {};
     const panel = vscode.window.createWebviewPanel(
         'evolutionResults',
         'OneAgent Profile Evolution Results',
@@ -1237,14 +1248,14 @@ function showEvolutionResults(evolution: any) {
         
         <div class="evolution-summary">
             <h3>Evolution Summary</h3>
-            <p><strong>Evolution Type:</strong> ${evolution?.type || 'Standard'}</p>
-            <p><strong>Quality Improvement:</strong> ${evolution?.qualityImprovement || 0}%</p>
-            <p><strong>New Features:</strong> ${evolution?.newFeatures?.length || 0}</p>
+            <p><strong>Evolution Type:</strong> ${evo?.type || 'Standard'}</p>
+            <p><strong>Quality Improvement:</strong> ${evo?.qualityImprovement || 0}%</p>
+            <p><strong>New Features:</strong> ${evo?.newFeatures?.length || 0}</p>
         </div>
         
-        ${evolution?.newCapabilities ? `
+        ${evo?.newCapabilities ? `
             <h3>New Capabilities</h3>
-            ${evolution.newCapabilities.map((cap: string) => `
+            ${evo.newCapabilities.map((cap: string) => `
                 <div class="capability">
                     <span class="new-capability">+ ${cap}</span>
                     <span>NEW</span>
@@ -1252,9 +1263,9 @@ function showEvolutionResults(evolution: any) {
             `).join('')}
         ` : ''}
         
-        ${evolution?.enhancedCapabilities ? `
+        ${evo?.enhancedCapabilities ? `
             <h3>Enhanced Capabilities</h3>
-            ${evolution.enhancedCapabilities.map((cap: string) => `
+            ${evo.enhancedCapabilities.map((cap: string) => `
                 <div class="capability">
                     <span class="enhanced-capability">↗ ${cap}</span>
                     <span>ENHANCED</span>
@@ -1265,7 +1276,7 @@ function showEvolutionResults(evolution: any) {
     </html>`;
 }
 
-function showAgentNetworkHealth(data: any) {
+function showAgentNetworkHealth(data: unknown) {
     const panel = vscode.window.createWebviewPanel(
         'agentNetworkHealth',
         'OneAgent Network Health',
@@ -1290,44 +1301,49 @@ function showAgentNetworkHealth(data: any) {
     <body>
         <h2>🕸️ Agent Network Health</h2>
         
-        <div class="health-grid">
+    <div class="health-grid">
             <div class="health-card health-good">
                 <h3>🟢 Online Agents</h3>
-                <p style="font-size: 24px;">${data?.onlineAgents || 0}</p>
+        <p style="font-size: 24px;">${((data as Record<string, unknown>)?.onlineAgents as number) || 0}</p>
             </div>
             
             <div class="health-card health-warning">
                 <h3>🟡 Busy Agents</h3>
-                <p style="font-size: 24px;">${data?.busyAgents || 0}</p>
+        <p style="font-size: 24px;">${((data as Record<string, unknown>)?.busyAgents as number) || 0}</p>
             </div>
             
             <div class="health-card health-error">
                 <h3>🔴 Offline Agents</h3>
-                <p style="font-size: 24px;">${data?.offlineAgents || 0}</p>
+        <p style="font-size: 24px;">${((data as Record<string, unknown>)?.offlineAgents as number) || 0}</p>
             </div>
             
             <div class="health-card health-good">
                 <h3>📊 Network Load</h3>
-                <p style="font-size: 24px;">${data?.networkLoad || 0}%</p>
+        <p style="font-size: 24px;">${((data as Record<string, unknown>)?.networkLoad as number) || 0}%</p>
             </div>
         </div>
         
-        ${data?.agents ? `
+    ${Array.isArray((data as Record<string, unknown>)?.agents as unknown[]) ? `
             <div class="agent-list">
                 <h3>Agent Status Details</h3>
-                ${data.agents.map((agent: any) => `
+        ${(((data as Record<string, unknown>)?.agents as unknown[]) || []).map((agent) => {
+            const a = (agent as Record<string, unknown>) || {};
+            const name = (a.name as string) || (a.id as string) || 'Unknown';
+            const status = (a.status as string) || 'unknown';
+            const color = status === 'online' ? 'green' : status === 'busy' ? 'orange' : 'red';
+            return `
                     <div class="agent-item">
-                        <span>${agent.name || agent.id}</span>
-                        <span style="color: ${agent.status === 'online' ? 'green' : agent.status === 'busy' ? 'orange' : 'red'}">${agent.status?.toUpperCase()}</span>
+            <span>${name}</span>
+            <span style="color: ${color}">${status.toUpperCase()}</span>
                     </div>
-                `).join('')}
+        `;}).join('')}
             </div>
         ` : ''}
     </body>
     </html>`;
 }
 
-function showCoordinationResults(data: any) {
+function showCoordinationResults(data: unknown) {
     const panel = vscode.window.createWebviewPanel(
         'coordinationResults',
         'OneAgent Multi-Agent Coordination Results',
@@ -1354,34 +1370,44 @@ function showCoordinationResults(data: any) {
         
         <div class="coordination-summary">
             <h3>Coordination Summary</h3>
-            <p><strong>Task:</strong> ${data?.task || 'Not specified'}</p>
-            <p><strong>Agents Assigned:</strong> ${data?.assignedAgents?.length || 0}</p>
-            <p><strong>Success Rate:</strong> ${data?.successRate || 0}%</p>
+            <p><strong>Task:</strong> ${(data as Record<string, unknown>)?.task ?? 'Not specified'}</p>
+            <p><strong>Agents Assigned:</strong> ${Array.isArray((data as Record<string, unknown>)?.assignedAgents as unknown[]) ? (((data as Record<string, unknown>)?.assignedAgents as unknown[]) || []).length : 0}</p>
+            <p><strong>Success Rate:</strong> ${((data as Record<string, unknown>)?.successRate as number) || 0}%</p>
         </div>
         
-        ${data?.assignedAgents ? `
+        ${Array.isArray((data as Record<string, unknown>)?.assignedAgents as unknown[]) ? `
             <h3>Agent Assignments</h3>
-            ${data.assignedAgents.map((assignment: any) => `
-                <div class="agent-assignment ${assignment.status === 'completed' ? 'success' : 'pending'}">
-                    <h4>${assignment.agentName || assignment.agentId}</h4>
-                    <p><strong>Role:</strong> ${assignment.role || 'Not specified'}</p>
-                    <p><strong>Status:</strong> ${assignment.status || 'Unknown'}</p>
-                    <p><strong>Capabilities:</strong> ${assignment.capabilities?.join(', ') || 'None listed'}</p>
+            ${(((data as Record<string, unknown>)?.assignedAgents as unknown[]) || []).map((assignment) => {
+                const asn = (assignment as Record<string, unknown>) || {};
+                const agentName = (asn.agentName as string) || (asn.agentId as string) || 'Unknown';
+                const role = (asn.role as string) || 'Not specified';
+                const status = (asn.status as string) || 'Unknown';
+                const caps = Array.isArray(asn.capabilities) ? (asn.capabilities as string[]).join(', ') : 'None listed';
+                return `
+                <div class="agent-assignment ${((assignment as Record<string, unknown>)?.status as string) === 'completed' ? 'success' : 'pending'}">
+                    <h4>${agentName}</h4>
+                    <p><strong>Role:</strong> ${role}</p>
+                    <p><strong>Status:</strong> ${status}</p>
+                    <p><strong>Capabilities:</strong> ${caps}</p>
                 </div>
-            `).join('')}
+            `;}).join('')}
         ` : ''}
         
-        ${data?.timeline ? `
+        ${Array.isArray((data as Record<string, unknown>)?.timeline as unknown[]) ? `
             <div class="timeline">
                 <h3>Coordination Timeline</h3>
-                ${data.timeline.map((event: any) => `
+                ${(((data as Record<string, unknown>)?.timeline as unknown[]) || []).map((event) => {
+                    const e = (event as Record<string, unknown>) || {};
+                    const timestamp = String(e.timestamp ?? '');
+                    const description = String(e.description ?? '');
+                    return `
                     <div class="timeline-item">
                         <div class="timeline-dot"></div>
                         <div>
-                            <strong>${event.timestamp}</strong>: ${event.description}
+                            <strong>${timestamp}</strong>: ${description}
                         </div>
                     </div>
-                `).join('')}
+                `;}).join('')}
             </div>
         ` : ''}
     </body>

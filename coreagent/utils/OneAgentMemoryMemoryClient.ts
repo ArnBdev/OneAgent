@@ -5,7 +5,7 @@ import {
   MemorySearchOptions,
   MemorySearchResult,
   MemoryRecord,
-  UnifiedMemoryEntry
+  // UnifiedMemoryEntry (deprecated in this wrapper)
 } from '../types/oneagent-backbone-types';
 
 /**
@@ -14,13 +14,13 @@ import {
 export class OneAgentMemoryMemoryClient implements IMemoryClient {
   private client: OneAgentMemory;
 
-  constructor(config?: any) {
+  constructor(config?: Record<string, unknown>) {
     this.client = OneAgentMemory.getInstance(config);
   }
 
   async store(content: string, metadata: UnifiedMetadata): Promise<string> {
-    const result = await this.client.addMemory({ content, metadata });
-    return result?.id || '';
+    // Use canonical path; metadata already unified
+    return this.client.addMemoryCanonical(content, metadata, metadata.system?.userId || 'default-user');
   }
 
   async retrieve(query: string, options?: MemorySearchOptions): Promise<MemorySearchResult> {
@@ -49,36 +49,56 @@ export class OneAgentMemoryMemoryClient implements IMemoryClient {
     return true;
   }
 
-  async findSimilar(contentId: string, threshold?: number): Promise<MemoryRecord[]> {
+  async findSimilar(_contentId: string, _threshold?: number): Promise<MemoryRecord[]> {
     // Not implemented in mem0; stub for future memgraph integration
     return [];
   }
 
-  async getByTags(tags: string[]): Promise<MemoryRecord[]> {
+  async getByTags(_tags: string[]): Promise<MemoryRecord[]> {
     // Not implemented; stub
     return [];
   }
 
-  async getByTimeRange(start: Date, end: Date): Promise<MemoryRecord[]> {
+  async getByTimeRange(_start: Date, _end: Date): Promise<MemoryRecord[]> {
     // Not implemented; stub
     return [];
   }
 
-  async getStats(): Promise<any> {
-    return this.client.getOptimizationStats();
+  async getStats(): Promise<import('../types/oneagent-backbone-types').MemoryAnalytics> {
+    // Provide minimal stub converting optimization stats (if any) into MemoryAnalytics shape
+  await this.client.getOptimizationStats(); // currently unused; placeholder for future mapping
+    return {
+      totalMemories: 0,
+      totalSize: 0,
+      uniqueUsers: 1,
+      memoriesPerUser: { default: 0 },
+      qualityDistribution: {},
+      constitutionalCompliance: 1,
+      flaggedContent: 0,
+      creationTrends: {},
+      accessPatterns: {},
+      retentionMetrics: {},
+      topCategories: {},
+      topTags: {},
+  // Provide minimal sensitivity distribution; cast to expected mapped type
+  sensitivityDistribution: { internal: 1 } as unknown as Record<string, number>,
+      averageQueryTime: 0,
+      cacheHitRate: 0,
+      optimizationOpportunities: []
+    };
   }
 
   async optimizeStorage(): Promise<void> {
     // Not implemented; stub
   }
 
-  async validateCompliance(content: string): Promise<boolean> {
+  async validateCompliance(_content: string): Promise<boolean> {
     // Not implemented; stub
     return true;
   }
 
-  async auditMemories(): Promise<any[]> {
-    // Not implemented; stub
+  async auditMemories(): Promise<import('../types/oneagent-backbone-types').ValidationResult[]> {
+    // Not implemented; stub returning empty list
     return [];
   }
 }

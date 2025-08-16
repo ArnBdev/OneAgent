@@ -5,15 +5,15 @@
  */
 
 import { OneAgentA2AProtocol, AgentCard } from '../coreagent/protocols/a2a/A2AProtocol';
-import { oneAgentConfig } from '../coreagent/config/index';
+import { UnifiedBackboneService } from '../coreagent/utils/UnifiedBackboneService';
 import { v4 as uuidv4 } from 'uuid';
 
 // Production-ready Agent Card
 const productionAgentCard: AgentCard = {
-  protocolVersion: oneAgentConfig.a2aProtocolVersion,
+  protocolVersion: UnifiedBackboneService.getResolvedConfig().a2aProtocolVersion,
   name: "OneAgent-Production",
   version: "4.0.0",
-  url: oneAgentConfig.a2aBaseUrl,
+  url: UnifiedBackboneService.getResolvedConfig().a2aBaseUrl,
   description: "Production OneAgent with A2A Protocol v0.2.5 support",
   defaultInputModes: ["text", "file", "data"],
   defaultOutputModes: ["text", "file", "data"],
@@ -165,7 +165,7 @@ async function testProductionA2AProtocol() {
     
     // 5. Test Server Integration Status
     console.log('5️⃣ Testing Server Integration Status...');
-    console.log(`✅ OneAgent MCP Server: RUNNING (${oneAgentConfig.mcpUrl})`);
+  console.log(`✅ OneAgent MCP Server: RUNNING (${UnifiedBackboneService.getResolvedConfig().mcpUrl})`);
     console.log('   • Health endpoint: /health');
     console.log('   • MCP endpoint: /mcp');
     console.log('   • A2A endpoint: /a2a (ready)');
@@ -173,7 +173,7 @@ async function testProductionA2AProtocol() {
     console.log('   • Constitutional AI: ACTIVE');
     console.log('');
     
-    console.log(`✅ OneAgent Memory Server: RUNNING (${oneAgentConfig.memoryUrl})`);
+  console.log(`✅ OneAgent Memory Server: RUNNING (${UnifiedBackboneService.getResolvedConfig().memoryUrl})`);
     console.log('   • Health endpoint: /health');
     console.log('   • Memory API: /v1/memories');
     console.log('   • Total memories: 167+ loaded');

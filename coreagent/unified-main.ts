@@ -5,12 +5,11 @@
  * Uses the OneAgentEngine and unified MCP server.
  */
 
-import { startServer } from './server/unified-mcp-server';
 import { OneAgentEngine, OneAgentMode } from './OneAgentEngine';
+import { startServer } from './server/unified-mcp-server';
 // import { UnifiedBackboneService } from './utils/UnifiedBackboneService';
 
 const mode: OneAgentMode = (process.env.ONEAGENT_MODE as OneAgentMode) || 'mcp-http';
-const protocolVersion = process.env.MCP_PROTOCOL_VERSION || '2025-06-18';
 
 console.log('🌟 Starting OneAgent Unified Platform...');
 console.log('📋 Architecture: OneAgentEngine + HTTP MCP Server');

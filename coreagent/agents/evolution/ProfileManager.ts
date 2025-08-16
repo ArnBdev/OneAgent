@@ -10,9 +10,9 @@ import * as path from 'path';
 import { 
   AgentProfile, 
   ProfileValidationResult, 
-  EvolutionRecord,
-  ProfileMetadata 
+  EvolutionRecord
 } from './AgentProfile';
+import { createUnifiedTimestamp } from '../../utils/UnifiedBackboneService';
 
 export class ProfileManager {
   private static instance: ProfileManager;
@@ -66,7 +66,7 @@ export class ProfileManager {
       await this.archiveCurrentVersion(profileName);
       
       // Update metadata
-      profile.metadata.lastEvolved = new Date().toISOString();
+  profile.metadata.lastEvolved = createUnifiedTimestamp().iso;
       profile.metadata.evolutionCount = (profile.metadata.evolutionCount || 0) + 1;
       
       // Save new profile
@@ -101,7 +101,7 @@ export class ProfileManager {
       const currentProfile: AgentProfile = JSON.parse(currentData);
       
       // Create archive filename with timestamp and version
-      const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+  const timestamp = createUnifiedTimestamp().iso.replace(/[:.]/g, '-');
       const archiveFilename = `${profileName}-v${currentProfile.metadata.version}-${timestamp}.json`;
       const archivePath = path.join(this.archivePath, archiveFilename);
       
@@ -148,8 +148,8 @@ export class ProfileManager {
         name: 'OneAgent',
         description: 'AI Development Assistant with Self-Evolution Capabilities',
         version: '1.0.0',
-        created: new Date().toISOString(),
-        lastEvolved: new Date().toISOString(),
+  created: createUnifiedTimestamp().iso,
+  lastEvolved: createUnifiedTimestamp().iso,
         evolutionCount: 0
       },
       personality: {

@@ -207,7 +207,7 @@ export class PerformanceAnalyzer {
     // Analyze performance by hour
     for (const [hour, conversations] of hourGroups) {
       if (conversations.length < 3) continue;
-      const avgSatisfaction = conversations.reduce((sum: number, c: any) => sum + c.userSatisfaction, 0) / conversations.length;
+  const avgSatisfaction = conversations.reduce((sum: number, c: ConversationData) => sum + c.userSatisfaction, 0) / conversations.length;
       
       patterns.push({
         patternType: `time_hour_${hour}`,

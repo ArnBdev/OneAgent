@@ -95,10 +95,14 @@ export class ConstitutionalValidator {
    * Validate pattern for ALITA evolution
    * WHY: Evolution patterns must be safe and beneficial
    */
-  async validatePattern(pattern: any): Promise<ValidationResult> {
+  async validatePattern(pattern: unknown): Promise<ValidationResult> {
     try {
+      const p = (pattern as Record<string, unknown>) || {};
+      const constitutionalCompliant = typeof p.constitutionalCompliant === 'boolean' ? p.constitutionalCompliant : false;
+      const userSatisfactionScore = typeof p.userSatisfactionScore === 'number' ? p.userSatisfactionScore : 0;
+
       // Check if pattern promotes Constitutional AI principles
-      if (!pattern.constitutionalCompliant) {
+      if (!constitutionalCompliant) {
         return {
           passed: false,
           reason: 'Pattern does not meet Constitutional AI standards'
@@ -106,7 +110,7 @@ export class ConstitutionalValidator {
       }
 
       // Verify pattern has positive impact
-      if (pattern.userSatisfactionScore < 0.7) {
+      if (userSatisfactionScore < 0.7) {
         return {
           passed: false,
           reason: 'Pattern does not show sufficient user satisfaction'

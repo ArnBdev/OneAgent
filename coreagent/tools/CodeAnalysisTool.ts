@@ -7,7 +7,7 @@
 
 import { UnifiedMCPTool, ToolExecutionResult, InputSchema } from './UnifiedMCPTool';
 import { OneAgentMemory, OneAgentMemoryConfig } from '../memory/OneAgentMemory';
-import { createUnifiedTimestamp, createUnifiedId } from '../utils/UnifiedBackboneService';
+import { createUnifiedTimestamp, createUnifiedId, OneAgentUnifiedMetadataService } from '../utils/UnifiedBackboneService';
 import * as fs from 'fs/promises';
 import * as path from 'path';
 
@@ -63,6 +63,7 @@ export interface AnalysisResult {
  */
 export class CodeAnalysisTool extends UnifiedMCPTool {
   private memorySystem: OneAgentMemory;
+  private metadataService: OneAgentUnifiedMetadataService;
 
   constructor() {
     const schema: InputSchema = {
@@ -108,7 +109,8 @@ export class CodeAnalysisTool extends UnifiedMCPTool {
       apiKey: process.env.MEM0_API_KEY || 'demo-key',
       apiUrl: process.env.MEM0_API_URL
     };
-    this.memorySystem = new OneAgentMemory(memoryConfig);
+  this.memorySystem = OneAgentMemory.getInstance(memoryConfig);
+  this.metadataService = OneAgentUnifiedMetadataService.getInstance();
   }
 
   /**
@@ -347,12 +349,30 @@ export class CodeAnalysisTool extends UnifiedMCPTool {
         recommendations: analysis.recommendations,
         timestamp: analysis.timestamp
       };
-
-      // Use canonical memory system for storage
-      await this.memorySystem.addMemory({
-        ...memoryData,
-        type: 'code_analysis'
-      });
+      // Use canonical memory system for storage with unified metadata
+      await this.memorySystem.addMemoryCanonical(
+        JSON.stringify(memoryData),
+        this.metadataService.create('code_analysis', 'CodeAnalysisTool', {
+          system: {
+            source: 'code_analysis_tool',
+            component: 'analysis',
+            userId: 'system'
+          },
+            content: {
+              category: 'code_intelligence',
+              tags: ['code', 'analysis', language],
+              sensitivity: 'internal',
+              relevanceScore: 0.8,
+              contextDependency: 'global'
+            },
+            contextual: {
+              analysisId: analysis.id,
+              language,
+              sourceFile: sourceFile || 'direct_input'
+            }
+        }),
+        'system'
+      );
 
       console.log(`[CodeAnalysis] Stored analysis ${analysis.id} in memory`);
     } catch (error) {
@@ -710,11 +730,11 @@ export class CodeAnalysisTool extends UnifiedMCPTool {
       lineOccurrences.set(line, (lineOccurrences.get(line) || 0) + 1);
     }
 
-    for (const [line, count] of lineOccurrences) {
+    lineOccurrences.forEach((count, line) => {
       if (count > 2) {
         duplications.push(`Duplicated line: "${line.substring(0, 50)}..." (${count} times)`);
       }
-    }
+    });
 
     return duplications.slice(0, 5); // Limit to top 5 duplications
   }

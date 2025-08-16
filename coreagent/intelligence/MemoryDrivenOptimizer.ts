@@ -7,7 +7,7 @@
 
 import { OneAgentMemory } from '../memory/OneAgentMemory';
 import { ConstitutionalAI } from '../agents/base/ConstitutionalAI';
-import { createUnifiedTimestamp } from '../utils/UnifiedBackboneService';
+import { createUnifiedTimestamp, createUnifiedId } from '../utils/UnifiedBackboneService';
 
 export interface OptimizationProfile {
   id: string;
@@ -172,17 +172,13 @@ export class MemoryDrivenOptimizer {
     };
     
     // Store optimization result in memory
-    await this.memory.addMemory({
-      content: `Optimization Result: ${JSON.stringify(result)}`,
-      metadata: {
-        category: 'optimization',
-        tags: ['performance', 'memory-driven', 'system-improvement'],
-        strategy: strategyId,
-        success: result.success,
-        confidence: result.confidence,
-        performanceImpact: result.performanceImpact
-      }
-    });
+    await this.memory.addMemoryCanonical(`Optimization Result: ${JSON.stringify(result)}`, {
+      system: { userId: 'system_optimizer', source: 'MemoryDrivenOptimizer', component: 'optimization' },
+      content: { category: 'optimization', tags: ['performance','memory-driven','system-improvement'], sensitivity: 'internal', relevanceScore: 0.8, contextDependency: 'global' },
+      quality: { score: 0.85, constitutionalCompliant: true, validationLevel: 'basic', confidence: 0.8 },
+      relationships: { parent: undefined, children: [], related: [], dependencies: [] },
+      analytics: { accessCount: 0, lastAccessPattern: 'write', usageContext: [] }
+    }, 'system_optimizer');
     
     return result;
   }
@@ -376,7 +372,7 @@ export class MemoryDrivenOptimizer {
     
     for (const gap of gaps) {
       const strategy: OptimizationStrategy = {
-        id: this.generateUnifiedId('strategy', gap.metric),
+        id: createUnifiedId('operation', `strategy_${gap.metric}`),
         name: `Optimize ${gap.metric}`,
         description: `Improve ${gap.metric} performance by ${gap.gap.toFixed(2)}`,
         targetMetric: gap.metric,
@@ -503,7 +499,7 @@ export class MemoryDrivenOptimizer {
   private generateActionsForMetric(metric: keyof PerformanceMetrics): OptimizationAction[] {
     const baseActions: OptimizationAction[] = [
       {
-        id: this.generateUnifiedId('action', metric),
+        id: createUnifiedId('operation', `action_restructure_${metric}`),
         type: 'memory_restructure',
         description: `Optimize memory usage for ${metric}`,
         parameters: { metric, approach: 'restructure' },
@@ -511,7 +507,7 @@ export class MemoryDrivenOptimizer {
         implementationPriority: 'medium'
       },
       {
-        id: this.generateUnifiedId('action', metric),
+        id: createUnifiedId('operation', `action_workflow_${metric}`),
         type: 'workflow_adjust',
         description: `Adjust workflow to improve ${metric}`,
         parameters: { metric, approach: 'workflow' },
@@ -524,7 +520,7 @@ export class MemoryDrivenOptimizer {
   }
 
   // Helper methods for workflow optimization
-  private async identifyWorkflowOptimizations(request: any): Promise<string[]> {
+  private async identifyWorkflowOptimizations(request: { domain: string; currentWorkflow: string; performanceData: { averageTime: number; successRate: number; bottlenecks: string[] } }): Promise<string[]> {
     const optimizations: string[] = [];
     
     // Analyze bottlenecks
@@ -556,7 +552,7 @@ export class MemoryDrivenOptimizer {
     return optimizations;
   }
 
-  private calculateExpectedImprovement(performanceData: any): number {
+  private calculateExpectedImprovement(performanceData: { bottlenecks: string[]; successRate: number }): number {
     const baseImprovement = 0.2;
     const bottleneckPenalty = performanceData.bottlenecks.length * 0.05;
     const successRateBonus = performanceData.successRate > 0.8 ? 0.1 : 0;
@@ -583,7 +579,7 @@ export class MemoryDrivenOptimizer {
   }
 
   // Helper methods for memory-driven insights
-  private async searchMemoryForInsights(request: any): Promise<any[]> {
+  private async searchMemoryForInsights(request: { domain: string; timeframe: string; focus: string }): Promise<Array<{ content?: string; timestamp?: number | string | Date; metadata?: { confidence?: number; quality?: number } }>> {
     // Search memory for relevant data
     const searchResults = await this.memory.searchMemory({
       query: `domain:${request.domain} timeframe:${request.timeframe} focus:${request.focus}`,
@@ -591,10 +587,10 @@ export class MemoryDrivenOptimizer {
       limit: 50
     });
     
-    return searchResults || [];
+    return (searchResults?.results as unknown as Array<{ content?: string; timestamp?: number | string | Date; metadata?: { confidence?: number; quality?: number } }>) || [];
   }
 
-  private async analyzeInsightPatterns(memoryData: any[]): Promise<string[]> {
+  private async analyzeInsightPatterns(memoryData: Array<{ content?: string; timestamp?: number | string | Date; metadata?: { confidence?: number; quality?: number } }>): Promise<string[]> {
     const insights: string[] = [];
     
     if (memoryData.length === 0) {
@@ -617,7 +613,7 @@ export class MemoryDrivenOptimizer {
     return insights;
   }
 
-  private analyzeContentFrequency(memoryData: any[]): string[] {
+  private analyzeContentFrequency(memoryData: Array<{ content?: string }>): string[] {
     const wordCounts = new Map<string, number>();
     
     memoryData.forEach(item => {
@@ -637,12 +633,10 @@ export class MemoryDrivenOptimizer {
       .map(([word]) => word);
   }
 
-  private analyzeSuccessPatterns(memoryData: any[]): string[] {
+  private analyzeSuccessPatterns(memoryData: Array<{ metadata?: { confidence?: number; quality?: number } }>): string[] {
     const patterns: string[] = [];
     
-    const highQualityItems = memoryData.filter(item => 
-      item.metadata?.confidence > 0.8 || item.metadata?.quality > 0.8
-    );
+    const highQualityItems = memoryData.filter(item => (item.metadata?.confidence ?? 0) > 0.8 || (item.metadata?.quality ?? 0) > 0.8);
     
     if (highQualityItems.length > 0) {
       patterns.push(`${highQualityItems.length} high-quality interactions identified`);
@@ -651,13 +645,15 @@ export class MemoryDrivenOptimizer {
     return patterns;
   }
 
-  private analyzeTemporalPatterns(memoryData: any[]): string[] {
+  private analyzeTemporalPatterns(memoryData: Array<{ timestamp?: number | string | Date }>): string[] {
     const patterns: string[] = [];
     
     const now = createUnifiedTimestamp().unix;
-    const recent = memoryData.filter(item => 
-      item.timestamp && (now - item.timestamp) < (7 * 24 * 60 * 60 * 1000)
-    );
+    const recent = memoryData.filter(item => {
+      if (!item.timestamp) return false;
+      const t = new Date(item.timestamp).getTime();
+      return (now - t) < (7 * 24 * 60 * 60 * 1000);
+    });
     
     if (recent.length > 0) {
       patterns.push(`${recent.length} recent interactions in the last week`);
@@ -688,7 +684,7 @@ export class MemoryDrivenOptimizer {
     return recommendations;
   }
 
-  private identifyTrends(memoryData: any[]): string[] {
+  private identifyTrends(memoryData: unknown[]): string[] {
     const trends: string[] = [];
     
     if (memoryData.length > 10) {
@@ -725,28 +721,10 @@ export class MemoryDrivenOptimizer {
     return predictions;
   }
 
-  private calculateInsightQuality(insights: string[], memoryData: any[]): number {
+  private calculateInsightQuality(insights: string[], memoryData: unknown[]): number {
     const dataQuality = Math.min(memoryData.length / 20, 1.0);
     const insightDepth = Math.min(insights.length / 5, 1.0);
     
     return Math.round((dataQuality * 0.6 + insightDepth * 0.4) * 100) / 100;
-  }
-
-  /**
-   * Generate unified ID following canonical architecture
-   */
-  private generateUnifiedId(type: string, context?: string): string {
-    const timestamp = createUnifiedTimestamp().unix;
-    const randomSuffix = this.generateSecureRandomSuffix();
-    const prefix = context ? `${type}_${context}` : type;
-    return `${prefix}_${timestamp}_${randomSuffix}`;
-  }
-  
-  private generateSecureRandomSuffix(): string {
-    // Use crypto.randomUUID() for better randomness, fallback to Math.random()
-    if (typeof crypto !== 'undefined' && crypto.randomUUID) {
-      return crypto.randomUUID().split('-')[0]; // Use first segment
-    }
-    return Math.random().toString(36).substr(2, 9);
   }
 }
