@@ -43,6 +43,8 @@
   "smoke:mcp": "ts-node tests/smoke/mcp-startup.smoke.ts",
   "smoke:runtime": "ts-node scripts/runtime-smoke.ts",
   "demo:hello": "ts-node scripts/hello-a2a.ts",
+  "sync:readme": "node scripts/sync-readme-version.js",
+  "verify:readme": "node scripts/verify-readme-version.js",
   "format": "npx prettier --write .",
     "ui:dev": "vite",
     "ui:build": "vite build",
