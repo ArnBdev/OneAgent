@@ -14,7 +14,7 @@ on:
       title:
         description: Pull request title
         required: true
-        default: Release v4.0.1-rc1
+        default: Release v4.0.1
 
 permissions:
   contents: write

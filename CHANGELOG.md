@@ -1,12 +1,12 @@
-# 📝 OneAgent v4.0.0 Professional - Changelog
+# 📝 OneAgent v4.0.1 Professional - Changelog
 
-**Current Version**: v4.0.0 Professional  
+**Current Version**: v4.0.1 Professional  
 **Quality Score**: 96.85% (Grade A+)  
 **System Health**: Optimal with ALITA Metadata Enhancement  
 
 ---
 
-## Unreleased - 2025-08-16
+## v4.0.1 - 2025-08-16
 
 - scripts/runtime-smoke.ts: Load `.env` in the runtime smoke harness; add SSE probe for `/mcp`; add an optional authenticated memory `/v1/memories/stats` check when `MEM0_API_KEY` is present to exercise read-only memory endpoints without modifying state.
 - scripts/start-oneagent-system.ps1: Clarify `.env` usage in the startup banner; probe memory `/health` for readiness instead of root; print quick visibility for `MEM0_API_KEY` to aid debugging.
