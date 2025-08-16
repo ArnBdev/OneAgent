@@ -23,7 +23,8 @@ dotenv.config({ path: path.join(process.cwd(), '.env') });
 // Avoid logging secrets in output
 
 import { OneAgentEngine, OneAgentRequest, OneAgentResponse } from '../OneAgentEngine';
-import { createUnifiedTimestamp, UnifiedBackboneService, getUnifiedErrorHandler, getAppVersion, getAppName } from '../utils/UnifiedBackboneService';
+import { createUnifiedTimestamp, UnifiedBackboneService, getUnifiedErrorHandler, getAppVersion, getAppName, OneAgentUnifiedMetadataService, OneAgentUnifiedTimeService } from '../utils/UnifiedBackboneService';
+import { createAgentCard } from '../types/AgentCard';
 import { SimpleAuditLogger } from '../audit/auditLogger';
 import passport from 'passport';
 
@@ -889,6 +890,78 @@ app.get('/info', (_req: Request, res: Response) => {
     initialized: serverInitialized,
     timestamp: createUnifiedTimestamp().iso
   });
+});
+
+/**
+ * A2A Well-known Agent Card endpoints
+ * - New path: /.well-known/agent-card.json (A2A >= 0.3.0)
+ * - Legacy alias: /.well-known/agent.json (A2A <= 0.2.x)
+ * Returns a minimal AgentCard constructed via canonical backbone services.
+ */
+function getAgentCardPayload() {
+  const timeService = OneAgentUnifiedTimeService.getInstance();
+  const metadataService = OneAgentUnifiedMetadataService.getInstance();
+  // Minimal, static identity derived from package/app data
+  const cfg = UnifiedBackboneService.getResolvedConfig();
+  const name = getAppName();
+  const agentId = `oneagent-mcp-${cfg.mcpPort}`;
+  const description = `${name} unified MCP/A2A endpoint`;
+
+  const card = createAgentCard(
+    {
+      name,
+      agentId,
+      agentType: 'system',
+      description,
+      version: getAppVersion(),
+      url: environmentConfig.endpoints.mcp.url.replace(/\/mcp$/, ''),
+      capabilities: {
+        streaming: true,
+        pushNotifications: false,
+        stateTransitionHistory: true,
+        extensions: []
+      },
+      skills: [],
+      status: 'active',
+      health: 'healthy'
+    },
+    { timeService, metadataService }
+  );
+
+  // Populate common A2A fields we expose publicly
+  return {
+    ...card,
+    preferredTransport: 'JSONRPC',
+    additionalInterfaces: [
+      { url: environmentConfig.endpoints.mcp.url, transport: 'JSONRPC' }
+    ],
+    endpoints: {
+      a2a: environmentConfig.endpoints.mcp.url,
+      mcp: environmentConfig.endpoints.mcp.url
+    },
+    supportsAuthenticatedExtendedCard: false,
+    iconUrl: card.iconUrl || undefined
+  };
+}
+
+app.get('/.well-known/agent-card.json', (_req: Request, res: Response) => {
+  try {
+    const payload = getAgentCardPayload();
+    res.setHeader('Content-Type', 'application/json');
+    res.status(200).json(payload);
+  } catch {
+    res.status(500).json({ error: 'failed_to_generate_agent_card' });
+  }
+});
+
+app.get('/.well-known/agent.json', (_req: Request, res: Response) => {
+  try {
+    const payload = getAgentCardPayload();
+    res.setHeader('Content-Type', 'application/json');
+    res.status(200).json(payload);
+  } catch {
+    res.status(500).json({ error: 'failed_to_generate_agent_card' });
+  }
 });
 
 /**

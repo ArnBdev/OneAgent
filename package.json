@@ -1,6 +1,6 @@
 {
   "name": "oneagent-core",
-  "version": "0.1.0",
+  "version": "4.0.1",
   "description": "OneAgent CoreAgent - Modulær AI-agentplattform with UI",
   "main": "dist/coreagent/main.js",
   "scripts": {
@@ -42,6 +42,7 @@
   "smoke": "ts-node tests/canonical/unified-systems.smoke.test.ts",
   "smoke:mcp": "ts-node tests/smoke/mcp-startup.smoke.ts",
   "smoke:runtime": "ts-node scripts/runtime-smoke.ts",
+  "demo:hello": "ts-node scripts/hello-a2a.ts",
   "format": "npx prettier --write .",
     "ui:dev": "vite",
     "ui:build": "vite build",

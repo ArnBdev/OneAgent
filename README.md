@@ -27,6 +27,34 @@ OneAgent is a **professional-grade, memory-driven multiagent AI platform** featu
 
 ## 🚀 **Getting Started**
 
+### Quick Start (Local MCP + Memory)
+
+1. Copy `.env.example` to `.env` and optionally set:
+	- `GEMINI_API_KEY` (required for real memory operations)
+	- `MEM0_API_KEY` (enables authenticated memory stats/read and is required for writes)
+2. Start both servers with readiness checks:
+	- Windows PowerShell: `scripts/start-oneagent-system.ps1`
+3. Validate runtime (type-check, lint, smoke including SSE and memory health):
+	- `npm run verify:runtime`
+
+Default endpoints:
+- Memory server: http://127.0.0.1:8010 (GET /health)
+- MCP server: http://127.0.0.1:8083 (GET /health, GET /mcp for SSE)
+ - A2A well-known Agent Card (served by MCP server):
+	 - Preferred (A2A >= 0.3.0): http://127.0.0.1:8083/.well-known/agent-card.json
+	 - Legacy alias (A2A 0.2.x): http://127.0.0.1:8083/.well-known/agent.json
+	 - Notes: Default A2A protocol advertised is 0.2.6; extended card is not required for 0.2.x.
+
+### Try it in 2 minutes (Hello A2A)
+
+With servers running:
+
+```bash
+npm run demo:hello
+```
+
+This validates MCP /health, /info, JSON-RPC initialize, tools/list, and confirms SSE heartbeat—without writing to memory.
+
 ### **Quick Start**
 ```bash
 # Install dependencies
@@ -228,6 +256,16 @@ All agent-to-agent (A2A) coordination uses `UnifiedAgentCommunicationService` (s
 Rate limiting (30 messages / 60s per agent-session) is enforced and covered by `communication-rate-limit.test.ts`.
 
 Monitoring events now include an explicit `operation` field (in addition to the descriptive message) for robust assertion and aggregation, while `trackOperation` remains the canonical entry point (no parallel metrics store).
+
+### Public interop (A2A 0.3.0 readiness plan)
+- Status: Forward-compatible. We serve both `/.well-known/agent-card.json` (preferred) and `/.well-known/agent.json` (legacy) and advertise protocol 0.2.6 by default.
+- Planned for public interop (future major):
+	- Extended Agent Card handler (authenticated optional)
+	- AgentCard signatures (trust attestation)
+	- mTLS and OAuth2 metadata in `securitySchemes`
+	- Multiple transport announcement (Transport enum), push notification configs
+	- Documentation updates and conformance tests
+These are intentionally deferred to keep v4.0.1 stable; implement when external A2A registry/agents integration is prioritized.
 
 ## 🤝 **Contributing**
 
