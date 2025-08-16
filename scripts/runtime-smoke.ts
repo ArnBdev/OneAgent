@@ -7,6 +7,7 @@
  */
 import { spawn, ChildProcess } from 'node:child_process';
 import path from 'node:path';
+import fs from 'node:fs';
 import dotenv from 'dotenv';
 // Load environment from project root so MEM0_API_KEY, ports, etc. are consistent across Node and Python
 dotenv.config({ path: path.join(process.cwd(), '.env') });
@@ -157,6 +158,20 @@ async function main() {
       // Ensure GEMINI_API_KEY exists for memory server boot (health route doesn't use it)
       if (!process.env.GEMINI_API_KEY) {
         process.env.GEMINI_API_KEY = 'dummy-smoke-key';
+      }
+      // Propagate unified OneAgent version to memory server logs
+      try {
+        const pkgPath = path.join(cwd, 'package.json');
+        const text = fs.readFileSync(pkgPath, 'utf8');
+        const pkg = JSON.parse(text) as { version?: string };
+        if (pkg && typeof pkg.version === 'string' && pkg.version) {
+          process.env.ONEAGENT_VERSION = pkg.version;
+        }
+      } catch (e) {
+        // Fallback to existing env or leave unset; non-fatal
+        if (!process.env.ONEAGENT_VERSION) {
+          process.env.ONEAGENT_VERSION = '4.0.2';
+        }
       }
       // Ensure MEM0_API_KEY exists for authenticated memory routes
       if (!process.env.MEM0_API_KEY) {

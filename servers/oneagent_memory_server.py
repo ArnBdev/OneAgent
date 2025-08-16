@@ -63,6 +63,8 @@ from dotenv import load_dotenv
 # Load .env from root directory (one level up from servers/)
 env_path = os.path.join(os.path.dirname(__file__), '..', '.env')
 load_dotenv(env_path)
+# Unified version reporting (can be overridden via ONEAGENT_VERSION)
+ONEAGENT_VERSION = os.getenv("ONEAGENT_VERSION", "4.0.2")
 MEM0_API_KEY = os.getenv("MEM0_API_KEY")  # <-- moved here, after dotenv
 print(f"Loading environment from: {os.path.abspath(env_path)}")
 print(f"GEMINI_API_KEY loaded: {'Yes' if os.getenv('GEMINI_API_KEY') else 'No'}")
@@ -659,7 +661,7 @@ class OneAgentMemorySystem:
                 "embedding_model": self.embedding_model,
                 "dimensions": config.embedding_dimensions,
                 "uptime": "operational",
-                "version": "4.0.0-Enhanced",
+                "version": f"{ONEAGENT_VERSION}-Enhanced",
                 "features": {
                     "intelligent_processing": True,
                     "conflict_resolution": True,
@@ -1088,7 +1090,7 @@ def minimal_health_status() -> dict:
     return {
         "status": "ok",
         "service": "oneagent-memory",
-        "version": "4.0.0",
+        "version": ONEAGENT_VERSION,
         "mcp_protocol_version": MCP_PROTOCOL_VERSION
     }
 
@@ -1114,7 +1116,7 @@ async def readyz():
 
 async def startup_tasks():
     """Startup tasks and validation"""
-    logger.info("OneAgent Memory Server v4.0.0 Starting...")
+    logger.info(f"OneAgent Memory Server v{ONEAGENT_VERSION} Starting...")
     logger.info(f"Configuration validated successfully")
     logger.info(f"Memory system operational: {memory_system.collection.count()} memories")
     logger.info(f"Server ready at http://{config.host}:{config.port}")
@@ -1124,7 +1126,7 @@ async def startup_tasks():
 # ============================================================================
 
 if __name__ == "__main__":
-    logger.info("Initializing OneAgent Memory Server v4.0.0...")
+    logger.info(f"Initializing OneAgent Memory Server v{ONEAGENT_VERSION}...")
     
     try:
         uvicorn.run(
