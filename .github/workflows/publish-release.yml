@@ -1,0 +1,57 @@
+name: Publish Release from Tag
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Git tag to publish (e.g., v4.0.1-rc1)
+        required: true
+        default: v4.0.1-rc1
+      prerelease:
+        description: Mark as prerelease
+        required: true
+        default: 'true'
+
+permissions:
+  contents: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Create Release
+        id: create_release
+        uses: actions/github-script@v7
+        env:
+          TAG: ${{ github.event.inputs.tag }}
+          PRERELEASE: ${{ github.event.inputs.prerelease }}
+        with:
+          script: |
+            const tag = process.env.TAG;
+            const prerelease = String(process.env.PRERELEASE).toLowerCase() === 'true';
+            const notesPath = `RELEASE_NOTES/${tag}.md`;
+            const fs = require('fs');
+            let body = `Release ${tag}`;
+            if (fs.existsSync(notesPath)) {
+              body = fs.readFileSync(notesPath, 'utf8');
+            }
+            async function run() {
+              try {
+                const { data } = await github.rest.repos.createRelease({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  tag_name: tag,
+                  name: tag,
+                  body,
+                  prerelease,
+                });
+                core.notice(`Release created: ${data.html_url}`);
+                console.log(data.html_url);
+              } catch (err) {
+                core.setFailed(err.message);
+              }
+            }
+            run();

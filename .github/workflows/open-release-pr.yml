@@ -1,0 +1,72 @@
+name: Open Release PR
+
+on:
+  workflow_dispatch:
+    inputs:
+      base:
+        description: Base branch to merge into
+        required: true
+        default: main
+      head:
+        description: Release branch to merge from
+        required: true
+        default: release/v4.0.1-rc1
+      title:
+        description: Pull request title
+        required: true
+        default: Release v4.0.1-rc1
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  create-pr:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Create or find PR
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const base = core.getInput('base');
+            const head = core.getInput('head');
+            const title = core.getInput('title');
+            const draft = true; // create release PRs as draft by default
+
+            async function run() {
+              try {
+                const { data } = await github.rest.pulls.create({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  title,
+                  head,
+                  base,
+                  draft,
+                  body: `Automated release PR from ${head} to ${base}.\n\nRelease notes: RELEASE_NOTES/${title.replace('Release ', '')}.md\n\nChangelog: CHANGELOG.md`,
+                });
+                core.notice(`PR created: ${data.html_url}`);
+                console.log(data.html_url);
+                return;
+              } catch (err) {
+                if (err.status === 422) {
+                  core.warning('PR may already exist or there are no changes. Searching for an existing open PR...');
+                  const { data: prs } = await github.rest.pulls.list({
+                    owner: context.repo.owner,
+                    repo: context.repo.repo,
+                    state: 'open',
+                    head: `${context.repo.owner}:${head}`,
+                    base,
+                  });
+                  if (prs.length) {
+                    core.notice(`Existing PR: ${prs[0].html_url}`);
+                    console.log(prs[0].html_url);
+                    return;
+                  }
+                }
+                core.setFailed(err.message);
+              }
+            }
+            run();
