@@ -1,10 +1,10 @@
-#!/usr/bin/env tsx
+// Run with: node -r ts-node/register tests/memory/memory-integration.test.ts
 // OneAgent Memory Integration Test
 // Tests updated gemini-embedding-001 model functionality
 // Constitutional AI compliant test script
 
-import { OneAgentMemory } from './coreagent/memory/OneAgentMemory';
-import { createUnifiedTimestamp } from './coreagent/utils/UnifiedBackboneService';
+import { OneAgentMemory } from '../../coreagent/memory/OneAgentMemory';
+import { createUnifiedTimestamp } from '../../coreagent/utils/UnifiedBackboneService';
 
 interface TestResult {
   success: boolean;

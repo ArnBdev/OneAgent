@@ -37,7 +37,7 @@ As your lead developer and project manager, here's my strategic recommendation f
 1. **Run Comprehensive Test Suite**
    ```bash
    node test-a2a-nlacs-direct.cjs
-   npx ts-node tests/test-enhanced-orchestrator.ts
+   npm run demo:hello
    ```
 
 2. **Performance Optimization**

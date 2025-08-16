@@ -1,10 +1,10 @@
-#!/usr/bin/env tsx
+// Run with: node -r ts-node/register tests/unit/system-health.test.ts
 /**
  * Test System Health
  * Comprehensive test of all backbone systems
  */
 
-import { unifiedBackbone } from './coreagent/utils/UnifiedBackboneService';
+import { unifiedBackbone } from '../../coreagent/utils/UnifiedBackboneService';
 
 async function testSystemHealth() {
   console.log('🔄 Testing System Health...');
