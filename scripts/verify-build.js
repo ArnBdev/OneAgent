@@ -73,12 +73,14 @@ async function verifyBuild() {
     
     // Run canonical tests (helper uses ts-node transpile-only for speed)
     async function runTsTest(file, extraEnv = {}) {
-      const cmd = `ts-node --transpile-only ${file}`; // cross-platform, avoid npx prompts
+      const path = require('path');
+      const bin = path.join(__dirname, '..', 'node_modules', '.bin', process.platform === 'win32' ? 'ts-node.cmd' : 'ts-node');
+      const args = ['--transpile-only', file];
       return new Promise((resolve, reject) => {
-        const child = spawn(cmd, {
+        const child = spawn(bin, args, {
           env: { ...process.env, ONEAGENT_FAST_TEST_MODE: '1', ONEAGENT_SILENCE_COMM_LOGS: '1', ...extraEnv },
           stdio: ['ignore', 'pipe', 'pipe'],
-          shell: true
+          shell: false
         });
         let stderr = '';
         child.stderr.on('data', d => { stderr += d.toString(); });

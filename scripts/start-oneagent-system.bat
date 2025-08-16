@@ -29,7 +29,7 @@ if "%TSNR%"=="" (
 	echo [OneAgent] ERROR: ts-node/register not found. Run npm install first.
 	goto :end
 )
-start "MCP Server (Node/TypeScript)" cmd /k "cd /d %~dp0.. && node -r %TSNR% coreagent/server/unified-mcp-server.ts"
+start "MCP Server (Node/TypeScript)" cmd /k "cd /d %~dp0.. && node -r \"%TSNR%\" coreagent/server/unified-mcp-server.ts"
 
 echo [OneAgent] Both servers launched. Check their windows for output.
 echo [OneAgent] To stop, close the corresponding terminal windows.

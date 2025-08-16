@@ -53,7 +53,7 @@ if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace($tsNodeRegister)) {
     Write-Host "[OneAgent] ERROR: ts-node/register not found. Run 'npm install' first." -ForegroundColor Red
     exit 1
 }
-$mcpServerCmd = "node -r $tsNodeRegister coreagent/server/unified-mcp-server.ts"
+$mcpServerCmd = "node -r `"$tsNodeRegister`" coreagent/server/unified-mcp-server.ts"
 Start-ProcessWithBanner -Name "MCP Server (Node/TypeScript)" -Command $mcpServerCmd -WorkingDirectory "$PSScriptRoot/.."
 
 function Wait-HttpReady {

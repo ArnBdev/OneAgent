@@ -8,7 +8,7 @@
 			"args": [
 				"-NoProfile",
 				"-Command",
-				"$env:ONEAGENT_FAST_TEST_MODE='1'; $env:ONEAGENT_DISABLE_AUTO_MONITORING='1'; ts-node tests/canonical/a2a-events.smoke.test.ts"
+				"$env:ONEAGENT_FAST_TEST_MODE='1'; $env:ONEAGENT_DISABLE_AUTO_MONITORING='1'; node -r ts-node/register tests/canonical/a2a-events.smoke.test.ts"
 			],
 			"isBackground": false,
 			"problemMatcher": [
