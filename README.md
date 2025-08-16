@@ -41,6 +41,16 @@ Default endpoints:
 - Memory server: http://127.0.0.1:8010 (GET /health)
 - MCP server: http://127.0.0.1:8083 (GET /health, GET /mcp for SSE)
 
+### Try it in 2 minutes (Hello A2A)
+
+With servers running:
+
+```bash
+npm run demo:hello
+```
+
+This validates MCP /health, /info, JSON-RPC initialize, tools/list, and confirms SSE heartbeat—without writing to memory.
+
 ### **Quick Start**
 ```bash
 # Install dependencies

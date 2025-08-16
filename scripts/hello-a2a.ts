@@ -1,0 +1,119 @@
+/**
+ * Hello A2A Demo (non-invasive)
+ * - Loads .env for ports/keys
+ * - Checks MCP /health and /info
+ * - Performs JSON-RPC initialize and tools/list
+ * - Opens SSE on GET /mcp and waits for a heartbeat/event
+ *
+ * This does not write to memory; it’s safe to run repeatedly.
+ */
+import path from 'node:path';
+import dotenv from 'dotenv';
+dotenv.config({ path: path.join(process.cwd(), '.env') });
+import http from 'node:http';
+
+function envInt(name: string, def: number): number {
+  const v = process.env[name];
+  const n = v ? parseInt(v, 10) : NaN;
+  return Number.isFinite(n) ? n : def;
+}
+
+const mcpPort = envInt('ONEAGENT_MCP_PORT', 8083);
+const mcpHealth = `http://127.0.0.1:${mcpPort}/health`;
+const mcpInfo = `http://127.0.0.1:${mcpPort}/info`;
+const mcpUrl = `http://127.0.0.1:${mcpPort}/mcp`;
+
+function httpGet(url: string, timeoutMs = 4000): Promise<{ status: number; body: string; headers: http.IncomingHttpHeaders }>{
+  return new Promise((resolve, reject) => {
+    const u = new URL(url);
+    const req = http.request({ hostname: u.hostname, port: u.port, path: u.pathname, method: 'GET', timeout: timeoutMs }, res => {
+      res.setEncoding('utf8');
+      let raw = '';
+      res.on('data', (d: string) => { raw += d; });
+      res.on('end', () => resolve({ status: res.statusCode || 0, body: raw, headers: res.headers }));
+    });
+    req.on('error', reject);
+    req.end();
+  });
+}
+
+interface JsonRpcResponse { jsonrpc?: string; id?: number | string | null; result?: Record<string, unknown> | undefined; error?: Record<string, unknown> | undefined }
+function httpPostJson(url: string, body: unknown, timeoutMs = 5000): Promise<JsonRpcResponse> {
+  return new Promise((resolve, reject) => {
+    const u = new URL(url);
+    const payload = Buffer.from(JSON.stringify(body));
+    const req = http.request({ hostname: u.hostname, port: u.port, path: u.pathname, method: 'POST', timeout: timeoutMs, headers: { 'Content-Type': 'application/json', 'Content-Length': payload.length } }, res => {
+      res.setEncoding('utf8');
+      let raw = '';
+      res.on('data', (d: string) => { raw += d; });
+      res.on('end', () => { try { resolve(JSON.parse(raw)); } catch (e) { reject(e); } });
+    });
+    req.on('error', reject);
+    req.write(payload);
+    req.end();
+  });
+}
+
+function sseProbe(url: string, timeoutMs = 6000): Promise<boolean> {
+  return new Promise((resolve, reject) => {
+    const u = new URL(url);
+    const req = http.request({ hostname: u.hostname, port: u.port, path: u.pathname, method: 'GET', headers: { Accept: 'text/event-stream' } }, res => {
+      const ct = String(res.headers['content-type'] || '');
+      if (res.statusCode !== 200 || !ct.includes('text/event-stream')) {
+        res.resume();
+        return reject(new Error(`SSE probe failed: status=${res.statusCode} content-type=${ct}`));
+      }
+      let resolved = false;
+      res.setEncoding('utf8');
+      const onData = (chunk: string) => {
+        if (chunk.includes(':heartbeat') || chunk.includes('event:')) {
+          resolved = true;
+          cleanup();
+          resolve(true);
+        }
+      };
+      const cleanup = () => {
+        res.removeListener('data', onData);
+        clearTimeout(timer);
+        try { req.destroy(); } catch { /* ignore */ }
+      };
+      res.on('data', onData);
+      const timer = setTimeout(() => {
+        if (!resolved) {
+          cleanup();
+          reject(new Error('SSE probe timeout'));
+        }
+      }, timeoutMs);
+      (timer as unknown as NodeJS.Timer).unref?.();
+    });
+    req.on('error', reject);
+    req.end();
+  });
+}
+
+async function main() {
+  console.log(`Hello A2A Demo → MCP: ${mcpUrl}`);
+  const health = await httpGet(mcpHealth);
+  if (health.status !== 200) throw new Error(`/health status ${health.status}`);
+  console.log('MCP /health:', health.body);
+
+  const info = await httpGet(mcpInfo);
+  console.log('MCP /info:', info.body);
+
+  const init = await httpPostJson(mcpUrl, { jsonrpc: '2.0', id: 1, method: 'initialize', params: { protocolVersion: '2025-06-18', capabilities: {}, clientInfo: { name: 'hello-a2a', version: '0.0.1' } } });
+  if (!init || init.error) throw new Error('initialize failed');
+  console.log('MCP initialize: OK');
+
+  const tools = await httpPostJson(mcpUrl, { jsonrpc: '2.0', id: 2, method: 'tools/list' });
+  console.log('MCP tools/list:', JSON.stringify(tools?.result ?? {}, null, 2));
+
+  await sseProbe(mcpUrl, 6000);
+  console.log('SSE: heartbeat/event observed');
+
+  console.log('✅ Hello A2A demo completed');
+}
+
+main().catch(err => {
+  console.error('Hello A2A demo failed:', err);
+  process.exit(1);
+});
