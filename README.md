@@ -1,4 +1,4 @@
-# OneAgent v5.0.0 - Memory-Driven Intelligence Platform
+# OneAgent v4.0.2 - Memory-Driven Intelligence Platform
 
 ## 🚀 **Revolutionary AI Platform Overview**
 
@@ -283,7 +283,7 @@ MIT License - See LICENSE file for details
 
 ## 🎉 **OneAgent: The Future of AI Intelligence**
 
-**OneAgent v5.0.0** represents a revolutionary leap in AI agent technology, establishing the world's first Constitutional AI-validated, memory-driven intelligence platform with emergent learning capabilities.
+**OneAgent v4.0.2** represents a low-risk forward-compatible release with A2A improvements, documentation updates, and runtime verification tooling.
 
 **Transform your development workflow with proactive intelligence that learns, adapts, and evolves.** 🚀
 
