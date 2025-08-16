@@ -53,17 +53,14 @@ This directory contains all test files and verification scripts for OneAgent.
 
 ### Production Verification (Current)
 ```bash
-# Run core OneAgent demonstration
-npx tsx tests/oneagent-demo.ts
+# Run Hello A2A demo (MCP startup + SSE)
+npm run demo:hello
 
-# Run A2A Protocol integration test
-npx tsx tests/a2a-server-integration.test.ts
-
-# Run system integration verification
-npx tsx tests/integration/SystemIntegrationVerifier.ts
+# Run A2A tests (runner ensures memory up, fast mode)
+npm run test:a2a
 
 # Build verification
-npm run build
+npm run verify
 ```
 
 ### Legacy API Tests

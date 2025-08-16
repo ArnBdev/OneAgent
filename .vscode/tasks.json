@@ -8,7 +8,7 @@
 			"args": [
 				"-NoProfile",
 				"-Command",
-				"$env:ONEAGENT_FAST_TEST_MODE='1'; $env:ONEAGENT_DISABLE_AUTO_MONITORING='1'; npx ts-node tests/canonical/a2a-events.smoke.test.ts"
+				"$env:ONEAGENT_FAST_TEST_MODE='1'; $env:ONEAGENT_DISABLE_AUTO_MONITORING='1'; ts-node tests/canonical/a2a-events.smoke.test.ts"
 			],
 			"isBackground": false,
 			"problemMatcher": [
@@ -27,7 +27,7 @@
 			],
 			"isBackground": false,
 			"problemMatcher": [
-				"$eslint - stylish"
+				"$eslint-stylish"
 			],
 			"group": "build"
 		},

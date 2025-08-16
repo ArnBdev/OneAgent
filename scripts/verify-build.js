@@ -73,8 +73,7 @@ async function verifyBuild() {
     
     // Run canonical tests (helper uses ts-node transpile-only for speed)
     async function runTsTest(file, extraEnv = {}) {
-      const isWin = process.platform === 'win32';
-      const cmd = isWin ? `ts-node --transpile-only ${file}` : `npx ts-node --transpile-only ${file}`;
+      const cmd = `ts-node --transpile-only ${file}`; // cross-platform, avoid npx prompts
       return new Promise((resolve, reject) => {
         const child = spawn(cmd, {
           env: { ...process.env, ONEAGENT_FAST_TEST_MODE: '1', ONEAGENT_SILENCE_COMM_LOGS: '1', ...extraEnv },

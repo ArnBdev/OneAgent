@@ -33,7 +33,7 @@ OneAgent is a **professional-grade, memory-driven multiagent AI platform** featu
 	- `GEMINI_API_KEY` (required for real memory operations)
 	- `MEM0_API_KEY` (enables authenticated memory stats/read and is required for writes)
 2. Start both servers with readiness checks:
-	- Windows PowerShell: `scripts/start-oneagent-system.ps1`
+	- Windows PowerShell: `./scripts/start-oneagent-system.ps1`
 3. Validate runtime (type-check, lint, smoke including SSE and memory health):
 	- `npm run verify:runtime`
 
@@ -55,22 +55,22 @@ npm run demo:hello
 
 This validates MCP /health, /info, JSON-RPC initialize, tools/list, and confirms SSE heartbeat—without writing to memory.
 
-### **Quick Start**
+### Developer commands
 ```bash
-# Install dependencies
+# Install deps
 npm install
 
-# Build the system
-npm run build
+# Type + lint quick verify
+npm run verify
 
-# Run Phase 4 functionality test
-node test-phase4-simple.cjs
-
-# Start MCP server for VS Code
+# Start MCP only
 npm run server:unified
 
-# Development mode
-npm run dev
+# Runtime smoke (starts memory + MCP if needed, probes SSE)
+npm run verify:runtime
+
+# A2A tests (fast mode, runner ensures memory is up)
+npm run test:a2a
 ```
 
 ## 🧪 Testing (Dual-Mode Communication & Monitoring Verification)
@@ -103,17 +103,9 @@ Environment Flags Summary:
 Rate limit enforcement (30 msgs / 60s per agent-session) is covered by `tests/canonical/communication-rate-limit.test.ts` and executes in fast mode. Both conformance and rate limit tests exit cleanly to avoid lingering handles, ensuring CI stability.
 
 This dual-mode strategy delivers deterministic coverage plus minimal runtime overhead, preserving canonical single-source monitoring (UnifiedMonitoringService) without introducing parallel systems.
-### **Phase 4 Testing**
-```bash
-# Verify all 8 Phase 4 core methods
-node test-phase4-simple.cjs
-
-# Expected output:
-# ✅ COMPLETE - All Phase 4 methods implemented
-# ✅ Memory-Driven Intelligence: Cross-conversation learning active
-# ✅ Emergent Intelligence: Breakthrough insight detection ready
-# ✅ Workflow Optimization: Historical pattern analysis functional
-```
+### A2A invariants and conformance
+- Conformance: `npm run test:a2a-conformance`
+- Invariants (send/receive counts, broadcast fan-out, handler lifecycle): `npm run test:a2a-invariants`
 
 ## 🏗️ **System Architecture**
 
@@ -289,4 +281,4 @@ MIT License - See LICENSE file for details
 
 ---
 
-*This is the canonical README for OneAgent v5.0.0. All documentation is current and reflects the completed Phase 4 implementation.*
+*This is the canonical README for OneAgent v4.0.2. All documentation is current and reflects the consolidated Phase 4 implementation.*

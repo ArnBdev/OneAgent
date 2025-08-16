@@ -5,7 +5,7 @@
 | Task                | PowerShell Command                                 | Batch Command                                 |
 |---------------------|----------------------------------------------------|-----------------------------------------------|
 | Unified Startup     | `./scripts/start-oneagent-system.ps1`              | `./scripts/start-oneagent-system.bat`         |
-| MCP Server Only     | `npx tsx coreagent/server/unified-mcp-server.ts`   | `npx tsx coreagent/server/unified-mcp-server.ts`|
+| MCP Server Only     | `node -r ts-node/register coreagent/server/unified-mcp-server.ts`   | `node -r ts-node/register coreagent/server/unified-mcp-server.ts`|
 | Memory Server Only  | `uvicorn servers.oneagent_memory_server:app --host 127.0.0.1 --port 8010 --reload` | Same as PowerShell |
 
 > **IMPORTANT:**
@@ -25,6 +25,6 @@ The OneAgent system consists of two main components:
 1. **Memory Server** (Port 8010)
    - Python FastAPI server
 2. **MCP Server** (Port 8083)
-   - Node.js/TypeScript (TSX)
+   - Node.js/TypeScript (ts-node/register)
 
 See the main README for more details.

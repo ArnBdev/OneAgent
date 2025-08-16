@@ -12,7 +12,7 @@
 # ===============================
 
 # Modern OneAgent System Startup Script (PowerShell)
-# Launches both the memory server (FastAPI/Uvicorn) and the MCP server (Node/TSX) in parallel
+# Launches both the memory server (FastAPI/Uvicorn) and the MCP server (Node/TypeScript) in parallel
 # Provides developer-friendly output, error handling, and shutdown instructions
 
 param(
@@ -47,9 +47,14 @@ $mcpPort = if ($env:ONEAGENT_MCP_PORT) { [int]$env:ONEAGENT_MCP_PORT } else { 80
 $memoryServerCmd = "uvicorn servers.oneagent_memory_server:app --host 127.0.0.1 --port $memPort --reload"
 Start-ProcessWithBanner -Name "Memory Server (mem0)" -Command $memoryServerCmd -WorkingDirectory "$PSScriptRoot/.."
 
-# Start MCP Server (Node/TSX)
-$mcpServerCmd = "npx --yes tsx coreagent/server/unified-mcp-server.ts"
-Start-ProcessWithBanner -Name "MCP Server (Node/TSX)" -Command $mcpServerCmd -WorkingDirectory "$PSScriptRoot/.."
+# Start MCP Server (Node/TypeScript via ts-node/register; no npx/tsx dependency)
+$tsNodeRegister = node -e "try{console.log(require.resolve('ts-node/register'))}catch{process.exit(1)}"
+if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace($tsNodeRegister)) {
+    Write-Host "[OneAgent] ERROR: ts-node/register not found. Run 'npm install' first." -ForegroundColor Red
+    exit 1
+}
+$mcpServerCmd = "node -r $tsNodeRegister coreagent/server/unified-mcp-server.ts"
+Start-ProcessWithBanner -Name "MCP Server (Node/TypeScript)" -Command $mcpServerCmd -WorkingDirectory "$PSScriptRoot/.."
 
 function Wait-HttpReady {
     param(

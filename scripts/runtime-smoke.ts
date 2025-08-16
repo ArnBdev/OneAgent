@@ -1,6 +1,6 @@
 /**
  * Runtime Smoke Harness
- * - Starts memory (FastAPI/uvicorn) and MCP (tsx) if not already up
+ * - Starts memory (FastAPI/uvicorn) and MCP (ts-node/register) if not already up
  * - Waits for readiness using canonical ports from env
  * - Runs MCP startup smoke (health/info + initialize/tools/list)
  * - Gracefully shuts down any processes it started
