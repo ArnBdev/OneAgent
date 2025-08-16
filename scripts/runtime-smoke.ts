@@ -167,7 +167,7 @@ async function main() {
         if (pkg && typeof pkg.version === 'string' && pkg.version) {
           process.env.ONEAGENT_VERSION = pkg.version;
         }
-      } catch (e) {
+  } catch {
         // Fallback to existing env or leave unset; non-fatal
         if (!process.env.ONEAGENT_VERSION) {
           process.env.ONEAGENT_VERSION = '4.0.2';
