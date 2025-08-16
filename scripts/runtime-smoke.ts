@@ -93,6 +93,18 @@ function run(cmd: string, args: string[], cwd: string): ChildProcess {
   return child;
 }
 
+function startMcpServer(cwd: string): ChildProcess {
+  // Start via ts-node/register (robust across shells/Windows)
+  let tsNodeRegister: string;
+  try {
+    // Resolve from current Node resolution (devDependency)
+    tsNodeRegister = require.resolve('ts-node/register');
+  } catch {
+    throw new Error('ts-node/register not found to start MCP server');
+  }
+  return run(process.execPath, ['-r', tsNodeRegister, 'coreagent/server/unified-mcp-server.ts'], cwd);
+}
+
 function sseProbe(url: string, timeoutMs = 6000): Promise<boolean> {
   return new Promise((resolve, reject) => {
     const u = new URL(url);
@@ -154,8 +166,8 @@ async function main() {
       mem = run('python', ['-m', 'uvicorn', 'oneagent_memory_server:app', '--app-dir', 'servers', '--host', '127.0.0.1', '--port', String(memPort)], cwd);
     }
     if (!mcpUp) {
-      // Start MCP via npx tsx
-      mcp = run('npx', ['--yes', 'tsx', 'coreagent/server/unified-mcp-server.ts'], cwd);
+      // Start MCP via local tsx binary or ts-node/register fallback (no reliance on npx)
+      mcp = startMcpServer(cwd);
     }
 
     // Wait readiness
