@@ -27,6 +27,20 @@ OneAgent is a **professional-grade, memory-driven multiagent AI platform** featu
 
 ## 🚀 **Getting Started**
 
+### Quick Start (Local MCP + Memory)
+
+1. Copy `.env.example` to `.env` and optionally set:
+	- `GEMINI_API_KEY` (required for real memory operations)
+	- `MEM0_API_KEY` (enables authenticated memory stats/read and is required for writes)
+2. Start both servers with readiness checks:
+	- Windows PowerShell: `scripts/start-oneagent-system.ps1`
+3. Validate runtime (type-check, lint, smoke including SSE and memory health):
+	- `npm run verify:runtime`
+
+Default endpoints:
+- Memory server: http://127.0.0.1:8010 (GET /health)
+- MCP server: http://127.0.0.1:8083 (GET /health, GET /mcp for SSE)
+
 ### **Quick Start**
 ```bash
 # Install dependencies
