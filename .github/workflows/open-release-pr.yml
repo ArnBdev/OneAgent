@@ -24,11 +24,9 @@ jobs:
   create-pr:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-      - name: Create or find PR
-        uses: actions/github-script@v7
+      - uses: actions/github-script@v7
         with:
           script: |
             const base = core.getInput('base');
@@ -36,7 +34,7 @@ jobs:
             const title = core.getInput('title');
             const draft = true; // create release PRs as draft by default
 
-            async function run() {
+            (async function run() {
               try {
                 const { data } = await github.rest.pulls.create({
                   owner: context.repo.owner,
@@ -68,5 +66,4 @@ jobs:
                 }
                 core.setFailed(err.message);
               }
-            }
-            run();
+            })();
