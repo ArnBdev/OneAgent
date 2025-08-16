@@ -6,6 +6,16 @@
 
 ---
 
+## v4.0.2 - 2025-08-16
+
+- A2A: Default protocol bumped to 0.2.6; serve dual well-known endpoints on MCP server:
+    - `/.well-known/agent-card.json` (preferred for A2A >= 0.3.0)
+    - `/.well-known/agent.json` (legacy for A2A 0.2.x)
+- Docs: README now documents A2A well-known endpoints and adds a short 0.3.0 interop plan.
+- Demo: Added `npm run demo:hello` (non-invasive runtime check of MCP /health, /info, JSON-RPC initialize, tools/list, SSE heartbeat).
+- CI/Workflows: Release workflows consolidated; ready to publish from tag.
+
+
 ## v4.0.1 - 2025-08-16
 
 - scripts/runtime-smoke.ts: Load `.env` in the runtime smoke harness; add SSE probe for `/mcp`; add an optional authenticated memory `/v1/memories/stats` check when `MEM0_API_KEY` is present to exercise read-only memory endpoints without modifying state.
