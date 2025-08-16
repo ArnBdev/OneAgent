@@ -6,6 +6,13 @@
 
 ---
 
+## Unreleased - 2025-08-16
+
+- scripts/runtime-smoke.ts: Load `.env` in the runtime smoke harness; add SSE probe for `/mcp`; add an optional authenticated memory `/v1/memories/stats` check when `MEM0_API_KEY` is present to exercise read-only memory endpoints without modifying state.
+- scripts/start-oneagent-system.ps1: Clarify `.env` usage in the startup banner; probe memory `/health` for readiness instead of root; print quick visibility for `MEM0_API_KEY` to aid debugging.
+- Misc: Push includes related monitoring and canonicalization improvements consolidated into `main` (see pushed commit for details).
+
+
 ## ♻️ **[2025-08-10] Canonical Memory Write Path Finalization**
 
 ### ✅ Deprecated Path Removed
