@@ -11,9 +11,9 @@
 :: WARNING: All legacy scripts have been deleted. Use ONLY this script or start-unified.ps1
 :: ===============================
 
-# Modern OneAgent System Startup Script (Batch)
-# Launches both the memory server (FastAPI/Uvicorn) and the MCP server (Node/TypeScript) in parallel
-# Provides developer-friendly output and shutdown instructions
+REM Modern OneAgent System Startup Script (Batch)
+REM Launches both the memory server (FastAPI/Uvicorn) and the MCP server (Node/TypeScript) in parallel
+REM Provides developer-friendly output and shutdown instructions
 
 @echo off
 setlocal
