@@ -25,6 +25,9 @@ import { environmentConfig } from '../config/EnvironmentConfig';
 // CANONICAL AGENT CARD INTERFACE
 // =============================================================================
 
+// Resolve default A2A protocol version from environment with safe fallback
+const DEFAULT_A2A_PROTOCOL_VERSION = (process.env.ONEAGENT_A2A_PROTOCOL_VERSION || '0.2.6').trim();
+
 export interface AgentSkill {
   id: string;
   name: string;
@@ -182,7 +185,7 @@ export function toA2AFormat(card: AgentCard): AgentCard {
   return {
     ...card,
     // Ensure A2A required fields are present
-    protocolVersion: card.protocolVersion || '0.2.5',
+  protocolVersion: card.protocolVersion || DEFAULT_A2A_PROTOCOL_VERSION,
     defaultInputModes: card.defaultInputModes || ['text/plain'],
     defaultOutputModes: card.defaultOutputModes || ['text/plain'],
     skills: card.skills || [],
@@ -276,7 +279,7 @@ export function createTestAgentCard(overrides: Partial<AgentCard> = {}): AgentCa
   };
 
   return {
-    protocolVersion: '0.2.5',
+    protocolVersion: DEFAULT_A2A_PROTOCOL_VERSION,
     name: 'TestAgent',
     agentId: 'test-agent-id',
     agentType: 'test',
@@ -344,7 +347,7 @@ export function createAgentCard(
   });
 
   return {
-    protocolVersion: '0.2.5',
+  protocolVersion: DEFAULT_A2A_PROTOCOL_VERSION,
     name: config.name,
     agentId: config.agentId,
     agentType: config.agentType,
