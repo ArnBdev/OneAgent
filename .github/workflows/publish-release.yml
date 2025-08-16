@@ -4,13 +4,13 @@ on:
   workflow_dispatch:
     inputs:
       tag:
-        description: Git tag to publish (e.g., v4.0.1-rc1)
+        description: Git tag to publish (e.g., v4.0.2)
         required: true
-  default: v4.0.1
+        default: v4.0.2
       prerelease:
         description: Mark as prerelease
         required: true
-        default: 'true'
+        default: 'false'
 
 permissions:
   contents: write
