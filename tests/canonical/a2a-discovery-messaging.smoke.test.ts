@@ -3,7 +3,7 @@ process.env.ONEAGENT_FAST_TEST_MODE = '1';
 
 (async () => {
   // Import after setting env so the singleton picks up FAST_TEST_MODE
-  const { AgentFactory } = await import('../../coreagent/agents/specialized/AgentFactory');
+  const { AgentFactory } = await import('../../coreagent/agents/base/AgentFactory');
   const { unifiedAgentCommunicationService } = await import(
     '../../coreagent/utils/UnifiedAgentCommunicationService'
   );

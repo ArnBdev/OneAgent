@@ -20,12 +20,10 @@ import { unifiedBackbone, createUnifiedId } from '../../utils/UnifiedBackboneSer
 import type { AgentType as CanonicalAgentType } from '../../types/oneagent-backbone-types';
 
 // NEW: Import tier system for intelligent model selection
-import {
-  ModelTierSelector,
-  ModelSelectionCriteria,
-  ModelSelection,
-} from '../../config/gemini-model-tier-selector';
+// Unified model picker replaces direct tier selector usage for runtime selection
+import { pickDefault, type ModelPick } from '../../config/UnifiedModelPicker';
 import { loadYamlDirectory, loadYamlFile } from './yamlLoader';
+import { unifiedAgentCommunicationService } from '../../utils/UnifiedAgentCommunicationService';
 import * as path from 'path';
 
 export interface AgentFactoryConfig {
@@ -228,6 +226,8 @@ function isSupportedAgentType(type: string): type is SupportedAgentType {
 }
 
 export class AgentFactory {
+  // Canonical instance registry to manage lifecycle of created agents
+  private static instances: Map<string, BaseAgent> = new Map();
   // Remove unsupported agent types from DEFAULT_CAPABILITIES and AGENT_TYPE_TIER_MAPPING
   // Only include: 'core', 'development', 'office', 'fitness', 'general', 'triage', 'planner', 'validator'
   private static readonly DEFAULT_CAPABILITIES = {
@@ -293,63 +293,53 @@ export class AgentFactory {
     general: 'standard',
   } as const;
 
-  private static modelTierSelector = ModelTierSelector.getInstance(); /**
-   * NEW: Select optimal model for agent based on tier system
+  /**
+   * Select model using UnifiedModelPicker roles (provider-agnostic)
    */
-  private static selectOptimalModel(factoryConfig: AgentFactoryConfig): ModelSelection {
+  private static selectOptimalModel(factoryConfig: AgentFactoryConfig): { pick: ModelPick } {
     // Use custom model if specified
     if (factoryConfig.customModel) {
       console.log(`🎯 Using custom model: ${factoryConfig.customModel}`);
       return {
-        modelName: factoryConfig.customModel,
-        primaryModel: factoryConfig.customModel,
-        fallbackModels: [],
-        reasoning: 'Custom model specified by user',
-        tier: 'standard', // Default tier for custom models
-        estimatedCostPer1K: 0, // Unknown for custom
-        capabilities: {
-          reasoning: 'good',
-          coding: 'good',
-          bulk: 'good',
-          realtime: 'good',
-          multimodal: 'good',
-          agentic: 'good',
+        pick: {
+          provider: 'google',
+          name: factoryConfig.customModel,
+          kind: 'llm',
+          tier: 'standard',
+          reason: 'Custom override',
+          catalogId: factoryConfig.customModel,
+          addedAtIso: new Date().toISOString(),
         },
-        rateLimits: { rpm: 0 },
       };
     }
 
-    // Build selection criteria based on agent configuration
-    const criteria: ModelSelectionCriteria = {
-      agentType:
-        factoryConfig.type === 'office'
-          ? 'OfficeAgent'
-          : factoryConfig.type === 'fitness'
-            ? 'FitnessAgent'
-            : factoryConfig.type === 'core'
-              ? 'CoreAgent'
-              : `${factoryConfig.type}Agent`,
-      prioritizeCost: factoryConfig.prioritizeCost || false,
-      prioritizePerformance: factoryConfig.prioritizePerformance || false,
-      expectedVolume: factoryConfig.expectedVolume || 'medium',
-      fallbackStrategy: 'tier-down', // Conservative fallback for production
-    };
+    // Role-based mapping per agent type; respects cost/perf flags
+    const role = (() => {
+      if (factoryConfig.modelTier === 'economy' || factoryConfig.prioritizeCost)
+        return 'ultrafast_llm';
+      if (factoryConfig.modelTier === 'premium' || factoryConfig.prioritizePerformance)
+        return 'demanding_llm';
+      // Defaults by agent type
+      switch (factoryConfig.type) {
+        case 'office':
+        case 'fitness':
+          return 'fast_llm';
+        case 'core':
+        case 'development':
+        case 'triage':
+        case 'planner':
+        case 'validator':
+          return 'demanding_llm';
+        default:
+          return 'fast_llm';
+      }
+    })();
 
-    // Override tier if explicitly specified
-    if (factoryConfig.modelTier) {
-      criteria.prioritizeCost = factoryConfig.modelTier === 'economy';
-      criteria.prioritizePerformance = factoryConfig.modelTier === 'premium';
-    }
-
-    const selection = AgentFactory.modelTierSelector.selectOptimalModel(criteria);
-
-    console.log(`🧠 Intelligent model selection for ${factoryConfig.type}:`);
-    console.log(`   Model: ${selection.primaryModel} (${selection.tier} tier)`);
-    console.log(`   Reasoning: ${selection.reasoning}`);
-    console.log(`   Cost: $${selection.estimatedCostPer1K}/1K output tokens`);
-    console.log(`   Fallbacks: ${selection.fallbackModels.join(', ')}`);
-
-    return selection;
+    const pick = pickDefault(role);
+    console.log(
+      `🧠 UnifiedModelPicker selected for ${factoryConfig.type}: ${pick.provider}/${pick.name} (${pick.tier}) [role=${role}]`,
+    );
+    return { pick };
   }
 
   /**
@@ -389,6 +379,8 @@ export class AgentFactory {
           : []),
       memoryEnabled: factoryConfig.memoryEnabled ?? true,
       aiEnabled: factoryConfig.aiEnabled ?? true,
+      // Pass provider-native model name for Gemini-backed SmartGeminiClient
+      aiModelName: modelSelection.pick.provider === 'google' ? modelSelection.pick.name : undefined,
       // Canonical agent communication handled via UnifiedAgentCommunicationService and NLACS extensions only.
     };
 
@@ -458,7 +450,13 @@ export class AgentFactory {
           },
           content: {
             category: 'agent_lifecycle',
-            tags: ['agent', 'creation', factoryConfig.type, factoryConfig.id, modelSelection.tier],
+            tags: [
+              'agent',
+              'creation',
+              factoryConfig.type,
+              factoryConfig.id,
+              modelSelection.pick.tier,
+            ],
             sensitivity: 'internal',
             relevanceScore: 0.8,
             contextDependency: 'session',
@@ -475,9 +473,9 @@ export class AgentFactory {
       console.log(
         `✅ Agent created with tier-optimized model: ${factoryConfig.type}/${factoryConfig.id}`,
       );
-      console.log(`   📱 Model: ${modelSelection.primaryModel} (${modelSelection.tier} tier)`);
-      console.log(`   💰 Cost: $${modelSelection.estimatedCostPer1K}/1K tokens`);
-      console.log(`   🔄 Fallbacks: ${modelSelection.fallbackModels.slice(0, 2).join(', ')}`);
+      console.log(
+        `   📱 Model: ${modelSelection.pick.provider}/${modelSelection.pick.name} (${modelSelection.pick.tier} tier)`,
+      );
       console.log(`   📊 Metadata: ${creationMetadata.id}`);
     } else {
       console.log(
@@ -533,7 +531,7 @@ export class AgentFactory {
   }
 
   // =============================================================================
-  // NEW: Tier System Utility Methods
+  // Utility Methods (role-based picker)
   // =============================================================================
 
   /**
@@ -589,28 +587,17 @@ export class AgentFactory {
    */
   static getOptimalModelForAgentType(
     agentType: CanonicalAgentType,
-    options?: {
-      prioritizeCost?: boolean;
-      prioritizePerformance?: boolean;
-      expectedVolume?: 'low' | 'medium' | 'high' | 'ultra-high';
-    },
-  ): ModelSelection {
-    const criteria: ModelSelectionCriteria = {
-      agentType:
-        agentType === 'office'
-          ? 'OfficeAgent'
-          : agentType === 'fitness'
-            ? 'FitnessAgent'
-            : agentType === 'core'
-              ? 'CoreAgent'
-              : `${agentType}Agent`,
-      prioritizeCost: options?.prioritizeCost || false,
-      prioritizePerformance: options?.prioritizePerformance || false,
-      expectedVolume: options?.expectedVolume || 'medium',
-      fallbackStrategy: 'tier-down',
-    };
-
-    return AgentFactory.modelTierSelector.selectOptimalModel(criteria);
+    options?: { prioritizeCost?: boolean; prioritizePerformance?: boolean },
+  ): { provider: string; name: string; tier: string } {
+    const role = options?.prioritizeCost
+      ? 'ultrafast_llm'
+      : options?.prioritizePerformance
+        ? 'demanding_llm'
+        : agentType === 'office' || agentType === 'fitness'
+          ? 'fast_llm'
+          : 'demanding_llm';
+    const pick = pickDefault(role);
+    return { provider: pick.provider, name: pick.name, tier: pick.tier };
   }
 
   /**
@@ -628,7 +615,10 @@ export class AgentFactory {
     recommendations: string[];
   } {
     const selection = AgentFactory.getOptimalModelForAgentType(agentType, options);
-    const monthlyCost = (estimatedTokensPerMonth / 1000) * selection.estimatedCostPer1K;
+    // Approximate cost per 1K using simple tier heuristics (no provider price table here)
+    const estimatedCostPer1K =
+      selection.tier === 'premium' ? 0.8 : selection.tier === 'standard' ? 0.3 : 0.1;
+    const monthlyCost = (estimatedTokensPerMonth / 1000) * estimatedCostPer1K;
     const costPerInteraction = monthlyCost / (estimatedTokensPerMonth / 1000); // Assuming 1k tokens per interaction
 
     const recommendations: string[] = [];
@@ -641,10 +631,81 @@ export class AgentFactory {
 
     return {
       tier: selection.tier,
-      model: selection.primaryModel,
+      model: selection.name,
       monthlyCostUSD: Math.round(monthlyCost * 100) / 100,
       costPerInteraction: Math.round(costPerInteraction * 10000) / 10000,
       recommendations,
     };
+  }
+
+  // =============================================================================
+  // Canonical Convenience Methods (agent creation + registration + lifecycle)
+  // =============================================================================
+
+  /**
+   * Register an agent with the unified communication service and cache the instance.
+   */
+  private static async registerAndCache(agent: BaseAgent, type: CanonicalAgentType): Promise<void> {
+    const id = agent.getConfig().id;
+    const { name, capabilities } = agent.getConfig();
+    // Register with A2A service (emits 'agent_registered')
+    await unifiedAgentCommunicationService.registerAgent({
+      id,
+      name,
+      capabilities,
+      metadata: { role: type },
+    });
+    AgentFactory.instances.set(id, agent);
+  }
+
+  /**
+   * Create or return a cached Development (Dev) agent using canonical systems.
+   */
+  static async createDevAgent(): Promise<BaseAgent> {
+    const id = 'DevAgent';
+    const cached = AgentFactory.instances.get(id);
+    if (cached) return cached;
+    const agent = (await AgentFactory.createAgent({
+      type: 'development',
+      id,
+      name: 'Development Agent',
+      description: 'Agent specialized in development tasks',
+      customCapabilities: ['code-review', 'debugging', 'architecture', 'testing'],
+      memoryEnabled: true,
+      aiEnabled: true,
+      nlacsEnabled: true,
+    })) as unknown as BaseAgent;
+    await AgentFactory.registerAndCache(agent, 'development');
+    return agent;
+  }
+
+  /**
+   * Create or return a cached Triage agent using canonical systems.
+   */
+  static async createTriageAgent(): Promise<BaseAgent> {
+    const id = 'TriageAgent';
+    const cached = AgentFactory.instances.get(id);
+    if (cached) return cached;
+    const agent = (await AgentFactory.createAgent({
+      type: 'triage',
+      id,
+      name: 'Triage Agent',
+      description: 'Agent specialized in task routing and prioritization',
+      customCapabilities: ['task-routing', 'priority-assessment', 'delegation', 'coordination'],
+      memoryEnabled: true,
+      aiEnabled: true,
+      nlacsEnabled: true,
+    })) as unknown as BaseAgent;
+    await AgentFactory.registerAndCache(agent, 'triage');
+    return agent;
+  }
+
+  /**
+   * Gracefully shutdown all created agents and clear the registry.
+   */
+  static async shutdownAllAgents(): Promise<void> {
+    const shutdowns = Array.from(AgentFactory.instances.values()).map((a) => a.cleanup());
+    await Promise.allSettled(shutdowns);
+    AgentFactory.instances.clear();
   }
 }

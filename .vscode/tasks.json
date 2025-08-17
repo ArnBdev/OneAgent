@@ -1,96 +1,153 @@
 {
-  "version": "2.0.0",
-  "tasks": [
-    {
-      "label": "Run A2A events smoke test",
-      "type": "shell",
-      "command": "pwsh",
-      "args": [
-        "-NoProfile",
-        "-Command",
-        "$env:ONEAGENT_FAST_TEST_MODE='1'; $env:ONEAGENT_DISABLE_AUTO_MONITORING='1'; node -r ts-node/register tests/canonical/a2a-events.smoke.test.ts"
-      ],
-      "isBackground": false,
-      "problemMatcher": ["$tsc"],
-      "group": "test"
-    },
-    {
-      "label": "Run linter (fix)",
-      "type": "shell",
-      "command": "pwsh",
-      "args": ["-NoProfile", "-Command", "npm run -s lint"],
-      "isBackground": false,
-      "problemMatcher": ["$eslint-stylish"],
-      "group": "build"
-    },
-    {
-      "label": "Run linter (check)",
-      "type": "shell",
-      "command": "pwsh",
-      "args": ["-NoProfile", "-Command", "npm run -s lint"]
-    },
-    {
-      "label": "Re-run linter after fixes",
-      "type": "shell",
-      "command": "pwsh -NoProfile -Command 'npm run -s lint'",
-      "group": "build"
-    },
-    {
-      "label": "Lint check after secureErrorHandler/requestValidator fixes",
-      "type": "shell",
-      "command": "pwsh -NoProfile -Command 'npm run -s lint'"
-    },
-    {
-      "label": "Lint after metadata types fixes",
-      "type": "shell",
-      "command": "pwsh -NoProfile -Command 'npm run -s lint'"
-    },
-    {
-      "label": "Lint after VS Code client + monitoring fixes",
-      "type": "shell",
-      "command": "pwsh -NoProfile -Command 'npm run -s lint'"
-    },
-    {
-      "label": "lint-and-typecheck",
-      "type": "shell",
-      "command": "npm",
-      "args": ["run", "verify"],
-      "isBackground": false,
-      "problemMatcher": ["$tsc", "$eslint-stylish"],
-      "group": "build"
-    },
-    {
-      "label": "Verify (type + lint)",
-      "type": "shell",
-      "command": "npm",
-      "args": ["run", "verify"],
-      "isBackground": false,
-      "problemMatcher": ["$tsc", "$eslint-stylish"],
-      "group": "build"
-    },
-    {
-      "label": "Run verify:runtime",
-      "type": "shell",
-      "command": "npm run verify:runtime",
-      "isBackground": false,
-      "problemMatcher": ["$tsc", "$eslint-stylish"],
-      "group": "build"
-    },
-    {
-      "label": "Verify + Runtime Smoke quick check",
-      "type": "shell",
-      "command": "npm run verify:runtime",
-      "isBackground": false,
-      "problemMatcher": ["$tsc", "$eslint-stylish"],
-      "group": "build"
-    },
-    {
-      "label": "Re-run verify after test lint config tweak",
-      "type": "shell",
-      "command": "npm run verify",
-      "isBackground": false,
-      "problemMatcher": ["$tsc", "$eslint-stylish"],
-      "group": "build"
-    }
-  ]
+	"version": "2.0.0",
+	"tasks": [
+		{
+			"label": "Run A2A events smoke test",
+			"type": "shell",
+			"command": "pwsh",
+			"args": [
+				"-NoProfile",
+				"-Command",
+				"$env:ONEAGENT_FAST_TEST_MODE='1'; $env:ONEAGENT_DISABLE_AUTO_MONITORING='1'; node -r ts-node/register tests/canonical/a2a-events.smoke.test.ts"
+			],
+			"isBackground": false,
+			"problemMatcher": [
+				"$tsc"
+			],
+			"group": "test"
+		},
+		{
+			"label": "Run linter (fix)",
+			"type": "shell",
+			"command": "pwsh",
+			"args": [
+				"-NoProfile",
+				"-Command",
+				"npm run -s lint"
+			],
+			"isBackground": false,
+			"problemMatcher": [
+				"$eslint-stylish"
+			],
+			"group": "build"
+		},
+		{
+			"label": "Run linter (check)",
+			"type": "shell",
+			"command": "pwsh",
+			"args": [
+				"-NoProfile",
+				"-Command",
+				"npm run -s lint"
+			]
+		},
+		{
+			"label": "Re-run linter after fixes",
+			"type": "shell",
+			"command": "pwsh -NoProfile -Command 'npm run -s lint'",
+			"group": "build"
+		},
+		{
+			"label": "Lint check after secureErrorHandler/requestValidator fixes",
+			"type": "shell",
+			"command": "pwsh -NoProfile -Command 'npm run -s lint'"
+		},
+		{
+			"label": "Lint after metadata types fixes",
+			"type": "shell",
+			"command": "pwsh -NoProfile -Command 'npm run -s lint'"
+		},
+		{
+			"label": "Lint after VS Code client + monitoring fixes",
+			"type": "shell",
+			"command": "pwsh -NoProfile -Command 'npm run -s lint'"
+		},
+		{
+			"label": "lint-and-typecheck",
+			"type": "shell",
+			"command": "npm",
+			"args": [
+				"run",
+				"verify"
+			],
+			"isBackground": false,
+			"problemMatcher": [
+				"$tsc",
+				"$eslint-stylish"
+			],
+			"group": "build"
+		},
+		{
+			"label": "Verify (type + lint)",
+			"type": "shell",
+			"command": "npm",
+			"args": [
+				"run",
+				"verify"
+			],
+			"isBackground": false,
+			"problemMatcher": [
+				"$tsc",
+				"$eslint-stylish"
+			],
+			"group": "build"
+		},
+		{
+			"label": "Run verify:runtime",
+			"type": "shell",
+			"command": "npm run verify:runtime",
+			"isBackground": false,
+			"problemMatcher": [
+				"$tsc",
+				"$eslint-stylish"
+			],
+			"group": "build"
+		},
+		{
+			"label": "Verify + Runtime Smoke quick check",
+			"type": "shell",
+			"command": "npm run verify:runtime",
+			"isBackground": false,
+			"problemMatcher": [
+				"$tsc",
+				"$eslint-stylish"
+			],
+			"group": "build"
+		},
+		{
+			"label": "Re-run verify after test lint config tweak",
+			"type": "shell",
+			"command": "npm run verify",
+			"isBackground": false,
+			"problemMatcher": [
+				"$tsc",
+				"$eslint-stylish"
+			],
+			"group": "build"
+		},
+		{
+			"label": "Verify (type + lint)",
+			"type": "shell",
+			"command": "npm run verify",
+			"isBackground": false
+		},
+		{
+			"label": "Verify (type + lint)",
+			"type": "shell",
+			"command": "npm run verify",
+			"isBackground": false
+		},
+		{
+			"label": "Verify (type + lint)",
+			"type": "shell",
+			"command": "npm run verify",
+			"isBackground": false
+		},
+		{
+			"label": "Verify (type + lint)",
+			"type": "shell",
+			"command": "npm run verify",
+			"isBackground": false
+		}
+	]
 }

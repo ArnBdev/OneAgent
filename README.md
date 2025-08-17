@@ -78,6 +78,16 @@ npm run verify:runtime
 npm run test:a2a
 ```
 
+### Model Picker (Unified)
+
+- Use `coreagent/config/UnifiedModelPicker.ts` to select models by role:
+  - demanding_llm → gemini-2.5-pro
+  - fast_llm → gemini-2.5-flash
+  - ultrafast_llm → gemini-2.5-flash-lite
+  - embedding → gemini-embedding-001
+- Provider explicit picks supported (OpenAI GPT‑5 family). Env model-name variables are deprecated; keep env for API keys only.
+- See docs/models/README.md for examples.
+
 ## 🧪 Testing (Dual-Mode Communication & Monitoring Verification)
 
 The communication subsystem is validated in two modes to ensure zero regression while keeping CI fast:

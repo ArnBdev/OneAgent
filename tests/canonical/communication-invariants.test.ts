@@ -11,7 +11,7 @@ import {
 } from '../../coreagent/utils/UnifiedBackboneService';
 
 (async () => {
-  const { AgentFactory } = await import('../../coreagent/agents/specialized/AgentFactory');
+  const { AgentFactory } = await import('../../coreagent/agents/base/AgentFactory');
   const { unifiedAgentCommunicationService } = await import(
     '../../coreagent/utils/UnifiedAgentCommunicationService'
   );
@@ -114,7 +114,7 @@ import {
     unifiedAgentCommunicationService.off('message_received', onReceived);
     unifiedAgentCommunicationService.off('agent_registered', onRegistered);
     try {
-      const { AgentFactory } = await import('../../coreagent/agents/specialized/AgentFactory');
+      const { AgentFactory } = await import('../../coreagent/agents/base/AgentFactory');
       await AgentFactory.shutdownAllAgents();
     } catch (e) {
       // best-effort cleanup

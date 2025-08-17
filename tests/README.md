@@ -125,7 +125,7 @@ npm run test:ci             # CI/CD integration
 Tests use the following environment variables:
 
 - `GOOGLE_API_KEY` - Required for all API tests
-- `GOOGLE_MODEL` - Optional (defaults to gemini-2.5-pro-preview-05-06)
+- `GOOGLE_MODEL` - Deprecated for runtime model selection. Use UnifiedModelPicker instead.
 
 Make sure your `.env` file is properly configured before running tests.
 

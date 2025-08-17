@@ -49,6 +49,8 @@ export interface AgentConfig {
   capabilities: string[];
   memoryEnabled: boolean;
   aiEnabled: boolean;
+  // Optional provider-native model name for AI client (Gemini by default)
+  aiModelName?: string;
 }
 
 export interface AgentContext {
@@ -217,7 +219,7 @@ export abstract class BaseAgent {
 
       // Initialize AI client if enabled
       if (this.config.aiEnabled) {
-        this.aiClient = new SmartGeminiClient();
+        this.aiClient = new SmartGeminiClient({ model: this.config.aiModelName });
       }
 
       // Initialize Constitutional AI

@@ -160,6 +160,8 @@ OneAgent is built to be:
 - **Quality Assurance**: Constitutional AI validation and quality scoring built-in
 - **Professional Configuration**: Enterprise-grade agent initialization and management
 
+Note: The single supported entry point is `coreagent/agents/base/AgentFactory`. The legacy `coreagent/agents/specialized/AgentFactory` path is deprecated and now re-exports the base factory to avoid parallel systems.
+
 ### 5.3 AgentCard System - Canonical Interface
 
 - **Single Source of Truth**: Unified AgentCard interface for all agent communication

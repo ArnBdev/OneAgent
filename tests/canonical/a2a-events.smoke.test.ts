@@ -2,7 +2,7 @@
 process.env.ONEAGENT_FAST_TEST_MODE = '1';
 
 (async () => {
-  const { AgentFactory } = await import('../../coreagent/agents/specialized/AgentFactory');
+  const { AgentFactory } = await import('../../coreagent/agents/base/AgentFactory');
   const { unifiedAgentCommunicationService } = await import(
     '../../coreagent/utils/UnifiedAgentCommunicationService'
   );
