@@ -86,6 +86,34 @@ export interface ServerConfig {
 
   // Supabase
   supabaseUrl: string;
+
+  // Feature Flags
+  features: {
+    enableGraphEnrichment: boolean;
+    enableHybridSearch?: boolean;
+  };
+
+  // Optional Memgraph (Graph DB) Configuration
+  memgraph?: {
+    enabled: boolean;
+    url: string;
+    username?: string;
+    password?: string;
+    database?: string;
+    driver?: 'neo4j' | 'memgraph';
+  };
+
+  // Hybrid Search configuration (Phase A)
+  hybridSearch?: {
+    enabled?: boolean; // master switch in addition to features.enableHybridSearch
+    limit?: number; // default max results
+    graphHopDepth?: number; // future: path expansion depth (unused in MVP)
+    weights?: {
+      vector?: number; // weight for vector results
+      graph?: number; // weight for graph results
+      recency?: number; // reserved for future
+    };
+  };
 }
 
 /**
@@ -203,6 +231,35 @@ export const oneAgentConfig: ServerConfig = {
 
   // Supabase Configuration
   supabaseUrl: process.env.SUPABASE_URL || '',
+
+  // Feature Flags (default on; set ONEAGENT_FEATURE_GRAPH_ENRICHMENT=false to disable)
+  features: {
+    enableGraphEnrichment: process.env.ONEAGENT_FEATURE_GRAPH_ENRICHMENT !== 'false',
+    // Hybrid search default enabled (can be disabled via ONEAGENT_FEATURE_HYBRID_SEARCH=false)
+    enableHybridSearch: process.env.ONEAGENT_FEATURE_HYBRID_SEARCH !== 'false',
+  },
+
+  // Memgraph Configuration (optional)
+  memgraph: {
+    enabled: process.env.MEMGRAPH_URL ? true : false,
+    url: process.env.MEMGRAPH_URL || 'bolt://localhost:7687',
+    username: process.env.MEMGRAPH_USERNAME || process.env.MEMGRAPH_USER || '',
+    password: process.env.MEMGRAPH_PASSWORD || '',
+    database: process.env.MEMGRAPH_DATABASE || undefined,
+    driver: (process.env.MEMGRAPH_DRIVER as 'neo4j' | 'memgraph' | undefined) || 'neo4j',
+  },
+
+  // Hybrid Search defaults
+  hybridSearch: {
+    enabled: process.env.ONEAGENT_FEATURE_HYBRID_SEARCH !== 'false',
+    limit: parseInt(process.env.ONEAGENT_HYBRID_SEARCH_LIMIT || '10', 10),
+    graphHopDepth: parseInt(process.env.ONEAGENT_HYBRID_GRAPH_HOPS || '1', 10),
+    weights: {
+      vector: parseFloat(process.env.ONEAGENT_HYBRID_WEIGHT_VECTOR || '0.6'),
+      graph: parseFloat(process.env.ONEAGENT_HYBRID_WEIGHT_GRAPH || '0.4'),
+      recency: parseFloat(process.env.ONEAGENT_HYBRID_WEIGHT_RECENCY || '0.0'),
+    },
+  },
 };
 
 /**

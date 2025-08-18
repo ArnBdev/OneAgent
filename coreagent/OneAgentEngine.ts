@@ -35,6 +35,8 @@ import { createUnifiedTimestamp } from './utils/UnifiedBackboneService';
 import { toolRegistry } from './tools/ToolRegistry';
 import { UnifiedWebSearchTool } from './tools/UnifiedWebSearchTool';
 import { unifiedAgentCommunicationService } from './utils/UnifiedAgentCommunicationService';
+import SyncService from './services/SyncService';
+import { ConstitutionValidator } from './validation/ConstitutionValidator';
 
 export type OneAgentMode = 'mcp-http' | 'mcp-stdio' | 'standalone' | 'cli' | 'vscode-embedded';
 
@@ -104,6 +106,10 @@ export class OneAgentEngine extends EventEmitter {
   private dynamicPrompts: Map<string, PromptDescriptor> = new Map();
   private constitutionalAI!: ConstitutionalAI;
   private bmadEngine!: BMADElicitationEngine;
+  private constitutionValidator: ConstitutionValidator = new ConstitutionValidator({
+    topK: 5,
+    threshold: 0.32,
+  });
   // Tools and services
   private unifiedWebSearch?: UnifiedWebSearchTool;
   private memorySystem: OneAgentMemory;
@@ -171,6 +177,13 @@ export class OneAgentEngine extends EventEmitter {
     try {
       // Initialize core systems
       await this.initializeMemorySystem();
+      // One-time constitution sync (ingest /specs/*.spec.md into memory with embeddings)
+      try {
+        const sync = new SyncService();
+        await sync.syncConstitution();
+      } catch (e) {
+        console.warn('⚠️ SyncService failed (continuing startup):', e);
+      }
       await this.initializeConstitutionalAI();
       await this.initializeBMAD();
       await this.initializeTools();
@@ -403,6 +416,33 @@ export class OneAgentEngine extends EventEmitter {
     // Check for A2A communication tools first
     if (request.method.startsWith('oneagent_a2a_')) {
       return this.handleA2AToolCall(request);
+    }
+    // Pre-execution constitutional compliance check (skip canonical memory tools)
+    const canonicalMemoryTools = [
+      'oneagent_memory_add',
+      'oneagent_memory_edit',
+      'oneagent_memory_delete',
+      'oneagent_memory_search',
+    ];
+    if (!canonicalMemoryTools.includes(request.method)) {
+      try {
+        const desc = request.params?.userMessage || request.params?.task || request.method;
+        const compliance = await this.constitutionValidator.check(String(desc));
+        if (!compliance.allowed) {
+          return {
+            success: false,
+            error: {
+              code: 'CONSTITUTION_BLOCK',
+              message: `Blocked by Constitution: ${compliance.reason}`,
+              timestamp: createUnifiedTimestamp(),
+            } as ErrorDetails,
+            metadata: undefined,
+            timestamp: createUnifiedTimestamp(),
+          };
+        }
+      } catch (e) {
+        console.warn('Constitutional pre-check failed, allowing execution:', e);
+      }
     }
     // Standard tool call logic
     const tool = toolRegistry.getTool(request.method);

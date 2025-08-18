@@ -21,6 +21,12 @@ import {
   createUnifiedTimestamp,
 } from '../../utils/UnifiedBackboneService';
 import { SmartGeminiClient } from '../../tools/SmartGeminiClient';
+import { KnowledgeExtractor } from '../../tools/KnowledgeExtractor';
+import { normalize as normalizeGraph } from '../../utils/GraphNormalizer';
+import { memgraphService } from '../../services/MemgraphService';
+import { hybridMemorySearchService } from '../../services/HybridMemorySearchService';
+import { metricsService } from '../../services/MetricsService';
+import { UnifiedBackboneService } from '../../utils/UnifiedBackboneService';
 import { User } from '../../types/user';
 import { MemoryIntelligence } from '../../intelligence/memoryIntelligence';
 import {
@@ -108,6 +114,8 @@ export abstract class BaseAgent {
   protected bmadElicitation?: BMADElicitationEngine;
   protected promptConfig?: PromptConfig;
   protected personalityEngine?: PersonalityEngine;
+  // Background knowledge extraction (optional, feature-flagged)
+  private knowledgeExtractor?: KnowledgeExtractor;
 
   // Canonical agent communication handled via UnifiedBackboneService only.
   protected currentSessions: Set<string> = new Set();
@@ -139,6 +147,8 @@ export abstract class BaseAgent {
       this.promptConfig = promptConfig;
     }
     // All A2A/NLACS handled via canonical unifiedAgentCommunicationService
+    // Lazy init knowledge extractor on demand to avoid overhead
+    this.knowledgeExtractor = undefined;
   }
   /**
    * Initialize canonical A2A protocol (if not already initialized)
@@ -853,6 +863,21 @@ export abstract class BaseAgent {
     const ts = createUnifiedTimestamp();
     const unified = this.buildCanonicalAgentMetadata('agent_event', userId, metadata, ts);
     await this.memoryClient.addMemoryCanonical(content, unified, userId);
+    // Fire-and-forget knowledge enrichment into graph if enabled
+    try {
+      const cfg = UnifiedBackboneService.getResolvedConfig();
+      if (cfg.features?.enableGraphEnrichment && memgraphService.isEnabled()) {
+        // Do not await; run in background
+        void this.extractAndPersistKnowledge(userId, content);
+      }
+    } catch (bgErr) {
+      // Guardrail: never throw from background trigger
+      this.unifiedBackbone.getServices().errorHandler.handleError(bgErr as Error, {
+        component: 'BaseAgent',
+        operation: 'trigger_graph_enrichment',
+        external: false,
+      });
+    }
   }
 
   /**
@@ -906,13 +931,54 @@ export abstract class BaseAgent {
       return [];
     }
 
-    const results = await this.memoryClient.searchMemory({
-      query,
-      userId,
-      limit,
-    });
+    // Hybrid search path (feature-flagged)
+    try {
+      const cfg = UnifiedBackboneService.getResolvedConfig();
+      if (cfg.features?.enableHybridSearch && hybridMemorySearchService.isEnabled()) {
+        const ctx = await hybridMemorySearchService.getContext({
+          userId,
+          query,
+          limit,
+          agentId: this.config.id,
+        });
+        // Emit metrics for hybrid search
+        void metricsService.logMemorySearch({
+          userId,
+          agentId: this.config.id,
+          query,
+          latencyMs: ctx.tookMs,
+          vectorResultsCount: ctx.sources.vector,
+          graphResultsCount: ctx.sources.graph,
+          finalContextSize: ctx.results.length,
+        });
+        return ctx.results;
+      }
+    } catch (e) {
+      // Fallback to vector-only on error
+      this.unifiedBackbone.getServices().errorHandler.handleError(e as Error, {
+        component: 'BaseAgent',
+        operation: 'hybrid_search',
+        external: false,
+      });
+    }
 
-    return results?.results || [];
+    // Legacy vector-only search
+    const services = this.unifiedBackbone.getServices();
+    const t0 = services.timeService.now();
+    const results = await this.memoryClient.searchMemory({ query, userId, limit });
+    const t1 = services.timeService.now();
+    const items = results?.results || [];
+    // Emit metrics for vector-only search
+    void metricsService.logMemorySearch({
+      userId,
+      agentId: this.config.id,
+      query,
+      latencyMs: Math.max(0, t1.unix - t0.unix),
+      vectorResultsCount: items.length,
+      graphResultsCount: 0,
+      finalContextSize: items.length,
+    });
+    return items;
   }
 
   /**
@@ -998,6 +1064,78 @@ export abstract class BaseAgent {
     } catch (error) {
       console.warn('Personality enhancement failed:', error);
       return baseResponse;
+    }
+  }
+
+  // =============================================================================
+  // Background Knowledge Extraction + Graph Persistence (Feature-flagged)
+  // =============================================================================
+  private sanitizeLabel(raw: string, fallback: string): string {
+    const cleaned = (raw || '').toString().trim();
+    if (!cleaned) return fallback;
+    // Allow only alphanumerics and underscore; collapse spaces to underscore
+    const withUnderscore = cleaned.replace(/\s+/g, '_');
+    const safe = withUnderscore.replace(/[^A-Za-z0-9_]/g, '');
+    // Relationship types often uppercase in Cypher; labels PascalCase is okay
+    return safe || fallback;
+  }
+
+  private async extractAndPersistKnowledge(userId: string, text: string): Promise<void> {
+    try {
+      if (!text || !text.trim()) return;
+      // Initialize extractor lazily
+      if (!this.knowledgeExtractor) {
+        this.knowledgeExtractor = new KnowledgeExtractor();
+      }
+      // Extract and normalize
+      const graph = await this.knowledgeExtractor.extractKnowledge(text);
+      const normalized = normalizeGraph(graph);
+      if (!normalized.nodes.length && !normalized.edges.length) return;
+
+      // Build quick lookup for node labels by id
+      const labelById = new Map<string, string>();
+      for (const n of normalized.nodes) {
+        labelById.set(n.id, this.sanitizeLabel(n.label, 'Entity'));
+      }
+
+      // Persist nodes
+      for (const node of normalized.nodes) {
+        const nodeLabel = this.sanitizeLabel(node.label, 'Entity');
+        const query = `MERGE (n:${nodeLabel} {id: $id}) SET n += $props`;
+        const props = {
+          ...(node.properties || {}),
+          _lastSeenBy: this.config.id,
+          _userId: userId,
+          agent_id: this.config.id,
+        } as Record<string, unknown>;
+        await memgraphService.writeQuery(query, { id: node.id, props });
+      }
+
+      // Persist edges
+      for (const edge of normalized.edges) {
+        const srcLabel = labelById.get(edge.source) || 'Entity';
+        const tgtLabel = labelById.get(edge.target) || 'Entity';
+        const relType = this.sanitizeLabel(edge.label, 'RELATED_TO');
+        const query = `MERGE (a:${srcLabel} {id: $source})\nMERGE (b:${tgtLabel} {id: $target})\nMERGE (a)-[r:${relType}]->(b)\nSET r += $props`;
+        const props = {
+          ...(edge.properties || {}),
+          _lastSeenBy: this.config.id,
+          _userId: userId,
+          agent_id: this.config.id,
+        } as Record<string, unknown>;
+        await memgraphService.writeQuery(query, {
+          source: edge.source,
+          target: edge.target,
+          props,
+        });
+      }
+    } catch (err) {
+      // Canonical error handling; do not surface
+      this.unifiedBackbone.getServices().errorHandler.handleError(err as Error, {
+        component: 'BaseAgent',
+        operation: 'extract_and_persist_knowledge',
+        external: true,
+      });
     }
   }
 
