@@ -925,11 +925,34 @@ export abstract class BaseAgent {
     userId: string,
     query: string,
     limit: number = 10,
-  ): Promise<MemoryRecord[]> {
+  ): Promise<{
+    taskId: string;
+    result: { results: MemoryRecord[]; totalFound: number; searchTime: number; query?: string };
+  }> {
+    return this.searchMemoriesWithTask(userId, query, limit);
+  }
+
+  /**
+   * New canonical variant returning a taskId correlated to metrics and enabling feedback linkage.
+   */
+  public async searchMemoriesWithTask(
+    userId: string,
+    query: string,
+    limit: number = 10,
+    taskId?: string,
+  ): Promise<{
+    taskId: string;
+    result: { results: MemoryRecord[]; totalFound: number; searchTime: number; query?: string };
+  }> {
     if (!this.memoryClient) {
       console.warn('Memory client not initialized');
-      return [];
+      return {
+        taskId: taskId || generateUnifiedId('task', this.config.id),
+        result: { results: [], totalFound: 0, searchTime: 0, query },
+      };
     }
+
+    const effectiveTaskId = taskId || generateUnifiedId('task', this.config.id);
 
     // Hybrid search path (feature-flagged)
     try {
@@ -941,8 +964,9 @@ export abstract class BaseAgent {
           limit,
           agentId: this.config.id,
         });
-        // Emit metrics for hybrid search
+        // Emit metrics for hybrid search with explicit task correlation
         void metricsService.logMemorySearch({
+          taskId: effectiveTaskId,
           userId,
           agentId: this.config.id,
           query,
@@ -951,7 +975,15 @@ export abstract class BaseAgent {
           graphResultsCount: ctx.sources.graph,
           finalContextSize: ctx.results.length,
         });
-        return ctx.results;
+        return {
+          taskId: effectiveTaskId,
+          result: {
+            results: ctx.results,
+            totalFound: ctx.results.length,
+            searchTime: ctx.tookMs,
+            query: ctx.query,
+          },
+        };
       }
     } catch (e) {
       // Fallback to vector-only on error
@@ -962,23 +994,33 @@ export abstract class BaseAgent {
       });
     }
 
-    // Legacy vector-only search
+    // Vector-only search
     const services = this.unifiedBackbone.getServices();
     const t0 = services.timeService.now();
     const results = await this.memoryClient.searchMemory({ query, userId, limit });
     const t1 = services.timeService.now();
     const items = results?.results || [];
-    // Emit metrics for vector-only search
+    const took = Math.max(0, t1.unix - t0.unix);
+    // Emit metrics
     void metricsService.logMemorySearch({
+      taskId: effectiveTaskId,
       userId,
       agentId: this.config.id,
       query,
-      latencyMs: Math.max(0, t1.unix - t0.unix),
+      latencyMs: took,
       vectorResultsCount: items.length,
       graphResultsCount: 0,
       finalContextSize: items.length,
     });
-    return items;
+    return {
+      taskId: effectiveTaskId,
+      result: {
+        results: items,
+        totalFound: items.length,
+        searchTime: took,
+        query,
+      },
+    };
   }
 
   /**
@@ -1240,7 +1282,8 @@ export abstract class BaseAgent {
       return await this.generateWithConstitutionalLoop(context, message);
     }
     // Fallback legacy path
-    const memories = await this.searchMemories(context.user.id, message);
+    const search = await this.searchMemories(context.user.id, message);
+    const memories = search.result.results;
     const response = await this.generateResponse(message, memories);
     await this.addMemory(context.user.id, `User: ${message}\nAgent: ${response}`);
     return this.createResponse(response, [], memories);
@@ -1261,7 +1304,8 @@ export abstract class BaseAgent {
     message: string,
   ): Promise<AgentResponse> {
     const userId = context.user.id;
-    const memories = await this.searchMemories(userId, message);
+    const search = await this.searchMemories(userId, message);
+    const memories = search.result.results;
     const enhancedPrompt = await this.promptEngine!.buildEnhancedPrompt(
       message,
       memories,

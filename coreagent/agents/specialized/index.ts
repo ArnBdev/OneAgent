@@ -15,6 +15,7 @@
 // Export specialized agents
 export { PlannerAgent } from './PlannerAgent';
 export { ValidationAgent } from './ValidationAgent';
+export { AlitaAgent } from './AlitaAgent';
 
 // Export agent types and interfaces
 export type {

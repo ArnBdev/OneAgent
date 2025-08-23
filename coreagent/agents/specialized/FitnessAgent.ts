@@ -36,11 +36,8 @@ export class FitnessAgent extends BaseAgent implements ISpecializedAgent {
       this.validateContext(context);
 
       // Search for relevant fitness context in memory
-      const relevantMemories = (await this.searchMemories(
-        context.user.id,
-        message,
-        5,
-      )) as MemoryRecord[];
+      const search = await this.searchMemories(context.user.id, message, 5);
+      const relevantMemories: MemoryRecord[] = search.result.results;
 
       // Generate AI response with fitness expertise
       const response = await this.generateFitnessResponse(message, relevantMemories);

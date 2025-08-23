@@ -1,6 +1,6 @@
 {
   "name": "oneagent-core",
-  "version": "4.0.4",
+  "version": "4.0.5",
   "description": "OneAgent CoreAgent - Modulær AI-agentplattform with UI",
   "main": "dist/coreagent/main.js",
   "scripts": {
@@ -72,6 +72,10 @@
     "node": ">=22.0.0",
     "npm": ">=10.0.0"
   },
+  "overrides": {
+    "axios": "^1.9.0",
+    "undici": "^5.29.0"
+  },
   "dependencies": {
     "@chroma-core/default-embed": "^0.1.8",
     "@google/generative-ai": "^0.24.1",
@@ -92,6 +96,7 @@
     "passport": "^0.7.0",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
+    "simple-git": "^3.24.0",
     "uuid": "^11.1.0",
     "ws": "^8.14.2"
   },

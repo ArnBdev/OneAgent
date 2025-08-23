@@ -6,6 +6,8 @@ import {
   createUnifiedTimestamp,
   unifiedMetadataService,
 } from '../../utils/UnifiedBackboneService';
+import { feedbackService } from '../../services/FeedbackService';
+import type { UserRating } from '../../types/oneagent-backbone-types';
 
 /**
  * HybridAgentOrchestrator
@@ -33,6 +35,17 @@ export class HybridAgentOrchestrator {
   constructor() {
     this.orchestratorId = createUnifiedId('agent', 'orchestrator');
     this.logOperation('initialized', { timestamp: createUnifiedTimestamp() });
+  }
+
+  /**
+   * Record subjective user feedback for a completed task/operation.
+   * Delegates persistence to FeedbackService (canonical memory backend).
+   */
+  async recordFeedback(taskId: string, userRating: UserRating, correction?: string): Promise<void> {
+    await this.logOperation('feedback_recording_started', { taskId, userRating });
+    const ts = createUnifiedTimestamp();
+    await feedbackService.save({ taskId, userRating, correction, timestamp: ts.iso });
+    await this.logOperation('feedback_recorded', { taskId, userRating });
   }
 
   /**

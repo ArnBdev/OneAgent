@@ -433,7 +433,8 @@ export class TriageAgent extends BaseAgent implements ISpecializedAgent {
       this.validateContext(context);
 
       // Search for relevant routing patterns in memory
-      const relevantMemories = await this.searchMemories(context.user.id, message, 5);
+      const search = await this.searchMemories(context.user.id, message, 5);
+      const relevantMemories = search.result.results;
 
       // Analyze the task/query for routing decisions
       const triageAnalysis = await this.analyzeTaskForTriage(message, relevantMemories);

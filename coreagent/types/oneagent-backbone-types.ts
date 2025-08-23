@@ -290,6 +290,15 @@ export type MoodIndicator = 'positive' | 'neutral' | 'frustrated' | 'confused' |
 export type IntentCategory = 'question' | 'request' | 'complaint' | 'compliment' | 'exploration';
 export type PrivacyLevel = 'public' | 'internal' | 'confidential' | 'restricted';
 
+// Feedback types (User Story 3.2)
+export type UserRating = 'good' | 'bad';
+export interface FeedbackRecord {
+  taskId: string; // Correlates to MetricLog.taskId
+  userRating: UserRating; // Subjective rating from user/UI
+  correction?: string; // Optional correction/guidance from user
+  timestamp: string; // ISO string timestamp for portability
+}
+
 // ========================================
 // NLACS TYPES
 // ========================================

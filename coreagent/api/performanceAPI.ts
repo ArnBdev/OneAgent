@@ -15,6 +15,7 @@ import {
   createUnifiedId,
   getUnifiedErrorHandler,
 } from '../utils/UnifiedBackboneService';
+import { metricsService } from '../services/MetricsService';
 
 // Canonical API error details (aligned with unified error system)
 export interface PerformanceAPIErrorDetails {
@@ -291,7 +292,9 @@ export class PerformanceAPI {
     },
   ): Promise<PerformanceAPIResponse> {
     try {
-      let results;
+      let results: Record<string, unknown>;
+      const taskId = createUnifiedId('task', 'performance_search');
+      const t0 = createUnifiedTimestamp().unix;
 
       if (query) {
         // Use semantic search
@@ -300,10 +303,31 @@ export class PerformanceAPI {
           similarityThreshold: filter?.similarityThreshold,
           model: filter?.model,
         });
+        const elapsed = Math.max(0, createUnifiedTimestamp().unix - t0);
+        const memories = searchResults.results.map((r) => r.memory);
+        // Try to extract elapsedMs from analytics in a type-safe way
+        const analyticsObj = (searchResults as unknown as { analytics?: { elapsedMs?: number } })
+          .analytics;
+        const analyticsElapsed =
+          analyticsObj && typeof analyticsObj.elapsedMs === 'number'
+            ? analyticsObj.elapsedMs
+            : elapsed;
+        // Emit canonical metrics for semantic search path
+        void metricsService.logMemorySearch({
+          taskId,
+          userId: filter?.userId || 'system',
+          agentId: 'PerformanceAPI',
+          query,
+          latencyMs: analyticsElapsed,
+          vectorResultsCount: Array.isArray(memories) ? memories.length : 0,
+          graphResultsCount: 0,
+          finalContextSize: Array.isArray(memories) ? memories.length : 0,
+        });
         results = {
           memories: searchResults.results.map((r) => r.memory),
           analytics: searchResults.analytics,
           searchType: 'semantic',
+          taskId,
         };
       } else {
         // Use basic search
@@ -312,9 +336,23 @@ export class PerformanceAPI {
           limit: filter?.limit || 50,
           type: 'system',
         });
+        const elapsed = Math.max(0, createUnifiedTimestamp().unix - t0);
+        const memories = memoryResults?.results || [];
+        // Emit canonical metrics for basic path
+        void metricsService.logMemorySearch({
+          taskId,
+          userId: filter?.userId || 'system',
+          agentId: 'PerformanceAPI',
+          query: query || '',
+          latencyMs: elapsed,
+          vectorResultsCount: memories.length,
+          graphResultsCount: 0,
+          finalContextSize: memories.length,
+        });
         results = {
-          memories: memoryResults?.results || [],
+          memories,
           searchType: 'basic',
+          taskId,
         };
       }
 

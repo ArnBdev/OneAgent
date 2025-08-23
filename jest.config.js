@@ -8,7 +8,7 @@ module.exports = {
   transform: {
     ...tsJestTransformCfg,
   },
-  roots: ['<rootDir>/coreagent/tests/unit'],
+  roots: ['<rootDir>/coreagent/tests/unit', '<rootDir>/src/agents'],
   testMatch: ['**/*.test.ts'],
   moduleFileExtensions: ['ts', 'js', 'json'],
   moduleNameMapper: {},

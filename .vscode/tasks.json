@@ -148,6 +148,12 @@
 			"type": "shell",
 			"command": "npm run verify",
 			"isBackground": false
+		},
+		{
+			"label": "Verify (type + lint)",
+			"type": "shell",
+			"command": "npm run verify",
+			"isBackground": false
 		}
 	]
 }

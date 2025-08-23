@@ -1,3 +1,16 @@
+import * as fs from 'fs/promises';
+import * as path from 'path';
+
+export interface BMADPlanStatus {
+  message: string;
+  docs: {
+    brainstorming: string;
+    featureSpec: string;
+    technicalDesign: string;
+  };
+  awaitingApproval: boolean;
+}
+
 /**
  * DevAgent.ts - Development Agent Implementation
  *
@@ -12,7 +25,7 @@
 
 import { BaseAgent, AgentConfig, AgentContext, AgentResponse } from '../base/BaseAgent';
 import type { AgentMessage, MemoryRecord } from '../../types/oneagent-backbone-types';
-import { createUnifiedTimestamp, unifiedMetadataService } from '../../utils/UnifiedBackboneService';
+import { createUnifiedTimestamp } from '../../utils/UnifiedBackboneService';
 import { ISpecializedAgent } from '../base/ISpecializedAgent';
 import { PromptConfig } from '../base/PromptEngine';
 
@@ -52,12 +65,72 @@ export class DevAgent extends BaseAgent implements ISpecializedAgent {
   }
 
   /**
-   * REAL message processing - not just metadata!
+   * BMAD Analysis & Planning entrypoint (Epic 4, User Story 4.1)
+   * Orchestrates the three persona-driven LLM calls and pauses for approval.
    */
-  async processMessage(context: AgentContext, message: string): Promise<DevAgentResponse> {
-    this.validateContext(context);
+  async execute(task: string): Promise<BMADPlanStatus> {
+    // Canonical unique ID for this BMAD planning task
+    const taskId = createUnifiedTimestamp().unix.toString();
+    return await this.executeBMADPlanning(task, taskId);
+  }
 
-    // Add to conversation history
+  private async executeBMADPlanning(task: string, taskId: string): Promise<BMADPlanStatus> {
+    const tempDir = path.join('temp', `devagent_${taskId}`);
+    await fs.mkdir(tempDir, { recursive: true });
+
+    // Use canonical premium LLM client
+    const SmartGeminiClient = (await import('../../tools/SmartGeminiClient')).default;
+    const llmClient = new SmartGeminiClient({ useWrapperFirst: true });
+
+    // Step 1: Analyst persona
+    const analystPersona = await fs.readFile(
+      path.join('prompts', 'personas', 'analyst.yaml'),
+      'utf8',
+    );
+    const analystPrompt = `${analystPersona}\n\n${task}`;
+    const brainstormingResp = await llmClient.generateContent(analystPrompt);
+    const brainstormingDoc = String(brainstormingResp.response);
+    const brainstormingPath = path.join(tempDir, 'brainstorming_doc.md');
+    await fs.writeFile(brainstormingPath, brainstormingDoc);
+
+    // Step 2: Product Manager persona
+    const pmPersona = await fs.readFile(path.join('prompts', 'personas', 'pm.yaml'), 'utf8');
+    const pmPrompt = `${pmPersona}\n\n${brainstormingDoc}`;
+    const featureSpecResp = await llmClient.generateContent(pmPrompt);
+    const featureSpecDoc = String(featureSpecResp.response);
+    const featureSpecPath = path.join(tempDir, 'feature.spec.md');
+    await fs.writeFile(featureSpecPath, featureSpecDoc);
+
+    // Step 3: Architect persona
+    const architectPersona = await fs.readFile(
+      path.join('prompts', 'personas', 'architect.yaml'),
+      'utf8',
+    );
+    const architectPrompt = `${architectPersona}\n\n${featureSpecDoc}`;
+    const technicalDesignResp = await llmClient.generateContent(architectPrompt);
+    const technicalDesignDoc = String(technicalDesignResp.response);
+    const technicalDesignPath = path.join(tempDir, 'technical_design.md');
+    await fs.writeFile(technicalDesignPath, technicalDesignDoc);
+
+    // Pause for approval
+    return {
+      message: 'Planen er klar for din godkjenning. Se dokumentene nedenfor.',
+      docs: {
+        brainstorming: brainstormingPath,
+        featureSpec: featureSpecPath,
+        technicalDesign: technicalDesignPath,
+      },
+      awaitingApproval: true,
+    };
+  }
+
+  /**
+   * REAL message processing - not just metadata!
+  async execute(task: string): Promise<BMADPlanStatus> {
+    // Canonical unique ID for this BMAD planning task
+    const taskId = generateUnifiedId('bmad_task', 'DevAgent');
+    return await this.executeBMADPlanning(task, taskId);
+  }
     const userMessage: AgentMessage = {
       sessionId: context.sessionId,
       fromAgent: this.config.id,
@@ -71,7 +144,7 @@ export class DevAgent extends BaseAgent implements ISpecializedAgent {
     this.conversationHistory.push(userMessage);
 
     // Persist user message in unified memory (canonical) with timestamp
-    try {
+    const brainstormingDoc = await llmClient.generate({
       const metadata = unifiedMetadataService.create('dev_agent_user_message', 'DevAgent', {
         system: {
           source: 'dev_agent',
@@ -80,7 +153,7 @@ export class DevAgent extends BaseAgent implements ISpecializedAgent {
           userId: context.user.id,
         },
         content: {
-          category: 'dev_agent_user_message',
+    const featureSpecDoc = await llmClient.generate({
           tags: ['dev', 'user_message'],
           sensitivity: 'internal',
           relevanceScore: 0.1,
@@ -92,7 +165,7 @@ export class DevAgent extends BaseAgent implements ISpecializedAgent {
       console.warn(`⚠️ DevAgent memory add failed: ${memoryErr}`);
     }
 
-    // Attempt retrieval of prior similar memories for lightweight contextual enhancement
+    const technicalDesignDoc = await llmClient.generate({
     let priorMemories: MemoryRecord[] = [];
     try {
       const search = await this.memoryClient?.searchMemory({

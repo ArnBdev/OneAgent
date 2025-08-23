@@ -589,7 +589,8 @@ Be [PERSONALITY TRAITS: professional, friendly, expert, etc.] in your responses.
     let searchSuccess = false;
 
     try {
-      memories = await this.searchMemories(userId, query, limit);
+      const search = await this.searchMemories(userId, query, limit);
+      memories = search.result.results;
       searchSuccess = true;
       console.log(
         `🔍 Memory search successful: ${memories.length} results in ${createUnifiedTimestamp().unix - searchStart}ms`,
