@@ -407,8 +407,8 @@ export class OneAgentEngine extends EventEmitter {
     this.unifiedWebSearch = new UnifiedWebSearchTool();
     toolRegistry.registerTool(this.unifiedWebSearch);
 
-    // Note: GeminiEmbeddingsTool needs to be converted to unified format
-    // For now, we'll skip it until a UnifiedGeminiEmbeddingsTool is created
+    // MultimodalEmbeddingService er nå canonical og leverandøragnostisk.
+    // TODO: Integrer MultimodalEmbeddingService som standard embedding/multimodal verktøy.
 
     console.log('✅ Standard tools initialized.');
   }

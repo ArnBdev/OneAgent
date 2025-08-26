@@ -4,7 +4,7 @@ import { createUnifiedTimestamp } from '../../utils/UnifiedBackboneService';
 import type { MemoryIntelligence } from '../../intelligence/memoryIntelligence';
 import type { GeminiClient } from '../../tools/geminiClient';
 import type { OneAgentMemory } from '../../memory/OneAgentMemory';
-import type { GeminiEmbeddingsTool } from '../../tools/geminiEmbeddings';
+import type { MultimodalEmbeddingService } from '../../tools/MultimodalEmbeddingService';
 
 // Spy on metrics logging to validate correlation without side-effects
 const logSpy = jest.spyOn(metricsService, 'logMemorySearch');
@@ -48,7 +48,7 @@ describe('PerformanceAPI.searchMemories -> taskId + metrics correlation', () => 
       memoryIntelligence as unknown as MemoryIntelligence,
       geminiClient as unknown as GeminiClient,
       memoryClient as unknown as OneAgentMemory,
-      embeddingsTool as unknown as GeminiEmbeddingsTool,
+      embeddingsTool as unknown as MultimodalEmbeddingService,
     );
 
     // Act
@@ -98,7 +98,7 @@ describe('PerformanceAPI.searchMemories -> taskId + metrics correlation', () => 
       memoryIntelligence as unknown as MemoryIntelligence,
       geminiClient as unknown as GeminiClient,
       memoryClient as unknown as OneAgentMemory,
-      embeddingsTool as unknown as GeminiEmbeddingsTool,
+      embeddingsTool as unknown as MultimodalEmbeddingService,
     );
 
     // Act (no query -> basic path)

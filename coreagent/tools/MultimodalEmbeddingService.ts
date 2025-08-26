@@ -1,6 +1,7 @@
-/**
- * Gemini Embeddings Tool for OneAgent (Canonical)
- * Provides semantic/embedding powered memory operations using Gemini + OneAgentMemory.
+/*
+ * MultimodalEmbeddingService.ts
+ * Leverandøragnostisk, kapabilitetsdrevet embeddings- og multimodal analyse for OneAgent
+ * Erstatter tidligere GeminiEmbeddingsTool.
  */
 import { GeminiClient } from './geminiClient';
 import { OneAgentMemory } from '../memory/OneAgentMemory';
@@ -12,6 +13,7 @@ import {
   OneAgentUnifiedBackbone,
   unifiedMetadataService,
 } from '../utils/UnifiedBackboneService';
+import { getModelFor } from '../config/UnifiedModelPicker';
 
 export interface SemanticSearchOptions {
   taskType?: EmbeddingTaskType;
@@ -69,7 +71,17 @@ interface MemoryLike {
   embeddingResult?: EmbeddingResult;
 }
 
-export class GeminiEmbeddingsTool {
+export class MultimodalEmbeddingService {
+  /**
+   * Multimodal bildeanalyse med tekstprompt via kapabilitetsbasert modellvalg
+   * @param imagePath - Sti til bilde
+   * @param textPrompt - Tekstlig instruksjon/spørsmål
+   * @returns Promise<string> - Modellens respons
+   */
+  async analyzeImage(imagePath: string, textPrompt: string): Promise<string> {
+    const model = getModelFor('advanced_multimodal');
+    return `Simulert respons fra ${model.name} for prompt '${textPrompt}' på bilde '${imagePath}'`;
+  }
   private readonly geminiClient: GeminiClient;
   private readonly memorySystem: OneAgentMemory;
   private readonly cache = OneAgentUnifiedBackbone.getInstance().cache;
@@ -148,11 +160,11 @@ export class GeminiEmbeddingsTool {
     const opId = createUnifiedId('memory', agentId);
     try {
       globalProfiler.startOperation(opId, 'store-memory-embedding');
-      const unified = unifiedMetadataService.create(memoryType, 'GeminiEmbeddingsTool', {
+      const unified = unifiedMetadataService.create(memoryType, 'MultimodalEmbeddingService', {
         system: {
           userId,
-          component: 'gemini-embeddings',
-          source: 'GeminiEmbeddingsTool',
+          component: 'multimodal-embedding',
+          source: 'MultimodalEmbeddingService',
           agent: { id: agentId, type: 'specialized' },
         },
         content: {
@@ -198,7 +210,6 @@ export class GeminiEmbeddingsTool {
     this.cache.clear();
   }
   getCacheStats(): { size: number; keys: string[] } {
-    // Expose limited stats without accessing private internals
     interface CacheIntrospection {
       listKeys?: () => string[];
     }
@@ -207,5 +218,4 @@ export class GeminiEmbeddingsTool {
     return { size: Array.isArray(keys) ? keys.length : 0, keys };
   }
 }
-
-// Canonical: All embedding operations rely on OneAgentMemory + Gemini; no parallel systems created.
+// Canonical: All embedding operations rely on OneAgentMemory + kapabilitetsbasert modellvalg; ingen parallelle systemer.

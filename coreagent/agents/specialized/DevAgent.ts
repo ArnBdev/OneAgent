@@ -27,6 +27,13 @@ import { BaseAgent, AgentConfig, AgentContext, AgentResponse } from '../base/Bas
 import type { AgentMessage, MemoryRecord } from '../../types/oneagent-backbone-types';
 import { createUnifiedTimestamp } from '../../utils/UnifiedBackboneService';
 import { ISpecializedAgent } from '../base/ISpecializedAgent';
+
+export interface ExecutionResult {
+  success: boolean;
+  filesCreated: string[];
+  reviewNotes?: string;
+}
+
 import { PromptConfig } from '../base/PromptEngine';
 
 export interface DevAgentCapabilities {
@@ -62,6 +69,97 @@ export class DevAgent extends BaseAgent implements ISpecializedAgent {
       testingSupport: true,
       performanceOptimization: true,
     };
+  }
+
+  /**
+   * Executes code generation and QA review for an approved plan (Epic 4, User Story 4.2)
+   */
+  public async executeApprovedPlan(taskId: string): Promise<ExecutionResult> {
+    const tempDir = path.join('temp', `devagent_${taskId}`);
+    const technicalDesignPath = path.join(tempDir, 'technical_design.md');
+    let technicalDesign: string;
+    try {
+      technicalDesign = await fs.readFile(technicalDesignPath, 'utf8');
+    } catch (err) {
+      return {
+        success: false,
+        filesCreated: [],
+        reviewNotes: `Fant ikke technical_design.md: ${err}`,
+      };
+    }
+
+    // Parse coding tasks from technical_design.md
+    // Example format: "Opprett filen `user.controller.ts`: Implementer createUser-funksjonen"
+    const taskRegex = /Opprett filen `(.*?)`:(.*?)(?=Opprett filen|$)/gs;
+    const codingTasks: { file: string; instruction: string }[] = [];
+    let match;
+    while ((match = taskRegex.exec(technicalDesign)) !== null) {
+      codingTasks.push({ file: match[1].trim(), instruction: match[2].trim() });
+    }
+    if (codingTasks.length === 0) {
+      return {
+        success: false,
+        filesCreated: [],
+        reviewNotes: 'Ingen kodingsoppgaver funnet i technical_design.md.',
+      };
+    }
+
+    // Canonical LLM client
+    const SmartGeminiClient = (await import('../../tools/SmartGeminiClient')).default;
+    const llmClient = new SmartGeminiClient({ useWrapperFirst: true });
+
+    // Load coder persona
+    const coderPersona = await fs.readFile(path.join('prompts', 'personas', 'coder.yaml'), 'utf8');
+    const filesCreated: string[] = [];
+
+    // Step 4: Generate code for each task
+    for (const { file, instruction } of codingTasks) {
+      const coderPrompt = `${coderPersona}\n\n${instruction}`;
+      let codeResult;
+      try {
+        codeResult = await llmClient.generateContent(coderPrompt);
+      } catch (err) {
+        return {
+          success: false,
+          filesCreated,
+          reviewNotes: `Feil under kodegenerering for ${file}: ${err}`,
+        };
+      }
+      const code = String(codeResult.response);
+      const filePath = path.join(tempDir, file);
+      try {
+        await fs.writeFile(filePath, code);
+      } catch (fsErr) {
+        return {
+          success: false,
+          filesCreated,
+          reviewNotes: `Feil under skriving av fil ${file}: ${fsErr}`,
+        };
+      }
+      filesCreated.push(filePath);
+    }
+
+    // Step 5: QA review
+    const qaPersona = await fs.readFile(path.join('prompts', 'personas', 'qa.yaml'), 'utf8');
+    let allCode = '';
+    for (const filePath of filesCreated) {
+      const code = await fs.readFile(filePath, 'utf8');
+      allCode += `\n\n--- ${path.basename(filePath)} ---\n${code}`;
+    }
+    const qaPrompt = `${qaPersona}\n\n${allCode}`;
+    let qaResult;
+    try {
+      qaResult = await llmClient.generateContent(qaPrompt);
+    } catch (err) {
+      return { success: true, filesCreated, reviewNotes: `QA feilet: ${err}` };
+    }
+    const reviewNotes = String(qaResult.response);
+
+    // Optionally save QA report
+    const qaReportPath = path.join(tempDir, 'qa_review.md');
+    await fs.writeFile(qaReportPath, reviewNotes);
+
+    return { success: true, filesCreated, reviewNotes };
   }
 
   /**

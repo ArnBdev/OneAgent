@@ -8,8 +8,41 @@
  * - No duplication: delegates to canonical Gemini registry today
  * - Future-ready for other providers (OpenAI, Anthropic, etc.)
  */
+
 import { createUnifiedId, createUnifiedTimestamp } from '../utils/UnifiedBackboneService';
 import { GEMINI_MODELS, type GeminiModel } from './gemini-model-registry';
+
+/**
+ * Kapabilitetsbasert modellvelger for OneAgent
+ */
+export type ModelCapability =
+  | 'fast_text'
+  | 'advanced_text'
+  | 'fast_multimodal'
+  | 'advanced_multimodal';
+/**
+ * Kapabilitetsbasert modellvalg
+ *
+ * Mapping:
+ * - fast_text           => gemini-2.5-flash
+ * - advanced_text       => gemini-2.5-pro
+ * - fast_multimodal     => gemini-2.5-flash-latest
+ * - advanced_multimodal => gemini-2.5-pro-latest
+ */
+export function getModelFor(capability: ModelCapability): ModelPick {
+  switch (capability) {
+    case 'fast_text':
+      return pickGemini('gemini-2.5-flash', 'Fast tekstmodell (kapabilitet)');
+    case 'advanced_text':
+      return pickGemini('gemini-2.5-pro', 'Avansert tekstmodell (kapabilitet)');
+    case 'fast_multimodal':
+      return pickGemini('gemini-2.5-flash-latest', 'Rask multimodal modell (kapabilitet)');
+    case 'advanced_multimodal':
+      return pickGemini('gemini-2.5-pro-latest', 'Avansert multimodal modell (kapabilitet)');
+    default:
+      return pickGemini('gemini-2.5-flash', 'Fallback: ukjent kapabilitet');
+  }
+}
 
 export type ModelKind = 'llm' | 'embedding' | 'vision' | 'audio' | 'multimodal';
 export type ProviderId = 'google' | 'openai' | (string & {});

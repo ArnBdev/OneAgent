@@ -9,7 +9,7 @@ import { globalProfiler } from '../performance/profiler';
 import { MemoryIntelligence } from '../intelligence/memoryIntelligence';
 import { GeminiClient } from '../tools/geminiClient';
 import { OneAgentMemory } from '../memory/OneAgentMemory';
-import { GeminiEmbeddingsTool } from '../tools/geminiEmbeddings';
+import { MultimodalEmbeddingService } from '../tools/MultimodalEmbeddingService';
 import {
   createUnifiedTimestamp,
   createUnifiedId,
@@ -68,7 +68,7 @@ export class PerformanceAPI {
   private memoryIntelligence: MemoryIntelligence;
   private geminiClient: GeminiClient;
   private memoryClient: OneAgentMemory;
-  private embeddingsTool: GeminiEmbeddingsTool;
+  private embeddingsTool: MultimodalEmbeddingService;
   private errorHandler = getUnifiedErrorHandler();
 
   // Component identifier for unified error context
@@ -77,7 +77,7 @@ export class PerformanceAPI {
     memoryIntelligence: MemoryIntelligence,
     geminiClient: GeminiClient,
     memoryClient: OneAgentMemory,
-    embeddingsTool: GeminiEmbeddingsTool,
+    embeddingsTool: MultimodalEmbeddingService,
   ) {
     this.memoryIntelligence = memoryIntelligence;
     this.geminiClient = geminiClient;
