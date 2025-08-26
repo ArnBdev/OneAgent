@@ -1,4 +1,4 @@
-# OneAgent v4.0.5 - Memory-Driven Intelligence Platform
+# OneAgent v4.0.6 - Memory-Driven Intelligence Platform
 
 ## 🚀 **Revolutionary AI Platform Overview**
 
@@ -321,4 +321,4 @@ MIT License - See LICENSE file for details
 
 ---
 
-_This is the canonical README for OneAgent v4.0.5. All documentation is current and reflects the consolidated Phase 4 implementation._
+_This is the canonical README for OneAgent v4.0.6. All documentation is current and reflects the consolidated Phase 4 implementation._
