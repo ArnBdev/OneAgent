@@ -1,12 +1,69 @@
-# 📝 OneAgent v4.0.1 Professional - Changelog
+# 📝 OneAgent v4.0.7 Professional - Changelog
 
-**Current Version**: v4.0.1 Professional  
+**Current Version**: v4.0.7 Professional  
 **Quality Score**: 96.85% (Grade A+)  
 **System Health**: Optimal with ALITA Metadata Enhancement
 
 ---
 
+> Maintainer Note: Let me know if you’d like a concise changelog snippet.
+
 ## v4.0.2 - 2025-08-16
+
+## v4.0.7 - 2025-09-01
+
+### 🔧 Incremental Observability & NLACS Enhancements (post-tag additions kept under 4.0.7)
+
+- Implemented error budget burn & remaining gauges: `oneagent_slo_error_budget_burn`, `oneagent_slo_error_budget_remaining` plus JSON `errorBudgets` array (derived from SLO targets vs observed opSummary — no parallel state).
+- Implemented optional semantic analysis exposure flag (`includeSemanticAnalysis`) in `ChatAPI` returning intent, entities, sentiment, complexity, model version.
+- Introduced SLO target gauges from `slo.config.json` (`oneagent_slo_target_latency_ms`, `oneagent_slo_target_error_rate`).
+- Refactored Prometheus metrics export to single `esc` helper; avoided parallel metric state.
+- Extended tests (`metricsEndpoints.test.ts`) covering taxonomy error codes, SLO gauges, histograms, error budget burn gauges, JSON errorBudgets presence.
+- Added baseline `EntityExtractionService` (pattern-based) and integrated into `ChatAPI` semantic analysis replacing empty entities placeholder.
+- Completed taxonomy propagation across handlers, unified error system, monitoring events, and metrics.
+- Roadmap updated: histogram + entity extraction items marked complete ahead of schedule; Monitoring & Metrics pillar status advanced to Enhanced.
+- Ensured zero duplication of metric stores; all derivations pull from canonical monitoring + config.
+- Placeholder entity extraction integration test added; future ML upgrade will keep interface stable.
+- Roadmap delta applied: Immediate Action Queue items 7 & 8 marked Done (ref. docs/roadmap.md v1.0.2).
+
+### 🚀 Follow-Up (Planned Under 4.0.7 Maintenance Window)
+
+- Prototype anomaly detection events (latency deviation) feeding future alert pack.
+- Upgrade entity extraction to ML NER behind current service contract.
+- Documentation expansion for SLO/error budget methodology (add to `OPERATION_METRICS.md`).
+
+### 🔄 Communication Persistence Consolidation COMPLETE
+
+- Added `CommunicationPersistenceAdapter` centralizing writes for:
+  - Agent messages, discussions, discussion contributions
+  - Insights, synthesized knowledge, agent status
+  - Tasks (`persistTask`) & discussion aggregate updates (`persistDiscussionUpdate`)
+- Removed legacy internal helpers: `storeA2AMemory`, `storeTaskInMemory` (eliminated parallel metadata construction path).
+- Refactored `A2AProtocol` to delegate all persistence to adapter; standardized metadata keys via `COMM_METADATA_KEYS`.
+- Introduced canonical task & discussion update persistence ensuring search continuity while preventing schema drift.
+
+### 📊 Observability Enhancements
+
+- Instrumentation coverage: 100% of `COMM_OPERATION` operations (send, broadcast, discussions, insights, knowledge, patterns, status, context retrieval).
+- Prometheus endpoint extended with per-operation latency gauges: `oneagent_operation_latency_avg_ms`, `p95_ms`, `p99_ms` (labels: component, operation).
+- Added per-operation error counters metric: `oneagent_operation_errors_total{component,operation,errorCode}` (derived directly from unified monitoring event stream — no parallel metrics state introduced).
+- Parallelized detailed latency metric retrieval (Promise.all) reducing metrics endpoint response overhead as operations scale.
+- New smoke tests:
+  - `communication.metrics.prometheus.test.ts` (latency gauges + labels)
+  - `operation-error-metrics.smoke.test.ts` (error counter exposure + errorCode label)
+
+### 🧹 Deletions / Pruning
+
+- Removed obsolete wrapper: `OneAgentMemoryMemoryClient.ts` (unused IMemoryClient shim).
+- Removed all ad-hoc A2A persistence logic replaced by adapter calls.
+
+### 🧭 Follow-Up (Open)
+
+- Surface structured communication error taxonomy metrics (normalize / classify `errorCode`).
+- Expand documentation (`OPERATION_METRICS.md`) to include new error counter semantics & usage guidance.
+- Add adapter-level tests for `persistTask` / `persistDiscussionUpdate` metadata invariants (optional hardening).
+
+---
 
 - A2A: Default protocol bumped to 0.2.6; serve dual well-known endpoints on MCP server:
   - `/.well-known/agent-card.json` (preferred for A2A >= 0.3.0)

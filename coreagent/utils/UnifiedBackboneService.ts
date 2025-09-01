@@ -32,6 +32,8 @@ import {
   unifiedMonitoringService,
   UnifiedMonitoringService,
 } from '../monitoring/UnifiedMonitoringService';
+// Canonical error taxonomy mapping (low-cardinality stable codes)
+import { getErrorCodeLabel } from '../monitoring/errorTaxonomy';
 import type { ServerConfig } from '../config/index';
 import { oneAgentConfig } from '../config/index';
 // NOTE: Avoid early import of UnifiedConfigProvider (it imports UnifiedBackboneService utils for timestamps/ids indirectly)
@@ -1458,6 +1460,8 @@ interface OneAgentErrorEntry {
   agentId?: string;
   userId?: string;
   stackTrace?: string;
+  /** Canonical taxonomy code (stable, low-cardinality) */
+  taxonomyCode?: string;
   metadata: {
     component: string;
     operation: string;
@@ -1678,6 +1682,8 @@ export class OneAgentUnifiedErrorSystem {
     const message = typeof error === 'string' ? error : error.message;
     const originalError = typeof error === 'string' ? undefined : error;
     const stackTrace = originalError?.stack;
+    // Derive canonical taxonomy code (stable, low-cardinality) for downstream metrics/logging.
+    const taxonomyCode = getErrorCodeLabel(error).toString();
 
     // Classify error type and severity
     const type = this.classifyErrorType(message, context);
@@ -1690,6 +1696,7 @@ export class OneAgentUnifiedErrorSystem {
       message,
       context,
       timestamp,
+      taxonomyCode,
       metadata: {
         component: (context.component as string) || 'unknown',
         operation: (context.operation as string) || 'unknown',
@@ -2727,7 +2734,38 @@ export const unifiedMetadataService = OneAgentUnifiedMetadataService.getInstance
  * REPLACES: createUnifiedTimestamp, new Date(), Date.now()
  */
 export function createUnifiedTimestamp(): UnifiedTimestamp {
-  return unifiedTimeService.createTimestamp();
+  try {
+    // Use already-created singleton if available
+    if (typeof unifiedTimeService !== 'undefined' && unifiedTimeService) {
+      return unifiedTimeService.createTimestamp();
+    }
+    // Defer class access if defined later in this module
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const maybeCtor: any = (globalThis as unknown as Record<string, unknown>)[
+      'OneAgentUnifiedTimeService'
+    ];
+    if (maybeCtor && typeof maybeCtor.getInstance === 'function') {
+      return maybeCtor.getInstance().createTimestamp();
+    }
+  } catch {
+    /* swallow and fallback */
+  }
+  // Fallback minimal timestamp (will be close enough; avoids throw during bootstrap)
+  const d = new Date();
+  return {
+    iso: d.toISOString(),
+    unix: d.getTime(),
+    utc: d.toISOString(),
+    local: d.toLocaleString(),
+    timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+    context: '',
+    contextual: { timeOfDay: '', energyLevel: '', optimalFor: [] },
+    metadata: {
+      source: 'bootstrap-fallback',
+      precision: 'second',
+      timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+    },
+  } as UnifiedTimestamp;
 }
 
 /**

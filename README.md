@@ -1,4 +1,4 @@
-# OneAgent v4.0.6 - Memory-Driven Intelligence Platform
+# OneAgent v4.0.7 - Memory-Driven Intelligence Platform
 
 ## 🚀 **Revolutionary AI Platform Overview**
 
@@ -166,37 +166,30 @@ Transform from reactive responses to proactive suggestions based on learned patt
 - **Predictive Intelligence**: Predict likely outcomes and optimal strategies
 - **Resource Allocation**: Optimize resources through historical performance data
 
-## 🔮 **Roadmap**
+## 🔮 **Roadmap (Canonical)**
 
-### **✅ Phase 4: Memory-Driven Intelligence (COMPLETE)**
+The previous fragmented roadmap files have been superseded by a single canonical roadmap: **[docs/roadmap.md](./docs/roadmap.md)** (aligned with v4.0.7). It defines release train (v4.1–v6.0), thematic backlogs (Observability, NLACS, Planner, UI, Extensibility, Scale, Governance), KPIs, risks, and an Immediate Action Queue.
 
-- Cross-conversation learning and pattern recognition
-- Emergent intelligence synthesis and breakthrough detection
-- Memory-driven optimization and workflow analysis
-- Constitutional AI validation and safety compliance
+Key near-term (v4.1–v4.2):
 
-### **🚀 Phase 5: Autonomous Intelligence (PLANNED)**
+- Error taxonomy enforcement in metrics & JSON endpoint
+- SLO config + baseline alert pack (see `docs/monitoring/ALERTS.md`)
+- Histogram implementation (foundation for accurate p95/p99 & burn rates)
+- Resilience primitives (circuit breakers, retry policy hardening)
 
-- Autonomous agent lifecycle management
-- Predictive system intelligence and proactive problem solving
-- Universal pattern application and meta-learning capabilities
-- Self-improving system evolution
+Subsequent (v4.3–v4.5): NLACS entity extraction, Planner strategic layer, Phase A Web UI (metrics, agents, memory explorer, SSE stream).
 
-### **🌟 Future Phases**
-
-- **Phase 6**: Ecosystem Intelligence and multi-system integration
-- **Phase 7**: Universal Intelligence Network and collective intelligence
-- **Phase 8**: Evolutionary AI and continuous system evolution
+Longer horizon: Plugin SDK, clustering, anomaly detection, governance + policy engine, emergent insight ranking.
 
 ## 📚 **Documentation**
 
 ### **Core Documentation**
 
-- **[PHASE_4_COMPLETION_REPORT_FINAL.md](./PHASE_4_COMPLETION_REPORT_FINAL.md)**: Complete Phase 4 implementation report
-- **[PHASE_5_AUTONOMOUS_INTELLIGENCE_ROADMAP.md](./PHASE_5_AUTONOMOUS_INTELLIGENCE_ROADMAP.md)**: Phase 5 strategic roadmap
+- **[docs/roadmap.md](./docs/roadmap.md)**: Single strategic roadmap (supersedes legacy roadmap files)
 - **[ONEAGENT_ARCHITECTURE.md](./ONEAGENT_ARCHITECTURE.md)**: Complete architecture overview
-- **[ONEAGENT_HYBRID_ROADMAP_V5.md](./ONEAGENT_HYBRID_ROADMAP_V5.md)**: Strategic implementation roadmap
 - **[docs/monitoring/OPERATION_METRICS.md](./docs/monitoring/OPERATION_METRICS.md)**: Canonical event-based operation metrics (trackOperation + summarizeOperationMetrics)
+- **[docs/monitoring/ALERTS.md](./docs/monitoring/ALERTS.md)**: Baseline Prometheus alert pack (v4.1 foundation)
+- Error Taxonomy: `coreagent/monitoring/errorTaxonomy.ts` (stable low-cardinality error codes for metrics & UI)
 
 ### **Phase 4 Specifications**
 
@@ -292,6 +285,12 @@ Rate limiting (30 messages / 60s per agent-session) is enforced and covered by `
 
 Monitoring events now include an explicit `operation` field (in addition to the descriptive message) for robust assertion and aggregation, while `trackOperation` remains the canonical entry point (no parallel metrics store).
 
+### Metrics & Error Taxonomy JSON Endpoint
+
+- Prometheus exposition: `GET /api/v1/metrics/prometheus`
+- Structured JSON (UI consumption): `GET /api/v1/metrics/json` returns `{ stats, operations, errors[] }` where `errors[].errorCode` is taxonomy-mapped.
+- Error codes sanitized & derived through `getErrorCodeLabel()` ensuring low cardinality.
+
 ### Public interop (A2A 0.3.0 readiness plan)
 
 - Status: Forward-compatible. We serve both `/.well-known/agent-card.json` (preferred) and `/.well-known/agent.json` (legacy) and advertise protocol 0.2.6 by default.
@@ -321,4 +320,4 @@ MIT License - See LICENSE file for details
 
 ---
 
-_This is the canonical README for OneAgent v4.0.6. All documentation is current and reflects the consolidated Phase 4 implementation._
+_This is the canonical README for OneAgent v4.0.7. All documentation is current and reflects the consolidated Phase 4 implementation plus communication persistence consolidation._

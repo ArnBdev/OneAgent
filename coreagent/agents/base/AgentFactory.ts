@@ -21,7 +21,8 @@ import type { AgentType as CanonicalAgentType } from '../../types/oneagent-backb
 
 // NEW: Import tier system for intelligent model selection
 // Unified model picker replaces direct tier selector usage for runtime selection
-import { pickDefault, type ModelPick } from '../../config/UnifiedModelPicker';
+import { getModelFor } from '../../config/UnifiedModelPicker';
+import { SmartGeminiClient } from '../../tools/SmartGeminiClient';
 import { loadYamlDirectory, loadYamlFile } from './yamlLoader';
 import { unifiedAgentCommunicationService } from '../../utils/UnifiedAgentCommunicationService';
 import * as path from 'path';
@@ -296,57 +297,49 @@ export class AgentFactory {
   /**
    * Select model using UnifiedModelPicker roles (provider-agnostic)
    */
-  private static selectOptimalModel(factoryConfig: AgentFactoryConfig): { pick: ModelPick } {
+  private static selectOptimalModel(factoryConfig: AgentFactoryConfig): {
+    client: ReturnType<typeof getModelFor>;
+  } {
     // Use custom model if specified
     if (factoryConfig.customModel) {
       console.log(`🎯 Using custom model: ${factoryConfig.customModel}`);
-      return {
-        pick: {
-          provider: 'google',
-          name: factoryConfig.customModel,
-          kind: 'llm',
-          tier: 'standard',
-          reason: 'Custom override',
-          catalogId: factoryConfig.customModel,
-          addedAtIso: new Date().toISOString(),
-        },
-      };
+      // Direct instantiation for custom model (Gemini only for now)
+      return { client: new SmartGeminiClient({ model: factoryConfig.customModel }) };
     }
 
-    // Role-based mapping per agent type; respects cost/perf flags
-    const role = (() => {
-      if (factoryConfig.modelTier === 'economy' || factoryConfig.prioritizeCost)
-        return 'ultrafast_llm';
+    // Capability mapping per agent type; respects cost/perf flags
+    const capability: import('../../config/UnifiedModelPicker').ModelCapability = (() => {
+      if (factoryConfig.modelTier === 'economy' || factoryConfig.prioritizeCost) return 'fast_text';
       if (factoryConfig.modelTier === 'premium' || factoryConfig.prioritizePerformance)
-        return 'demanding_llm';
+        return 'advanced_text';
       // Defaults by agent type
       switch (factoryConfig.type) {
         case 'office':
         case 'fitness':
-          return 'fast_llm';
+          return 'fast_text';
         case 'core':
         case 'development':
         case 'triage':
         case 'planner':
         case 'validator':
-          return 'demanding_llm';
+          return 'advanced_text';
         default:
-          return 'fast_llm';
+          return 'fast_text';
       }
     })();
 
-    const pick = pickDefault(role);
+    const client = getModelFor(capability);
     console.log(
-      `🧠 UnifiedModelPicker selected for ${factoryConfig.type}: ${pick.provider}/${pick.name} (${pick.tier}) [role=${role}]`,
+      `🧠 UnifiedModelPicker selected for ${factoryConfig.type}: capability=${capability}`,
     );
-    return { pick };
+    return { client };
   }
 
   /**
    * Create a specialized agent based on type and configuration
    */ static async createAgent(factoryConfig: AgentFactoryConfig): Promise<ISpecializedAgent> {
     // NEW: Select optimal model using tier system
-    const modelSelection = AgentFactory.selectOptimalModel(factoryConfig);
+    AgentFactory.selectOptimalModel(factoryConfig); // capability selection (side-effect logging)
     // Create unified agent context for consistent time/metadata across all agents
     const backboneAgentType = factoryConfig.type;
     const unifiedContext = unifiedBackbone.createAgentContext(
@@ -380,7 +373,7 @@ export class AgentFactory {
       memoryEnabled: factoryConfig.memoryEnabled ?? true,
       aiEnabled: factoryConfig.aiEnabled ?? true,
       // Pass provider-native model name for Gemini-backed SmartGeminiClient
-      aiModelName: modelSelection.pick.provider === 'google' ? modelSelection.pick.name : undefined,
+      aiModelName: factoryConfig.customModel || undefined,
       // Canonical agent communication handled via UnifiedAgentCommunicationService and NLACS extensions only.
     };
 
@@ -450,13 +443,7 @@ export class AgentFactory {
           },
           content: {
             category: 'agent_lifecycle',
-            tags: [
-              'agent',
-              'creation',
-              factoryConfig.type,
-              factoryConfig.id,
-              modelSelection.pick.tier,
-            ],
+            tags: ['agent', 'creation', factoryConfig.type, factoryConfig.id],
             sensitivity: 'internal',
             relevanceScore: 0.8,
             contextDependency: 'session',
@@ -473,9 +460,7 @@ export class AgentFactory {
       console.log(
         `✅ Agent created with tier-optimized model: ${factoryConfig.type}/${factoryConfig.id}`,
       );
-      console.log(
-        `   📱 Model: ${modelSelection.pick.provider}/${modelSelection.pick.name} (${modelSelection.pick.tier} tier)`,
-      );
+      console.log(`   📱 Model: capability-driven selection for ${factoryConfig.type}`);
       console.log(`   📊 Metadata: ${creationMetadata.id}`);
     } else {
       console.log(
@@ -589,15 +574,24 @@ export class AgentFactory {
     agentType: CanonicalAgentType,
     options?: { prioritizeCost?: boolean; prioritizePerformance?: boolean },
   ): { provider: string; name: string; tier: string } {
-    const role = options?.prioritizeCost
-      ? 'ultrafast_llm'
-      : options?.prioritizePerformance
-        ? 'demanding_llm'
-        : agentType === 'office' || agentType === 'fitness'
-          ? 'fast_llm'
-          : 'demanding_llm';
-    const pick = pickDefault(role);
-    return { provider: pick.provider, name: pick.name, tier: pick.tier };
+    // Use capability-driven model selection
+    const capability: import('../../config/UnifiedModelPicker').ModelCapability = (() => {
+      if (options?.prioritizeCost) return 'fast_text';
+      if (options?.prioritizePerformance) return 'advanced_text';
+      switch (agentType) {
+        case 'office':
+        case 'fitness':
+          return 'fast_text';
+        default:
+          return 'advanced_text';
+      }
+    })();
+    // Return minimal info for compatibility
+    return {
+      provider: 'unified',
+      name: capability,
+      tier: capability.includes('advanced') ? 'premium' : 'standard',
+    };
   }
 
   /**

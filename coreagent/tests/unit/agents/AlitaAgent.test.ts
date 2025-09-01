@@ -7,7 +7,16 @@ import fetch from 'node-fetch';
 // Explicit factory mocks
 jest.mock('../../../tools/SmartGeminiClient', () => ({
   __esModule: true,
-  default: jest.fn(),
+  default: jest.fn().mockImplementation(() => ({
+    generateContent: jest.fn().mockResolvedValue({
+      response: JSON.stringify({
+        analysis: 'Observed repeated failures in knowledge retrieval focus',
+        targetFile: 'specs/test.spec.md',
+        suggestedChange: 'Add rule to prioritize task-focused retrieval windows.',
+        reason: 'Addresses bad ratings referencing off-topic answers',
+      }),
+    }),
+  })),
 }));
 jest.mock('simple-git', () => ({
   simpleGit: jest.fn(),

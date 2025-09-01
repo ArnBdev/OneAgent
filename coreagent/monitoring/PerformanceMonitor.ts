@@ -27,10 +27,51 @@ export class PerformanceMonitor {
       errors: number;
       successes: number;
       total: number;
+      // FUTURE (v4.2): histogramBins will hold bucketed counts once HDR/bucket histogram implemented
+      // Do NOT rely on this now; placeholder to prevent parallel ad-hoc histogram structures.
+      histogramBins?: Record<string, number>; // key format: "lt_10" | "10_50" | "50_100" | "100_500" | "500_1000" | "gte_1000"
     }
   > = new Map();
 
   private maxSampleSize = 1000; // Keep last 1000 operations for rolling averages
+  // FUTURE (v4.2): configurable via constructor or setter; keep constant until histogram feature lands.
+
+  // ---- Histogram Roadmap Placeholders (Non-functional until v4.2) ----
+  /**
+   * Plan: When implementing histograms, call this after recording latency to increment bucket counts.
+   * Rationale: Centralize histogram mutation here to avoid parallel metric state.
+   */
+  private addToHistogram(_operation: string, _timeMs: number): void {
+    const operation = _operation;
+    const timeMs = _timeMs;
+    const op = this.getOrCreateOperationMetrics(operation);
+    if (!op.histogramBins) {
+      op.histogramBins = {
+        lt_10: 0,
+        '10_50': 0,
+        '50_100': 0,
+        '100_500': 0,
+        '500_1000': 0,
+        gte_1000: 0,
+      } as Record<string, number>;
+    }
+    const bins = op.histogramBins;
+    if (timeMs < 10) bins.lt_10++;
+    else if (timeMs < 50) bins['10_50']++;
+    else if (timeMs < 100) bins['50_100']++;
+    else if (timeMs < 500) bins['100_500']++;
+    else if (timeMs < 1000) bins['500_1000']++;
+    else bins.gte_1000++;
+  }
+
+  /**
+   * Planned public accessor for histogram snapshot (read-only copy) post v4.2.
+   * Until implemented, returns undefined to signal absence.
+   */
+  getHistogram(operation: string): Record<string, number> | undefined {
+    const op = this.metrics.get(operation);
+    return op?.histogramBins ? { ...op.histogramBins } : undefined;
+  }
 
   /**
    * Record operation latency
@@ -47,6 +88,9 @@ export class PerformanceMonitor {
     if (operationMetrics.latencies.length > this.maxSampleSize) {
       operationMetrics.latencies.shift();
     }
+
+    // FUTURE (v4.2): populate histogram bins centrally
+    this.addToHistogram(operation, timeMs);
 
     // Log warning if operation exceeds target
     if (timeMs > 50) {
@@ -196,6 +240,7 @@ export class PerformanceMonitor {
     op.successes += 1;
     op.total += 1;
     if (op.latencies.length > this.maxSampleSize) op.latencies.shift();
+    this.addToHistogram(operation, durationMs); // prepares for future histogram without parallel store
   }
 
   private computePercentile(sorted: number[], p: number): number {

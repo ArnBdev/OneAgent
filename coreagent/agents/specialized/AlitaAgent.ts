@@ -23,8 +23,7 @@ import { createUnifiedTimestamp, generateUnifiedId } from '../../utils/UnifiedBa
 import type { FeedbackRecord } from '../../types/oneagent-backbone-types';
 import type { MetricLog } from '../../services/MetricsService';
 import { OneAgentMemory } from '../../memory/OneAgentMemory';
-import { pickDefault } from '../../config/UnifiedModelPicker';
-import SmartGeminiClient from '../../tools/SmartGeminiClient';
+import { getModelFor } from '../../config/UnifiedModelPicker';
 import { simpleGit } from 'simple-git';
 import fetch from 'node-fetch';
 import * as fs from 'fs/promises';
@@ -118,9 +117,8 @@ export class AlitaAgent extends BaseAgent implements ISpecializedAgent {
     const taskId = generateUnifiedId('analysis', this.config.id);
     const entries = await this.getRecentExperienceEntries(limit);
     const prompt = this.buildMetaPrompt(entries);
-    // Select premium reasoning model
-    const modelPick = pickDefault('demanding_llm');
-    const ai = new SmartGeminiClient({ model: modelPick.name });
+    // Select premium reasoning model (capability-driven)
+    const ai = getModelFor('advanced_text');
 
     // Call LLM for analysis → strict JSON
     let proposal: { analysis: string; targetFile: string; suggestedChange: string; reason: string };

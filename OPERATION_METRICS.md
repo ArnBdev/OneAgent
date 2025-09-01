@@ -20,6 +20,7 @@ This document defines the unified, canonical pattern for ingesting and analyzing
 | `PerformanceMonitor.getDetailedMetrics`      | Per-operation deep dive (avg, p95, p99, errors, guidance)                 | Used by profiler shim & APIs                             |
 | `PerformanceMonitor.getGlobalReport`         | System-level performance & recommendations                                | Consumed by APIs / dashboards                            |
 | `profiler.ts` (shim)                         | Backwards compatibility only                                              | Delegates to canonical services; stores no metrics       |
+| Prometheus Exposition (metrics API)          | Read-only text exposition of derived metrics                              | Builds lines from canonical stores & event history       |
 
 ## Event Flow
 
@@ -28,6 +29,11 @@ This document defines the unified, canonical pattern for ingesting and analyzing
 3. `UnifiedMonitoringService` validates metadata; if `durationMs` is a valid number it calls `performanceMonitor.recordDurationFromEvent(operationType, durationMs)`.
 4. `PerformanceMonitor` updates rolling latency & counts; exceeds max sample size by evicting oldest.
 5. Aggregations (avg, p95, p99, error rate) available through detailed or global report methods.
+6. Prometheus endpoint ( `/api/v1/metrics/prometheus` ) derives counters/gauges directly from:
+   - `PerformanceMonitor` detailed metrics (latency percentiles, averages)
+   - `unifiedMonitoringService.eventHistory` for operation counts & error codes
+
+No additional mutable state or caches are introduced (ensures single source of truth).
 
 ## Percentile Computation
 
@@ -80,19 +86,127 @@ Never reintroduce local arrays or timers inside the profiler shim.
 2. Ingest through `UnifiedMonitoringService` (single path)
 3. Store only minimal required arrays/counters in `PerformanceMonitor`
 4. Expose via typed accessor methods (avoid leaking internals)
+5. For Prometheus exposition, only derive new metrics from existing canonical data structures (`PerformanceMonitor` state or monitoring `eventHistory`). Never create a side-car accumulator.
 
 ## Quality & Integrity Guardrails
 
 - No other module may maintain a separate performance metrics cache.
 - All time must use `createUnifiedTimestamp` or `now()` (no raw `Date.now()`).
 - Any new performance feature must extend `PerformanceMonitor` rather than cloning logic.
+- Prometheus exposition must remain pure/derivational: no mutation of underlying stores during render.
+- Error classification must be label-stable; avoid introducing high-cardinality labels (e.g. raw messages).
 
 ## Future Enhancements (Backlog)
 
-- Histogram binning for more accurate percentile estimation under heavy load
-- Adaptive sampling (reduce memory footprint for highly frequent operations)
-- SLA breach alert integration (emit structured alert events)
-- Correlation IDs linking operations to memory or agent sessions
+Implemented in v4.0.7 (removed from backlog):
+
+- Per-operation latency gauges (avg / p95 / p99) exported as `oneagent_operation_latency_*_ms`
+- Parallelized retrieval of detailed latency metrics to keep exposition latency low
+- Error counter metric `oneagent_operation_errors_total` with `component`, `operation`, `errorCode` labels (sliding window)
+
+Planned / Open:
+
+- Histogram binning (true HDR-style or configurable buckets) for high-fidelity percentile estimation
+- Adaptive sampling (down-sample extremely frequent operations while preserving tail accuracy)
+- Structured error taxonomy normalization (map free-form error messages → stable codes)
+- Error budget & SLO tracking (burn rate alerts emitted as monitoring events)
+- Correlation IDs linking operations to memory records / agent sessions for root-cause tracing
+- Metric cardinality guardrails (automatic suppression / aggregation if label explosion detected)
+- Optional cached snapshot layer with TTL to protect against heavy scrape fan-out (must NOT become a second source of truth)
+- Latency trend differentials (delta vs previous window for proactive regression detection)
+- Unified anomaly detection events (statistical detection of latency or error spikes)
+- Partition-aware performance (segmented metrics by session or tenant within strict cardinality limits)
+
+Deferred / Under Consideration:
+
+- Export of p50 (already derivable) — omitted to minimize metric count until needed
+- Synthetic operation groups (aggregate across related low-volume operations) — needs taxonomy spec first
+
+Rejected (violates single-source or cardinality constraints):
+
+- Storing a separate long-term error counter map outside eventHistory (would duplicate state)
+- Embedding raw stack traces or full error messages in labels (explodes cardinality & leaks sensitive info)
+
+All future enhancements must continue zero-parallel-store principle.
+
+---
+
+## Prometheus Metrics (Current v4.0.7)
+
+| Metric Name                           | Type      | Labels                          | Description                                                             | Source                                    |
+| ------------------------------------- | --------- | ------------------------------- | ----------------------------------------------------------------------- | ----------------------------------------- |
+| `oneagent_operation_total`            | counter   | (none)                          | Total operations observed in window (configurable windowMs query param) | Derived from eventHistory filtered window |
+| `oneagent_operation_component_total`  | counter   | component, operation, status    | Success/error counts per operation                                      | eventHistory aggregation                  |
+| `oneagent_operation_error_rate`       | gauge     | component, operation            | Error rate (error/total) per operation                                  | eventHistory aggregation                  |
+| `oneagent_operation_latency_avg_ms`   | gauge     | operation                       | Rolling average latency (ms)                                            | PerformanceMonitor detailed metrics       |
+| `oneagent_operation_latency_p95_ms`   | gauge     | operation                       | 95th percentile latency (ms)                                            | PerformanceMonitor detailed metrics       |
+| `oneagent_operation_latency_p99_ms`   | gauge     | operation                       | 99th percentile latency (ms)                                            | PerformanceMonitor detailed metrics       |
+| `oneagent_operation_errors_total`     | counter   | component, operation, errorCode | Error event occurrences (sliding window, coded)                         | eventHistory recent (last 500 events)     |
+| `oneagent_metrics_latency_average_ms` | gauge     | (none)                          | Average latency across recent generic metric logs                       | metricsService stats                      |
+| `oneagent_metrics_latency_max_ms`     | gauge     | (none)                          | Max latency across recent logs                                          | metricsService stats                      |
+| `oneagent_metrics_latency_p50_ms`     | gauge     | (none)                          | Median latency across recent logs                                       | metricsService stats                      |
+| `oneagent_metrics_latency_p95_ms`     | gauge     | (none)                          | 95th percentile across recent logs                                      | metricsService stats                      |
+| `oneagent_metrics_latency_p99_ms`     | gauge     | (none)                          | 99th percentile across recent logs                                      | metricsService stats                      |
+| `oneagent_memory_search_latency_ms`   | histogram | le                              | Histogram (recent memory search latencies)                              | Derived from recent logs sample           |
+| `oneagent_build_info`                 | gauge     | version                         | Build/version marker (always 1)                                         | package.json                              |
+| `oneagent_metrics_recent_total`       | gauge     | (none)                          | Number of recent metric logs retained                                   | metricsService stats                      |
+
+### Error Counter Semantics
+
+- Window: Derived from the last N monitoring events (currently N=500). This is a sliding in-memory view, not a monotonic lifetime counter.
+- Source Fields: `errorCode` label populated from `event.data.errorCode` if present; fallback to sanitized `event.data.error` value; fallback to `generic`.
+- Sanitization: Lowercased, non-alphanumeric characters replaced with `_` to control cardinality.
+- Cardinality Control: Upstream code should normalize recurrent errors into stable `errorCode` values. Free-form messages are discouraged.
+- Reset Behavior: Process restart or eventHistory truncation (FIFO eviction) naturally drops older errors; external scrapers must treat counter as _reset-prone_ due to sliding derivation.
+
+### Latency Gauge Semantics
+
+- Values sourced per operation via `PerformanceMonitor.getDetailedMetrics(op)` (avgLatency, p95, p99) in parallel to minimize exposition latency.
+- Gauges reflect the current rolling window in `PerformanceMonitor` (implementation-specific sample size + eviction policy).
+- If no data yet recorded for an operation, that operation simply omits gauges (no zero line emitted to avoid false signal).
+
+### Design Principles (Prometheus Layer)
+
+1. Derivational Only: No mutation or incremental counters maintained solely for Prometheus.
+2. Parallelized Fetch: Detailed metrics collected with `Promise.all` to ensure O(n) concurrency instead of sequential latency stacking.
+3. Bounded Cardinality: Label sets fixed (component, operation, status, errorCode). New labels require architecture review.
+4. Ephemeral Error Window: Chosen intentionally to avoid duplicate canonical store; long-term retention belongs in an external TSDB.
+5. Fail-Open Rendering: Missing metrics for an operation do not fail the whole exposition.
+
+### Adding a New Operation Metric (Example Workflow)
+
+1. Begin emitting `trackOperation(component, operation, status, { durationMs, customMeta })`.
+2. Validate that `operation` is added to the canonical `COMM_OPERATION` enumeration (prevents typos & parallel naming).
+3. Confirm latency gauges appear once operations occur with `durationMs`.
+4. (Optional) Introduce structured `errorCode` values where errors can occur.
+5. Update documentation (this file) if a new semantic metric type is introduced.
+
+---
+
+## Known Limitations
+
+- Sliding window error counters cannot provide true rate over long durations; external Prometheus `rate()` functions must be used with understanding of resets.
+- Lack of native histograms for every operation may reduce tail latency fidelity; planned histogram binning will address this.
+- Missing persistent metric store by design; long-term analytics expected to be handled by external observability stack.
+
+---
+
+## Operational Playbook Snippets
+
+Common alert queries (illustrative):
+
+```
+# High error rate (instantaneous >10%)
+oneagent_operation_error_rate{operation="sendAgentMessage"} > 0.10
+
+# Latency SLO breach (p95 > 3s)
+oneagent_operation_latency_p95_ms{operation="generateCrossAgentInsights"} > 3000
+
+# Specific error code spike (validated input errors)
+increase(oneagent_operation_errors_total{errorCode="validation"}[5m]) > 25
+```
+
+All alerting rules must account for sliding window resets and potential cold starts.
 
 ---
 

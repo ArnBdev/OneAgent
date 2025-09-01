@@ -15,15 +15,20 @@ export class PerformanceProfiler {
     this.monitor = monitor || new PerformanceMonitor();
     if (!PerformanceProfiler.warned) {
       PerformanceProfiler.warned = true;
-      unifiedMonitoringService.trackOperation(
-        'performance_profiler',
-        'deprecation_notice',
-        'success',
-        {
-          message:
-            'PerformanceProfiler deprecated. Use UnifiedMonitoringService + PerformanceMonitor.',
-        },
-      );
+      // Guard for early import race (unifiedMonitoringService may be undefined transiently)
+      try {
+        unifiedMonitoringService?.trackOperation(
+          'performance_profiler',
+          'deprecation_notice',
+          'success',
+          {
+            message:
+              'PerformanceProfiler deprecated. Use UnifiedMonitoringService + PerformanceMonitor.',
+          },
+        );
+      } catch {
+        /* swallow to avoid cyclic import crash */
+      }
     }
   }
 
@@ -32,7 +37,7 @@ export class PerformanceProfiler {
     operationType: string,
     metadata?: Record<string, unknown>,
   ): void {
-    unifiedMonitoringService.trackOperation('performance_profiler', operationType, 'success', {
+    unifiedMonitoringService?.trackOperation('performance_profiler', operationType, 'success', {
       operationId,
       phase: 'start',
       ...(metadata || {}),
@@ -46,7 +51,7 @@ export class PerformanceProfiler {
     error?: string,
     metadata?: Record<string, unknown>,
   ): void {
-    unifiedMonitoringService.trackOperation(
+    unifiedMonitoringService?.trackOperation(
       'performance_profiler',
       'operation_complete',
       success ? 'success' : 'error',
@@ -77,7 +82,7 @@ export class PerformanceProfiler {
 export const globalProfiler = new PerformanceProfiler();
 
 export function createDeprecatedProfiler(): PerformanceProfiler {
-  unifiedMonitoringService.trackOperation(
+  unifiedMonitoringService?.trackOperation(
     'performance_profiler',
     'deprecated_factory_call',
     'success',

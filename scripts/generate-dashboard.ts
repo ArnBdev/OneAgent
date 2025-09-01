@@ -1,6 +1,5 @@
 import { UIGeneratorAgent } from '../coreagent/agents/specialized/UIGeneratorAgent';
 import { AgentConfig } from '../coreagent/agents/base/BaseAgent';
-import { getModelFor } from '../coreagent/config/UnifiedModelPicker';
 import * as fs from 'fs';
 import * as path from 'path';
 
@@ -11,7 +10,7 @@ const config: AgentConfig = {
   capabilities: ['generate_ui'],
   memoryEnabled: true,
   aiEnabled: true,
-  aiModelName: getModelFor('advanced_multimodal').name,
+  aiModelName: undefined, // capability-driven client used internally now
 };
 
 const agent = new UIGeneratorAgent(config);

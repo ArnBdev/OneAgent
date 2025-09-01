@@ -7,6 +7,8 @@
 
 import { SimpleAuditLogger, defaultAuditLogger } from '../audit/auditLogger';
 import { createUnifiedTimestamp, createUnifiedId } from './UnifiedBackboneService';
+// Canonical error taxonomy (low-cardinality stable codes)
+import { getErrorCodeLabel } from '../monitoring/errorTaxonomy';
 
 export interface ErrorContext {
   requestId?: string;
@@ -31,6 +33,8 @@ export interface SecureErrorResponse {
       | 'TIMEOUT';
     requestId?: string;
     timestamp: string;
+    // Canonical taxonomy code (stable, low-cardinality)
+    errorCode?: string;
   };
   debug?: {
     stack?: string;
@@ -71,6 +75,8 @@ export class SecureErrorHandler {
     // Determine error category and code
     const { category, code } = this.categorizeError(error);
     const errInfo = this.toErrorInfo(error);
+    // Derive canonical taxonomy code (stable label) for downstream metrics/logging
+    const taxonomyCode = getErrorCodeLabel(error).toString();
 
     // Sanitize error message
     const sanitizedMessage = this.sanitizeErrorMessage(
@@ -81,7 +87,7 @@ export class SecureErrorHandler {
     if (this.config.enableDetailedLogging) {
       await this.auditLogger.logError(
         'ERROR_HANDLER',
-        `${category}:${code} - ${sanitizedMessage}`,
+        `${category}:${code} [tax:${taxonomyCode}] - ${sanitizedMessage}`,
         {
           ...context,
           requestId,
@@ -91,6 +97,7 @@ export class SecureErrorHandler {
             : errInfo.stack,
           errorName: errInfo.name,
           errorCode: errInfo.code,
+          taxonomyCode,
         },
       );
     }
@@ -104,6 +111,7 @@ export class SecureErrorHandler {
         category,
         requestId,
         timestamp: timestamp.iso,
+        errorCode: taxonomyCode,
       },
     };
 
@@ -116,6 +124,7 @@ export class SecureErrorHandler {
         details: {
           name: errInfo.name,
           code: errInfo.code,
+          taxonomyCode,
           ...context,
         },
       };

@@ -22,6 +22,7 @@ import {
   createUnifiedId,
   OneAgentUnifiedBackbone,
 } from '../utils/UnifiedBackboneService';
+import { getErrorCodeLabel } from './errorTaxonomy';
 
 /**
  * Monitoring Event Types for Constitutional AI compliance
@@ -386,6 +387,17 @@ export class UnifiedMonitoringService extends EventEmitter {
     // Severity heuristic: errors escalate for visibility
     const severity: MonitoringEvent['severity'] = status === 'error' ? 'warning' : 'info';
     const data = { operation, status, ...meta } as Record<string, unknown>;
+    // Attach canonical taxonomyCode for error events (stable low-cardinality)
+    if (status === 'error' && !data.taxonomyCode) {
+      const raw = data.error || data.message || data.errorCode || data.detail;
+      if (raw) {
+        try {
+          data.taxonomyCode = getErrorCodeLabel(String(raw));
+        } catch {
+          /* swallow taxonomy inference issues */
+        }
+      }
+    }
     this.handleMonitoringEvent(
       'operation_metric',
       severity,

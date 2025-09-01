@@ -79,8 +79,8 @@ export class MultimodalEmbeddingService {
    * @returns Promise<string> - Modellens respons
    */
   async analyzeImage(imagePath: string, textPrompt: string): Promise<string> {
-    const model = getModelFor('advanced_multimodal');
-    return `Simulert respons fra ${model.name} for prompt '${textPrompt}' på bilde '${imagePath}'`;
+    getModelFor('advanced_multimodal');
+    return `Simulert respons for prompt '${textPrompt}' på bilde '${imagePath}'`;
   }
   private readonly geminiClient: GeminiClient;
   private readonly memorySystem: OneAgentMemory;

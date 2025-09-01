@@ -9,8 +9,11 @@
  * - Future-ready for other providers (OpenAI, Anthropic, etc.)
  */
 
-import { createUnifiedId, createUnifiedTimestamp } from '../utils/UnifiedBackboneService';
-import { GEMINI_MODELS, type GeminiModel } from './gemini-model-registry';
+import { GEMINI_MODELS } from './gemini-model-registry';
+import { SmartOpenAIClient } from '../tools/SmartOpenAIClient';
+import SmartGeminiClient from '../tools/SmartGeminiClient';
+
+import { OPENAI_MODELS } from './openai-model-registry';
 
 /**
  * Kapabilitetsbasert modellvelger for OneAgent
@@ -19,159 +22,85 @@ export type ModelCapability =
   | 'fast_text'
   | 'advanced_text'
   | 'fast_multimodal'
-  | 'advanced_multimodal';
+  | 'advanced_multimodal'
+  | 'embedding_text';
 /**
  * Kapabilitetsbasert modellvalg
  *
  * Mapping:
  * - fast_text           => gemini-2.5-flash
  * - advanced_text       => gemini-2.5-pro
- * - fast_multimodal     => gemini-2.5-flash-latest
- * - advanced_multimodal => gemini-2.5-pro-latest
+ * - fast_multimodal     => gemini-2.5-flash
+ * - advanced_multimodal => gemini-2.5-pro
  */
-export function getModelFor(capability: ModelCapability): ModelPick {
-  switch (capability) {
-    case 'fast_text':
-      return pickGemini('gemini-2.5-flash', 'Fast tekstmodell (kapabilitet)');
-    case 'advanced_text':
-      return pickGemini('gemini-2.5-pro', 'Avansert tekstmodell (kapabilitet)');
-    case 'fast_multimodal':
-      return pickGemini('gemini-2.5-flash-latest', 'Rask multimodal modell (kapabilitet)');
-    case 'advanced_multimodal':
-      return pickGemini('gemini-2.5-pro-latest', 'Avansert multimodal modell (kapabilitet)');
-    default:
-      return pickGemini('gemini-2.5-flash', 'Fallback: ukjent kapabilitet');
-  }
+
+export type ModelClient = SmartOpenAIClient | SmartGeminiClient;
+
+// Simple in-memory client cache to prevent repeated instantiation noise
+const clientCache = new Map<string, ModelClient>();
+
+// Canonical embedding model constant (single source of truth)
+const EMBEDDING_MODEL = 'gemini-embedding-001';
+
+export function getEmbeddingModel(): string {
+  return EMBEDDING_MODEL;
 }
 
-export type ModelKind = 'llm' | 'embedding' | 'vision' | 'audio' | 'multimodal';
-export type ProviderId = 'google' | 'openai' | (string & {});
+export function getModelFor(capability: ModelCapability): ModelClient {
+  // Normalize generation capability; embedding_text selects a lightweight generation client plus exposes EMBEDDING_MODEL externally
+  const effectiveCap = capability === 'embedding_text' ? 'fast_text' : capability;
 
-export interface ModelPick {
-  provider: ProviderId;
-  name: string; // provider-native model name
-  kind: ModelKind;
-  tier: 'premium' | 'standard' | 'budget' | 'embedding';
-  reason: string;
-  catalogId: string;
-  addedAtIso: string;
-  deprecated?: boolean;
-  replacedBy?: string;
-  settings?: {
-    // Optional toggles for provider features (Phase 1 minimal)
-    thinking?: boolean;
+  const buildKey = (provider: string, model: string) => `${provider}:${model}:${effectiveCap}`;
+
+  const getOrCreateGemini = (modelName: string): SmartGeminiClient => {
+    const key = buildKey('gemini', modelName);
+    const cached = clientCache.get(key) as SmartGeminiClient | undefined;
+    if (cached) return cached;
+    const created = new SmartGeminiClient({ apiKey: process.env.GEMINI_API_KEY, model: modelName });
+    clientCache.set(key, created);
+    return created;
   };
-}
-
-/** Map Gemini registry model -> unified pick metadata (no duplication) */
-function mapGeminiToPick(name: string, m: GeminiModel, reason: string): ModelPick {
-  const kind: ModelKind = m.type === 'embedding' ? 'embedding' : 'llm';
-  const tier =
-    m.tier === 'pro'
-      ? 'premium'
-      : m.tier === 'flash'
-        ? 'standard'
-        : m.tier === 'lite'
-          ? 'budget'
-          : 'embedding';
-  const ts = createUnifiedTimestamp();
-  return {
-    provider: 'google',
-    name,
-    kind,
-    tier,
-    reason,
-    // Use allowed IdType 'operation' with descriptive context to avoid new IdType category
-    catalogId: createUnifiedId('operation', `model_catalog:google:${name}`),
-    addedAtIso: ts.iso,
-    deprecated: m.deprecated,
-    replacedBy: m.replacedBy,
+  const getOrCreateOpenAI = (modelName: string): SmartOpenAIClient => {
+    const key = buildKey('openai', modelName);
+    const cached = clientCache.get(key) as SmartOpenAIClient | undefined;
+    if (cached) return cached;
+    const created = new SmartOpenAIClient({
+      apiKey: process.env.OPENAI_API_KEY!,
+      model: modelName,
+    });
+    clientCache.set(key, created);
+    return created;
   };
-}
 
-/**
- * Opinionated defaults for common roles
- * - demanding_llm: best for complex reasoning (gemini-2.5-pro)
- * - fast_llm: best price-performance and throughput (gemini-2.5-flash)
- * - ultrafast_llm: lowest latency / budget mode (gemini-2.5-flash-lite)
- * - embedding: stable embedding model (gemini-embedding-001)
- */
-export type CommonRole = 'demanding_llm' | 'fast_llm' | 'ultrafast_llm' | 'embedding';
-
-export function pickDefault(role: CommonRole): ModelPick {
-  switch (role) {
-    case 'demanding_llm':
-      return pickGemini('gemini-2.5-pro', 'Default demanding LLM');
-    case 'fast_llm':
-      return pickGemini('gemini-2.5-flash', 'Default fast LLM');
-    case 'ultrafast_llm':
-      return pickGemini('gemini-2.5-flash-lite', 'Default ultrafast LLM');
-    case 'embedding':
-      return pickGemini('gemini-embedding-001', 'Default embedding model');
-    default:
-      return pickGemini('gemini-2.5-flash', 'Fallback default');
+  if (capability === 'embedding_text') {
+    // Return a fast text client for any optional generation needs; callers must use getEmbeddingModel() for embedding ops
+    const modelName =
+      Object.keys(GEMINI_MODELS).find((m) => m.includes('flash')) || 'gemini-2.5-flash';
+    return getOrCreateGemini(modelName);
   }
-}
-
-/**
- * Generic picker for provider+name (Phase 1: Google only)
- */
-export function pick(provider: ProviderId, name: string, reason = 'Explicit selection'): ModelPick {
-  if (provider === 'google') return pickGemini(name, reason);
-  if (provider === 'openai') return pickOpenAI(name, reason);
-  // Future: add OpenAI/Anthropic adapters here
-  return pickGemini('gemini-2.5-flash', `Fallback to Google: ${reason}`);
-}
-
-/** Ensure embeddings are representable via picker */
-export function getEmbeddingDefault(): ModelPick {
-  return pickDefault('embedding');
-}
-
-/** Select with optional provider feature settings (e.g., thinking) */
-export function pickWithOptions(
-  provider: ProviderId,
-  name: string,
-  options?: { thinking?: boolean },
-  reason = 'Explicit selection with options',
-): ModelPick {
-  const base = pick(provider, name, reason);
-  return { ...base, settings: { ...base.settings, ...options } };
-}
-
-// ================= Internal helpers =================
-function pickGemini(name: string, reason: string): ModelPick {
-  const gm = GEMINI_MODELS[name];
-  if (!gm) {
-    // If not found, prefer flash as safe default
-    const fallback = GEMINI_MODELS['gemini-2.5-flash'];
-    return mapGeminiToPick(
-      'gemini-2.5-flash',
-      fallback,
-      `Fallback for unknown '${name}': ${reason}`,
-    );
+  if (effectiveCap === 'advanced_text') {
+    if (process.env.OPENAI_API_KEY && process.env.ONEAGENT_PREFER_OPENAI === '1') {
+      const modelName = Object.keys(OPENAI_MODELS)[0]; // default 'gpt-4o'
+      return getOrCreateOpenAI(modelName);
+    }
+    const modelName = Object.keys(GEMINI_MODELS).find((m) => m.includes('pro')) || 'gemini-2.5-pro';
+    return getOrCreateGemini(modelName);
   }
-  return mapGeminiToPick(name, gm, reason);
-}
-
-function pickOpenAI(name: string, reason: string): ModelPick {
-  // Minimal OpenAI adapter (Phase 1) — map known GPT-5 variants
-  // Source: https://platform.openai.com/docs/models/gpt-5 (details subject to provider docs)
-  // We avoid asserting token limits/capabilities beyond tier/kind mapping.
-  const tier: ModelPick['tier'] = name.includes('nano')
-    ? 'budget'
-    : name.includes('mini')
-      ? 'standard'
-      : 'premium';
-  const kind: ModelKind = 'llm';
-  const ts = createUnifiedTimestamp();
-  return {
-    provider: 'openai',
-    name, // e.g., 'gpt-5', 'gpt-5-mini', 'gpt-5-nano'
-    kind,
-    tier,
-    reason,
-    catalogId: createUnifiedId('operation', `model_catalog:openai:${name}`),
-    addedAtIso: ts.iso,
-  };
+  if (effectiveCap === 'fast_text') {
+    const modelName =
+      Object.keys(GEMINI_MODELS).find((m) => m.includes('flash')) || 'gemini-2.5-flash';
+    return getOrCreateGemini(modelName);
+  }
+  if (effectiveCap === 'fast_multimodal') {
+    const modelName =
+      Object.keys(GEMINI_MODELS).find((m) => m.includes('flash')) || 'gemini-2.5-flash';
+    return getOrCreateGemini(modelName);
+  }
+  if (effectiveCap === 'advanced_multimodal') {
+    const modelName = Object.keys(GEMINI_MODELS).find((m) => m.includes('pro')) || 'gemini-2.5-pro';
+    return getOrCreateGemini(modelName);
+  }
+  const fallback =
+    Object.keys(GEMINI_MODELS).find((m) => m.includes('flash')) || 'gemini-2.5-flash';
+  return getOrCreateGemini(fallback);
 }

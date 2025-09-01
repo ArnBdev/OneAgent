@@ -3,6 +3,7 @@
 // This module provides a production-grade, type-safe interface for memory actions.
 
 import fetch from 'node-fetch';
+import { unifiedLogger } from '../utils/UnifiedLogger';
 import type { RequestInit as NodeFetchRequestInit } from 'node-fetch';
 import {
   OneAgentUnifiedBackbone,
@@ -85,6 +86,14 @@ interface HTTPJsonResult {
 export class OneAgentMemory {
   private static instance: OneAgentMemory | null = null;
   private static initializationLogged = false;
+  // Basic log level control to reduce verbosity outside debug scenarios
+  private static logLevel: 'info' | 'debug' =
+    (process.env.ONEAGENT_MEMORY_LOG_LEVEL as 'info' | 'debug') || 'info';
+  private static debug(...args: unknown[]) {
+    if (OneAgentMemory.logLevel === 'debug') {
+      console.log('[OneAgentMemory][debug]', ...args);
+    }
+  }
 
   private config: OneAgentMemoryConfig;
   private batchOperations: BatchMemoryOperations;
@@ -102,16 +111,14 @@ export class OneAgentMemory {
 
     // Only log initialization once to prevent spam
     if (!OneAgentMemory.initializationLogged) {
-      console.log(`[OneAgentMemory] MCP Protocol Version: ${MCP_PROTOCOL_VERSION}`);
-      console.log(
-        `[OneAgentMemory] MEM0_API_KEY present:`,
-        !!(config.apiKey || process.env.MEM0_API_KEY),
-      );
-      console.log(`[OneAgentMemory] Caching enabled:`, this.cachingEnabled);
-      console.log(
-        `[OneAgentMemory] Constitutional validation enabled:`,
-        this.constitutionalValidationEnabled,
-      );
+      unifiedLogger.info(`[OneAgentMemory] MCP Protocol Version: ${MCP_PROTOCOL_VERSION}`);
+      unifiedLogger.info(`[OneAgentMemory] MEM0_API_KEY present`, {
+        present: !!(config.apiKey || process.env.MEM0_API_KEY),
+      });
+      unifiedLogger.info(`[OneAgentMemory] Caching enabled`, { enabled: this.cachingEnabled });
+      unifiedLogger.info(`[OneAgentMemory] Constitutional validation enabled`, {
+        enabled: this.constitutionalValidationEnabled,
+      });
       OneAgentMemory.initializationLogged = true;
     }
   }
@@ -187,7 +194,7 @@ export class OneAgentMemory {
     };
 
     const result = await this.performAddMemoryCanonical(payload);
-    console.log(`[OneAgentMemory] [addMemoryCanonical] Memory stored with ID: ${memoryId}`);
+    unifiedLogger.debug(`[OneAgentMemory] [addMemoryCanonical] Memory stored`, { memoryId });
 
     // Cache the canonical metadata for future retrieval
     if (this.cachingEnabled) {
@@ -220,15 +227,29 @@ export class OneAgentMemory {
     const endpoint = baseUrl.replace(/\/$/, '') + '/v1/memories';
 
     const timeoutMs = this.config.requestTimeout || 15000;
-    console.log(`[OneAgentMemory] [addMemoryCanonical] POST ${endpoint}`);
-    console.log(`[OneAgentMemory] [addMemoryCanonical] Payload:`, JSON.stringify(data, null, 2));
+    unifiedLogger.debug(`[OneAgentMemory] [addMemoryCanonical] POST ${endpoint}`);
+    unifiedLogger.debug(`[OneAgentMemory] [addMemoryCanonical] Payload`, data);
 
     try {
       const controller = typeof AbortController !== 'undefined' ? new AbortController() : undefined;
       const timeout = setTimeout(() => controller && controller.abort(), timeoutMs);
       timeout.unref?.();
       const authHeader = `Bearer ${this.config.apiKey || process.env.MEM0_API_KEY}`;
-      console.log(`[OneAgentMemory] [addMemoryCanonical] Authorization header: '${authHeader}'`);
+      if (authHeader) {
+        // Deterministically mask bearer token to avoid leaking secrets while preserving limited diagnosability.
+        let masked = 'Bearer ***';
+        if (authHeader.startsWith('Bearer ')) {
+          const token = authHeader.slice(7).trim();
+          if (token.length >= 10) {
+            masked = `Bearer ${token.slice(0, 6)}***${token.slice(-4)}`;
+          } else if (token.length > 0) {
+            masked = 'Bearer ***';
+          }
+        }
+        unifiedLogger.debug(`[OneAgentMemory] [addMemoryCanonical] Authorization header`, {
+          authorization: masked,
+        });
+      }
 
       const fetchOptions: NodeFetchRequestInit = {
         method: 'POST',
@@ -249,12 +270,14 @@ export class OneAgentMemory {
 
       if (!res.ok) {
         const text = await res.text();
-        console.error(`[OneAgentMemory] addMemoryCanonical failed - HTTP ${res.status}: ${text}`);
+        unifiedLogger.error(`[OneAgentMemory] addMemoryCanonical failed - HTTP ${res.status}`, {
+          response: text,
+        });
         throw new Error(`HTTP ${res.status}: ${text}`);
       }
 
       const json = await res.json();
-      console.log(`[OneAgentMemory] [addMemoryCanonical] HTTP result:`, json);
+      unifiedLogger.debug(`[OneAgentMemory] [addMemoryCanonical] HTTP result`, json);
       return json;
     } catch (httpError) {
       this.handleError('addMemoryCanonical', httpError);
@@ -354,7 +377,7 @@ export class OneAgentMemory {
     const limit = qObj?.limit || 5;
     const endpoint = `${baseUrl.replace(/\/$/, '')}/v1/memories?userId=${encodeURIComponent(userId)}${q ? `&query=${encodeURIComponent(q)}` : ''}&limit=${limit}`;
     const timeoutMs = 10000;
-    console.log(`[OneAgentMemory] [searchMemory] GET ${endpoint}`);
+    unifiedLogger.debug(`[OneAgentMemory] [searchMemory] GET ${endpoint}`);
     try {
       const controller = typeof AbortController !== 'undefined' ? new AbortController() : undefined;
       const timeout = setTimeout(() => controller && controller.abort(), timeoutMs);
@@ -381,7 +404,9 @@ export class OneAgentMemory {
         json,
         typeof query === 'string' ? query : query.query || query.text || '',
       );
-      console.log(`[OneAgentMemory] [searchMemory] Adapted result count:`, adapted.results.length);
+      unifiedLogger.debug(`[OneAgentMemory] [searchMemory] Adapted result count`, {
+        count: adapted.results.length,
+      });
       return adapted;
     } catch (httpError) {
       this.handleError('searchMemory', httpError);
@@ -404,11 +429,10 @@ export class OneAgentMemory {
       metadata: sanitizedMetadata, // Use sanitized metadata
     };
     const timeoutMs = 10000;
-    console.log(`[OneAgentMemory] [updateMemory] PUT ${endpoint}`);
-    console.log(
-      `[OneAgentMemory] [updateMemory] Sanitized metadata keys:`,
-      Object.keys(sanitizedMetadata),
-    );
+    unifiedLogger.debug(`[OneAgentMemory] [updateMemory] PUT ${endpoint}`);
+    unifiedLogger.debug(`[OneAgentMemory] [updateMemory] Sanitized metadata keys`, {
+      keys: Object.keys(sanitizedMetadata),
+    });
     try {
       const controller = typeof AbortController !== 'undefined' ? new AbortController() : undefined;
       const timeout = setTimeout(() => controller && controller.abort(), timeoutMs);
@@ -433,7 +457,7 @@ export class OneAgentMemory {
         throw new Error(`HTTP ${res.status}: ${text}`);
       }
       const json = await res.json();
-      console.log(`[OneAgentMemory] [updateMemory] HTTP result:`, json);
+      unifiedLogger.debug(`[OneAgentMemory] [updateMemory] HTTP result`, json);
       return json;
     } catch (httpError) {
       this.handleError('updateMemory', httpError);
@@ -447,7 +471,7 @@ export class OneAgentMemory {
     const baseUrl = this.config.apiUrl || environmentConfig.endpoints.memory.url;
     const endpoint = `${baseUrl.replace(/\/$/, '')}/v1/memories/${id}?userId=${encodeURIComponent(userId)}`;
     const timeoutMs = 10000;
-    console.log(`[OneAgentMemory] [deleteMemory] DELETE ${endpoint}`);
+    unifiedLogger.debug(`[OneAgentMemory] [deleteMemory] DELETE ${endpoint}`);
     try {
       const controller = typeof AbortController !== 'undefined' ? new AbortController() : undefined;
       const timeout = setTimeout(() => controller && controller.abort(), timeoutMs);
@@ -470,7 +494,7 @@ export class OneAgentMemory {
         throw new Error(`HTTP ${res.status}: ${text}`);
       }
       const json = await res.json();
-      console.log(`[OneAgentMemory] [deleteMemory] HTTP result:`, json);
+      unifiedLogger.debug(`[OneAgentMemory] [deleteMemory] HTTP result`, json);
       return json;
     } catch (httpError) {
       this.handleError('deleteMemory', httpError);
@@ -506,7 +530,7 @@ export class OneAgentMemory {
         throw new Error(`HTTP ${res.status}: ${text}`);
       }
       const json = await res.json();
-      console.log(`[OneAgentMemory] [ping] HTTP result:`, json);
+      unifiedLogger.debug(`[OneAgentMemory] [ping] HTTP result`, json);
       return json;
     } catch (httpError) {
       this.handleError('ping', httpError);
@@ -531,8 +555,8 @@ export class OneAgentMemory {
     }
 
     const timeoutMs = 10000;
-    console.log(`[OneAgentMemory] [patchMemory] PATCH ${endpoint}`);
-    console.log(`[OneAgentMemory] [patchMemory] Payload:`, payload);
+    unifiedLogger.debug(`[OneAgentMemory] [patchMemory] PATCH ${endpoint}`);
+    unifiedLogger.debug(`[OneAgentMemory] [patchMemory] Payload`, payload);
     console.log(
       `[OneAgentMemory] [patchMemory] Sanitized metadata keys:`,
       Object.keys(payload.metadata || {}),

@@ -1,22 +1,28 @@
-const { createDefaultPreset } = require('ts-jest');
-
-const tsJestTransformCfg = createDefaultPreset().transform;
-
-/** @type {import("jest").Config} **/
+// Jest configuration (canonical)
+// - Adds top-level tests directory (tests/**/*)
+// - Retains existing coreagent tests path until migration completes
+// - Uses new ts-jest transform configuration (no deprecated globals usage)
 module.exports = {
   testEnvironment: 'node',
-  transform: {
-    ...tsJestTransformCfg,
-  },
-  roots: ['<rootDir>/coreagent/tests/unit', '<rootDir>/src/agents'],
+  roots: ['<rootDir>/tests', '<rootDir>/coreagent/tests/unit'],
   testMatch: ['**/*.test.ts'],
-  moduleFileExtensions: ['ts', 'js', 'json'],
-  moduleNameMapper: {},
-  setupFiles: ['<rootDir>/coreagent/tests/jest.setup.ts'],
-  globals: {
-    'ts-jest': {
-      tsconfig: '<rootDir>/tsconfig.json',
-      diagnostics: true,
-    },
+  transform: {
+    '^.+\\.(ts|tsx)$': [
+      'ts-jest',
+      {
+        tsconfig: '<rootDir>/tsconfig.json',
+        diagnostics: true,
+        isolatedModules: false,
+      },
+    ],
   },
+  moduleFileExtensions: ['ts', 'js', 'json'],
+  setupFiles: ['<rootDir>/coreagent/tests/jest.setup.ts'],
+  // Future: enable coverage thresholds once suite expanded
+  collectCoverageFrom: [
+    'coreagent/**/*.ts',
+    '!coreagent/**/*.d.ts',
+    '!coreagent/**/index.ts',
+    '!coreagent/**/types/**',
+  ],
 };

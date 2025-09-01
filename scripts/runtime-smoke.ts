@@ -348,7 +348,8 @@ async function main() {
     const sseOk = await sseProbe(mcpUrl, 6000).catch(() => false);
     if (!sseOk) throw new Error('MCP SSE probe failed');
 
-    console.log('✓ Runtime smoke passed');
+    // Success only after SSE probe to guarantee streaming readiness
+    console.log('✓ Runtime smoke passed (SSE ready)');
   } finally {
     // Gracefully shutdown processes we started
     const kill = (p: ChildProcess | null) => {

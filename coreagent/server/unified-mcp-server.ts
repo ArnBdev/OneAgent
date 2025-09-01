@@ -38,6 +38,7 @@ import passport from 'passport';
 
 import express from 'express';
 import { Request, Response, NextFunction } from 'express';
+import { createMetricsRouter } from '../api/metricsAPI';
 const app = express();
 
 // Middleware
@@ -45,6 +46,8 @@ app.use(express.json({ limit: '10mb' }));
 import { environmentConfig } from '../config/EnvironmentConfig';
 app.use(express.urlencoded({ extended: true }));
 app.use(passport.initialize());
+// Metrics API (lightweight, no auth for internal dashboard)
+app.use(createMetricsRouter());
 // REMOVE authentication for /mcp endpoint for local/dev Copilot Chat compatibility
 // app.use('/mcp', passport.authenticate('oauth-bearer', { session: false }));
 

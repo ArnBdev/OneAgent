@@ -207,7 +207,7 @@ The implementation effort is substantial (8-10 weeks) but the capability gain is
 
 **Status**: ✅ **COMPREHENSIVE ROADMAP COMPLETE**
 
-- **Document**: `ONEAGENT_HYBRID_ROADMAP_V5.md`
+- **Document**: `roadmap.md`
 - **Timeline**: 8-10 weeks phased implementation
 - **Phases**: 5 phases with clear deliverables and sign-off points
 - **Risk Mitigation**: Comprehensive strategies for technical, business, and quality risks

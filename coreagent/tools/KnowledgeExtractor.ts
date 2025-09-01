@@ -1,5 +1,5 @@
 import { UnifiedBackboneService, OneAgentUnifiedBackbone } from '../utils/UnifiedBackboneService';
-import { pickDefault } from '../config/UnifiedModelPicker';
+import { getModelFor } from '../config/UnifiedModelPicker';
 import { GeminiClient } from './geminiClient';
 
 // Graph data contracts
@@ -46,15 +46,38 @@ export class KnowledgeExtractor {
   /** Extract knowledge graph from arbitrary text using a premium LLM. */
   async extractKnowledge(text: string): Promise<GraphData> {
     if (!text || !text.trim()) return EMPTY_GRAPH;
-    const pick = pickDefault('demanding_llm');
+    const client = getModelFor('advanced_text');
 
     const { systemPrompt, userPrompt } = this.buildPrompt(text);
     try {
-      const raw = await this.invokeLLM({
-        system: systemPrompt,
-        user: userPrompt,
-        model: pick.name,
-      });
+      // Use unified client directly if it supports generateContent
+      let raw: string;
+      interface ContentCapable {
+        generateContent: (prompt: string) => Promise<string | { response?: string } | unknown>;
+      }
+      const maybe = client as unknown;
+      // Always prefer custom invoker when provided to keep tests deterministic
+      if (this.invokeLLM) {
+        raw = await this.invokeLLM({
+          system: systemPrompt,
+          user: userPrompt,
+          model: 'advanced_text',
+        });
+      } else if (
+        typeof maybe === 'object' &&
+        maybe !== null &&
+        'generateContent' in maybe &&
+        typeof (maybe as ContentCapable).generateContent === 'function'
+      ) {
+        const out = await (maybe as ContentCapable).generateContent(
+          `${systemPrompt}\n\n${userPrompt}`,
+        );
+        if (typeof out === 'string') raw = out;
+        else if (out && typeof out === 'object' && 'response' in out) {
+          const r = (out as { response?: unknown }).response;
+          raw = typeof r === 'string' ? r : JSON.stringify(r);
+        } else raw = String(out ?? '');
+      } else raw = '';
       const parsed = this.safeParseGraph(raw);
       if (!parsed) return EMPTY_GRAPH;
       return parsed;

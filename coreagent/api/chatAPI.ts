@@ -47,6 +47,7 @@ interface A2AMessage {
 }
 
 import { OneAgentMemory } from '../memory/OneAgentMemory';
+import { EntityExtractionService, ExtractedEntity } from '../intelligence/EntityExtractionService';
 import { unifiedAgentCommunicationService } from '../utils/UnifiedAgentCommunicationService';
 import {
   OneAgentUnifiedTimeService,
@@ -67,11 +68,21 @@ interface ChatRequest {
   conversationId?: string;
 }
 
+interface SemanticAnalysisResult {
+  intent: string;
+  entities: ExtractedEntity[];
+  sentiment: { score: number; magnitude: number };
+  complexity: string;
+  entityModel: string;
+  entityStrategy: string;
+}
+
 interface ChatResponse {
   response: string;
   agentType: string;
   conversationId?: string;
   memoryContext?: MemorySearchResult;
+  semanticAnalysis?: SemanticAnalysisResult; // optionally exposed (controlled by flag)
   error?: string;
 }
 
@@ -104,19 +115,26 @@ export class ChatAPI {
       toAgent?: string;
       conversationId?: string;
       memoryContext?: MemorySearchResult;
+      includeSemanticAnalysis?: boolean; // new flag to expose semanticAnalysis externally
     } = {},
   ): Promise<ChatResponse> {
+    // Hoist semanticAnalysis so we can include it even if downstream failures occur
+    let semanticAnalysis: SemanticAnalysisResult | null = null;
     try {
       const conversationId = options.conversationId || this.generateConversationId();
       const contextId = conversationId;
       const messageId = this.generateMessageId();
       // Compose canonical A2A message with full NLACS extension fields
       // --- NLACS: Semantic/NL Analysis ---
-      const semanticAnalysis = {
+      const entityService = EntityExtractionService.getInstance();
+      const entityResult = await entityService.extractEntities(content);
+      semanticAnalysis = {
         intent: this.analyzeIntentCategory(content),
-        entities: [], // Placeholder: entity extraction not yet implemented
+        entities: entityResult.entities,
         sentiment: { score: this.analyzeSentiment(content), magnitude: 1 },
         complexity: this.analyzeComplexity(content) > 0.5 ? 'complex' : 'simple',
+        entityModel: entityResult.modelVersion,
+        entityStrategy: entityResult.strategy,
       };
 
       // --- NLACS: Constitutional AI Validation ---
@@ -168,34 +186,38 @@ export class ChatAPI {
         kind: 'message',
       };
 
-      // Store message in canonical memory system (unified metadata)
-      await this.memoryClient.addMemoryCanonical(
-        JSON.stringify(a2aMessage),
-        {
-          system: {
-            userId,
-            source: 'chatAPI',
-            component: 'chat-message',
-            sessionId: conversationId,
+      // Store message in canonical memory system (unified metadata) – non-fatal if backend unavailable
+      try {
+        await this.memoryClient.addMemoryCanonical(
+          JSON.stringify(a2aMessage),
+          {
+            system: {
+              userId,
+              source: 'chatAPI',
+              component: 'chat-message',
+              sessionId: conversationId,
+            },
+            content: {
+              category: 'a2a_message',
+              tags: ['chat', 'a2a', a2aMessage.role],
+              sensitivity: 'internal',
+              relevanceScore: 0.7,
+              contextDependency: 'session',
+            },
+            quality: {
+              score: 0.8,
+              constitutionalCompliant: true,
+              validationLevel: 'basic',
+              confidence: 0.75,
+            },
+            relationships: { parent: conversationId, children: [], related: [], dependencies: [] },
+            analytics: { accessCount: 0, lastAccessPattern: 'write', usageContext: [] },
           },
-          content: {
-            category: 'a2a_message',
-            tags: ['chat', 'a2a', a2aMessage.role],
-            sensitivity: 'internal',
-            relevanceScore: 0.7,
-            contextDependency: 'session',
-          },
-          quality: {
-            score: 0.8,
-            constitutionalCompliant: true,
-            validationLevel: 'basic',
-            confidence: 0.75,
-          },
-          relationships: { parent: conversationId, children: [], related: [], dependencies: [] },
-          analytics: { accessCount: 0, lastAccessPattern: 'write', usageContext: [] },
-        },
-        userId,
-      );
+          userId,
+        );
+      } catch (memErr) {
+        console.warn('[ChatAPI] non-fatal memory store failure (message)', memErr);
+      }
 
       // Canonical agent discovery and communication (A2A)
       const targetAgentType: AgentType =
@@ -227,19 +249,27 @@ export class ChatAPI {
         ? await this.getMemoryContext(content, userId)
         : undefined;
 
-      return {
+      const response: ChatResponse = {
         response: content,
         agentType: targetAgentType,
         conversationId,
         memoryContext,
       };
+      if (options.includeSemanticAnalysis && semanticAnalysis) {
+        response.semanticAnalysis = semanticAnalysis;
+      }
+      return response;
     } catch (error) {
       console.error('Chat processing error:', error);
-      return {
+      const fallback: ChatResponse = {
         response: 'I apologize, but I encountered an error processing your message.',
         agentType: 'error',
         error: error instanceof Error ? error.message : 'Unknown error',
       };
+      if (options.includeSemanticAnalysis && semanticAnalysis) {
+        fallback.semanticAnalysis = semanticAnalysis;
+      }
+      return fallback;
     }
   }
 
@@ -368,32 +398,36 @@ export class ChatAPI {
       // Process the message through CoreAgent
       // [CANONICAL FIX] Remove all references to coreAgent for now to allow build to succeed.
       // const agentResponse = await this.coreAgent.processMessage(message, userId);
-      // Store agent response in memory
-      await this.memoryClient.addMemoryCanonical(
-        message,
-        this.metadataService.create('agent_message', 'ChatAPI', {
-          system: {
-            userId,
-            source: 'chat_api',
-            component: 'conversation',
-            sessionId: req.body.conversationId,
-          },
-          content: {
-            category: 'chat_interaction',
-            tags: ['chat', 'message', 'assistant'],
-            sensitivity: 'internal',
-            relevanceScore: 0.85,
-            contextDependency: 'session',
-          },
-          contextual: {
-            conversationId: req.body.conversationId,
-            agentType,
-            role: 'assistant',
-            confidence: 0.8,
-          },
-        }),
-        userId,
-      );
+      // Store agent response in memory (non-fatal)
+      try {
+        await this.memoryClient.addMemoryCanonical(
+          message,
+          this.metadataService.create('agent_message', 'ChatAPI', {
+            system: {
+              userId,
+              source: 'chat_api',
+              component: 'conversation',
+              sessionId: req.body.conversationId,
+            },
+            content: {
+              category: 'chat_interaction',
+              tags: ['chat', 'message', 'assistant'],
+              sensitivity: 'internal',
+              relevanceScore: 0.85,
+              contextDependency: 'session',
+            },
+            contextual: {
+              conversationId: req.body.conversationId,
+              agentType,
+              role: 'assistant',
+              confidence: 0.8,
+            },
+          }),
+          userId,
+        );
+      } catch (memErr) {
+        console.warn('[ChatAPI] non-fatal memory store failure (agent response)', memErr);
+      }
       // Get relevant memory context for response
       const memoryResponse = memoryContext
         ? await this.memoryClient.searchMemory({ query: message, userId, type: 'chat-messages' })

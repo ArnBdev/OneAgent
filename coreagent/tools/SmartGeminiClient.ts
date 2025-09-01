@@ -11,7 +11,13 @@
 
 import { GoogleGenerativeAI, GenerativeModel } from '@google/generative-ai';
 import { GeminiClient } from './geminiClient';
-import { GeminiConfig, ChatResponse, ChatOptions } from '../types/gemini';
+import {
+  GeminiConfig,
+  ChatResponse,
+  ChatOptions,
+  EmbeddingOptions,
+  EmbeddingResult,
+} from '../types/gemini';
 import * as dotenv from 'dotenv';
 import { createUnifiedTimestamp } from '../utils/UnifiedBackboneService';
 
@@ -48,6 +54,18 @@ export class SmartGeminiClient {
       throw new Error(
         'No Gemini API key found. Please set GOOGLE_API_KEY or GEMINI_API_KEY environment variable.',
       );
+    }
+
+    // Ensure compatibility with @google/generative-ai which may read from
+    // process.env.GOOGLE_API_KEY internally in some versions. Set it here
+    // as a safe fallback to avoid API_KEY_INVALID errors when the client
+    // library inspects env vars instead of constructor args.
+    try {
+      if (!process.env.GOOGLE_API_KEY) process.env.GOOGLE_API_KEY = String(this.config.apiKey);
+    } catch {
+      // Non-fatal — just log if we can't set env var
+      console.warn('Warning: could not set process.env.GOOGLE_API_KEY fallback');
+      /* noop */
     }
 
     // Initialize enterprise wrapper client
@@ -113,9 +131,26 @@ export class SmartGeminiClient {
         console.log(`✅ Direct Gemini success (${createUnifiedTimestamp().unix - startTime}ms)`);
         return chatResponse;
       } catch (error: unknown) {
-        const err = error as Error;
-        console.error('❌ Direct Gemini also failed:', err.message);
-        throw new Error(`Both enterprise wrapper and direct Gemini failed: ${err.message}`);
+        const err = error as unknown;
+        // Try to extract useful info from library error
+        let msg = String(err);
+        if (typeof err === 'object' && err !== null) {
+          const maybeMessage = (err as unknown as { message?: unknown }).message;
+          if (maybeMessage) msg = String(maybeMessage);
+          try {
+            const resp = (err as unknown as { response?: { text?: () => Promise<string> } })
+              .response;
+            if (resp && typeof resp.text === 'function') {
+              // attempt to read body
+              const body = await resp.text();
+              if (body) msg += ` | response_body: ${body}`;
+            }
+          } catch {
+            // noop
+          }
+        }
+        console.error('❌ Direct Gemini also failed:', msg);
+        throw new Error(`Both enterprise wrapper and direct Gemini failed: ${msg}`);
       }
     }
 
@@ -127,6 +162,22 @@ export class SmartGeminiClient {
    */
   async chat(message: string, options?: ChatOptions): Promise<ChatResponse> {
     return this.generateContent(message, options);
+  }
+
+  /**
+   * Expose embedding generation (pass-through to wrapper client) so higher-level
+   * capability-based code (e.g., ConstitutionValidator) can rely on a unified client
+   * without needing raw GeminiClient instanceof checks.
+   */
+  async generateEmbedding(text: string, options?: EmbeddingOptions): Promise<EmbeddingResult> {
+    return this.wrapperClient.generateEmbedding(text, options);
+  }
+
+  async generateEmbeddingBatch(
+    texts: string[],
+    options?: EmbeddingOptions,
+  ): Promise<EmbeddingResult[]> {
+    return this.wrapperClient.generateEmbeddingBatch(texts, options);
   }
 
   /**

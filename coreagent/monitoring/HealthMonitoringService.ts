@@ -17,6 +17,8 @@
 
 import { EventEmitter } from 'events';
 import { createUnifiedTimestamp } from '../utils/UnifiedBackboneService';
+import { unifiedLogger } from '../utils/UnifiedLogger';
+import { embeddingCacheService } from '../services/EmbeddingCacheService';
 
 // =====================================
 // Health Monitoring Interfaces
@@ -189,6 +191,7 @@ export class HealthMonitoringService extends EventEmitter {
   private performanceHistory: PerformanceMetrics[] = [];
   private healthHistory: SystemHealthReport[] = [];
   private isMonitoring: boolean = false;
+  private loggerMetrics = { errors: 0, warnings: 0 };
 
   // Configuration
   private config = {
@@ -214,13 +217,19 @@ export class HealthMonitoringService extends EventEmitter {
     super();
     if (process.env.ONEAGENT_DISABLE_AUTO_MONITORING) {
       if (!HealthMonitoringService.initLogged) {
-        console.log('🏥 HealthMonitoringService instantiation skipped (auto monitoring disabled)');
+        unifiedLogger.info(
+          '🏥 HealthMonitoringService instantiation skipped (auto monitoring disabled)',
+        );
         HealthMonitoringService.initLogged = true;
       }
     } else if (!HealthMonitoringService.initLogged) {
-      console.log('🏥 HealthMonitoringService initialized - Professional monitoring ready');
+      unifiedLogger.info('🏥 HealthMonitoringService initialized - Professional monitoring ready');
       HealthMonitoringService.initLogged = true;
     }
+    unifiedLogger.on('log', (evt) => {
+      if (evt.level === 'error') this.loggerMetrics.errors++;
+      else if (evt.level === 'warn') this.loggerMetrics.warnings++;
+    });
   }
 
   // =====================================
@@ -229,12 +238,12 @@ export class HealthMonitoringService extends EventEmitter {
 
   async startMonitoring(): Promise<void> {
     if (this.isMonitoring) {
-      console.warn('⚠️ Health monitoring already active');
+      unifiedLogger.warn('⚠️ Health monitoring already active');
       return;
     }
 
     if (process.env.ONEAGENT_DISABLE_AUTO_MONITORING) {
-      console.log('🛑 startMonitoring aborted: ONEAGENT_DISABLE_AUTO_MONITORING set');
+      unifiedLogger.warn('🛑 startMonitoring aborted: ONEAGENT_DISABLE_AUTO_MONITORING set');
       return;
     }
 
@@ -248,14 +257,14 @@ export class HealthMonitoringService extends EventEmitter {
       try {
         await this.performHealthCheck();
       } catch (error) {
-        console.error('❌ Health monitoring error:', error);
+        unifiedLogger.error('❌ Health monitoring error', error);
         this.emit('monitoring_error', error);
       }
     }, this.config.monitoringInterval);
     // Allow process to exit naturally in short-lived scripts (does not keep event loop alive)
     this.monitoringInterval?.unref?.();
 
-    console.log('✅ Health monitoring started - Professional observability active');
+    unifiedLogger.info('✅ Health monitoring started - Professional observability active');
     this.emit('monitoring_started');
   }
 
@@ -270,7 +279,7 @@ export class HealthMonitoringService extends EventEmitter {
       this.monitoringInterval = undefined as unknown as NodeJS.Timeout;
     }
 
-    console.log('🛑 Health monitoring stopped');
+    unifiedLogger.info('🛑 Health monitoring stopped');
     this.emit('monitoring_stopped');
   }
 
@@ -305,6 +314,34 @@ export class HealthMonitoringService extends EventEmitter {
       predictive,
     };
 
+    if (healthReport.components?.registry?.details) {
+      const details = healthReport.components.registry.details as Record<string, unknown>;
+      details.logger = {
+        errors: this.loggerMetrics.errors,
+        warnings: this.loggerMetrics.warnings,
+      };
+      // Embed embedding cache metrics (size & hit/miss if available via backbone cache metrics)
+      try {
+        const cacheMetrics = embeddingCacheService
+          ? await embeddingCacheService['backbone'].cache.getMetrics?.()
+          : null;
+        const stats = embeddingCacheService.getStats();
+        details.embeddingCache = {
+          entries: stats.entries,
+          withNorms: stats.withNorms,
+          avgDim: stats.avgDim,
+          kinds: stats.kinds,
+          ...(cacheMetrics && {
+            hitRate: cacheMetrics.hitRate,
+            memoryHits: cacheMetrics.memoryHits,
+            totalQueries: cacheMetrics.totalQueries,
+          }),
+        };
+      } catch (e) {
+        details.embeddingCache = { error: String(e) };
+      }
+    }
+
     // Store in history
     this.healthHistory.push(healthReport);
     if (this.healthHistory.length > this.config.healthHistoryLimit) {
@@ -332,7 +369,7 @@ export class HealthMonitoringService extends EventEmitter {
       }
     } finally {
       const responseTime = createUnifiedTimestamp().unix - startTime;
-      console.log(`🔍 Component health check (${component}): ${responseTime}ms`);
+      unifiedLogger.debug(`🔍 Component health check (${component}): ${responseTime}ms`);
     }
   }
 
@@ -364,7 +401,7 @@ export class HealthMonitoringService extends EventEmitter {
     }
 
     const responseTime = createUnifiedTimestamp().unix - startTime;
-    console.log(`📊 Performance metrics collected: ${responseTime}ms`);
+    unifiedLogger.debug(`📊 Performance metrics collected: ${responseTime}ms`);
 
     return performance;
   }
@@ -426,7 +463,7 @@ export class HealthMonitoringService extends EventEmitter {
         isolationAccuracy,
       };
     } catch (error) {
-      console.error('User isolation validation failed:', error);
+      unifiedLogger.error('User isolation validation failed', error);
       return {
         status: 'unhealthy',
         violations: [
@@ -468,7 +505,7 @@ export class HealthMonitoringService extends EventEmitter {
         lastConstitutionalAudit: new Date(createUnifiedTimestamp().utc),
       };
     } catch (error) {
-      console.error('Constitutional compliance check failed:', error);
+      unifiedLogger.error('Constitutional compliance check failed', error);
       return {
         overallCompliance: 0,
         averageQualityScore: 0,
@@ -557,9 +594,9 @@ export class HealthMonitoringService extends EventEmitter {
         this.emit('predictive_alert', alert);
       }
 
-      console.log(`🏥 Health check complete - Status: ${healthReport.overall}`);
+      unifiedLogger.info(`🏥 Health check complete - Status: ${healthReport.overall}`);
     } catch (error) {
-      console.error('❌ Health check failed:', error);
+      unifiedLogger.error('❌ Health check failed', error);
       this.emit('health_check_failed', error);
     }
   }
