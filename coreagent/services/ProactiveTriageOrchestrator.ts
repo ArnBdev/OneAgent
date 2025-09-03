@@ -58,6 +58,10 @@ export class ProactiveTriageOrchestrator {
   static getInstance(cfg?: Partial<ProactiveConfig>): ProactiveTriageOrchestrator {
     if (!ProactiveTriageOrchestrator.instance) {
       ProactiveTriageOrchestrator.instance = new ProactiveTriageOrchestrator(cfg);
+      // Register deep analysis provider with task delegation service (decoupled, avoids circular import usage back)
+      taskDelegationService.registerDeepAnalysisProvider(
+        () => ProactiveTriageOrchestrator.instance?.getLastDeepAnalysis() || null,
+      );
     }
     return ProactiveTriageOrchestrator.instance;
   }

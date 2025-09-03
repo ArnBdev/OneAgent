@@ -1,6 +1,5 @@
 import { createUnifiedId, createUnifiedTimestamp } from '../utils/UnifiedBackboneService';
 import { OneAgentMemory } from '../memory/OneAgentMemory';
-import { proactiveObserverService } from './ProactiveTriageOrchestrator';
 import { unifiedMonitoringService } from '../monitoring/UnifiedMonitoringService';
 
 export interface DelegatedTask {
@@ -31,17 +30,31 @@ export class TaskDelegationService {
   private restored = false;
   private lastSnapshotTs = 0;
   private readonly SNAPSHOT_MIN_INTERVAL_MS = 15_000; // throttle snapshot persistence
+  /** Lazily provided deep analysis accessor to avoid circular import with ProactiveTriageOrchestrator */
+  private deepAnalysisProvider:
+    | (() => { summary: string; recommendedActions: string[]; snapshotHash?: string } | null)
+    | null = null;
   private constructor() {}
   static getInstance(): TaskDelegationService {
     if (!this.instance) this.instance = new TaskDelegationService();
     return this.instance;
   }
 
+  /**
+   * Register provider for latest deep analysis (called by ProactiveTriageOrchestrator once)
+   * Decouples modules to eliminate circular dependency.
+   */
+  registerDeepAnalysisProvider(
+    provider: () => { summary: string; recommendedActions: string[]; snapshotHash?: string } | null,
+  ): void {
+    this.deepAnalysisProvider = provider;
+  }
+
   async harvestAndQueue(): Promise<DelegatedTask[]> {
     if (!this.restored) {
       await this.restoreFromMemory().catch(() => {});
     }
-    const deep = proactiveObserverService.getLastDeepAnalysis();
+    const deep = this.deepAnalysisProvider ? this.deepAnalysisProvider() : null;
     if (!deep) return [];
     const nowTs = createUnifiedTimestamp().iso;
     const inserted: DelegatedTask[] = [];
