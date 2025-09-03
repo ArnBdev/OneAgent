@@ -8,7 +8,14 @@ describe('system-health (canonical)', () => {
   it('exposes unified backbone health & component services', () => {
     const systemHealth = unifiedBackbone.getSystemHealth();
     expect(systemHealth).toBeTruthy();
-    expect(typeof systemHealth.status).toBe('string');
+    // Updated: status now nested under overall
+    expect(systemHealth).toHaveProperty('overall');
+    expect(systemHealth.overall).toHaveProperty('status');
+    expect(typeof systemHealth.overall.status).toBe('string');
+    expect(systemHealth.overall).toHaveProperty('score');
+    expect(systemHealth).toHaveProperty('components');
+    expect(systemHealth.components).toHaveProperty('timeService');
+    expect(systemHealth.components).toHaveProperty('metadataService');
 
     const services = unifiedBackbone.getServices();
     // Time service
