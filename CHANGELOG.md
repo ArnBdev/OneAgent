@@ -45,6 +45,16 @@
 
 ### ✅ Integrity
 
+### 🔒 Monitoring Test Hardening & Purity Guards (Post 4.0.8 Incremental)
+
+- Added derivational purity & cardinality test: `prometheus-exposition.purity.test.ts` (ensures metrics endpoint does not mutate latency state & bounds `errorCode` label set).
+- Added global performance report test: `performance-global-report.test.ts` validating p95/p99 ordering and recommendation triggers for high tail latency.
+- Added percentile eviction drift test: `percentile-drift.eviction.test.ts` confirming monotonic p95/p99 under high-tail sample injection + rolling eviction.
+- Added Prometheus snapshot name stability test: `prometheus-snapshot.test.ts` preventing silent removal of canonical metric names.
+- Updated Jest config to run setup after environment initialization (`setupFilesAfterEnv`) fixing lifecycle guards for purity tests.
+- Expanded `OPERATION_METRICS.md` Validation & Test Coverage table with new tests; backlog updated (removed implemented snapshot/cardinality/eviction items; added fuzz & mutation tests).
+- Strengthened anti-regression surface for metrics exposition (naming, label cardinality, derivational purity) – reduces risk of accidental parallel store introduction or label explosion.
+
 - All changes reuse canonical monitoring + memory systems; no parallel persistence or metrics stores introduced.
 - Type + lint verification clean.
 

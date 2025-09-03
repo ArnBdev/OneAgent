@@ -17,7 +17,8 @@ module.exports = {
     ],
   },
   moduleFileExtensions: ['ts', 'js', 'json'],
-  setupFiles: ['<rootDir>/coreagent/tests/jest.setup.ts'],
+  // Setup requiring Jest globals (beforeEach/afterEach) must run after env install
+  setupFilesAfterEnv: ['<rootDir>/coreagent/tests/jest.setup.ts'],
   // Future: enable coverage thresholds once suite expanded
   collectCoverageFrom: [
     'coreagent/**/*.ts',

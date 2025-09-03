@@ -220,11 +220,13 @@ Canonical architecture enforced: zero parallel performance systems permitted.
 
 The canonical performance pipeline is now exercised by automated Jest tests to prevent silent regressions and re‑introduction of parallel stores:
 
-| Test File                                                      | Purpose                                                                                            | Key Assertions                                                                                        |
-| -------------------------------------------------------------- | -------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------- |
-| `tests/monitoring/operation-metrics-summary.test.ts`           | Verifies aggregation path from `trackOperation` → `PerformanceMonitor.summarizeOperationMetrics()` | Component presence, per‑operation totals, success/error counts, non‑zero errorRate for mixed outcomes |
-| (Planned) `tests/monitoring/performance-global-report.test.ts` | Global report integrity & recommendation thresholds                                                | p95 / p99 calculations, recommendation triggers                                                       |
-| (Planned) `tests/monitoring/prometheus-exposition.test.ts`     | Prometheus render derivational purity                                                              | No mutation during exposition, gauges align with detailed metrics                                     |
+| Test File                                               | Purpose                                                                                            | Key Assertions                                                                                        |
+| ------------------------------------------------------- | -------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------- |
+| `tests/monitoring/operation-metrics-summary.test.ts`    | Verifies aggregation path from `trackOperation` → `PerformanceMonitor.summarizeOperationMetrics()` | Component presence, per‑operation totals, success/error counts, non‑zero errorRate for mixed outcomes |
+| `tests/monitoring/performance-global-report.test.ts`    | Global performance report integrity & recommendations                                              | p95 / p99 ordering, recommendation triggers, operation breakdown integrity                            |
+| `tests/monitoring/prometheus-exposition.purity.test.ts` | Prometheus derivational purity & error code cardinality guard                                      | No mutation of latency arrays, bounded errorCode label set, required metric names present             |
+| `tests/monitoring/percentile-drift.eviction.test.ts`    | Percentile stability under rolling eviction                                                        | p95 / p99 non‑decreasing with added higher tail samples, zero error rate                              |
+| `tests/monitoring/prometheus-snapshot.test.ts`          | Metric name set stability (regression guard)                                                       | No previously emitted metric names disappear after additional operations                              |
 
 Test Design Principles:
 
@@ -236,9 +238,9 @@ Test Design Principles:
 
 Gap Analysis (Open Backlog):
 
-- Prometheus exposition fixture snapshot tests (ensure metric naming stability).
-- Error code cardinality guard test (inject many distinct codes, verify sanitization & bounded label set).
-- Stress test injecting > max sample size to confirm rolling eviction behavior does not skew percentiles catastrophically (statistical drift < acceptable threshold to be defined).
+- Fuzz test generating randomized mixed-status operations (success/error) to statistically validate errorRate convergence boundaries.
+- Latency trend differential test (delta vs previous window) once trend API is added.
+- Histogram correctness test once HDR/binning lands (post v4.2 roadmap item).
 
 ## Recent Changes (v4.0.8+ Test Harness Hardening)
 
@@ -251,9 +253,9 @@ Gap Analysis (Open Backlog):
 
 Planned Hardening Enhancements:
 
-1. Add snapshot test ensuring stable ordering & formatting for Prometheus exposition (non-semantic whitespace ignored).
-2. Add fuzz test injecting randomized `durationMs` distributions to validate percentile stability (monotonic increase with added high-tail samples).
-3. Introduce mutation test: intentionally skip a call to `recordDurationFromEvent` to verify test detects missing latency ingestion.
+1. Add fuzz test generating randomized `durationMs` with intermittent errors to validate errorRate + percentile interplay.
+2. Mutation test: simulate missing `recordDurationFromEvent` ingestion (by injecting event without duration) and assert gauges absent.
+3. Add performance timing budget test for Prometheus exposition (< 150ms under synthetic 50 operation load).
 
 ## Operational Quality Gates
 
