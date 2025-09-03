@@ -37,6 +37,9 @@ import { UnifiedWebSearchTool } from './tools/UnifiedWebSearchTool';
 import { unifiedAgentCommunicationService } from './utils/UnifiedAgentCommunicationService';
 import SyncService from './services/SyncService';
 import { ConstitutionValidator } from './validation/ConstitutionValidator';
+import { proactiveObserverService } from './services/ProactiveTriageOrchestrator';
+import { taskDelegationService } from './services/TaskDelegationService';
+import { unifiedMonitoringService } from './monitoring/UnifiedMonitoringService';
 
 export type OneAgentMode = 'mcp-http' | 'mcp-stdio' | 'standalone' | 'cli' | 'vscode-embedded';
 
@@ -113,6 +116,9 @@ export class OneAgentEngine extends EventEmitter {
   // Tools and services
   private unifiedWebSearch?: UnifiedWebSearchTool;
   private memorySystem: OneAgentMemory;
+  private taskDispatchTimer?: NodeJS.Timeout;
+  private readonly TASK_DISPATCH_BASE_INTERVAL =
+    parseInt(process.env.ONEAGENT_TASK_DISPATCH_INTERVAL_MS || '10000', 10) || 10000; // configurable base (default 10s)
   constructor(_config?: Partial<typeof UnifiedBackboneService.config>) {
     super();
     this.config = UnifiedBackboneService.config;
@@ -188,6 +194,16 @@ export class OneAgentEngine extends EventEmitter {
       await this.initializeBMAD();
       await this.initializeTools();
 
+      // Optional: start ProactiveObserver (Epic 6) if enabled via env flag
+      if (process.env.ONEAGENT_PROACTIVE_OBSERVER === '1') {
+        try {
+          proactiveObserverService.start();
+          console.log('🛰  ProactiveObserverService started (Epic 6 baseline)');
+        } catch (e) {
+          console.warn('⚠️ Failed to start ProactiveObserverService:', e);
+        }
+      }
+
       this.initialized = true;
       this.emit('initialized', { mode, timestamp: createUnifiedTimestamp().iso });
 
@@ -197,6 +213,11 @@ export class OneAgentEngine extends EventEmitter {
         `🧠 Constitutional AI: ${this.config.constitutional.enabled ? 'ACTIVE' : 'DISABLED'}`,
       );
       console.log(`💾 Memory: ${this.config.memory.enabled ? 'ACTIVE' : 'DISABLED'}`);
+
+      // Start task dispatch loop (Epic 7 proactive delegation)
+      if (process.env.ONEAGENT_PROACTIVE_AUTO_DELEGATE === '1') {
+        this.startTaskDispatchLoop();
+      }
     } catch (error) {
       console.error('❌ OneAgent Engine initialization failed:', error);
       throw error;
@@ -555,6 +576,133 @@ export class OneAgentEngine extends EventEmitter {
   async shutdown(): Promise<void> {
     this.emit('shutdown');
     console.log('OneAgent shutting down...');
+    if (this.taskDispatchTimer) clearTimeout(this.taskDispatchTimer);
     // Add cleanup logic here
+  }
+
+  // =========================================================================
+  // PROACTIVE TASK DISPATCH LOOP (Epic 7)
+  // =========================================================================
+  private startTaskDispatchLoop(): void {
+    const schedule = () => {
+      const jitter = Math.random() * 2000; // up to 2s jitter
+      const delay = this.TASK_DISPATCH_BASE_INTERVAL + jitter;
+      this.taskDispatchTimer = setTimeout(async () => {
+        try {
+          await this.dispatchQueuedTasks();
+        } catch (err) {
+          unifiedMonitoringService.trackOperation('TaskDelegation', 'dispatch_cycle', 'error', {
+            error: err instanceof Error ? err.message : String(err),
+          });
+        } finally {
+          schedule();
+        }
+      }, delay);
+      this.taskDispatchTimer.unref?.();
+    };
+    schedule();
+    unifiedMonitoringService.trackOperation('TaskDelegation', 'dispatch_loop', 'success', {
+      intervalMs: this.TASK_DISPATCH_BASE_INTERVAL,
+    });
+  }
+
+  private async dispatchQueuedTasks(): Promise<void> {
+    const queued = taskDelegationService.getQueuedTasks();
+    if (!queued.length) return;
+    const now = createUnifiedTimestamp();
+    // Filter out tasks that are not yet eligible due to backoff schedule
+    const eligible = queued.filter((t) => !t.nextAttemptUnix || t.nextAttemptUnix <= now.unix);
+    if (eligible.length < queued.length) {
+      // Emit a single aggregated skip event to avoid noisy per-task metrics
+      unifiedMonitoringService.trackOperation('TaskDelegation', 'retry_backoff_skip', 'success', {
+        skipped: queued.length - eligible.length,
+      });
+    }
+    for (const task of eligible.slice(0, 5)) {
+      // limit per cycle to avoid burst
+      // Mark dispatched first (idempotent)
+      const marked = taskDelegationService.markDispatched(task.id);
+      if (!marked) continue;
+      const start = createUnifiedTimestamp();
+      try {
+        if (!task.targetAgent) {
+          // Structured dispatch failure: no suitable agent inferred
+          taskDelegationService.markDispatchFailure(
+            task.id,
+            'no_target_agent',
+            'No target agent inferred for action',
+          );
+          taskDelegationService.maybeRequeue(task.id);
+          continue;
+        }
+        unifiedMonitoringService.trackOperation('TaskDelegation', 'dispatch', 'success', {
+          taskId: task.id,
+          targetAgent: task.targetAgent,
+        });
+        await this.executeDelegatedTask(task.id);
+      } catch (err) {
+        unifiedMonitoringService.trackOperation('TaskDelegation', 'dispatch', 'error', {
+          taskId: task.id,
+          error: err instanceof Error ? err.message : String(err),
+        });
+      } finally {
+        const end = createUnifiedTimestamp();
+        unifiedMonitoringService.trackOperation('TaskDelegation', 'dispatch_latency', 'success', {
+          taskId: task.id,
+          ms: end.unix - start.unix,
+        });
+      }
+    }
+  }
+
+  /** Placeholder execution layer (to be replaced with real remediation invocation). */
+  private async executeDelegatedTask(taskId: string): Promise<void> {
+    const execStart = createUnifiedTimestamp();
+    try {
+      // Future pluggable execution adapter: resolved lazily to prevent circular deps
+      const adapter = (
+        globalThis as unknown as {
+          __oneagentExecutionAdapter?: {
+            execute: (
+              taskId: string,
+            ) => Promise<{ success: boolean; errorCode?: string; errorMessage?: string }>;
+          };
+        }
+      ).__oneagentExecutionAdapter;
+      let res: { success: boolean; errorCode?: string; errorMessage?: string } | undefined;
+      if (adapter && typeof adapter.execute === 'function') {
+        try {
+          res = await adapter.execute(taskId);
+        } catch (adapterErr) {
+          unifiedMonitoringService.trackOperation('TaskDelegation', 'execute_adapter', 'error', {
+            taskId,
+            error: adapterErr instanceof Error ? adapterErr.message : String(adapterErr),
+          });
+          res = { success: false, errorCode: 'adapter_error', errorMessage: String(adapterErr) };
+        }
+      } else {
+        // Default placeholder success
+        res = { success: true };
+      }
+      const execEndInner = createUnifiedTimestamp();
+      const durationMs = execEndInner.unix - execStart.unix;
+      taskDelegationService.markExecutionResult(
+        taskId,
+        !!res.success,
+        !res.success ? res.errorCode : undefined,
+        !res.success ? res.errorMessage : undefined,
+        durationMs,
+      );
+    } catch (execErr) {
+      const execEndInner = createUnifiedTimestamp();
+      const durationMs = execEndInner.unix - execStart.unix;
+      taskDelegationService.markExecutionResult(
+        taskId,
+        false,
+        'execution_failure',
+        execErr instanceof Error ? execErr.message : String(execErr),
+        durationMs,
+      );
+    }
   }
 }

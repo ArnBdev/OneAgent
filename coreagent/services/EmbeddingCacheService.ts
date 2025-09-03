@@ -104,6 +104,13 @@ export class EmbeddingCacheService {
 
   private async initialize(): Promise<void> {
     try {
+      // In fast test or NODE_ENV test mode, skip disk restore & timers to avoid post-test async logs
+      if (process.env.ONEAGENT_FAST_TEST_MODE === '1' || process.env.NODE_ENV === 'test') {
+        unifiedLogger.debug(
+          '[EmbeddingCacheService] Skipping persistence restore (FAST_TEST_MODE)',
+        );
+        return;
+      }
       await fs.mkdir(dirname(this.persistPath), { recursive: true });
       const raw = await fs.readFile(this.persistPath, 'utf8');
       const json: Record<string, PersistedEmbeddingRecord> = JSON.parse(raw);
@@ -124,7 +131,9 @@ export class EmbeddingCacheService {
       // If file absent, ignore
       unifiedLogger.debug('[EmbeddingCacheService] No existing persistence or failed to load', e);
     }
-    this.startFlushTimer();
+    if (!(process.env.ONEAGENT_FAST_TEST_MODE === '1' || process.env.NODE_ENV === 'test')) {
+      this.startFlushTimer();
+    }
   }
 
   private startFlushTimer(): void {

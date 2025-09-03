@@ -1,6 +1,6 @@
-# 📝 OneAgent v4.0.7 Professional - Changelog
+# 📝 OneAgent v4.0.8 Professional - Changelog
 
-**Current Version**: v4.0.7 Professional  
+**Current Version**: v4.0.8 Professional  
 **Quality Score**: 96.85% (Grade A+)  
 **System Health**: Optimal with ALITA Metadata Enhancement
 
@@ -11,6 +11,42 @@
 ## v4.0.2 - 2025-08-16
 
 ## v4.0.7 - 2025-09-01
+
+## v4.0.8 - 2025-09-03
+
+### 🔁 Proactive Delegation Reliability (Retry & Failure Taxonomy Groundwork)
+
+- Added task retry foundation (attempts / maxAttempts, env `ONEAGENT_TASK_MAX_ATTEMPTS`, default 3).
+- New monitoring operations: `retry`, `retry_exhausted` (documented in OPERATION_METRICS.md).
+- Structured dispatch failure integration (`no_target_agent`) now triggers controlled re-queue until exhaustion.
+- Snapshot persistence throttled (15s) to reduce memory churn while maintaining audit trail fidelity.
+- Execution path refactored behind `executeDelegatedTask` for upcoming real remediation actions (Epic 8).
+
+### 📊 Task Delegation Observability Enhancements (Post-Retry Additions)
+
+- Added Prometheus gauges `oneagent_task_delegation_status_total{status}` and `oneagent_task_delegation_backoff_pending` (derivational from in‑memory queue; zero parallel store).
+- Created integration test `task-delegation-metrics.exposition.test.ts` validating new gauges.
+- Implemented test/runtime guards: conditional unified server autostart skip under `NODE_ENV=test` / `ONEAGENT_FAST_TEST_MODE` / `ONEAGENT_DISABLE_AUTOSTART`.
+- Suppressed non‑essential console logging in `ToolRegistry` & `EmbeddingCacheService` under FAST_TEST_MODE to eliminate post‑Jest asynchronous logging warnings.
+- Added embedding cache init short‑circuit for tests preventing background timer noise.
+- Updated `OPERATION_METRICS.md` with new delegation gauges (already canonical metrics doc) — no further doc drift.
+- Result: Stable, noise‑free test runs; observability coverage for queue health & backoff saturation.
+
+### 🕰️ Execution Latency: Gauge inclusion & immediate removal of legacy op
+
+- Ingested `durationMs` from `TaskDelegation.execute` events into the canonical `PerformanceMonitor` and exposed per-operation latency gauges for `execute` (avg / p95 / p99) via the Prometheus endpoint. Added integration test `task-delegation-execute-latency.metrics.test.ts` to validate exposition.
+- The legacy `TaskDelegation.execute_latency` emission has been removed from the engine to keep a single, cleaner metric emission path. Emitters must include `durationMs` on `trackOperation('TaskDelegation','execute',...)` calls. Consumers should rely on `oneagent_operation_latency_avg_ms{operation="execute"}` and p95/p99 gauges.
+
+### 🧩 Documentation & Version Synchronization
+
+- Bumped README, package.json, and changelog headers to v4.0.8 (v4.0.7 was already published/tagged).
+- Metrics doc updated with retry operations and throttled snapshot description.
+- Added delegation status/backoff Prometheus gauge documentation.
+
+### ✅ Integrity
+
+- All changes reuse canonical monitoring + memory systems; no parallel persistence or metrics stores introduced.
+- Type + lint verification clean.
 
 ### 🔧 Incremental Observability & NLACS Enhancements (post-tag additions kept under 4.0.7)
 
@@ -25,6 +61,37 @@
 - Ensured zero duplication of metric stores; all derivations pull from canonical monitoring + config.
 - Placeholder entity extraction integration test added; future ML upgrade will keep interface stable.
 - Roadmap delta applied: Immediate Action Queue items 7 & 8 marked Done (ref. docs/roadmap.md v1.0.2).
+
+### 🤖 Proactive Delegation Pipeline (Epic 7) – INITIAL IMPLEMENTATION
+
+- Consolidated proactive snapshot → triage → deep analysis → task harvesting under unified `ProactiveTriageOrchestrator` (no parallel observer service).
+- Introduced `TaskDelegationService` with bounded in-memory queue (MAX=100) + signature-based dedup (`snapshotHash::action`).
+- Added environment flags:
+  - `ONEAGENT_PROACTIVE_OBSERVER` (enable orchestrator)
+  - `ONEAGENT_PROACTIVE_AUTO_DELEGATE` (auto-harvest recommendedActions)
+  - `ONEAGENT_PROACTIVE_INTERVAL_MS` (observation cycle base interval)
+  - `ONEAGENT_TASK_DISPATCH_INTERVAL_MS` (dispatch loop base interval; jitter applied)
+- Engine dispatch loop added (`startTaskDispatchLoop`) emitting operations: `dispatch_loop`, `dispatch_cycle`, `dispatch_mark`, `dispatch`, `dispatch_latency`.
+- Metrics documentation (`OPERATION_METRICS.md`) extended with Task Delegation operations (zero new metric stores, reuses canonical monitoring pipeline).
+- Canonical ID/time usage: all tasks created with `createUnifiedId` + `createUnifiedTimestamp`; no `Date.now()` or ad-hoc IDs introduced.
+- Memory persistence: Each queued task + status transition stored via `addMemoryCanonical` (auditable without alternate persistence layer).
+- Added queue restoration & snapshot persistence (restart resilience stage 1):
+  - `restore` operation metric (success/error) emitted when reconstructing queue from prior `ProactiveDelegation:*` memory records.
+  - Opportunistic lightweight snapshots (`TaskDelegationSnapshot`) persisted after execution/state transitions (no parallel store; pure audit trail).
+  - Public `taskDelegationService.restore()` helper added for deterministic test initialization.
+- New test: `task-restore.persistence.test.ts` validates synthetic memory records are restored into in-memory queue.
+- Structured dispatch failure groundwork: `markDispatchFailure` emits `dispatch` error with stable `errorCode` (e.g. `no_target_agent`, `execution_error`).
+- Engine now invokes `markDispatchFailure` when no target agent can be inferred (emits `dispatch` error with `no_target_agent`). Added `executeDelegatedTask` helper to isolate future remediation logic.
+- Introduced retry groundwork: tasks carry `attempts` / `maxAttempts` (env `ONEAGENT_TASK_MAX_ATTEMPTS`, default 3); failed dispatch (e.g. `no_target_agent`) triggers `retry` events until exhaustion emits `retry_exhausted`.
+- Snapshot writes now throttled (min 15s between persisted snapshots) to reduce memory churn while retaining audit fidelity.
+- Added enhanced smoke test `proactive-delegation.loop.test.ts` asserting queue + dispatch marking behavior.
+- Production & example `.env` updated with proactive flags (safeguarded defaults set to disabled).
+
+Follow-Up (Deferred to Epic 8):
+
+- Actual remediation execution (agent action invocation + result metrics).
+- Failure classification (`errorCode` taxonomy for dispatch failures).
+- Persistent task store for restart resilience (will extend canonical memory schema, not a parallel queue).
 
 ### 🚀 Follow-Up (Planned Under 4.0.7 Maintenance Window)
 

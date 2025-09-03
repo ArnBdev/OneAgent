@@ -1,4 +1,4 @@
-# OneAgent Consolidated Strategic Roadmap (v4.0.7)
+# OneAgent Consolidated Strategic Roadmap (v4.0.8)
 
 > **⚠️ Canonical File Notice**  
 > This is the **ONLY** authoritative roadmap. Do **not** create additional roadmap variants (e.g. `CONSOLIDATED_ROADMAP.md`, `roadmap_v2.md`, `HYBRID_ROADMAP`, etc.). All strategy, release planning, KPI updates and status changes MUST be applied here. Creating parallel roadmap documents is prohibited and will be treated as architecture drift. A future CI guard may fail builds if a new `*roadmap*.md` file appears outside this path.
@@ -190,6 +190,7 @@ Next Up (short list):
 
 - Anomaly detection prototype (operation latency Z-score events).
 - Enhance entity extraction (model-based NER pipeline behind same service contract).
+- Proactive Delegation Persistence Stage 2 (planned): Structured error code taxonomy for execution failures + remediation latency histograms (builds on current restore + snapshot stage).
 
 ## 13. Moonshot / Long-Horizon Initiatives
 
@@ -205,5 +206,5 @@ This roadmap is considered active once merged to `main`. Quarterly review cycle;
 ---
 
 **Maintainer**: Lead Developer (OneAgent)  
-**Version**: 1.0.2 (Aligned to platform v4.0.7)  
+**Version**: 1.0.3 (Aligned to platform v4.0.8)  
 **Next Review**: +30 days from merge

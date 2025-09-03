@@ -21,6 +21,7 @@ import {
   createUnifiedTimestamp,
 } from '../../utils/UnifiedBackboneService';
 import { SmartGeminiClient } from '../../tools/SmartGeminiClient';
+import { SmartOpenAIClient } from '../../tools/SmartOpenAIClient';
 import { KnowledgeExtractor } from '../../tools/KnowledgeExtractor';
 import { normalize as normalizeGraph } from '../../utils/GraphNormalizer';
 import { memgraphService } from '../../services/MemgraphService';
@@ -101,7 +102,7 @@ export abstract class BaseAgent {
   public config: AgentConfig;
   protected memoryClient?: OneAgentMemory;
   protected memoryIntelligence?: MemoryIntelligence;
-  protected aiClient?: SmartGeminiClient;
+  protected aiClient?: SmartGeminiClient | SmartOpenAIClient;
   protected isInitialized: boolean = false;
   protected unifiedBackbone: OneAgentUnifiedBackbone;
   // Unified context injected by AgentFactory (canonical) providing
@@ -229,7 +230,44 @@ export abstract class BaseAgent {
 
       // Initialize AI client if enabled
       if (this.config.aiEnabled) {
-        this.aiClient = new SmartGeminiClient({ model: this.config.aiModelName });
+        // Provider preference & fallback logic:
+        // 1. If ONEAGENT_PREFER_OPENAI=1 and OPENAI_API_KEY present → use OpenAI
+        // 2. Else if Gemini disabled via ONEAGENT_DISABLE_GEMINI=1 → use OpenAI (if key)
+        // 3. Else attempt Gemini; on construction failure fallback to OpenAI if available
+        const preferOpenAI = process.env.ONEAGENT_PREFER_OPENAI === '1';
+        const disableGemini = process.env.ONEAGENT_DISABLE_GEMINI === '1';
+        const hasOpenAI = !!process.env.OPENAI_API_KEY;
+        const shouldUseOpenAI = (preferOpenAI || disableGemini) && hasOpenAI;
+        if (shouldUseOpenAI) {
+          try {
+            this.aiClient = new SmartOpenAIClient({ model: this.config.aiModelName });
+            console.log('[BaseAgent] Using OpenAI client (preference/disableGemini).');
+          } catch (e) {
+            console.warn(
+              '[BaseAgent] Failed initializing OpenAI client, attempting Gemini fallback:',
+              e,
+            );
+          }
+        }
+        if (!this.aiClient && !disableGemini) {
+          try {
+            this.aiClient = new SmartGeminiClient({ model: this.config.aiModelName });
+            console.log('[BaseAgent] Using Gemini client.');
+          } catch (e) {
+            console.warn('[BaseAgent] Gemini init failed:', e);
+            if (hasOpenAI) {
+              try {
+                this.aiClient = new SmartOpenAIClient({ model: this.config.aiModelName });
+                console.log('[BaseAgent] Fallback to OpenAI client after Gemini failure.');
+              } catch (e2) {
+                console.error(
+                  '[BaseAgent] OpenAI fallback also failed; AI disabled for this agent.',
+                  e2,
+                );
+              }
+            }
+          }
+        }
       }
 
       // Initialize Constitutional AI

@@ -4,7 +4,7 @@
 // - Uses new ts-jest transform configuration (no deprecated globals usage)
 module.exports = {
   testEnvironment: 'node',
-  roots: ['<rootDir>/tests', '<rootDir>/coreagent/tests/unit'],
+  roots: ['<rootDir>/tests', '<rootDir>/coreagent/tests', '<rootDir>/coreagent/tests/unit'],
   testMatch: ['**/*.test.ts'],
   transform: {
     '^.+\\.(ts|tsx)$': [

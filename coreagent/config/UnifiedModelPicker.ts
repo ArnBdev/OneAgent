@@ -79,7 +79,10 @@ export function getModelFor(capability: ModelCapability): ModelClient {
     return getOrCreateGemini(modelName);
   }
   if (effectiveCap === 'advanced_text') {
-    if (process.env.OPENAI_API_KEY && process.env.ONEAGENT_PREFER_OPENAI === '1') {
+    if (
+      process.env.OPENAI_API_KEY &&
+      (process.env.ONEAGENT_PREFER_OPENAI === '1' || process.env.ONEAGENT_DISABLE_GEMINI === '1')
+    ) {
       const modelName = Object.keys(OPENAI_MODELS)[0]; // default 'gpt-4o'
       return getOrCreateOpenAI(modelName);
     }
@@ -87,18 +90,46 @@ export function getModelFor(capability: ModelCapability): ModelClient {
     return getOrCreateGemini(modelName);
   }
   if (effectiveCap === 'fast_text') {
+    if (
+      process.env.OPENAI_API_KEY &&
+      (process.env.ONEAGENT_PREFER_OPENAI === '1' || process.env.ONEAGENT_DISABLE_GEMINI === '1')
+    ) {
+      const modelName = Object.keys(OPENAI_MODELS).find((m) => m.includes('mini')) || 'gpt-4o';
+      return getOrCreateOpenAI(modelName);
+    }
     const modelName =
       Object.keys(GEMINI_MODELS).find((m) => m.includes('flash')) || 'gemini-2.5-flash';
     return getOrCreateGemini(modelName);
   }
   if (effectiveCap === 'fast_multimodal') {
+    if (
+      process.env.OPENAI_API_KEY &&
+      (process.env.ONEAGENT_PREFER_OPENAI === '1' || process.env.ONEAGENT_DISABLE_GEMINI === '1')
+    ) {
+      const modelName = Object.keys(OPENAI_MODELS)[0];
+      return getOrCreateOpenAI(modelName);
+    }
     const modelName =
       Object.keys(GEMINI_MODELS).find((m) => m.includes('flash')) || 'gemini-2.5-flash';
     return getOrCreateGemini(modelName);
   }
   if (effectiveCap === 'advanced_multimodal') {
+    if (
+      process.env.OPENAI_API_KEY &&
+      (process.env.ONEAGENT_PREFER_OPENAI === '1' || process.env.ONEAGENT_DISABLE_GEMINI === '1')
+    ) {
+      const modelName = Object.keys(OPENAI_MODELS)[0];
+      return getOrCreateOpenAI(modelName);
+    }
     const modelName = Object.keys(GEMINI_MODELS).find((m) => m.includes('pro')) || 'gemini-2.5-pro';
     return getOrCreateGemini(modelName);
+  }
+  if (
+    process.env.OPENAI_API_KEY &&
+    (process.env.ONEAGENT_PREFER_OPENAI === '1' || process.env.ONEAGENT_DISABLE_GEMINI === '1')
+  ) {
+    const fallbackOpenAI = Object.keys(OPENAI_MODELS)[0];
+    return getOrCreateOpenAI(fallbackOpenAI);
   }
   const fallback =
     Object.keys(GEMINI_MODELS).find((m) => m.includes('flash')) || 'gemini-2.5-flash';

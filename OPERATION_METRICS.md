@@ -131,25 +131,27 @@ All future enhancements must continue zero-parallel-store principle.
 
 ---
 
-## Prometheus Metrics (Current v4.0.7)
+## Prometheus Metrics (Current v4.0.8)
 
-| Metric Name                           | Type      | Labels                          | Description                                                             | Source                                    |
-| ------------------------------------- | --------- | ------------------------------- | ----------------------------------------------------------------------- | ----------------------------------------- |
-| `oneagent_operation_total`            | counter   | (none)                          | Total operations observed in window (configurable windowMs query param) | Derived from eventHistory filtered window |
-| `oneagent_operation_component_total`  | counter   | component, operation, status    | Success/error counts per operation                                      | eventHistory aggregation                  |
-| `oneagent_operation_error_rate`       | gauge     | component, operation            | Error rate (error/total) per operation                                  | eventHistory aggregation                  |
-| `oneagent_operation_latency_avg_ms`   | gauge     | operation                       | Rolling average latency (ms)                                            | PerformanceMonitor detailed metrics       |
-| `oneagent_operation_latency_p95_ms`   | gauge     | operation                       | 95th percentile latency (ms)                                            | PerformanceMonitor detailed metrics       |
-| `oneagent_operation_latency_p99_ms`   | gauge     | operation                       | 99th percentile latency (ms)                                            | PerformanceMonitor detailed metrics       |
-| `oneagent_operation_errors_total`     | counter   | component, operation, errorCode | Error event occurrences (sliding window, coded)                         | eventHistory recent (last 500 events)     |
-| `oneagent_metrics_latency_average_ms` | gauge     | (none)                          | Average latency across recent generic metric logs                       | metricsService stats                      |
-| `oneagent_metrics_latency_max_ms`     | gauge     | (none)                          | Max latency across recent logs                                          | metricsService stats                      |
-| `oneagent_metrics_latency_p50_ms`     | gauge     | (none)                          | Median latency across recent logs                                       | metricsService stats                      |
-| `oneagent_metrics_latency_p95_ms`     | gauge     | (none)                          | 95th percentile across recent logs                                      | metricsService stats                      |
-| `oneagent_metrics_latency_p99_ms`     | gauge     | (none)                          | 99th percentile across recent logs                                      | metricsService stats                      |
-| `oneagent_memory_search_latency_ms`   | histogram | le                              | Histogram (recent memory search latencies)                              | Derived from recent logs sample           |
-| `oneagent_build_info`                 | gauge     | version                         | Build/version marker (always 1)                                         | package.json                              |
-| `oneagent_metrics_recent_total`       | gauge     | (none)                          | Number of recent metric logs retained                                   | metricsService stats                      |
+| Metric Name                                | Type      | Labels                          | Description                                                                        | Source                                    |
+| ------------------------------------------ | --------- | ------------------------------- | ---------------------------------------------------------------------------------- | ----------------------------------------- |
+| `oneagent_operation_total`                 | counter   | (none)                          | Total operations observed in window (configurable windowMs query param)            | Derived from eventHistory filtered window |
+| `oneagent_operation_component_total`       | counter   | component, operation, status    | Success/error counts per operation                                                 | eventHistory aggregation                  |
+| `oneagent_operation_error_rate`            | gauge     | component, operation            | Error rate (error/total) per operation                                             | eventHistory aggregation                  |
+| `oneagent_operation_latency_avg_ms`        | gauge     | operation                       | Rolling average latency (ms)                                                       | PerformanceMonitor detailed metrics       |
+| `oneagent_operation_latency_p95_ms`        | gauge     | operation                       | 95th percentile latency (ms)                                                       | PerformanceMonitor detailed metrics       |
+| `oneagent_operation_latency_p99_ms`        | gauge     | operation                       | 99th percentile latency (ms)                                                       | PerformanceMonitor detailed metrics       |
+| `oneagent_operation_errors_total`          | counter   | component, operation, errorCode | Error event occurrences (sliding window, coded)                                    | eventHistory recent (last 500 events)     |
+| `oneagent_metrics_latency_average_ms`      | gauge     | (none)                          | Average latency across recent generic metric logs                                  | metricsService stats                      |
+| `oneagent_metrics_latency_max_ms`          | gauge     | (none)                          | Max latency across recent logs                                                     | metricsService stats                      |
+| `oneagent_metrics_latency_p50_ms`          | gauge     | (none)                          | Median latency across recent logs                                                  | metricsService stats                      |
+| `oneagent_metrics_latency_p95_ms`          | gauge     | (none)                          | 95th percentile across recent logs                                                 | metricsService stats                      |
+| `oneagent_metrics_latency_p99_ms`          | gauge     | (none)                          | 99th percentile across recent logs                                                 | metricsService stats                      |
+| `oneagent_memory_search_latency_ms`        | histogram | le                              | Histogram (recent memory search latencies)                                         | Derived from recent logs sample           |
+| `oneagent_build_info`                      | gauge     | version                         | Build/version marker (always 1)                                                    | package.json                              |
+| `oneagent_metrics_recent_total`            | gauge     | (none)                          | Number of recent metric logs retained                                              | metricsService stats                      |
+| `oneagent_task_delegation_status_total`    | gauge     | status                          | Current number of delegation tasks per status (queued/dispatched/failed/completed) | Derived from in-memory queue              |
+| `oneagent_task_delegation_backoff_pending` | gauge     | (none)                          | Number of queued tasks currently waiting for backoff eligibility                   | Derived from in-memory queue              |
 
 ### Error Counter Semantics
 
@@ -211,3 +213,69 @@ All alerting rules must account for sliding window resets and potential cold sta
 ---
 
 Canonical architecture enforced: zero parallel performance systems permitted.
+
+---
+
+## Task Delegation & Proactive Orchestration Metrics (Epic 7)
+
+The proactive anomaly → triage → deep analysis → task delegation pipeline introduces a bounded set of new `operation` names under the `TaskDelegation` component. These reuse `unifiedMonitoringService.trackOperation` and DO NOT add new metric stores.
+
+### Operations
+
+| Component        | Operation            | Status Values          | Description                                                                   | Notes                                              |
+| ---------------- | -------------------- | ---------------------- | ----------------------------------------------------------------------------- | -------------------------------------------------- |
+| `TaskDelegation` | `queue`              | success / error        | Task inserted after harvest                                                   | Dedup signature prevents flooding                  |
+| `TaskDelegation` | `queue_trim`         | success                | Oldest task evicted (queue > MAX)                                             | MAX = 100                                          |
+| `TaskDelegation` | `dispatch_loop`      | success / error        | Loop scheduling tick (engine start or reschedule)                             | Includes `intervalMs` metadata                     |
+| `TaskDelegation` | `dispatch_cycle`     | success / error        | Single cycle wrapper (unexpected exceptions)                                  | Future: may carry `durationMs`                     |
+| `TaskDelegation` | `dispatch_mark`      | success / error (rare) | State transition queued → dispatched                                          | Idempotent                                         |
+| `TaskDelegation` | `dispatch`           | success / error        | Logical dispatch attempt (pre‑execution)                                      | Will expand with remediation results               |
+| `TaskDelegation` | `dispatch_latency`   | success                | Measured latency for a dispatch attempt                                       | Delta of canonical timestamps                      |
+| `TaskDelegation` | `execute`            | success / error        | Remediation execution result (placeholder phase)                              | Success => task completed                          |
+| `TaskDelegation` | `execute`            | success / error        | Remediation execution result and latency (use `durationMs` on execute events) | Latency now exported via PerformanceMonitor gauges |
+| `TaskDelegation` | `restore`            | success / error        | Queue state restored from canonical memory                                    | Audit-based; no parallel store                     |
+| `TaskDelegation` | `retry`              | success                | Failed task re-queued for another attempt                                     | attempts / max metadata                            |
+| `TaskDelegation` | `retry_exhausted`    | error                  | Task reached maxAttempts without success                                      | Emits final errorCode                              |
+| `TaskDelegation` | `retry_backoff`      | success                | Backoff delay scheduled for next attempt                                      | delayMs, attempt metadata                          |
+| `TaskDelegation` | `retry_backoff_skip` | success                | Dispatch cycle skipped tasks still in backoff                                 | skipped count                                      |
+
+### Configuration Environment Variables
+
+| Variable                             | Default | Purpose                                                 |
+| ------------------------------------ | ------- | ------------------------------------------------------- |
+| `ONEAGENT_PROACTIVE_OBSERVER`        | `0`     | Enable snapshot → triage → deep orchestrator            |
+| `ONEAGENT_PROACTIVE_AUTO_DELEGATE`   | `0`     | Auto-harvest deep analysis recommendedActions to queue  |
+| `ONEAGENT_PROACTIVE_INTERVAL_MS`     | `45000` | Base interval between observation cycles                |
+| `ONEAGENT_TASK_DISPATCH_INTERVAL_MS` | `10000` | Base interval for task dispatch loop (jitter +0–2000ms) |
+| `ONEAGENT_TASK_RETRY_BASE_DELAY_MS`  | `2000`  | Base delay (ms) for first retry backoff                 |
+| `ONEAGENT_TASK_RETRY_MAX_DELAY_MS`   | `60000` | Maximum capped backoff delay (ms)                       |
+
+### Principles
+
+1. Bounded memory (queue cap) & dedup keep footprint deterministic.
+2. Single source of truth: Only in-memory queue; persistence uses canonical memory writes for auditing (no alternate store).
+3. Extensible: Remediation execution layer (Epic 8) will extend `dispatch` semantics without altering existing metrics contract.
+4. Observability-first: Each transition surfaces a semantic event for downstream analysis and alerting.
+
+### Future Extensions (Planned)
+
+- Add structured error codes for dispatch failures (`no_target_agent`, `execution_error`). (Foundational support added: `markDispatchFailure` with errorCode emission; taxonomy doc update pending.)
+- Introduce remediation latency percentile gauges once execution layer adds meaningful durations.
+- Correlate tasks to deep analysis snapshot via `snapshotHash` in metrics dashboards.
+- Snapshot persistence: Lightweight snapshots (`TaskDelegationSnapshot`) emitted opportunistically after status transitions (throttled 15s min interval; no separate metric; derives from memory audit trail).
+
+All additions comply with zero parallel system constraints.
+
+### Remediation Error Taxonomy (v4.0.8 Incremental)
+
+Groundwork error codes introduced for the remediation / execution simulation layer:
+
+| Code                         | Meaning                                                   | Emission Path                                     | Notes                              |
+| ---------------------------- | --------------------------------------------------------- | ------------------------------------------------- | ---------------------------------- |
+| `remediation_failed`         | Execution ran but reported business failure               | Pattern match on monitoring event message         | Will become structured field later |
+| `remediation_task_not_found` | Task disappeared (not in queue) when execution attempted  | Pattern match (`task_not_found` / `task missing`) | Indicates race or external removal |
+| `remediation_timeout`        | (Reserved) Execution exceeded future max execution window | Pattern match (`remediation timeout`)             | Adapter does not emit yet          |
+
+Implementation detail: Currently classified through regex mapping in `errorTaxonomy.ts`. When remediation layer formalizes structured error emissions, direct `errorCode` assignment will supersede pattern inference without changing public metric labels.
+
+Removal: The standalone `execute_latency` operation has been removed in favor of `durationMs` on `execute` events; latency is exported via `PerformanceMonitor` gauges (see CHANGELOG v4.0.8).

@@ -1,4 +1,4 @@
-# OneAgent v4.0.7 - Memory-Driven Intelligence Platform
+# OneAgent v4.0.8 - Memory-Driven Intelligence Platform
 
 ## 🚀 **Revolutionary AI Platform Overview**
 
@@ -148,6 +148,13 @@ This dual-mode strategy delivers deterministic coverage plus minimal runtime ove
 
 Transform from reactive responses to proactive suggestions based on learned patterns and successful outcomes.
 
+Includes a bounded task delegation queue with:
+
+- Signature-based dedup (`snapshotHash::action`) preventing flooding.
+- Canonical memory audit writes for each enqueue & state transition (no secondary persistence system).
+- Restart resilience (stage 1): queue reconstruction via `restore` operation from prior `ProactiveDelegation:*` memory entries plus lightweight opportunistic snapshots (`TaskDelegationSnapshot`).
+- Configurable retry policy: `ONEAGENT_TASK_MAX_ATTEMPTS` (default 3) controls bounded exponential-style retry attempts (queue re-entry emits `retry`, exhaustion emits `retry_exhausted`).
+
 ### **2. Cross-Conversation Learning**
 
 - **Pattern Recognition**: Identify successful workflows across multiple sessions
@@ -168,7 +175,7 @@ Transform from reactive responses to proactive suggestions based on learned patt
 
 ## 🔮 **Roadmap (Canonical)**
 
-The previous fragmented roadmap files have been superseded by a single canonical roadmap: **[docs/roadmap.md](./docs/roadmap.md)** (aligned with v4.0.7). It defines release train (v4.1–v6.0), thematic backlogs (Observability, NLACS, Planner, UI, Extensibility, Scale, Governance), KPIs, risks, and an Immediate Action Queue.
+The previous fragmented roadmap files have been superseded by a single canonical roadmap: **[docs/roadmap.md](./docs/roadmap.md)** (aligned with v4.0.8). It defines release train (v4.1–v6.0), thematic backlogs (Observability, NLACS, Planner, UI, Extensibility, Scale, Governance), KPIs, risks, and an Immediate Action Queue.
 
 Key near-term (v4.1–v4.2):
 
@@ -320,4 +327,4 @@ MIT License - See LICENSE file for details
 
 ---
 
-_This is the canonical README for OneAgent v4.0.7. All documentation is current and reflects the consolidated Phase 4 implementation plus communication persistence consolidation._
+_This is the canonical README for OneAgent v4.0.8. All documentation is current and reflects the consolidated Phase 4 implementation plus communication persistence & retry groundwork._

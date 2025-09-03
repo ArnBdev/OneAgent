@@ -39,6 +39,16 @@ export enum ErrorCode {
   PLAN_STEP_FAILED = 'plan_step_failed',
   REPLAN_LIMIT_REACHED = 'replan_limit_reached',
 
+  // Delegation / Task Pipeline (Epic 7)
+  DELEGATION_NO_TARGET = 'delegation_no_target', // No suitable target agent inferred
+  DELEGATION_EXECUTION_ERROR = 'delegation_execution_error', // Adapter / execution layer failure
+  DELEGATION_ADAPTER_ERROR = 'delegation_adapter_error', // Explicit adapter wrapper error
+
+  // Remediation / Execution Layer (Epic 8 groundwork)
+  REMEDIATION_FAILED = 'remediation_failed', // Remediation logic executed but reported failure (business logic)
+  REMEDIATION_TASK_NOT_FOUND = 'remediation_task_not_found', // Task id disappeared before execution
+  REMEDIATION_TIMEOUT = 'remediation_timeout', // Future: execution exceeded allowed time
+
   // Experimental (subject to rename/remove)
   EXP_EMERGENT_INFERENCE = 'exp_emergent_inference',
 }
@@ -65,6 +75,13 @@ export function mapErrorToCode(err: unknown): ErrorCode {
   if (/plan generation/i.test(message)) return ErrorCode.PLAN_GENERATION_FAILED;
   if (/plan step/i.test(message)) return ErrorCode.PLAN_STEP_FAILED;
   if (/replan limit/i.test(message)) return ErrorCode.REPLAN_LIMIT_REACHED;
+  if (/no target agent/i.test(message)) return ErrorCode.DELEGATION_NO_TARGET;
+  if (/adapter_error|adapter error/i.test(message)) return ErrorCode.DELEGATION_ADAPTER_ERROR;
+  if (/execution_failure|execution error/i.test(message))
+    return ErrorCode.DELEGATION_EXECUTION_ERROR;
+  if (/remediation_failed/i.test(message)) return ErrorCode.REMEDIATION_FAILED;
+  if (/task_not_found|task missing/i.test(message)) return ErrorCode.REMEDIATION_TASK_NOT_FOUND;
+  if (/remediation timeout/i.test(message)) return ErrorCode.REMEDIATION_TIMEOUT;
   return ErrorCode.INTERNAL;
 }
 

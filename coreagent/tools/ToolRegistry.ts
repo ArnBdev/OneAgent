@@ -203,10 +203,12 @@ export class ToolRegistry {
     // Memory operations are handled by dedicated MemoryCreateTool and MemorySearchTool
     // AI assistance should be separate from memory management for clarity
 
-    console.log(
-      `[ToolRegistry] Registered ${this.tools.size} unified tools across ${this.categories.size} categories`,
-    );
-    this.logCategoryStatus();
+    if (!(process.env.ONEAGENT_FAST_TEST_MODE === '1' || process.env.NODE_ENV === 'test')) {
+      console.log(
+        `[ToolRegistry] Registered ${this.tools.size} unified tools across ${this.categories.size} categories`,
+      );
+      this.logCategoryStatus();
+    }
   }
 
   /**
@@ -239,9 +241,11 @@ export class ToolRegistry {
     const categoryTools = this.categories.get(fullMetadata.category) || [];
     categoryTools.push(tool.name);
     this.categories.set(fullMetadata.category, categoryTools);
-    console.log(
-      `[ToolRegistry] Registered ${tool.name} in ${fullMetadata.category} (priority: ${fullMetadata.priority})`,
-    );
+    if (!(process.env.ONEAGENT_FAST_TEST_MODE === '1' || process.env.NODE_ENV === 'test')) {
+      console.log(
+        `[ToolRegistry] Registered ${tool.name} in ${fullMetadata.category} (priority: ${fullMetadata.priority})`,
+      );
+    }
   }
 
   /**
@@ -328,9 +332,11 @@ export class ToolRegistry {
       registration.usageCount++;
       registration.lastUsed = new Date();
 
-      console.log(
-        `[ToolRegistry] Executing ${name} (category: ${registration.metadata.category}, usage: ${registration.usageCount})`,
-      );
+      if (!(process.env.ONEAGENT_FAST_TEST_MODE === '1' || process.env.NODE_ENV === 'test')) {
+        console.log(
+          `[ToolRegistry] Executing ${name} (category: ${registration.metadata.category}, usage: ${registration.usageCount})`,
+        );
+      }
 
       // Execute tool with Constitutional AI monitoring
       const result = await registration.tool.execute(args);
@@ -472,9 +478,11 @@ export class ToolRegistry {
    * Log category status for debugging
    */
   private logCategoryStatus(): void {
-    console.log(`[ToolRegistry] Category distribution:`);
-    for (const [category, tools] of Array.from(this.categories)) {
-      console.log(`  ${category}: ${tools.length} tools`);
+    if (!(process.env.ONEAGENT_FAST_TEST_MODE === '1' || process.env.NODE_ENV === 'test')) {
+      console.log(`[ToolRegistry] Category distribution:`);
+      for (const [category, tools] of Array.from(this.categories)) {
+        console.log(`  ${category}: ${tools.length} tools`);
+      }
     }
   }
 }

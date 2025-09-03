@@ -39,6 +39,7 @@ import passport from 'passport';
 import express from 'express';
 import { Request, Response, NextFunction } from 'express';
 import { createMetricsRouter } from '../api/metricsAPI';
+import { taskDelegationService } from '../services/TaskDelegationService';
 const app = express();
 
 // Middleware
@@ -956,6 +957,38 @@ app.get('/info', (_req: Request, res: Response) => {
 });
 
 /**
+ * Task Delegation Queue State (read-only)
+ * Provides a sanitized snapshot of current tasks for UI/diagnostics.
+ * No auth for now (internal tooling); revisit before external exposure.
+ */
+app.get('/api/v1/tasks/delegation', (_req: Request, res: Response) => {
+  try {
+    const tasks = taskDelegationService.getAllTasks().map((t) => ({
+      id: t.id,
+      status: t.status,
+      action: t.action,
+      targetAgent: t.targetAgent || 'unassigned',
+      attempts: t.attempts || 0,
+      maxAttempts: t.maxAttempts || 0,
+      nextAttemptAt: t.nextAttemptAt,
+      lastErrorCode: t.lastErrorCode,
+      snapshotHash: t.snapshotHash,
+      createdAt: t.createdAt,
+    }));
+    res.json({
+      count: tasks.length,
+      timestamp: createUnifiedTimestamp().iso,
+      tasks,
+    });
+  } catch (err) {
+    res.status(500).json({
+      error: 'delegation_queue_unavailable',
+      message: err instanceof Error ? err.message : String(err),
+    });
+  }
+});
+
+/**
  * A2A Well-known Agent Card endpoints
  * - New path: /.well-known/agent-card.json (A2A >= 0.3.0)
  * - Legacy alias: /.well-known/agent.json (A2A <= 0.2.x)
@@ -1085,11 +1118,20 @@ async function startServer(): Promise<void> {
   }
 }
 
-// Auto-start server
-startServer().catch((error) => {
-  console.error('💥 Startup failed:', error);
-  process.exit(1);
-});
+// Export app for integration tests (non-started). This does not create parallel servers; tests can import and invoke routes directly.
+export { app };
+
+// Conditional auto-start: Skip when running under Jest (NODE_ENV === 'test') or explicit disable flag.
+const SHOULD_AUTOSTART =
+  process.env.ONEAGENT_DISABLE_AUTOSTART !== '1' &&
+  process.env.NODE_ENV !== 'test' &&
+  process.env.ONEAGENT_FAST_TEST_MODE !== '1';
+if (SHOULD_AUTOSTART) {
+  startServer().catch((error) => {
+    console.error('💥 Startup failed:', error);
+    process.exit(1);
+  });
+}
 
 export { startServer, oneAgent };
 

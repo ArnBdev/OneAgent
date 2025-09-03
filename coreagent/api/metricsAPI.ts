@@ -269,7 +269,25 @@ export function createMetricsRouter(): Router {
 
       // Communication operation latency gauges (avg, p95, p99) for canonical COMM_OPERATION set (parallelized)
       const commOps = Object.values(COMM_OPERATION);
-      if (commOps.length) {
+      // Extend latency gauge coverage with additional recorded operations that are explicitly allowlisted.
+      // Current allowlist: TaskDelegation.execute (execution latency ingestion path) – avoids metric cardinality explosion.
+      let extendedOps: string[] = [];
+      try {
+        const perf = (
+          unifiedMonitoringService as unknown as {
+            performanceMonitor?: { getRecordedOperations?: () => string[] };
+          }
+        ).performanceMonitor;
+        if (perf && typeof perf.getRecordedOperations === 'function') {
+          const recorded = perf.getRecordedOperations();
+          // allowlist filter
+          extendedOps = recorded.filter((op) => op === 'execute');
+        }
+      } catch {
+        // ignore extension failures
+      }
+      const allOps = [...new Set([...commOps, ...extendedOps])];
+      if (allOps.length) {
         lines.push('# HELP oneagent_operation_latency_avg_ms Average latency per operation (ms)');
         lines.push('# TYPE oneagent_operation_latency_avg_ms gauge');
         lines.push(
@@ -281,7 +299,7 @@ export function createMetricsRouter(): Router {
         );
         lines.push('# TYPE oneagent_operation_latency_p99_ms gauge');
         const detailResults = await Promise.all(
-          commOps.map(async (op) => {
+          allOps.map(async (op) => {
             try {
               const d = await unifiedMonitoringService.getDetailedOperationMetrics(op);
               return { op, detail: d };
@@ -338,6 +356,37 @@ export function createMetricsRouter(): Router {
             `oneagent_operation_errors_total{component="${comp}",operation="${op}",errorCode="${code}"} ${countVal}`,
           );
         }
+      }
+
+      // Task Delegation status gauges (derived; single source = in-memory queue)
+      try {
+        const { taskDelegationService } = await import('../services/TaskDelegationService');
+        const tasks = taskDelegationService.getAllTasks();
+        if (tasks.length) {
+          const statusCounts: Record<string, number> = {};
+          for (const t of tasks) statusCounts[t.status] = (statusCounts[t.status] || 0) + 1;
+          lines.push(
+            '# HELP oneagent_task_delegation_status_total Current number of tasks per delegation status',
+          );
+          lines.push('# TYPE oneagent_task_delegation_status_total gauge');
+          for (const [status, countVal] of Object.entries(statusCounts)) {
+            lines.push(
+              `oneagent_task_delegation_status_total{status="${esc(status)}"} ${countVal}`,
+            );
+          }
+          // Backoff pending tasks (queued but not yet eligible)
+          const nowUnix = Date.now();
+          const inBackoff = tasks.filter(
+            (t) => t.status === 'queued' && t.nextAttemptUnix && t.nextAttemptUnix > nowUnix,
+          ).length;
+          lines.push(
+            '# HELP oneagent_task_delegation_backoff_pending Number of queued tasks currently waiting for backoff delay',
+          );
+          lines.push('# TYPE oneagent_task_delegation_backoff_pending gauge');
+          lines.push(`oneagent_task_delegation_backoff_pending ${inBackoff}`);
+        }
+      } catch {
+        // Ignore delegation import errors in metrics exposition path
       }
       res.setHeader('Content-Type', 'text/plain; version=0.0.4');
       res.send(lines.join('\n'));

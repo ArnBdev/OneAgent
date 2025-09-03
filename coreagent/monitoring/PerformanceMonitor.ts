@@ -243,6 +243,15 @@ export class PerformanceMonitor {
     this.addToHistogram(operation, durationMs); // prepares for future histogram without parallel store
   }
 
+  /**
+   * List recorded operations (read-only view) – used by metrics exposition to extend latency gauges
+   * beyond the canonical COMM_OPERATION set in a controlled, allowlisted manner.
+   * Maintains anti-parallel principle: no external mutation, just exposure of existing keys.
+   */
+  getRecordedOperations(): string[] {
+    return Array.from(this.metrics.keys());
+  }
+
   private computePercentile(sorted: number[], p: number): number {
     if (!sorted.length) return 0;
     const idx = Math.min(sorted.length - 1, Math.ceil((p / 100) * sorted.length) - 1);

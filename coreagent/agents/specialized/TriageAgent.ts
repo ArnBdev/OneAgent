@@ -19,6 +19,7 @@ import { ISpecializedAgent, AgentHealthStatus } from '../base/ISpecializedAgent'
 import { PromptConfig, AgentPersona } from '../base/PromptEngine';
 import type { ConstitutionalPrinciple } from '../../types/oneagent-backbone-types';
 import { MemoryRecord } from '../../types/oneagent-backbone-types';
+import { proactiveObserverService } from '../../services/ProactiveTriageOrchestrator';
 
 interface TaskAnalysis {
   confidence: number;
@@ -132,6 +133,22 @@ export class TriageAgent extends BaseAgent implements ISpecializedAgent {
           },
         },
       },
+      {
+        type: 'get_proactive_snapshot',
+        description: 'Retrieve the latest proactive monitoring snapshot & triage status',
+        parameters: {},
+      },
+      {
+        type: 'explain_system_state',
+        description: 'Generate an LLM explanation of current system health using proactive data',
+        parameters: {},
+      },
+      {
+        type: 'recommend_remediations',
+        description:
+          'Suggest remediation actions based on latest deep analysis and snapshot deltas',
+        parameters: {},
+      },
     ];
   }
 
@@ -183,6 +200,44 @@ export class TriageAgent extends BaseAgent implements ISpecializedAgent {
             actions: loadBalanceResult.actions,
             projectedImprovement: loadBalanceResult.projectedImprovement,
           },
+        };
+      }
+      case 'get_proactive_snapshot': {
+        const snap = proactiveObserverService.getLastSnapshot();
+        const triage = proactiveObserverService.getLastTriage();
+        const deep = proactiveObserverService.getLastDeepAnalysis();
+        return {
+          content: 'Latest proactive snapshot retrieved',
+          metadata: {
+            type: 'proactive_snapshot',
+            snapshot: snap || null,
+            triage: triage || null,
+            deep: deep || null,
+          },
+        };
+      }
+      case 'explain_system_state': {
+        const snap = proactiveObserverService.getLastSnapshot();
+        const triage = proactiveObserverService.getLastTriage();
+        const deep = proactiveObserverService.getLastDeepAnalysis();
+        const explanation = await this.explainSystemState(snap, triage, deep);
+        return {
+          content: explanation,
+          metadata: {
+            type: 'system_state_explanation',
+            triage: triage || null,
+            anomaly: triage?.anomalySuspected || false,
+          },
+        };
+      }
+      case 'recommend_remediations': {
+        const snap = proactiveObserverService.getLastSnapshot();
+        const triage = proactiveObserverService.getLastTriage();
+        const deep = proactiveObserverService.getLastDeepAnalysis();
+        const recs = this.buildRemediationRecommendations(snap, triage, deep);
+        return {
+          content: 'Remediation recommendations generated',
+          metadata: { type: 'remediation_recommendations', recommendations: recs },
         };
       }
       default:
@@ -276,61 +331,90 @@ export class TriageAgent extends BaseAgent implements ISpecializedAgent {
   }
 
   private async assessAgentHealth(agentId?: string): Promise<HealthAssessment> {
+    // Use proactive snapshot to derive health signals if present
+    const snapshot = proactiveObserverService.getLastSnapshot();
+    const triage = proactiveObserverService.getLastTriage();
+    const overall = triage?.anomalySuspected ? 'degraded' : 'healthy';
+    const timestamp = this.unifiedBackbone.getServices().timeService.now();
+
+    const baseHealth: AgentHealthStatus = {
+      status: overall === 'healthy' ? 'healthy' : 'degraded',
+      uptime: timestamp.unix,
+      memoryUsage: 0,
+      responseTime: 0,
+      errorRate: 0,
+      lastActivity: new Date(timestamp.utc),
+    };
+
+    const agents: Record<string, AgentHealthStatus> = {
+      CoreAgent: baseHealth,
+      DevAgent: baseHealth,
+      FitnessAgent: baseHealth,
+      OfficeAgent: baseHealth,
+    };
+
+    const recommendations: string[] = [];
+    const alerts: string[] = [];
+    if (triage?.latencyConcern) recommendations.push('Investigate latency spikes');
+    if (triage?.errorBudgetConcern) {
+      recommendations.push('Examine error budget burn operations');
+      alerts.push('Error budget burn threshold exceeded');
+    }
+    if (!triage) recommendations.push('Awaiting first proactive snapshot');
+    if (snapshot?.errorBudgetBurnHot?.length) {
+      recommendations.push('Prioritize remediation for hot operations');
+    }
+
     if (agentId) {
-      // Check specific agent
-      const timestamp = this.unifiedBackbone.getServices().timeService.now();
-      const agentHealth: AgentHealthStatus = {
-        status: 'healthy',
-        uptime: timestamp.unix,
-        memoryUsage: 45,
-        responseTime: 120,
-        errorRate: 0.01,
-        lastActivity: new Date(timestamp.utc),
-      };
-
       return {
-        overall: 'healthy',
-        agents: { [agentId]: agentHealth },
-        recommendations: ['Monitor response times'],
-        alerts: [],
-      };
-    } else {
-      // Check all agents
-      const timestamp = this.unifiedBackbone.getServices().timeService.now();
-      const mockAgents: Record<string, AgentHealthStatus> = {
-        CoreAgent: {
-          status: 'healthy',
-          uptime: timestamp.unix,
-          memoryUsage: 30,
-          responseTime: 100,
-          errorRate: 0.005,
-          lastActivity: new Date(timestamp.utc),
-        },
-        DevAgent: {
-          status: 'healthy',
-          uptime: timestamp.unix,
-          memoryUsage: 25,
-          responseTime: 90,
-          errorRate: 0.002,
-          lastActivity: new Date(timestamp.utc),
-        },
-        FitnessAgent: {
-          status: 'healthy',
-          uptime: timestamp.unix,
-          memoryUsage: 20,
-          responseTime: 110,
-          errorRate: 0.001,
-          lastActivity: new Date(timestamp.utc),
-        },
-      };
-
-      return {
-        overall: 'healthy',
-        agents: mockAgents,
-        recommendations: ['System performing well', 'Consider scaling if load increases'],
-        alerts: [],
+        overall,
+        agents: { [agentId]: agents[agentId] || baseHealth },
+        recommendations,
+        alerts,
       };
     }
+    return { overall, agents, recommendations, alerts };
+  }
+
+  // --- Proactive integration helpers ---
+  private async explainSystemState(
+    snap: ReturnType<typeof proactiveObserverService.getLastSnapshot>,
+    triage: ReturnType<typeof proactiveObserverService.getLastTriage>,
+    deep: ReturnType<typeof proactiveObserverService.getLastDeepAnalysis>,
+  ): Promise<string> {
+    if (!snap || !triage) return 'No proactive snapshot available yet.';
+    const baseSummary = `Snapshot @ ${snap.takenAt} | Errors(last window): ${snap.recentErrorEvents} | HotOps: ${snap.errorBudgetBurnHot.length} | Anomaly: ${triage.anomalySuspected}`;
+    if (!deep) return baseSummary + ' | Deep analysis not yet performed.';
+    return (
+      baseSummary +
+      `\nDeep Summary: ${deep.summary}\nTop Actions: ${deep.recommendedActions.join('; ')}`
+    );
+  }
+
+  private buildRemediationRecommendations(
+    snap: ReturnType<typeof proactiveObserverService.getLastSnapshot>,
+    triage: ReturnType<typeof proactiveObserverService.getLastTriage>,
+    deep: ReturnType<typeof proactiveObserverService.getLastDeepAnalysis>,
+  ): string[] {
+    const recs: string[] = [];
+    if (!snap || !triage) return ['Await first proactive snapshot'];
+    if (triage.latencyConcern)
+      recs.push('Profile high latency operations & review recent deployments');
+    if (triage.errorBudgetConcern)
+      recs.push('Throttle or rollback operations breaching error budget');
+    if (snap.errorBudgetBurnHot.length) {
+      recs.push(
+        'Focus remediation on: ' +
+          snap.errorBudgetBurnHot
+            .map((o) => `${o.operation}(burn:${o.burnRate.toFixed(2)})`)
+            .join(', '),
+      );
+    }
+    if (deep) {
+      recs.push(...deep.recommendedActions.map((a) => `DeepSuggest: ${a}`));
+    }
+    if (!recs.length) recs.push('System nominal - continue monitoring');
+    return recs.slice(0, 8);
   }
 
   private async balanceLoad(currentLoad: LoadMetrics): Promise<LoadBalanceResult> {
