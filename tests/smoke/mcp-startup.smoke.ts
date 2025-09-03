@@ -1,11 +1,7 @@
 /**
- * MCP Startup Smoke Test (non-interactive)
- * - Reads canonical endpoints from backbone/config
- * - Probes /health and /info
- * - Performs minimal MCP initialize + tools/list
- * Run via: npm run smoke:mcp
+ * Jest Conversion: MCP Startup Smoke
+ * Validates health/info endpoints and minimal MCP initialize + tools/list.
  */
-import assert from 'node:assert';
 import http from 'node:http';
 import { environmentConfig } from '../../coreagent/config/EnvironmentConfig';
 
@@ -75,48 +71,38 @@ function httpGetJson(url: string): Promise<any> {
   });
 }
 
-async function run() {
-  const base = environmentConfig.endpoints.mcp.url.replace(/\/$/, '');
-  const mcpUrl = base + environmentConfig.endpoints.mcp.path; // canonical MCP endpoint
-  const serviceRoot = base; // service root hosts /health and /info
-  const healthUrl = serviceRoot + '/health';
-  const infoUrl = serviceRoot + '/info';
+describe('smoke: MCP startup', () => {
+  it('responds healthy and serves MCP tools', async () => {
+    const base = environmentConfig.endpoints.mcp.url.replace(/\/$/, '');
+    const mcpUrl = base + environmentConfig.endpoints.mcp.path; // canonical MCP endpoint
+    const serviceRoot = base; // service root hosts /health and /info
+    const healthUrl = serviceRoot + '/health';
+    const infoUrl = serviceRoot + '/info';
+    const health = await httpGetJson(healthUrl);
+    expect(health).toHaveProperty('status', 'healthy');
 
-  const health = await httpGetJson(healthUrl);
-  assert.ok(health.status === 'healthy', 'health endpoint should be healthy');
+    const info = await httpGetJson(infoUrl);
+    expect(info.server).toBeTruthy();
+    expect(info.server).toHaveProperty('protocol');
+    expect(info.server).toHaveProperty('version');
 
-  const info = await httpGetJson(infoUrl);
-  assert.ok(
-    info.server && info.server.protocol && info.server.version,
-    'info should contain server metadata',
-  );
+    // MCP initialize
+    const initReq = {
+      jsonrpc: '2.0',
+      id: 1,
+      method: 'initialize',
+      params: {
+        protocolVersion: '2025-06-18',
+        capabilities: {},
+        clientInfo: { name: 'smoke-client', version: '0.0.0' },
+      },
+    };
+    const initRes = await httpPostJson(mcpUrl, initReq);
+    expect(initRes.result).toBeTruthy();
+    expect(initRes.result).toHaveProperty('serverInfo');
 
-  // MCP initialize
-  const initReq = {
-    jsonrpc: '2.0',
-    id: 1,
-    method: 'initialize',
-    params: {
-      protocolVersion: '2025-06-18',
-      capabilities: {},
-      clientInfo: { name: 'smoke-client', version: '0.0.0' },
-    },
-  };
-  const initRes = await httpPostJson(mcpUrl, initReq);
-  assert.ok(initRes.result && initRes.result.serverInfo, 'initialize should return serverInfo');
-
-  // MCP tools/list
-  const toolsList = await httpPostJson(mcpUrl, { jsonrpc: '2.0', id: 2, method: 'tools/list' });
-  assert.ok(
-    toolsList.result && Array.isArray(toolsList.result.tools),
-    'tools/list should return tools',
-  );
-
-  // Done
-  console.log('✓ MCP startup smoke passed');
-}
-
-run().catch((err) => {
-  console.error('MCP smoke failed:', err);
-  process.exit(1);
+    // MCP tools/list
+    const toolsList = await httpPostJson(mcpUrl, { jsonrpc: '2.0', id: 2, method: 'tools/list' });
+    expect(Array.isArray(toolsList.result?.tools)).toBe(true);
+  });
 });

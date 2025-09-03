@@ -12,8 +12,7 @@
  * `npx ts-node c:\Users\arne\.cline\mcps\OneAgent\coreagent\tests\a2a-communication.test.ts`
  */
 
-import { OneAgentEngine } from '../OneAgentEngine';
-import { OneAgentRequest } from '../OneAgentEngine';
+import { OneAgentEngine, OneAgentRequest } from '../OneAgentEngine';
 import { createUnifiedId } from '../utils/UnifiedBackboneService';
 
 // Mock environment variables if they are not set globally
@@ -24,38 +23,24 @@ if (!process.env.GEMINI_API_KEY) {
   process.env.GEMINI_API_KEY = 'test-key-for-cli';
 }
 
-async function runTest() {
-  console.log('🚀 Starting A2A Communication Integration Test...');
-
-  const engine = OneAgentEngine.getInstance();
-  await engine.initialize('cli');
-
-  // --- Test Data ---
+describe('A2A communication integration', () => {
+  let engine: OneAgentEngine;
   const agent1Id = 'test-agent-1';
   const agent2Id = 'test-agent-2';
   let sessionId = '';
 
-  // --- Helper to run requests and assert success ---
+  beforeAll(async () => {
+    engine = OneAgentEngine.getInstance();
+    await engine.initialize('cli');
+  });
+
   async function processAndAssert<T = unknown>(request: OneAgentRequest): Promise<T> {
-    console.log(`\n▶️  Executing: ${request.method}`);
     const response = await engine.processRequest(request);
-
-    console.assert(
-      response.success,
-      `❌ FAILED: ${request.method} was not successful. Error: ${response.error?.message}`,
-    );
-    if (!response.success) {
-      console.error(response.error);
-      throw new Error(`Test failed at step: ${request.method}`);
-    }
-
-    console.log(`✅ SUCCESS: ${request.method}`);
-    console.log('   Response Data:', JSON.stringify(response.data, null, 2));
+    expect(response.success).toBe(true);
     return response.data as T;
   }
 
-  try {
-    // 1. Register Agent 1
+  it('performs full register, discover, session, message, history workflow', async () => {
     await processAndAssert({
       id: createUnifiedId('mcp'),
       type: 'tool_call',
@@ -63,8 +48,6 @@ async function runTest() {
       params: { id: agent1Id, name: 'Test Agent 1', capabilities: ['testing', 'logging'] },
       timestamp: new Date().toISOString(),
     });
-
-    // 2. Register Agent 2
     await processAndAssert({
       id: createUnifiedId('mcp'),
       type: 'tool_call',
@@ -72,8 +55,6 @@ async function runTest() {
       params: { id: agent2Id, name: 'Test Agent 2', capabilities: ['testing', 'reporting'] },
       timestamp: new Date().toISOString(),
     });
-
-    // 3. Discover Agents with 'testing' capability
     type AgentSummary = { id: string; name?: string; capabilities?: string[] };
     const discoveredAgents = await processAndAssert<AgentSummary[]>({
       id: createUnifiedId('mcp'),
@@ -82,9 +63,8 @@ async function runTest() {
       params: { capabilities: ['testing'] },
       timestamp: new Date().toISOString(),
     });
-    console.assert(discoveredAgents.length === 2, '❌ FAILED: Should have discovered 2 agents.');
+    expect(discoveredAgents.length).toBe(2);
 
-    // 4. Create a session
     type SessionInfo = { id: string };
     const sessionData = await processAndAssert<SessionInfo>({
       id: createUnifiedId('mcp'),
@@ -98,9 +78,8 @@ async function runTest() {
       timestamp: new Date().toISOString(),
     });
     sessionId = sessionData.id;
-    console.assert(sessionId, '❌ FAILED: Session ID was not returned.');
+    expect(sessionId).toBeTruthy();
 
-    // 5. Send a message from Agent 1 to Agent 2
     await processAndAssert({
       id: createUnifiedId('mcp'),
       type: 'tool_call',
@@ -114,8 +93,6 @@ async function runTest() {
       },
       timestamp: new Date().toISOString(),
     });
-
-    // 6. Get message history
     type MessageRecord = { message: string };
     const history = await processAndAssert<MessageRecord[]>({
       id: createUnifiedId('mcp'),
@@ -124,17 +101,7 @@ async function runTest() {
       params: { sessionId },
       timestamp: new Date().toISOString(),
     });
-    console.assert(history.length === 1, '❌ FAILED: History should contain 1 message.');
-    console.assert(
-      history[0].message === 'Hello Agent 2, this is a test message.',
-      '❌ FAILED: Message content mismatch.',
-    );
-
-    console.log('\n\n🎉 All A2A communication tests passed successfully!');
-  } catch (error) {
-    console.error('\n\n🔥 A test failed, stopping execution.', (error as Error).message);
-    process.exit(1);
-  }
-}
-
-runTest();
+    expect(history.length).toBe(1);
+    expect(history[0].message).toBe('Hello Agent 2, this is a test message.');
+  }, 30000);
+});

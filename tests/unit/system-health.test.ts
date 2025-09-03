@@ -1,61 +1,33 @@
-// Run with: node -r ts-node/register tests/unit/system-health.test.ts
 /**
- * Test System Health
- * Comprehensive test of all backbone systems
+ * Jest Conversion: System Health Validation
+ * Ensures backbone services expose expected health structures without using process.exit.
  */
-
 import { unifiedBackbone } from '../../coreagent/utils/UnifiedBackboneService';
 
-async function testSystemHealth() {
-  console.log('🔄 Testing System Health...');
-
-  try {
-    // Test overall system health
+describe('system-health (canonical)', () => {
+  it('exposes unified backbone health & component services', () => {
     const systemHealth = unifiedBackbone.getSystemHealth();
-    console.log('✅ System Health:', JSON.stringify(systemHealth, null, 2));
+    expect(systemHealth).toBeTruthy();
+    expect(typeof systemHealth.status).toBe('string');
 
-    // Test individual components
-    console.log('\n🔄 Testing Individual Components...');
+    const services = unifiedBackbone.getServices();
+    // Time service
+    const currentTime = services.timeService.now();
+    expect(currentTime).toHaveProperty('iso');
+    expect(currentTime).toHaveProperty('context');
 
-    // Test time service
-    const timeService = unifiedBackbone.getServices().timeService;
-    const currentTime = timeService.now();
-    console.log('✅ Time Service:', {
-      timestamp: currentTime.iso,
-      context: currentTime.context,
-      energyLevel: currentTime.contextual.energyLevel,
-    });
+    // Metadata service create()
+    const testMetadata = services.metadataService.create('test', 'system-test');
+    expect(testMetadata).toHaveProperty('id');
+    expect(testMetadata).toHaveProperty('type', 'test');
+    expect(testMetadata).toHaveProperty('quality');
 
-    // Test metadata service
-    const metadataService = unifiedBackbone.getServices().metadataService;
-    const testMetadata = metadataService.create('test', 'system-test');
-    console.log('✅ Metadata Service:', {
-      id: testMetadata.id,
-      type: testMetadata.type,
-      quality: testMetadata.quality.score,
-    });
-
-    // Test cache system
+    // Cache health
     const cacheHealth = unifiedBackbone.cache.getHealth();
-    console.log('✅ Cache System:', cacheHealth);
+    expect(cacheHealth).toHaveProperty('status');
 
-    // Test error system
+    // Error handler health
     const errorHealth = unifiedBackbone.errorHandler.getHealth();
-    console.log('✅ Error System:', errorHealth);
-
-    console.log('\n🎉 All systems operational!');
-  } catch (error) {
-    console.error('❌ System Test Error:', error);
-  }
-}
-
-// Run the test
-testSystemHealth()
-  .then(() => {
-    console.log('\n✅ System health test completed successfully');
-    process.exit(0);
-  })
-  .catch((error) => {
-    console.error('❌ Test failed:', error);
-    process.exit(1);
+    expect(errorHealth).toHaveProperty('handledErrors');
   });
+});

@@ -216,6 +216,66 @@ Canonical architecture enforced: zero parallel performance systems permitted.
 
 ---
 
+## Validation & Test Coverage
+
+The canonical performance pipeline is now exercised by automated Jest tests to prevent silent regressions and re‑introduction of parallel stores:
+
+| Test File                                                      | Purpose                                                                                            | Key Assertions                                                                                        |
+| -------------------------------------------------------------- | -------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------- |
+| `tests/monitoring/operation-metrics-summary.test.ts`           | Verifies aggregation path from `trackOperation` → `PerformanceMonitor.summarizeOperationMetrics()` | Component presence, per‑operation totals, success/error counts, non‑zero errorRate for mixed outcomes |
+| (Planned) `tests/monitoring/performance-global-report.test.ts` | Global report integrity & recommendation thresholds                                                | p95 / p99 calculations, recommendation triggers                                                       |
+| (Planned) `tests/monitoring/prometheus-exposition.test.ts`     | Prometheus render derivational purity                                                              | No mutation during exposition, gauges align with detailed metrics                                     |
+
+Test Design Principles:
+
+1. No direct time measurement side-channels (all durations injected via `durationMs`).
+2. No usage of `Date.now()` in tests for latency logic — synthetic durations provided explicitly.
+3. No process termination (`process.exit`) inside tests (guarded in `jest.setup.ts`).
+4. Assertions focus on structural correctness and invariants, not absolute latency values.
+5. Failure messages must point to a specific stage (ingestion, aggregation, exposition) for rapid triage.
+
+Gap Analysis (Open Backlog):
+
+- Prometheus exposition fixture snapshot tests (ensure metric naming stability).
+- Error code cardinality guard test (inject many distinct codes, verify sanitization & bounded label set).
+- Stress test injecting > max sample size to confirm rolling eviction behavior does not skew percentiles catastrophically (statistical drift < acceptable threshold to be defined).
+
+## Recent Changes (v4.0.8+ Test Harness Hardening)
+
+| Change                                                                                                | Rationale                                                                        | Impact                                                  |
+| ----------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------- | ------------------------------------------------------- |
+| Removed legacy script-style tests using `process.exit`                                                | Jest could not attribute failures; caused post-run logging noise                 | Deterministic CI, clearer failure surfaces              |
+| Added exit & late-log guards in `coreagent/tests/jest.setup.ts`                                       | Prevent premature termination & noisy "Cannot log after tests are done" warnings | Higher signal-to-noise in monitoring test output        |
+| Introduced canonical operation metrics summary test                                                   | Ensures aggregation correctness after duration ingestion refactor                | Early detection of regression in ingestion path         |
+| Eliminated deprecated `execute_latency` operation metric (duration now via `durationMs` on `execute`) | Single ingestion path, avoids metric drift                                       | Simplified Prometheus surface; smaller metric footprint |
+
+Planned Hardening Enhancements:
+
+1. Add snapshot test ensuring stable ordering & formatting for Prometheus exposition (non-semantic whitespace ignored).
+2. Add fuzz test injecting randomized `durationMs` distributions to validate percentile stability (monotonic increase with added high-tail samples).
+3. Introduce mutation test: intentionally skip a call to `recordDurationFromEvent` to verify test detects missing latency ingestion.
+
+## Operational Quality Gates
+
+Before merging any change affecting performance metrics:
+
+1. Run `npm run verify` (type + lint) — must pass.
+2. Run monitoring Jest subset (tagged / filename pattern) — must pass all aggregation invariants.
+3. If Prometheus layer modified, manually curl `/api/v1/metrics/prometheus` locally and confirm no duplicate lines / unexpected empty gauges.
+4. Confirm `PerformanceMonitor` public API surface unchanged unless version bump documented.
+5. Update this document for any new semantic metric category (keep derivational principle explicit).
+
+## Anti-Regression Watch List
+
+| Risk                                                    | Detection Strategy                                                         | Mitigation                                        |
+| ------------------------------------------------------- | -------------------------------------------------------------------------- | ------------------------------------------------- |
+| Silent reintroduction of parallel latency store         | Lint / code search for `new PerformanceMonitor()` outside canonical module | Review PR; enforce factory / singleton pattern    |
+| Overgrowth of errorCode label cardinality               | Exposition test counting distinct `errorCode` in window                    | Add mapping / collapse to generic codes           |
+| Blocking percentile computation under high sample churn | Performance test with synthetic high-frequency ingestion                   | Introduce reservoir sampling or adaptive thinning |
+| Exposition latency spike (sequential metric fetching)   | Timing test around metrics render path                                     | Maintain `Promise.all` parallel retrieval         |
+
+---
+
 ## Task Delegation & Proactive Orchestration Metrics (Epic 7)
 
 The proactive anomaly → triage → deep analysis → task delegation pipeline introduces a bounded set of new `operation` names under the `TaskDelegation` component. These reuse `unifiedMonitoringService.trackOperation` and DO NOT add new metric stores.
