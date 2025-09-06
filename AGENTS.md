@@ -42,6 +42,10 @@ CI quality gates (must pass): typecheck, lint, smoke, perf baseline (<10% regres
 ## VS Code & Copilot Coding Agent
 
 - This `AGENTS.md` is intentionally at repo root to be auto-discovered by Copilot coding agent.
+- See [docs/IDE_SETUP.md](./docs/IDE_SETUP.md) for Copilot Chat wiring, recommended extensions, and DX tips.
+- Copilot Chat expects command-based MCP (see `.vscode/mcp.json`). The HTTP endpoint is for tooling/debug only.
+- Create a BMAD story from VS Code: Run the "Create Story (BMAD template)" task and enter a title.
+- Or via npm: `npm run story:new -- "Your Story Title"`
 - Keep issues well-scoped with explicit acceptance criteria and targeted file paths.
 - Use repository-wide instructions here; add optional path-scoped rules in `.github/instructions/**/*.instructions.md` (e.g., tests, Playwright, React) that reference this file.
 - MCP: Use the unified server (`npm run server:unified`); only approved tools per OneAgent docs. Avoid inventing tools.

@@ -35,12 +35,27 @@ OneAgent is a **professional-grade, memory-driven multiagent AI platform** featu
 ### Quick Start (Local MCP + Memory)
 
 1. Copy `.env.example` to `.env` and optionally set:
-   - `GEMINI_API_KEY` (required for real memory operations)
-   - `MEM0_API_KEY` (enables authenticated memory stats/read and is required for writes)
+
+- `GEMINI_API_KEY` (required for real memory operations)
+- `MEM0_API_KEY` (enables authenticated memory stats/read and is required for writes)
+
 2. Start both servers with readiness checks:
-   - Windows PowerShell: `./scripts/start-oneagent-system.ps1`
+
+- Windows PowerShell: `./scripts/start-oneagent-system.ps1`
+
 3. Validate runtime (type-check, lint, smoke including SSE and memory health):
-   - `npm run verify:runtime`
+
+- `npm run verify:runtime`
+
+#### VS Code + Copilot Integration
+
+- See [docs/IDE_SETUP.md](./docs/IDE_SETUP.md) for wiring Copilot Chat to the unified MCP server and recommended extensions.
+- Copilot Chat expects command-based MCP (see `.vscode/mcp.json`). The HTTP endpoint (`http://localhost:8083/mcp`) is for tooling/debug only.
+
+#### Create a BMAD Story (DX improvement)
+
+- From VS Code: Run the "Create Story (BMAD template)" task and enter a title.
+- Or via npm: `npm run story:new -- "Your Story Title"`
 
 Default endpoints:
 
