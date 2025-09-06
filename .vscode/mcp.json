@@ -1,3 +1,11 @@
 {
-  "servers": {}
+  "servers": {
+    "oneagent": {
+      "command": "node",
+      "args": ["-r", "ts-node/register", "coreagent/server/unified-mcp-server.ts"],
+      "env": {
+        "ONEAGENT_MCP_QUIET": "1"
+      }
+    }
+  }
 }

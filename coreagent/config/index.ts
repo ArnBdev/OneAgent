@@ -127,11 +127,21 @@ export const oneAgentConfig: ServerConfig = {
 
   // Memory Server Configuration
   memoryPort: parseInt(process.env.ONEAGENT_MEMORY_PORT || '8001', 10),
-  memoryUrl: process.env.ONEAGENT_MEMORY_URL || 'http://127.0.0.1:8001',
+  memoryUrl:
+    process.env.ONEAGENT_MEMORY_URL ||
+    `http://${process.env.ONEAGENT_HOST || '127.0.0.1'}:${parseInt(
+      process.env.ONEAGENT_MEMORY_PORT || '8001',
+      10,
+    )}`,
 
   // MCP Server Configuration
   mcpPort: parseInt(process.env.ONEAGENT_MCP_PORT || '8083', 10),
-  mcpUrl: process.env.ONEAGENT_MCP_URL || 'http://127.0.0.1:8083',
+  mcpUrl:
+    process.env.ONEAGENT_MCP_URL ||
+    `http://${process.env.ONEAGENT_HOST || '127.0.0.1'}:${parseInt(
+      process.env.ONEAGENT_MCP_PORT || '8083',
+      10,
+    )}`,
 
   // Constitutional AI Configuration
   constitutional: {
@@ -208,7 +218,12 @@ export const oneAgentConfig: ServerConfig = {
 
   // UI Server Configuration
   uiPort: parseInt(process.env.ONEAGENT_UI_PORT || '8080', 10),
-  uiUrl: process.env.ONEAGENT_UI_URL || 'http://127.0.0.1:8080',
+  uiUrl:
+    process.env.ONEAGENT_UI_URL ||
+    `http://${process.env.ONEAGENT_HOST || '127.0.0.1'}:${parseInt(
+      process.env.ONEAGENT_UI_PORT || '8080',
+      10,
+    )}`,
   // API Keys
   geminiApiKey: process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY || '',
   braveApiKey: process.env.BRAVE_API_KEY || '',

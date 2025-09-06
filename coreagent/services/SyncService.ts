@@ -174,8 +174,8 @@ export class SyncService {
       );
 
       for (const p of pending) {
+        const { ruleId, ruleText } = p;
         try {
-          const { ruleId, ruleText } = p;
           // Retrieve embedding from cache or compute (if batch failed for this one)
           const vector =
             batchMap.get(ruleText) ||
@@ -221,7 +221,14 @@ export class SyncService {
           await this.memory.addMemoryCanonical(ruleText, metadata, 'system');
           this.existingRuleIds.add(ruleId);
         } catch (e) {
-          unifiedLogger.error('[SyncService] Failed to upsert rule', e);
+          // Add rich context to help diagnose faulty rule entries without leaking sensitive data
+          const snippet = (p.ruleText || '').slice(0, 120).replace(/\s+/g, ' ');
+          unifiedLogger.error('[SyncService] Failed to upsert rule', {
+            id: p.ruleId,
+            file,
+            snippet,
+            error: e instanceof Error ? { message: e.message, name: e.name } : String(e),
+          });
         }
       }
     }

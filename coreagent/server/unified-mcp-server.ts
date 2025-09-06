@@ -3,6 +3,8 @@ import dotenv from 'dotenv';
 // Verification heuristic markers: standard MCP ports 8083 (professional), 8080 (legacy)
 import path from 'path';
 dotenv.config({ path: path.join(process.cwd(), '.env') });
+// Quiet mode: suppress non-JSON stdout logs when integrating with external clients that expect stdio JSON-RPC
+const QUIET_MODE = process.env.ONEAGENT_MCP_QUIET === '1';
 
 /**
  * OneAgent Unified MCP HTTP Server
@@ -203,7 +205,7 @@ const MCP_PROTOCOL_VERSION = '2025-06-18';
 // Initialize audit logger
 const auditLogger = new SimpleAuditLogger({
   logDirectory: 'logs/mcp-server',
-  enableConsoleOutput: process.env.NODE_ENV === 'development',
+  enableConsoleOutput: !QUIET_MODE && process.env.NODE_ENV === 'development',
 });
 
 // Store server state
@@ -386,7 +388,9 @@ function handleInitialize(mcpRequest: MCPRequest): MCPResponse {
   clientInfo = params.clientInfo || null;
   serverInitialized = true;
 
-  console.log(`🤝 MCP Client connected: ${clientInfo.name} v${clientInfo.version}`);
+  if (!QUIET_MODE) {
+    console.log(`🤝 MCP Client connected: ${clientInfo.name} v${clientInfo.version}`);
+  }
 
   const capabilities: MCPServerCapabilities = {
     logging: {},
@@ -847,7 +851,9 @@ app.post('/mcp', async (req: Request, res: Response) => {
       return;
     }
 
-    console.log(`📥 MCP Request: ${mcpRequest.method} (ID: ${mcpRequest.id})`);
+    if (!QUIET_MODE) {
+      console.log(`📥 MCP Request: ${mcpRequest.method} (ID: ${mcpRequest.id})`);
+    }
 
     const response = await handleMCPRequest(mcpRequest);
     // Add protocol version header
@@ -905,10 +911,10 @@ app.get('/mcp', (req: Request, res: Response) => {
     clearInterval(heartbeatInterval);
     const idx = sseClients.indexOf(res);
     if (idx !== -1) sseClients.splice(idx, 1);
-    console.log('Client disconnected from SSE stream');
+    if (!QUIET_MODE) console.log('Client disconnected from SSE stream');
   });
 
-  console.log('🔗 SSE stream opened for client');
+  if (!QUIET_MODE) console.log('🔗 SSE stream opened for client');
   // In a real implementation, you would push events here
   // For now, this just establishes the connection.
 });
@@ -1069,46 +1075,67 @@ async function startServer(): Promise<void> {
 
     const server = app.listen(port, () => {
       // Canonical startup banner
-      console.log('==============================================');
-      console.log(`${SERVER_NAME} v${SERVER_VERSION}`);
-      console.log(`Protocol: HTTP MCP ${MCP_PROTOCOL_VERSION}`);
-      console.log('==============================================');
-      console.log('🌟 OneAgent Unified MCP Server Started Successfully!');
-      console.log('');
-      console.log('📡 Server Information:');
-      const base = environmentConfig.endpoints.mcp.url.replace(/\/mcp$/, '');
-      console.log(`   • HTTP MCP Endpoint: ${base}/mcp`);
-      console.log(`   • Health Check: ${base}/health`);
-      console.log(`   • Server Info: ${base}/info`);
-      console.log('');
-      console.log('🎯 Features:');
-      console.log('   • Constitutional AI Validation ✅');
-      console.log('   • BMAD Framework Analysis ✅');
-      console.log('   • Unified Tool Management ✅');
-      console.log('   • Multi-Agent Communication ✅');
-      console.log('   • Quality-First Development ✅');
-      console.log('');
-      console.log('🔗 VS Code Integration:');
-      console.log('   Add to .vscode/mcp.json for Copilot Chat');
-      console.log('');
-      console.log('🎪 Ready for VS Code Copilot Chat! 🎪');
+      if (!QUIET_MODE) {
+        console.log('==============================================');
+        console.log(`${SERVER_NAME} v${SERVER_VERSION}`);
+        console.log(`Protocol: HTTP MCP ${MCP_PROTOCOL_VERSION}`);
+        console.log('==============================================');
+        console.log('🌟 OneAgent Unified MCP Server Started Successfully!');
+        console.log('');
+        console.log('📡 Server Information:');
+        const base = environmentConfig.endpoints.mcp.url.replace(/\/mcp$/, '');
+        console.log(`   • HTTP MCP Endpoint: ${base}/mcp`);
+        console.log(`   • Health Check: ${base}/health`);
+        console.log(`   • Server Info: ${base}/info`);
+        console.log('');
+        console.log('🎯 Features:');
+        console.log('   • Constitutional AI Validation ✅');
+        console.log('   • BMAD Framework Analysis ✅');
+        console.log('   • Unified Tool Management ✅');
+        console.log('   • Multi-Agent Communication ✅');
+        console.log('   • Quality-First Development ✅');
+        console.log('');
+        console.log('🔗 VS Code Integration:');
+        console.log('   Add to .vscode/mcp.json for Copilot Chat');
+        console.log('');
+        console.log('🎪 Ready for VS Code Copilot Chat! 🎪');
+      }
+    });
+
+    // Proactive, friendly error handling for common startup issues
+    server.on('error', (err: unknown) => {
+      const anyErr = err as { code?: string; message?: string };
+      if (anyErr && anyErr.code === 'EADDRINUSE') {
+        const base = environmentConfig.endpoints.mcp.url.replace(/\/mcp$/, '');
+        console.error(
+          `\n💥 Port in use: Another process is already listening on ${base}.` +
+            '\nTips:' +
+            '\n • If VS Code Copilot auto-started OneAgent, close the previous window or stop the background process.' +
+            '\n • Or free the port (8083 by default) and retry.' +
+            '\n • Alternatively, change the MCP port via configuration/environment and keep docs/tasks in sync.' +
+            `\nDetails: ${anyErr.message || 'EADDRINUSE'}`,
+        );
+      } else {
+        console.error('\n💥 Server error during startup:', anyErr?.message || err);
+      }
+      process.exit(1);
     });
 
     // Graceful shutdown
     process.on('SIGINT', () => {
-      console.log('\n🛑 Shutting down OneAgent Unified MCP Server...');
+      if (!QUIET_MODE) console.log('\n🛑 Shutting down OneAgent Unified MCP Server...');
       server.close(async () => {
         await oneAgent.shutdown();
-        console.log('✅ Server shutdown complete');
+        if (!QUIET_MODE) console.log('✅ Server shutdown complete');
         process.exit(0);
       });
     });
 
     process.on('SIGTERM', () => {
-      console.log('\n🛑 Shutting down OneAgent Unified MCP Server...');
+      if (!QUIET_MODE) console.log('\n🛑 Shutting down OneAgent Unified MCP Server...');
       server.close(async () => {
         await oneAgent.shutdown();
-        console.log('✅ Server shutdown complete');
+        if (!QUIET_MODE) console.log('✅ Server shutdown complete');
         process.exit(0);
       });
     });

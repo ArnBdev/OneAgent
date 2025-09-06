@@ -22,6 +22,15 @@ This guide wires VS Code, Copilot Chat, and the OneAgent Unified MCP Server for 
   - `node -r ts-node/register coreagent/server/unified-mcp-server.ts`
 - Note: Copilot Chat expects command-based MCP in VS Code. The HTTP endpoint printed by runtime smoke
   (`http://localhost:8083/mcp`) is for tooling/debug and is not used directly by Copilot.
+- We enable quiet mode when launched from VS Code to avoid JSON parse warnings in Copilot:
+  - Env: `ONEAGENT_MCP_QUIET=1` (set in `.vscode/mcp.json`)
+- Ports are no longer hardcoded. Configure via env and the URLs auto-derive from the host/ports:
+  - `ONEAGENT_HOST` (default `127.0.0.1`)
+  - `ONEAGENT_MCP_PORT` (default `8083`)
+  - `ONEAGENT_MEMORY_PORT` (default `8001`)
+  - `ONEAGENT_UI_PORT` (default `8080`)
+  - Optional explicit URLs still respected: `ONEAGENT_MCP_URL`, `ONEAGENT_MEMORY_URL`, `ONEAGENT_UI_URL`
+- Tip: If you see EADDRINUSE, either stop the previous server, change ports, or open a new VS Code window.
 
 ## Quality gates
 

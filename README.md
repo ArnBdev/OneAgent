@@ -51,6 +51,8 @@ OneAgent is a **professional-grade, memory-driven multiagent AI platform** featu
 
 - See [docs/IDE_SETUP.md](./docs/IDE_SETUP.md) for wiring Copilot Chat to the unified MCP server and recommended extensions.
 - Copilot Chat expects command-based MCP (see `.vscode/mcp.json`). The HTTP endpoint (`http://localhost:8083/mcp`) is for tooling/debug only.
+- We set `ONEAGENT_MCP_QUIET=1` when launched from VS Code to suppress stdout banners so Copilot doesn’t try to parse them as JSON.
+- Ports/URLs are env-driven. Set `ONEAGENT_HOST` and the `ONEAGENT_*_PORT` values (or explicit `*_URL`s) to avoid conflicts.
 
 #### Create a BMAD Story (DX improvement)
 
