@@ -135,6 +135,9 @@ export default [
       '@typescript-eslint/no-explicit-any': 'off',
       // Tests often contain illustrative variables and scaffolding; disable unused-var noise there
       '@typescript-eslint/no-unused-vars': 'off',
+      // Prevent tests from calling process.exit() which can kill CI runners
+      // Warn on process.exit usage in tests; prevent CI hard failures until tests are updated
+      'no-process-exit': 'warn',
     },
   },
 ];

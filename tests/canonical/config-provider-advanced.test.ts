@@ -71,10 +71,10 @@ async function run() {
 
   console.log('[config-provider-advanced.test] PASS', { hashOrder1, hashOrder2, hashAfterClear });
   if (process.env.ONEAGENT_FAST_TEST_MODE === '1' && process.env.ONEAGENT_TEST_BATCH_MODE !== '1')
-    process.exit(0);
+    return;
 }
 
 run().catch((err) => {
   console.error('[config-provider-advanced.test] FAIL', err);
-  process.exit(1);
+  throw err;
 });

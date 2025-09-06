@@ -28,6 +28,7 @@ import type { UserRating } from '../../types/oneagent-backbone-types';
  * @status Production Ready
  */
 export class HybridAgentOrchestrator {
+  private static instance: HybridAgentOrchestrator | null = null;
   private comm = unifiedAgentCommunicationService;
   private memory = OneAgentMemory.getInstance();
   private orchestratorId: string;
@@ -35,6 +36,17 @@ export class HybridAgentOrchestrator {
   constructor() {
     this.orchestratorId = createUnifiedId('agent', 'orchestrator');
     this.logOperation('initialized', { timestamp: createUnifiedTimestamp() });
+  }
+
+  /**
+   * Canonical accessor for a shared orchestrator instance.
+   * Use this in server paths (metrics/UI) to avoid spawning parallel orchestrators.
+   */
+  static getInstance(): HybridAgentOrchestrator {
+    if (!HybridAgentOrchestrator.instance) {
+      HybridAgentOrchestrator.instance = new HybridAgentOrchestrator();
+    }
+    return HybridAgentOrchestrator.instance;
   }
 
   /**
@@ -529,10 +541,31 @@ export class HybridAgentOrchestrator {
         })
         .filter(Boolean);
 
+      // Compute basic agent utilization (count of appearances in assignment/completion ops)
+      const agentUtilization: Record<string, number> = {};
+      for (const op of list as OperationRecord[]) {
+        const md = op.metadata as Record<string, unknown> | undefined;
+        // Prefer structured metadata: metadata.custom.agentId
+        const custom = (md?.custom as Record<string, unknown>) || undefined;
+        const agentId =
+          typeof custom?.agentId === 'string' ? (custom.agentId as string) : undefined;
+        if (agentId) {
+          agentUtilization[agentId] = (agentUtilization[agentId] || 0) + 1;
+          continue;
+        }
+        // Fallback: parse from content line "Task assigned to <AgentName>:"
+        if (typeof op.content === 'string' && op.content.startsWith('Task assigned to ')) {
+          // This counts under agent name when id is not present
+          const namePart = op.content.replace('Task assigned to ', '');
+          const name = namePart.split(':')[0].trim();
+          if (name) agentUtilization[name] = (agentUtilization[name] || 0) + 1;
+        }
+      }
+
       return {
         totalOperations,
         successRate: Math.round(successRate * 100) / 100,
-        agentUtilization: {}, // TODO: Implement agent usage tracking
+        agentUtilization,
         recentActivity,
       };
     } catch (error) {

@@ -4,6 +4,8 @@ applyTo: 'tests/**/*.ts'
 
 # Testing Instructions for OneAgent
 
+> Canonicalization: This file complements, but does not override, the root-level `AGENTS.md`. If guidance conflicts, `AGENTS.md` is authoritative. Avoid duplicating rules; reference canonical systems and patterns.
+
 ## Canonical System Testing
 
 ### Required Test Patterns

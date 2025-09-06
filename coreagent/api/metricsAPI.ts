@@ -6,6 +6,7 @@ import { Router, Request, Response } from 'express';
 import { createUnifiedTimestamp, getUnifiedErrorHandler } from '../utils/UnifiedBackboneService';
 import { metricsService } from '../services/MetricsService';
 import { unifiedMonitoringService } from '../monitoring/UnifiedMonitoringService';
+import { HybridAgentOrchestrator } from '../agents/orchestration/HybridAgentOrchestrator';
 import { getErrorCodeLabel } from '../monitoring/errorTaxonomy';
 import { COMM_OPERATION } from '../types/communication-constants';
 import { sloService } from '../monitoring/SLOService';
@@ -180,6 +181,34 @@ export function createMetricsRouter(): Router {
         }
       } catch {
         // ignore SLO load errors in metrics path
+      }
+
+      // Orchestrator metrics (lightweight gauges/counters)
+      try {
+        const orch = await HybridAgentOrchestrator.getInstance().getOrchestrationMetrics();
+        lines.push(
+          '# HELP oneagent_orchestrator_operations_total Total orchestrator operations observed',
+        );
+        lines.push('# TYPE oneagent_orchestrator_operations_total counter');
+        lines.push(`oneagent_orchestrator_operations_total ${orch.totalOperations}`);
+        lines.push(
+          '# HELP oneagent_orchestrator_success_rate_percent Orchestrator success rate percent',
+        );
+        lines.push('# TYPE oneagent_orchestrator_success_rate_percent gauge');
+        lines.push(`oneagent_orchestrator_success_rate_percent ${orch.successRate}`);
+        if (orch.agentUtilization) {
+          lines.push(
+            '# HELP oneagent_orchestrator_agent_utilization_total Count of orchestrator interactions per agent',
+          );
+          lines.push('# TYPE oneagent_orchestrator_agent_utilization_total counter');
+          for (const [agent, countVal] of Object.entries(orch.agentUtilization)) {
+            lines.push(
+              `oneagent_orchestrator_agent_utilization_total{agent="${esc(agent)}"} ${countVal}`,
+            );
+          }
+        }
+      } catch {
+        // omit orchestrator metrics on failure
       }
 
       // Histogram exposition (bucket counts per operation) from canonical PerformanceMonitor
@@ -477,6 +506,19 @@ export function createMetricsRouter(): Router {
         }
       }
 
+      // Orchestrator metrics (canonical, programmatic source). Avoid parallel instances: use singleton.
+      let orchestratorMetrics: {
+        totalOperations: number;
+        successRate: number;
+        agentUtilization: Record<string, number>;
+        recentActivity: string[];
+      } | null = null;
+      try {
+        orchestratorMetrics = await HybridAgentOrchestrator.getInstance().getOrchestrationMetrics();
+      } catch {
+        orchestratorMetrics = null;
+      }
+
       res.json({
         success: true,
         timestamp: ts.utc,
@@ -486,6 +528,7 @@ export function createMetricsRouter(): Router {
           slos: sloCfg || null,
           errors,
           errorBudgets,
+          orchestrator: orchestratorMetrics,
         },
       });
     } catch (error) {

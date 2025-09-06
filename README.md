@@ -1,5 +1,7 @@
 # OneAgent v4.0.8 - Memory-Driven Intelligence Platform
 
+Note for contributors and Copilot users: See the canonical repository agent instructions in [AGENTS.md](./AGENTS.md).
+
 ## 🚀 **Revolutionary AI Platform Overview**
 
 OneAgent is a **professional-grade, memory-driven multiagent AI platform** featuring Constitutional AI, emergent intelligence synthesis, and autonomous learning capabilities. It operates as both a standalone intelligence system and an MCP server for VS Code Copilot, representing the **world's first Constitutional AI-validated, memory-driven intelligence platform**.
@@ -175,7 +177,7 @@ Includes a bounded task delegation queue with:
 
 ## 🔮 **Roadmap (Canonical)**
 
-The previous fragmented roadmap files have been superseded by a single canonical roadmap: **[docs/roadmap.md](./docs/roadmap.md)** (aligned with v4.0.8). It defines release train (v4.1–v6.0), thematic backlogs (Observability, NLACS, Planner, UI, Extensibility, Scale, Governance), KPIs, risks, and an Immediate Action Queue.
+The previous fragmented roadmap files have been superseded by a single canonical roadmap: **[docs/ROADMAP.md](./docs/ROADMAP.md)** (aligned with v4.0.8). It defines release train (v4.1–v6.0), thematic backlogs (Observability, NLACS, Planner, UI, Extensibility, Scale, Governance), KPIs, risks, and an Immediate Action Queue.
 
 Key near-term (v4.1–v4.2):
 
@@ -192,11 +194,15 @@ Longer horizon: Plugin SDK, clustering, anomaly detection, governance + policy e
 
 ### **Core Documentation**
 
-- **[docs/roadmap.md](./docs/roadmap.md)**: Single strategic roadmap (supersedes legacy roadmap files)
+- **[docs/ROADMAP.md](./docs/ROADMAP.md)**: Single strategic roadmap (supersedes legacy roadmap files)
 - **[ONEAGENT_ARCHITECTURE.md](./ONEAGENT_ARCHITECTURE.md)**: Complete architecture overview
 - **[docs/monitoring/OPERATION_METRICS.md](./docs/monitoring/OPERATION_METRICS.md)**: Canonical event-based operation metrics (trackOperation + summarizeOperationMetrics)
 - **[docs/monitoring/ALERTS.md](./docs/monitoring/ALERTS.md)**: Baseline Prometheus alert pack (v4.1 foundation)
 - Error Taxonomy: `coreagent/monitoring/errorTaxonomy.ts` (stable low-cardinality error codes for metrics & UI)
+
+## ✅ Production checklist
+
+See the lightweight deployment checklist and required secrets in `docs/PRODUCTION_CHECKLIST.md` for minimum production readiness steps.
 
 ### **Phase 4 Specifications**
 
@@ -291,6 +297,12 @@ All agent-to-agent (A2A) coordination uses `UnifiedAgentCommunicationService` (s
 Rate limiting (30 messages / 60s per agent-session) is enforced and covered by `communication-rate-limit.test.ts`.
 
 Monitoring events now include an explicit `operation` field (in addition to the descriptive message) for robust assertion and aggregation, while `trackOperation` remains the canonical entry point (no parallel metrics store).
+
+### Orchestration (Production)
+
+- HybridAgentOrchestrator handles agent discovery/selection, task assignment, workflow sessions, and dependency-aware execution using canonical communication and memory audit trails.
+- ProactiveTriageOrchestrator runs periodic triage + deep analysis, integrates with task delegation, and emits monitoring events; optional memory persistence for proactive insights.
+- See `docs/ORCHESTRATION_OVERVIEW.md` for architecture, maturity, and next steps.
 
 ### Metrics & Error Taxonomy JSON Endpoint
 

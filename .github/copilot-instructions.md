@@ -1,5 +1,7 @@
 # OneAgent Professional Development Instructions
 
+> Canonicalization: This repository uses a single root-level `AGENTS.md` as the primary agent instruction file for GitHub Copilot coding agent and other tools. This file complements, but does not override, `AGENTS.md`. If any guidance conflicts, `AGENTS.md` at the repo root is authoritative. Avoid creating parallel instruction files.
+
 ## Project Overview
 
 OneAgent is a Professional AI Development Platform featuring Constitutional AI, BMAD Framework analysis, and quality-first development principles. This is a complex architectural project requiring systematic consolidation of parallel systems.

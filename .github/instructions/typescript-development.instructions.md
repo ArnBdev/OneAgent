@@ -4,6 +4,8 @@ applyTo: 'coreagent/**/*.ts'
 
 # TypeScript Development Instructions for OneAgent
 
+> Canonicalization: This file complements, but does not override, the root-level `AGENTS.md`. If guidance conflicts, `AGENTS.md` is authoritative. Avoid parallel instructions and always use canonical systems.
+
 ## Canonical System Requirements
 
 ### Mandatory Imports and Usage
