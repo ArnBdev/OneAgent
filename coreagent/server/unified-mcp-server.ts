@@ -856,8 +856,9 @@ app.post('/mcp', async (req: Request, res: Response) => {
     }
 
     const response = await handleMCPRequest(mcpRequest);
-    // Add protocol version header
+    // Add protocol headers for clients
     res.setHeader('X-MCP-Protocol-Version', MCP_PROTOCOL_VERSION);
+    res.setHeader('Cache-Control', 'no-store');
     res.json(response);
   } catch (error) {
     try {
@@ -884,6 +885,7 @@ app.post('/mcp', async (req: Request, res: Response) => {
 });
 
 // Enhance SSE endpoint for MCP notifications
+// SSE fallback endpoint (legacy)
 app.get('/mcp', (req: Request, res: Response) => {
   res.setHeader('Content-Type', 'text/event-stream');
   res.setHeader('Cache-Control', 'no-cache');
@@ -917,6 +919,31 @@ app.get('/mcp', (req: Request, res: Response) => {
   if (!QUIET_MODE) console.log('🔗 SSE stream opened for client');
   // In a real implementation, you would push events here
   // For now, this just establishes the connection.
+});
+
+// Explicit SSE alias path for clients expecting /mcp/sse
+app.get('/mcp/sse', (req: Request, res: Response) => {
+  res.setHeader('Content-Type', 'text/event-stream');
+  res.setHeader('Cache-Control', 'no-cache');
+  res.setHeader('Connection', 'keep-alive');
+  res.flushHeaders();
+
+  sseClients.push(res);
+  sendSseEvent(res, 'mcpNotification', {
+    jsonrpc: '2.0',
+    method: 'notifications/initialized',
+    params: { timestamp: createUnifiedTimestamp().iso },
+  });
+
+  const hb = setInterval(() => res.write(':heartbeat\n\n'), 15000);
+  (hb as unknown as NodeJS.Timer).unref?.();
+  req.on('close', () => {
+    clearInterval(hb);
+    const idx = sseClients.indexOf(res);
+    if (idx !== -1) sseClients.splice(idx, 1);
+    if (!QUIET_MODE) console.log('Client disconnected from SSE stream');
+  });
+  if (!QUIET_MODE) console.log('SSE stream opened for client (/mcp/sse)');
 });
 
 /**

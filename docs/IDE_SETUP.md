@@ -18,19 +18,25 @@ This guide wires VS Code, Copilot Chat, and the OneAgent Unified MCP Server for 
 
 ## Copilot Chat integration
 
-- VS Code reads `.vscode/mcp.json`. It's configured to launch the unified MCP server via local command:
-  - `node -r ts-node/register coreagent/server/unified-mcp-server.ts`
-- Note: Copilot Chat expects command-based MCP in VS Code. The HTTP endpoint printed by runtime smoke
-  (`http://localhost:8083/mcp`) is for tooling/debug and is not used directly by Copilot.
-- We enable quiet mode when launched from VS Code to avoid JSON parse warnings in Copilot:
+- VS Code reads `.vscode/mcp.json`. We recommend stdio transport for local Copilot Chat:
+  - Command: `node -r ts-node/register coreagent/server/unified-mcp-stdio.ts`
+  - Type: `stdio` (set in `.vscode/mcp.json`), with dev watch/debug enabled
+- Alternative: HTTP/Streamable + SSE fallback
+  - URL: `http://127.0.0.1:${ONEAGENT_MCP_PORT}/mcp` (SSE alias: `/mcp/sse`)
+  - Start server separately: `npm run server:unified`
+  - Useful for remote setups or when bundling as a VS Code extension
+- Quiet mode is enabled for command-based runs to avoid JSON parse warnings in Copilot:
   - Env: `ONEAGENT_MCP_QUIET=1` (set in `.vscode/mcp.json`)
-- Ports are no longer hardcoded. Configure via env and the URLs auto-derive from the host/ports:
+- Ports are not hardcoded. Configure via env and the URLs auto-derive from the host/ports:
   - `ONEAGENT_HOST` (default `127.0.0.1`)
   - `ONEAGENT_MCP_PORT` (default `8083`)
   - `ONEAGENT_MEMORY_PORT` (default `8001`)
   - `ONEAGENT_UI_PORT` (default `8080`)
   - Optional explicit URLs still respected: `ONEAGENT_MCP_URL`, `ONEAGENT_MEMORY_URL`, `ONEAGENT_UI_URL`
-- Tip: If you see EADDRINUSE, either stop the previous server, change ports, or open a new VS Code window.
+- Tips:
+  - If you see EADDRINUSE, stop the previous server, change ports, or open a new VS Code window.
+  - After changing tools/prompts/resources, use “MCP: Reset Cached Tools”.
+  - Keep active tools under 128 per request; use tool sets in Agent mode to toggle groups.
 
 ## Quality gates
 
@@ -44,3 +50,10 @@ This guide wires VS Code, Copilot Chat, and the OneAgent Unified MCP Server for 
 - Create a story from the BMAD template:
   - Task: "Create Story (BMAD template)" or
   - NPM: `npm run story:new -- "Your Story Title"`
+
+## Commands
+
+- Stdio MCP server (local Copilot):
+  - `npm run server:stdio`
+- HTTP MCP server (URL mode):
+  - `npm run server:unified`

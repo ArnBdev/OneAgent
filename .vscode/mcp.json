@@ -1,10 +1,15 @@
 {
   "servers": {
     "oneagent": {
+      "type": "stdio",
       "command": "node",
-      "args": ["-r", "ts-node/register", "coreagent/server/unified-mcp-server.ts"],
+      "args": ["-r", "ts-node/register", "coreagent/server/unified-mcp-stdio.ts"],
       "env": {
         "ONEAGENT_MCP_QUIET": "1"
+      },
+      "dev": {
+        "watch": "coreagent/**/*.ts",
+        "debug": { "type": "node" }
       }
     }
   }

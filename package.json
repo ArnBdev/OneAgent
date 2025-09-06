@@ -8,6 +8,7 @@
     "dev": "tsc --watch",
     "start": "node dist/coreagent/main.js",
     "server:unified": "node -r ts-node/register coreagent/server/unified-mcp-server.ts",
+    "server:stdio": "node -r ts-node/register coreagent/server/unified-mcp-stdio.ts",
     "server:unified:dev": "nodemon --exec node -r ts-node/register coreagent/server/unified-mcp-server.ts",
     "memory:server": "python servers/oneagent_memory_server.py",
     "test": "jest",
