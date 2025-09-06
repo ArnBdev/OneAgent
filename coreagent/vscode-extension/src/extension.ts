@@ -15,16 +15,34 @@ export async function activate(context: vscode.ExtensionContext) {
     // Check OneAgent availability
     const isAvailable = await client.healthCheck();
     if (!isAvailable) {
-      vscode.window
-        .showWarningMessage(
-          'OneAgent server not available. Please ensure OneAgent is running (check .env for configuration).',
-          'Open Settings',
-        )
-        .then((selection) => {
-          if (selection === 'Open Settings') {
-            vscode.commands.executeCommand('workbench.action.openSettings', 'oneagent');
+      const choice = await vscode.window.showWarningMessage(
+        'OneAgent server not available. Start local MCP HTTP server now?',
+        'Start Now',
+        'Open Settings',
+        'Dismiss',
+      );
+      if (choice === 'Start Now') {
+        try {
+          // Start via workspace npm script if available
+          const task = await vscode.tasks.fetchTasks();
+          const startTask = task.find((t) => t.name.includes('server:unified'));
+          if (startTask) {
+            vscode.tasks.executeTask(startTask);
+            vscode.window.showInformationMessage('Starting OneAgent MCP HTTP server...');
+          } else {
+            // Fallback: run npm script
+            const term = vscode.window.createTerminal({ name: 'OneAgent MCP Server' });
+            term.sendText('npm run server:unified');
+            term.show();
           }
-        });
+        } catch (e) {
+          vscode.window.showErrorMessage(
+            `Failed to auto-start OneAgent server: ${e instanceof Error ? e.message : String(e)}`,
+          );
+        }
+      } else if (choice === 'Open Settings') {
+        vscode.commands.executeCommand('workbench.action.openSettings', 'oneagent');
+      }
     } else {
       // Show successful connection
       vscode.window

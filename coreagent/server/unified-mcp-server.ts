@@ -859,6 +859,13 @@ app.post('/mcp', async (req: Request, res: Response) => {
     // Add protocol headers for clients
     res.setHeader('X-MCP-Protocol-Version', MCP_PROTOCOL_VERSION);
     res.setHeader('Cache-Control', 'no-store');
+    // Optional: include tool count for clients to monitor size
+    try {
+      const tools = oneAgent.getAvailableTools?.() || [];
+      res.setHeader('X-OneAgent-Tool-Count', String(Array.isArray(tools) ? tools.length : 0));
+    } catch {
+      // ignore header enrichment failures
+    }
     res.json(response);
   } catch (error) {
     try {
@@ -881,6 +888,35 @@ app.post('/mcp', async (req: Request, res: Response) => {
         data: { timestamp: createUnifiedTimestamp().iso },
       },
     });
+  }
+});
+
+// Streamable HTTP endpoint (newline-delimited JSON events). This is a pragmatic
+// compatibility bridge for clients preferring streamed HTTP over SSE.
+app.post('/mcp/stream', async (req: Request, res: Response) => {
+  res.setHeader('Content-Type', 'application/json; charset=utf-8');
+  res.setHeader('Transfer-Encoding', 'chunked');
+  res.setHeader('X-MCP-Protocol-Version', MCP_PROTOCOL_VERSION);
+  res.setHeader('Cache-Control', 'no-store');
+  const start = createUnifiedTimestamp().iso;
+
+  const write = (obj: unknown) => {
+    res.write(JSON.stringify(obj) + '\n');
+  };
+  try {
+    const mcpRequest = req.body as MCPRequest;
+    write({ type: 'meta', event: 'start', timestamp: start, id: mcpRequest?.id });
+    const response = await handleMCPRequest(mcpRequest);
+    write({ type: 'message', data: response });
+    write({ type: 'meta', event: 'end', timestamp: createUnifiedTimestamp().iso });
+  } catch (error) {
+    write({
+      type: 'error',
+      error: error instanceof Error ? { name: error.name, message: error.message } : String(error),
+      timestamp: createUnifiedTimestamp().iso,
+    });
+  } finally {
+    res.end();
   }
 });
 
