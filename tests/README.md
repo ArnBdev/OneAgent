@@ -59,7 +59,7 @@ This directory contains all test files and verification scripts for OneAgent.
 
 ### Production Verification (Current)
 
-```bash
+````bash
 # Run Hello A2A demo (MCP startup + SSE)
 npm run demo:hello
 
@@ -68,7 +68,27 @@ npm run test:a2a
 
 # Build verification
 npm run verify
-```
+
+## Persistence tests with readiness
+
+Some tests persist NLACS metadata to the memory backend. These require the memory server to be running and ready. Use the readiness-gated pattern:
+
+- Start the memory server (python servers/oneagent_memory_server.py) or rely on CI to start it.
+- Gate your assertions with OneAgentMemory.waitForReady(...). The NLACS persistence test already does this and will gracefully skip if readiness isn’t achieved.
+
+Convenience script for the NLACS persistence test:
+
+```bash
+npm run test:a2a-nlacs
+````
+
+Environment used by CI for this test:
+
+- ONEAGENT_MEMORY_PORT=8010
+- MEM0_API_KEY=ci-test-key
+- GEMINI_API_KEY=ci-dummy-key
+
+````
 
 ### Legacy API Tests
 
@@ -84,7 +104,7 @@ npm run test:imports
 
 # Test embeddings specifically
 npm run test:embeddings
-```
+````
 
 ### 🔮 Future Testing Framework (Next Month)
 

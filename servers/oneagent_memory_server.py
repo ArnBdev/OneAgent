@@ -1,77 +1,66 @@
 #!/usr/bin/env python3
 """
-OneAgent Memory Server - Unified Production Implementation
-=========================================================
-
-A high-performance, production-grade memory server for OneAgent v4.0.0 Professional.
-Combines all best practices from previous implementations into a single, reliable solution.
-
-Features:
-- Google Gemini embeddings (768-dimensional)
-- ChromaDB vector storage with persistence
-- RESTful API with full CRUD operations
-- TypeScript-compatible responses
-- Constitutional AI compliance
-- Performance monitoring and health checks
-- Error handling and logging
-- Memory optimization and cleanup
-
-Architecture:
-- FastAPI for async performance
-- Pydantic for type validation
-- ChromaDB for vector operations
-- Environment-based configuration
-- Structured logging and monitoring
-
-Endpoints:
-- GET /health - Health check and statistics
-- POST /v1/memories - Create memory
-- GET /v1/memories - Search/retrieve memories
-- PUT /v1/memories/{id} - Update memory
-- DELETE /v1/memories/{id} - Delete memory
-
-Usage:
-    python oneagent_memory_server.py
-    
-Server runs on http://localhost:8000
+OneAgent Memory Server - Clean, unified implementation
+- Env-first config
+- Canonical embeddings via Node gateway (default), Gemini/local fallback
+- Optional LLM processor (Gemini or OpenAI) with safe guards
+- ChromaDB persistence
+- FastAPI with MCP headers
 """
 
 import os
+import sys
 import json
-import logging
+import ssl
 import asyncio
 import hashlib
+import random
+import time
 from datetime import datetime, timezone
-from typing import Dict, List, Optional, Any, Union
+from typing import Any, Dict, List, Optional, Union, cast
 from uuid import uuid4
-import sys
 
-# FastAPI for production performance
-from fastapi import FastAPI, HTTPException, Query, Path, BackgroundTasks, Request, Header, status, Depends
+from fastapi import FastAPI, HTTPException, Query, Path, BackgroundTasks, Depends, Header, status
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
-from pydantic import BaseModel, Field, validator
+from pydantic import BaseModel, Field
 import uvicorn
 
-# --- MCP 2025-06-18: Require Authorization and MCP-Protocol-Version headers on all memory endpoints ---
-# SECURITY WARNING: For local/dev only. In production, always use HTTPS and never log or expose API keys.
-MCP_PROTOCOL_VERSION = "2025-06-18"
+from urllib import request as urlrequest
+from urllib.error import URLError, HTTPError
 
-# Environment and configuration
+import chromadb
+from chromadb.config import Settings
+
+try:
+    import google.generativeai as genai
+except Exception:  # library optional
+    genai = None  # type: ignore
+
+# Load .env from repo root
 from dotenv import load_dotenv
+# Load env file based on ONEAGENT_ENV (env-first precedence). Defaults to .env for development.
+_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
+_ENV_NAME = os.environ.get('ONEAGENT_ENV', 'development').lower()
+_ENV_FILE = '.env.production' if _ENV_NAME == 'production' else '.env'
+load_dotenv(os.path.join(_ROOT, _ENV_FILE))
 
-# Load .env from root directory (one level up from servers/)
-env_path = os.path.join(os.path.dirname(__file__), '..', '.env')
-load_dotenv(env_path)
-# Unified version reporting (can be overridden via ONEAGENT_VERSION)
-ONEAGENT_VERSION = os.getenv("ONEAGENT_VERSION", "4.0.2")
-MEM0_API_KEY = os.getenv("MEM0_API_KEY")  # <-- moved here, after dotenv
-print(f"Loading environment from: {os.path.abspath(env_path)}")
-print(f"GEMINI_API_KEY loaded: {'Yes' if os.getenv('GEMINI_API_KEY') else 'No'}")
-print(f"ONEAGENT_MEMORY_PORT: {os.getenv('ONEAGENT_MEMORY_PORT', '8001')}")
+MCP_PROTOCOL_VERSION = "2025-06-18"
+ONEAGENT_VERSION = os.getenv("ONEAGENT_VERSION", "4.1.0")
+MEM0_API_KEY = os.getenv("MEM0_API_KEY")
 
-# --- MCP header validation dependency (must be defined before use) ---
-from fastapi import Header, HTTPException, status, Depends
+# Logging
+import logging
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s | %(levelname)s | %(name)s | %(message)s',
+    handlers=[
+        logging.FileHandler('oneagent_memory.log'),
+        logging.StreamHandler(sys.stdout)
+    ]
+)
+logger = logging.getLogger("OneAgent.Memory")
+
+# Header dependency
 
 def require_mcp_headers(
     Authorization: str = Header(None),
@@ -82,110 +71,77 @@ def require_mcp_headers(
     if mcp_protocol_version != MCP_PROTOCOL_VERSION:
         raise HTTPException(status_code=status.HTTP_426_UPGRADE_REQUIRED, detail={"error": f"MCP protocol version mismatch. Required: {MCP_PROTOCOL_VERSION}", "mcp_protocol_version": MCP_PROTOCOL_VERSION, "mcp_error_code": "protocol_version_mismatch"})
 
-# Google Gemini API
-import google.generativeai as genai
-
-# ChromaDB for vector storage
-import chromadb
-from chromadb.config import Settings
-
-# Configure structured logging
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s | %(levelname)s | %(name)s | %(message)s',
-    handlers=[
-        logging.FileHandler('oneagent_memory.log'),
-        logging.StreamHandler(sys.stdout)  # Log to both file and stdout
-    ]
-)
-logger = logging.getLogger("OneAgent.Memory")
-
-# ============================================================================
-# CONFIGURATION & VALIDATION
-# ============================================================================
+# Config
 
 class MemoryConfig:
-    """Centralized configuration with validation"""
-    
     def __init__(self):
-        # API Configuration
+        disable_gemini_flag = (os.getenv('ONEAGENT_DISABLE_GEMINI', '0') or '0').strip().lower()
+        self.gemini_disabled = disable_gemini_flag in {'1','true','yes','y','on'}
         self.gemini_api_key = os.getenv('GEMINI_API_KEY')
-        if not self.gemini_api_key:
-            raise ValueError("GEMINI_API_KEY environment variable is required")
-        
-        # Server Configuration
+        self.openai_api_key = os.getenv('OPENAI_API_KEY')
+
         self.host = os.getenv('MEMORY_HOST', '127.0.0.1')
-        self.port = int(os.getenv('ONEAGENT_MEMORY_PORT', '8001'))
-        
-        # Storage Configuration
+        # Default to 8010 to align with OneAgent docs and prior configuration
+        self.port = int(os.getenv('ONEAGENT_MEMORY_PORT', '8010'))
         self.storage_path = os.getenv('MEMORY_STORAGE_PATH', './oneagent_memory')
         self.collection_name = os.getenv('MEMORY_COLLECTION', 'oneagent_memories')
-        
-        # Performance Configuration
-        self.max_memories_per_user = int(os.getenv('MEMORY_MAX_PER_USER', '10000'))
         self.embedding_dimensions = 768
         self.search_similarity_threshold = float(os.getenv('MEMORY_SIMILARITY_THRESHOLD', '0.7'))
-        
-        logger.info(f"Memory server configured for {self.host}:{self.port}")
-        logger.info(f"Storage: {self.storage_path}/{self.collection_name}")
 
-config = MemoryConfig()
+        self.embeddings_source = (os.getenv('ONEAGENT_EMBEDDINGS_SOURCE', 'node') or 'node').strip().lower()
+        host = os.getenv('ONEAGENT_HOST', '127.0.0.1')
+        mcp_port = int(os.getenv('ONEAGENT_MCP_PORT', '8083'))
+        base_url = os.getenv('ONEAGENT_MCP_URL', f"http://{host}:{mcp_port}")
+        if base_url.endswith('/mcp'):
+            base_url = base_url[:-4]
+        self.embeddings_url = base_url.rstrip('/') + '/api/v1/embeddings'
 
-# ============================================================================
-# DATA MODELS (PYDANTIC FOR VALIDATION)
-# ============================================================================
+        # Cooldown to reduce log spam when gateway is unavailable (seconds)
+        try:
+            self.embeddings_gateway_cooldown_seconds = float(os.getenv('ONEAGENT_EMBEDDINGS_COOLDOWN_SECONDS', '5'))
+        except Exception:
+            self.embeddings_gateway_cooldown_seconds = 5.0
 
-# ============================================================================
-# DATA MODELS (PYDANTIC FOR VALIDATION)
-# ============================================================================
+        # LLM provider
+        self.llm_provider = None
+        if not self.gemini_disabled and self.gemini_api_key:
+            self.llm_provider = 'gemini'
+        elif self.openai_api_key:
+            self.llm_provider = 'openai'
+        # Model names are canonical and not read from env to avoid parallel model selection via env
 
-class UnifiedTimestamp(BaseModel):
-    """Unified timestamp structure matching TypeScript implementation"""
-    iso: str
-    unix: int
-    utc: str
-    local: str
-    timezone: str
-    context: str
-    contextual: Dict[str, Any] = {}
-    metadata: Dict[str, Any] = {}
+        logger.info(f"Embeddings source: {self.embeddings_source} -> {self.embeddings_url}")
+
+a_config = MemoryConfig()
+
+# Models
 
 class UnifiedMetadata(BaseModel):
-    """Canonical OneAgent metadata structure matching TypeScript UnifiedMetadata"""
-    id: str
-    type: str
-    version: str
-    temporal: Dict[str, Any]  # Contains created, updated, accessed timestamps
-    system: Dict[str, Any]    # Contains source, component, sessionId, userId, agent info
-    quality: Dict[str, Any]   # Contains score, constitutionalCompliant, validationLevel, confidence
-    content: Dict[str, Any]   # Contains category, tags, sensitivity, relevanceScore, contextDependency
-    relationships: Dict[str, Any] = {}  # Contains parent, children, related, dependencies
-    analytics: Dict[str, Any] = {}      # Contains accessCount, lastAccessPattern, usageContext
-    
-    class Config:
-        extra = "allow"  # Allow additional fields for flexibility
+    id: Optional[str] = None
+    type: Optional[str] = "memory"
+    version: Optional[str] = "1.0.0"
+    temporal: Optional[Dict[str, Any]] = None
+    system: Optional[Dict[str, Any]] = None
+    quality: Optional[Dict[str, Any]] = None
+    content: Optional[Dict[str, Any]] = None
+    relationships: Optional[Dict[str, Any]] = None
+    analytics: Optional[Dict[str, Any]] = None
 
 class MemoryCreateRequest(BaseModel):
-    """Memory creation request using canonical UnifiedMetadata"""
     content: str = Field(..., min_length=1, max_length=50000)
-    user_id: str = Field(..., min_length=1, max_length=100, alias="userId")
+    user_id: str = Field(..., alias="userId")
     metadata: Optional[UnifiedMetadata] = None
-    
     class Config:
         populate_by_name = True
 
 class MemorySearchRequest(BaseModel):
-    """Memory search request"""
     query: Optional[str] = None
     user_id: str = Field(..., alias="userId")
-    limit: Optional[int] = Field(default=10, ge=1, le=100)
-    metadata_filter: Optional[Dict[str, Any]] = None
-    
+    limit: Optional[int] = Field(default=10, ge=1, le=500)
     class Config:
         populate_by_name = True
 
 class MemoryResponse(BaseModel):
-    """Memory response model"""
     id: str
     content: str
     metadata: Dict[str, Any]
@@ -195,950 +151,492 @@ class MemoryResponse(BaseModel):
     relevanceScore: Optional[float] = None
 
 class MemoryOperationResponse(BaseModel):
-    """Standard operation response"""
     success: bool
     data: Optional[Union[MemoryResponse, List[MemoryResponse], Dict[str, Any]]] = None
     message: Optional[str] = None
     error: Optional[str] = None
     timestamp: str = Field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
 
-# ============================================================================
-# MEMORY MANAGEMENT SYSTEM
-# ============================================================================
-
-class OneAgentMemorySystem:
-    """Production-grade memory system with best practices"""
-    
-    def __init__(self):
-        # Initialize Gemini with latest models
-        genai.configure(api_key=config.gemini_api_key)
-        # Use a supported Gemini embedding model for embeddings (see https://ai.google.dev/gemini-api/docs/embeddings)
-        self.embedding_model = "gemini-embedding-001"  # Latest stable embedding model
-        self.llm_model = "gemini-2.5-flash"  # LLM for text/fact extraction (recommended)
-        # Initialize LLM processor for intelligent memory management
-        self.llm_processor = LLMMemoryProcessor(config.gemini_api_key, self.llm_model)
-        # Initialize ChromaDB with production settings
-        self.client = chromadb.PersistentClient(
-            path=config.storage_path,
-            settings=Settings(
-                anonymized_telemetry=False,
-                allow_reset=False,
-                is_persistent=True
-            )
-        )
-        # Get or create collection with metadata
-        self.collection = self.client.get_or_create_collection(
-            name=config.collection_name,
-            metadata={
-                "description": "OneAgent v4.0.0 Professional Memory System",
-                "embedding_model": self.embedding_model,
-                "dimensions": config.embedding_dimensions,
-                "created_at": datetime.now(timezone.utc).isoformat()
-            }
-        )
-        logger.info(f"Memory system initialized: {self.collection.count()} memories loaded")
-    
-    async def generate_embedding(self, text: str, action: str = "add") -> List[float]:
-        """Generate embedding with error handling and action-specific task types"""
-        try:
-            # Use different task types based on action (like mem0)
-            task_type_map = {
-                "add": "retrieval_document",
-                "search": "retrieval_query", 
-                "update": "retrieval_document"
-            }
-            task_type = task_type_map.get(action, "retrieval_document")
-            result = genai.embed_content(
-                model=self.embedding_model,
-                content=text,
-                task_type=task_type
-            )
-            embedding = result['embedding']
-            # Gemini may return 3072-dim embedding; select first 768 dims for ChromaDB
-            if len(embedding) > config.embedding_dimensions:
-                embedding = embedding[:config.embedding_dimensions]
-            elif len(embedding) < config.embedding_dimensions:
-                raise ValueError(f"Embedding dimension mismatch: got {len(embedding)}, expected {config.embedding_dimensions}")
-            return embedding
-        except Exception as e:
-            logger.error(f"Embedding generation failed: {e}")
-            # Return zero vector as fallback
-            return [0.0] * config.embedding_dimensions
-    
-    async def create_memory(self, request: MemoryCreateRequest) -> MemoryResponse:
-        """Create new memory with intelligent processing and conflict resolution (mem0 best practice: always store original input)"""
-        try:
-            # SIMPLIFIED: Always store the original content as a memory (mem0 canonical pattern)
-            # Skip LLM processing unless explicitly requested via metadata
-            # Convert metadata to dict if it's a Pydantic model
-            metadata_dict = request.metadata.model_dump() if request.metadata else {}
-            use_llm_processing = metadata_dict.get('use_llm_processing', False)
-            
-            original_memory_id = await self._create_single_memory(
-                request.content,
-                request.user_id,
-                request.metadata,
-                "Original user input (mem0 best practice)"
-            )
-            
-            created_memories = [{
-                "id": original_memory_id,
-                "content": request.content,
-                "action": "ADD_ORIGINAL"
-            }]
-            
-            # Only perform LLM processing if explicitly requested
-            if use_llm_processing:
-                try:
-                    # Extract facts from content using LLM (optional)
-                    facts = await self.llm_processor.extract_facts(request.content)
-                    logger.info(f"Extracted {len(facts)} facts from content")
-                    
-                    # Search for potentially conflicting existing memories
-                    existing_memories = []
-                    for fact in facts:
-                        fact_embedding = await self.generate_embedding(fact, "search")
-                        similar_results = self.collection.query(
-                            query_embeddings=[fact_embedding],
-                            n_results=5,
-                            where={"userId": request.user_id}
-                        )
-                        if similar_results.get('ids') and similar_results['ids'][0]:
-                            for i, memory_id in enumerate(similar_results['ids'][0]):
-                                if similar_results['distances'][0][i] < 0.3:  # High similarity threshold
-                                    existing_memories.append({
-                                        "id": memory_id,
-                                        "content": similar_results['documents'][0][i],
-                                        "similarity": 1.0 - similar_results['distances'][0][i]
-                                    })
-                    
-                    # Resolve conflicts using LLM
-                    memory_actions = await self.llm_processor.resolve_memory_conflicts(facts, existing_memories)
-                    
-                    # Execute memory actions for facts (skip if fact is identical to original)
-                    for action in memory_actions:
-                        if action["action"] == "ADD" and action["text"] == request.content:
-                            continue  # Already stored as original
-                        if action["action"] == "ADD":
-                            memory_id = await self._create_single_memory(
-                                action["text"],
-                                request.user_id,
-                                request.metadata,
-                                action.get("reasoning", "")
-                            )
-                            created_memories.append({
-                                "id": memory_id,
-                                "content": action["text"],
-                                "action": "ADD"
-                            })
-                        elif action["action"] == "UPDATE":
-                            await self._update_single_memory(
-                                action["target_id"],
-                                action["text"],
-                                request.user_id,
-                                action.get("reasoning", "")
-                            )
-                            created_memories.append({
-                                "id": action["target_id"],
-                                "content": action["text"],
-                                "action": "UPDATE"
-                            })
-                        elif action["action"] == "DELETE":
-                            await self.delete_memory(action["target_id"], request.user_id)
-                except Exception as llm_error:
-                    logger.warning(f"LLM processing failed but memory stored: {llm_error}")
-                    # Continue without LLM processing
-                    created_memories.append({
-                        "id": action["target_id"],
-                        "content": "DELETED",
-                        "action": "DELETE"
-                    })
-            now = datetime.now(timezone.utc).isoformat()
-            return MemoryResponse(
-                id=original_memory_id,
-                content=request.content,
-                metadata={
-                    "userId": request.user_id,
-                    "createdAt": now,
-                    "updatedAt": now,
-                    "processedActions": len(created_memories),
-                    "allActions": created_memories
-                },
-                userId=request.user_id,
-                createdAt=now,
-                updatedAt=now
-            )
-        except Exception as e:
-            logger.error(f"Memory creation failed: {e}")
-            raise HTTPException(status_code=500, detail=f"Memory creation failed: {str(e)}")
-    
-    async def _create_single_memory(self, content: str, user_id: str, metadata: Optional[UnifiedMetadata], reasoning: str = "") -> str:
-        """Create a single memory entry using canonical UnifiedMetadata"""
-        memory_id = str(uuid4())
-        now = datetime.now(timezone.utc).isoformat()
-        
-        # Extract and process UnifiedMetadata
-        if metadata:
-            metadata_dict = metadata.model_dump()
-            # Extract key information from UnifiedMetadata structure
-            processed_metadata = {
-                # Core OneAgent fields
-                "memoryId": metadata_dict.get("id", memory_id),
-                "type": metadata_dict.get("type", "memory"),
-                "version": metadata_dict.get("version", "1.0.0"),
-                
-                # System information
-                "userId": metadata_dict.get("system", {}).get("userId", user_id),
-                "sessionId": metadata_dict.get("system", {}).get("sessionId"),
-                "source": metadata_dict.get("system", {}).get("source", "OneAgent"),
-                "component": metadata_dict.get("system", {}).get("component", "memory-system"),
-                "agentId": metadata_dict.get("system", {}).get("agent", {}).get("id") if isinstance(metadata_dict.get("system", {}).get("agent"), dict) else metadata_dict.get("system", {}).get("agent"),
-                
-                # Content information
-                "category": metadata_dict.get("content", {}).get("category", "general"),
-                "tags": metadata_dict.get("content", {}).get("tags", []),
-                "sensitivity": metadata_dict.get("content", {}).get("sensitivity", "internal"),
-                "relevanceScore": metadata_dict.get("content", {}).get("relevanceScore", 0.5),
-                "contextDependency": metadata_dict.get("content", {}).get("contextDependency", "session"),
-                
-                # Quality information
-                "qualityScore": metadata_dict.get("quality", {}).get("score", 0.8),
-                "constitutionallyValidated": metadata_dict.get("quality", {}).get("constitutionalCompliant", False),
-                "validationLevel": metadata_dict.get("quality", {}).get("validationLevel", "basic"),
-                "confidence": metadata_dict.get("quality", {}).get("confidence", 0.8),
-                
-                # Temporal information
-                "createdAt": metadata_dict.get("temporal", {}).get("created", {}).get("iso", now),
-                "updatedAt": metadata_dict.get("temporal", {}).get("updated", {}).get("iso", now),
-                
-                # Analytics information
-                "accessCount": metadata_dict.get("analytics", {}).get("accessCount", 0),
-                "lastAccessPattern": metadata_dict.get("analytics", {}).get("lastAccessPattern", "created"),
-                "usageContext": metadata_dict.get("analytics", {}).get("usageContext", [])
-            }
-            
-            # Convert lists to comma-separated strings for ChromaDB compatibility
-            for key, value in processed_metadata.items():
-                if isinstance(value, list):
-                    processed_metadata[key] = ",".join(str(item) for item in value)
-                elif value is None:
-                    processed_metadata[key] = ""
-        else:
-            processed_metadata = {
-                "userId": user_id,
-                "type": "memory",
-                "category": "general",
-                "source": "OneAgent"
-            }
-            
-        # Add standard processing metadata
-        processed_metadata.update({
-            "createdAt": now,
-            "updatedAt": now,
-            "memoryType": processed_metadata.get("memoryType", "long_term"),
-            "contentHash": hashlib.md5(content.encode()).hexdigest(),
-            "contentLength": len(content),
-            "wordCount": len(content.split()),
-            "processingReasoning": reasoning,
-            "intelligentlyProcessed": True
-        })
-        
-        # Generate embedding and store
-        embedding = await self.generate_embedding(content, "add")
-        
-        self.collection.add(
-            embeddings=[embedding],
-            documents=[content],
-            metadatas=[processed_metadata],
-            ids=[memory_id]
-        )
-        
-        logger.info(f"Memory created: {memory_id[:8]} for user {user_id} - {reasoning}")
-        return memory_id
-    
-    async def _update_single_memory(self, memory_id: str, new_content: str, user_id: str, reasoning: str = ""):
-        """Update a single memory entry"""
-        now = datetime.now(timezone.utc).isoformat()
-        
-        # Get existing memory
-        existing = self.collection.get(ids=[memory_id], where={"userId": user_id})
-        if not existing['ids']:
-            raise ValueError(f"Memory {memory_id} not found for user {user_id}")
-        
-        existing_metadata = existing['metadatas'][0]
-        existing_metadata.update({
-            "updatedAt": now,
-            "contentHash": hashlib.md5(new_content.encode()).hexdigest(),
-            "contentLength": len(new_content),
-            "wordCount": len(new_content.split()),
-            "updateReasoning": reasoning,
-            "intelligentlyUpdated": True
-        })
-        
-        # Generate new embedding and update
-        embedding = await self.generate_embedding(new_content, "update")
-        
-        self.collection.update(
-            ids=[memory_id],
-            embeddings=[embedding],
-            documents=[new_content],
-            metadatas=[existing_metadata]
-        )
-        
-        logger.info(f"Memory updated: {memory_id[:8]} for user {user_id} - {reasoning}")
-    
-    async def search_memories(self, request: MemorySearchRequest) -> List[MemoryResponse]:
-        """Search memories with semantic similarity, fallback to exact match if no results"""
-        try:
-            results = None
-            if request.query:
-                # Semantic search with search-specific embedding
-                query_embedding = await self.generate_embedding(request.query, "search")
-                results = self.collection.query(
-                    query_embeddings=[query_embedding],
-                    n_results=request.limit,
-                    where={"userId": request.user_id}
-                )
-            else:
-                # Get all memories for user
-                results = self.collection.get(
-                    where={"userId": request.user_id},
-                    limit=request.limit
-                )
-            memories = []
-            if results.get('ids') and results['ids'][0]:
-                for i, memory_id in enumerate(results['ids'][0]):
-                    content = results['documents'][0][i]
-                    metadata = results['metadatas'][0][i]
-                    relevance = None
-                    if results.get('distances') and results['distances'][0]:
-                        relevance = 1.0 - results['distances'][0][i]
-                    memory = MemoryResponse(
-                        id=memory_id,
-                        content=content,
-                        metadata=metadata,
-                        userId=metadata.get("userId", request.user_id),
-                        createdAt=metadata.get("createdAt", ""),
-                        updatedAt=metadata.get("updatedAt", ""),
-                        relevanceScore=relevance
-                    )
-                    memories.append(memory)
-            # Fallback: exact match if no semantic results and query provided
-            if request.query and (not memories or len(memories) == 0):
-                all_user_memories = self.collection.get(where={"userId": request.user_id})
-                for i, content in enumerate(all_user_memories['documents']):
-                    if content == request.query:
-                        metadata = all_user_memories['metadatas'][i]
-                        memory_id = all_user_memories['ids'][i]
-                        memory = MemoryResponse(
-                            id=memory_id,
-                            content=content,
-                            metadata=metadata,
-                            userId=metadata.get("userId", request.user_id),
-                            createdAt=metadata.get("createdAt", ""),
-                            updatedAt=metadata.get("updatedAt", ""),
-                            relevanceScore=1.0
-                        )
-                        memories.append(memory)
-            logger.info(f"Search completed: {len(memories)} results for user {request.user_id}")
-            return memories
-        except Exception as e:
-            logger.error(f"Memory search failed: {e}")
-            raise HTTPException(status_code=500, detail=f"Memory search failed: {str(e)}")
-    
-    async def delete_memory(self, memory_id: str, user_id: str) -> bool:
-        """Delete memory with user verification"""
-        try:
-            # Verify ownership
-            results = self.collection.get(
-                ids=[memory_id],
-                where={"userId": user_id}
-            )
-            
-            if not results['ids']:
-                raise HTTPException(status_code=404, detail="Memory not found or access denied")
-            
-            self.collection.delete(ids=[memory_id])
-            logger.info(f"Memory deleted: {memory_id} by user {user_id}")
-            return True
-            
-        except Exception as e:
-            logger.error(f"Memory deletion failed: {e}")
-            raise HTTPException(status_code=500, detail=f"Memory deletion failed: {str(e)}")
-    
-    async def deduplicate_memories(self, user_id: str) -> Dict[str, int]:
-        """Remove duplicate memories for a user"""
-        try:
-            # Get all memories for user
-            all_memories = self.collection.get(where={"userId": user_id})
-            
-            if not all_memories['ids']:
-                return {"removed": 0, "total": 0}
-            
-            duplicates_removed = 0
-            seen_hashes = set()
-            
-            for i, memory_id in enumerate(all_memories['ids']):
-                content_hash = all_memories['metadatas'][i].get('contentHash')
-                if content_hash in seen_hashes:
-                    # Remove duplicate
-                    self.collection.delete(ids=[memory_id])
-                    duplicates_removed += 1
-                    logger.info(f"Removed duplicate memory: {memory_id[:8]}")
-                else:
-                    seen_hashes.add(content_hash)
-            
-            return {
-                "removed": duplicates_removed,
-                "total": len(all_memories['ids']),
-                "remaining": len(all_memories['ids']) - duplicates_removed
-            }
-            
-        except Exception as e:
-            logger.error(f"Deduplication failed: {e}")
-            return {"error": str(e)}
-    
-    async def get_memory_statistics(self, user_id: str) -> Dict[str, Any]:
-        """Get detailed memory statistics for a user"""
-        try:
-            user_memories = self.collection.get(where={"userId": user_id})
-            
-            if not user_memories['ids']:
-                return {"total": 0, "types": {}, "avgLength": 0}
-            
-            total_memories = len(user_memories['ids'])
-            memory_types = {}
-            total_length = 0
-            intelligent_count = 0
-            
-            for metadata in user_memories['metadatas']:
-                # Count by memory type
-                mem_type = metadata.get('memoryType', 'unknown')
-                memory_types[mem_type] = memory_types.get(mem_type, 0) + 1
-                
-                # Calculate average length
-                length = metadata.get('contentLength', 0)
-                total_length += length
-                
-                # Count intelligently processed
-                if metadata.get('intelligentlyProcessed'):
-                    intelligent_count += 1
-            
-            return {
-                "total": total_memories,
-                "types": memory_types,
-                "avgLength": total_length / total_memories if total_memories > 0 else 0,
-                "intelligentlyProcessed": intelligent_count,
-                "processingRate": (intelligent_count / total_memories * 100) if total_memories > 0 else 0
-            }
-            
-        except Exception as e:
-            logger.error(f"Statistics generation failed: {e}")
-            return {"error": str(e)}
-    
-    def get_stats(self) -> Dict[str, Any]:
-        """Get enhanced system statistics"""
-        try:
-            total_memories = self.collection.count()
-            
-            # Get sample of recent memories to analyze
-            recent_sample = self.collection.get(limit=100)
-            intelligent_count = 0
-            avg_length = 0
-            
-            if recent_sample['metadatas']:
-                for metadata in recent_sample['metadatas']:
-                    if metadata.get('intelligentlyProcessed'):
-                        intelligent_count += 1
-                    avg_length += metadata.get('contentLength', 0)
-                
-                avg_length = avg_length / len(recent_sample['metadatas']) if recent_sample['metadatas'] else 0
-            
-            return {
-                "total_memories": total_memories,
-                "collection_name": config.collection_name,
-                "storage_path": config.storage_path,
-                "embedding_model": self.embedding_model,
-                "dimensions": config.embedding_dimensions,
-                "uptime": "operational",
-                "version": f"{ONEAGENT_VERSION}-Enhanced",
-                "features": {
-                    "intelligent_processing": True,
-                    "conflict_resolution": True,
-                    "fact_extraction": True,
-                    "deduplication": True,
-                    "action_specific_embeddings": True,
-                    "constitutional_ai_ready": True,
-                    "bulk_operations": True
-                },
-                "sample_stats": {
-                    "intelligent_processing_rate": (intelligent_count / len(recent_sample['metadatas']) * 100) if recent_sample['metadatas'] else 0,
-                    "average_content_length": avg_length,
-                    "sample_size": len(recent_sample['metadatas']) if recent_sample['metadatas'] else 0
-                }
-            }
-        except Exception as e:
-            logger.error(f"Stats collection failed: {e}")
-            return {"error": str(e)}
-
-# ============================================================================
-# LLM MEMORY PROCESSOR
-# ============================================================================
-
-# [REMOVED LEGACY LLMMemoryProcessor CLASS]
-# Only the advanced, mem0-inspired LLMMemoryProcessor remains below.
-
-# ============================================================================
-# ADVANCED LLM MEMORY PROCESSOR (MEM0-INSPIRED FEATURES)
-# ============================================================================
+# LLM helper
 
 class LLMMemoryProcessor:
-    """Advanced LLM-based memory processing with conflict resolution and fact extraction"""
-    
-    def __init__(self, api_key: str, model_name: str = "gemini-2.5-flash"):
-        genai.configure(api_key=api_key)
-        self.model = genai.GenerativeModel(model_name)
-        self.model_name = model_name
-        logger.info(f"LLM Memory Processor initialized with {model_name}")
-    
+    def __init__(self, provider: str, gemini_api_key: str = "", openai_api_key: str = "", gemini_model: str = "gemini-1.5-flash", openai_model: str = "gpt-4o-mini"):
+        self.provider = provider
+        self.gemini_api_key = gemini_api_key
+        self.openai_api_key = openai_api_key
+        self.gemini_model = gemini_model
+        self.openai_model = openai_model
+        self._gemini_ready = False
+        if provider == 'gemini' and gemini_api_key and genai is not None:
+            try:
+                _configure = getattr(genai, 'configure', None)
+                if callable(_configure):
+                    _configure(api_key=gemini_api_key)
+                    self._gemini_ready = True
+                else:
+                    self._gemini_ready = False
+            except Exception:
+                self._gemini_ready = False
+
+    async def _generate_text(self, prompt: str) -> str:
+        if self.provider == 'gemini' and self._gemini_ready and genai is not None:
+            def _call() -> str:
+                try:
+                    _model_cls = getattr(genai, 'GenerativeModel', None)
+                    if _model_cls is None:
+                        return ''
+                    model = _model_cls(self.gemini_model)
+                    resp = model.generate_content(prompt)
+                    return getattr(resp, 'text', '') or ''
+                except Exception:
+                    return ''
+            return await asyncio.to_thread(_call)
+        if self.provider == 'openai' and self.openai_api_key:
+            import urllib.request as _req
+            def _call() -> str:
+                try:
+                    url = 'https://api.openai.com/v1/chat/completions'
+                    body = json.dumps({
+                        'model': self.openai_model,
+                        'messages': [
+                            {'role': 'system', 'content': 'Return concise JSON when asked.'},
+                            {'role': 'user', 'content': prompt}
+                        ],
+                        'temperature': 0.2,
+                    }).encode('utf-8')
+                    headers = {'Content-Type': 'application/json', 'Authorization': f'Bearer {self.openai_api_key}'}
+                    req = _req.Request(url, data=body, headers=headers, method='POST')
+                    with _req.urlopen(req, timeout=15) as r:
+                        data = json.loads(r.read().decode('utf-8'))
+                        return (((data.get('choices') or [{}])[0].get('message') or {}).get('content')) or ''
+                except Exception:
+                    return ''
+            return await asyncio.to_thread(_call)
+        return ''
+
+    @staticmethod
+    def _parse_json_array(text: str) -> List[Any]:
+        try:
+            t = text.strip()
+            if t.startswith('```'):
+                t = t.strip('`')
+                if t.startswith('json'):
+                    t = t[4:]
+            t = t.strip()
+            if t.startswith('[') and t.endswith(']'):
+                return json.loads(t)
+            l = t.find('['); r = t.rfind(']')
+            if l != -1 and r != -1 and r > l:
+                return json.loads(t[l:r+1])
+        except Exception:
+            pass
+        return []
+
     async def extract_facts(self, content: str) -> List[str]:
-        """Extract meaningful facts from content using LLM"""
-        try:
-            prompt = f"""
-Extract key facts and information from the following content. 
-Return only the most important, factual statements as a JSON array of strings.
-Focus on actionable information, specific details, and concrete facts.
-Avoid redundant or trivial information.
-
-Content: {content}
-
-IMPORTANT: Return ONLY a valid JSON array, nothing else. No markdown code blocks, no explanations.
-Format: ["fact1", "fact2", "fact3", ...]
-"""
-            
-            response = await self.model.generate_content_async(prompt)
-            facts_text = response.text.strip()
-            
-            # Robust JSON parsing with fallback handling
-            facts = self._parse_json_response(facts_text)
-            if facts:
-                return [str(fact) for fact in facts if fact and len(str(fact).strip()) > 10]
-            else:
-                # Fallback: split by lines and clean
-                facts = [line.strip() for line in facts_text.split('\n') if line.strip() and len(line.strip()) > 10]
-                return facts[:5]  # Limit to top 5 facts
-                
-        except Exception as e:
-            logger.error(f"Fact extraction failed: {e}")
-            # Fallback: return content as single fact
+        prompt = (
+            "Extract key facts and information from the following content. Return a JSON array of strings.\n\n"
+            f"Content: {content}\n\n"
+            "Return ONLY a valid JSON array, nothing else."
+        )
+        text = await self._generate_text(prompt)
+        facts = self._parse_json_array(text)
+        if not facts:
             return [content[:500]] if len(content) > 20 else []
-    
+        return [str(f) for f in facts if f and len(str(f).strip()) > 10][:10]
+
     async def resolve_memory_conflicts(self, new_facts: List[str], existing_memories: List[Dict]) -> List[Dict]:
-        """Resolve conflicts between new facts and existing memories using LLM"""
-        try:
-            if not existing_memories:
-                return [{"action": "ADD", "text": fact, "reasoning": "No conflicts detected"} for fact in new_facts]
-            
-            prompt = f"""
-Analyze the relationship between new facts and existing memories. For each new fact, determine the appropriate action:
+        if not existing_memories:
+            return [{"action": "ADD", "text": f, "reasoning": "No conflicts"} for f in new_facts]
+        prompt = (
+            "For each new fact decide ADD/UPDATE/DELETE/SKIP compared to existing memories. Return JSON array.\n\n"
+            f"NEW FACTS: {json.dumps(new_facts)}\n\n"
+            f"EXISTING: {json.dumps([{'content': m.get('content',''), 'id': m.get('id'), 'similarity': m.get('similarity',0)} for m in existing_memories])}\n"
+            "Return ONLY a JSON array."
+        )
+        text = await self._generate_text(prompt)
+        actions = self._parse_json_array(text)
+        if not actions:
+            return [{"action": "ADD", "text": f, "reasoning": "LLM unavailable"} for f in new_facts]
+        return actions
 
-NEW FACTS:
-{json.dumps(new_facts, indent=2)}
+# Memory system
 
-EXISTING MEMORIES:
-{json.dumps([{"content": mem["content"], "similarity": mem["similarity"]} for mem in existing_memories], indent=2)}
+class OneAgentMemorySystem:
+    def __init__(self):
+        self.use_node_gateway = (a_config.embeddings_source == 'node')
+        self.gemini_enabled = (not a_config.gemini_disabled) and bool(a_config.gemini_api_key) and genai is not None
+        if self.use_node_gateway:
+            self.embedding_model = 'oneagent-node-gateway'
+        elif self.gemini_enabled:
+            self.embedding_model = 'gemini-embedding-001'
+        else:
+            self.embedding_model = 'local-hash-embedding'
+        # LLM
+        if a_config.llm_provider:
+            self.llm_processor = LLMMemoryProcessor(
+                provider=a_config.llm_provider,
+                gemini_api_key=str(a_config.gemini_api_key or ''),
+                openai_api_key=str(a_config.openai_api_key or ''),
+            )
+        else:
+            self.llm_processor = None
+        # Chroma
+        self.client = chromadb.PersistentClient(
+            path=a_config.storage_path,
+            settings=Settings(anonymized_telemetry=False, allow_reset=False, is_persistent=True)
+        )
+        self.collection = self.client.get_or_create_collection(
+            name=a_config.collection_name,
+            metadata={"description": "OneAgent Memory", "embedding_model": self.embedding_model, "dimensions": a_config.embedding_dimensions, "created_at": datetime.now(timezone.utc).isoformat()}
+        )
+        self._embedding_cache: Dict[str, List[float]] = {}
+        # Cooldown window for gateway failures
+        self._gateway_cooldown_until: float = 0.0
+        self._gateway_cooldown_seconds: float = float(getattr(a_config, 'embeddings_gateway_cooldown_seconds', 5.0))
 
-For each new fact, return ONE action:
-- ADD: If the fact is new and doesn't conflict
-- UPDATE: If the fact updates/improves existing information (provide memory_id)
-- DELETE: If the fact contradicts and should replace existing information (provide memory_id)
-- SKIP: If the fact is redundant or already covered
+    def _local_embedding(self, text: str) -> List[float]:
+        seed = int(hashlib.sha256(text.encode('utf-8')).hexdigest()[:16], 16)
+        rng = random.Random(seed)
+        return [rng.uniform(-0.5, 0.5) for _ in range(a_config.embedding_dimensions)]
 
-IMPORTANT: Return ONLY a valid JSON array, nothing else. No markdown code blocks, no explanations.
-Format:
-[
-  {{"action": "ADD|UPDATE|DELETE|SKIP", "text": "fact text", "memory_id": "id_if_applicable", "reasoning": "brief explanation"}}
-]
-"""
-            
-            response = await self.model.generate_content_async(prompt)
-            actions_text = response.text.strip()
-            
-            # Robust JSON parsing with fallback handling
-            actions = self._parse_json_response(actions_text)
-            if actions:
-                return actions
+    async def generate_embedding(self, text: str, action: str = 'add') -> List[float]:
+        key = f"{self.embedding_model}:{action}:{hashlib.sha256(text.encode('utf-8')).hexdigest()}"
+        if key in self._embedding_cache:
+            return self._embedding_cache[key]
+        if self.use_node_gateway:
+            # Respect cooldown to avoid repeated noisy logs when gateway is down
+            now = time.time()
+            if now < self._gateway_cooldown_until:
+                # Skip gateway attempt during cooldown
+                pass
             else:
-                # Fallback: add all facts
-                return [{"action": "ADD", "text": fact, "reasoning": "LLM parsing failed"} for fact in new_facts]
-                
-        except Exception as e:
-            logger.error(f"Conflict resolution failed: {e}")
-            # Fallback: add all facts
-            return [{"action": "ADD", "text": fact, "reasoning": "Error in conflict resolution"} for fact in new_facts]
-    
-    async def generate_memory_summary(self, memories: List[Dict]) -> str:
-        """Generate a comprehensive summary of related memories"""
-        try:
-            if not memories:
-                return ""
-            
-            content_list = [mem.get("content", "") for mem in memories[:10]]  # Limit to 10 memories
-            
-            prompt = f"""
-Create a concise, comprehensive summary of the following related memories.
-Focus on key patterns, insights, and the most important information.
-Maximum 200 words.
+                for attempt in range(2):
+                    try:
+                        payload = json.dumps({"content": text, "action": action}).encode('utf-8')
+                        headers = {'Content-Type': 'application/json', 'Accept': 'application/json', 'MCP-Protocol-Version': MCP_PROTOCOL_VERSION}
+                        req = urlrequest.Request(a_config.embeddings_url, data=payload, headers=headers, method='POST')
+                        def _call():
+                            with urlrequest.urlopen(req, timeout=10) as r:
+                                return r.read()
+                        raw = await asyncio.to_thread(_call)
+                        data = json.loads(raw.decode('utf-8'))
+                        emb = (data.get('data') or {}).get('embedding')
+                        if isinstance(emb, list):
+                            if len(emb) > a_config.embedding_dimensions:
+                                emb = emb[:a_config.embedding_dimensions]
+                            elif len(emb) < a_config.embedding_dimensions:
+                                emb = emb + [0.0]*(a_config.embedding_dimensions - len(emb))
+                            self._embedding_cache[key] = emb
+                            # Clear cooldown on success
+                            self._gateway_cooldown_until = 0.0
+                            return emb
+                    except Exception as e:
+                        if attempt == 0:
+                            logger.warning(f"Gateway embedding failed (will retry): {e}")
+                            await asyncio.sleep(0.25)
+                        else:
+                            logger.warning(f"Gateway embedding failed: {e}")
+                            # Enter cooldown window after final failure
+                            self._gateway_cooldown_until = time.time() + self._gateway_cooldown_seconds
+        if self.gemini_enabled and genai is not None:
+            try:
+                task_type = {'add':'retrieval_document','search':'retrieval_query','update':'retrieval_document'}.get(action, 'retrieval_document')
+                _embed_fn = getattr(genai, 'embed_content', None)
+                if not callable(_embed_fn):
+                    raise RuntimeError('embed_content not available')
+                res = _embed_fn(model='gemini-embedding-001', content=text, task_type=task_type)
+                emb = res['embedding'] if isinstance(res, dict) else getattr(res, 'embedding', None)
+                if isinstance(emb, list):
+                    if len(emb) != a_config.embedding_dimensions:
+                        raise ValueError('Embedding dimension mismatch')
+                    self._embedding_cache[key] = emb
+                    return emb
+            except Exception as e:
+                logger.warning(f"Gemini embedding failed: {e}")
+        emb = self._local_embedding(text)
+        self._embedding_cache[key] = emb
+        return emb
 
-MEMORIES:
-{json.dumps(content_list, indent=2)}
+    async def _create_single_memory(self, content: str, user_id: str, metadata: Optional[UnifiedMetadata], reasoning: str = "") -> str:
+        memory_id = str(uuid4())
+        now = datetime.now(timezone.utc).isoformat()
+        md: Dict[str, Any] = {}
+        if metadata:
+            md_src = metadata.model_dump()
+            md.update({
+                "memoryId": md_src.get("id", memory_id),
+                "type": md_src.get("type", "memory"),
+                "version": md_src.get("version", "1.0.0"),
+                "userId": (md_src.get("system") or {}).get("userId", user_id),
+                "sessionId": (md_src.get("system") or {}).get("sessionId"),
+                "source": (md_src.get("system") or {}).get("source", "OneAgent"),
+                "component": (md_src.get("system") or {}).get("component", "memory-system"),
+                "category": (md_src.get("content") or {}).get("category", "general"),
+                "tags": (md_src.get("content") or {}).get("tags", []),
+                "sensitivity": (md_src.get("content") or {}).get("sensitivity", "internal"),
+                "relevanceScore": (md_src.get("content") or {}).get("relevanceScore", 0.5),
+                "contextDependency": (md_src.get("content") or {}).get("contextDependency", "session"),
+                "qualityScore": (md_src.get("quality") or {}).get("score", 0.8),
+                "constitutionallyValidated": (md_src.get("quality") or {}).get("constitutionalCompliant", False),
+                "validationLevel": (md_src.get("quality") or {}).get("validationLevel", "basic"),
+                "confidence": (md_src.get("quality") or {}).get("confidence", 0.8),
+                "createdAt": ((md_src.get("temporal") or {}).get("created") or {}).get("iso", now),
+                "updatedAt": ((md_src.get("temporal") or {}).get("updated") or {}).get("iso", now),
+                "accessCount": (md_src.get("analytics") or {}).get("accessCount", 0),
+                "lastAccessPattern": (md_src.get("analytics") or {}).get("lastAccessPattern", "created"),
+                "usageContext": (md_src.get("analytics") or {}).get("usageContext", []),
+            })
+        else:
+            md.update({"userId": user_id, "type": "memory", "category": "general", "source": "OneAgent"})
+        # Normalize types for Chroma
+        for k,v in list(md.items()):
+            if isinstance(v, list):
+                md[k] = ",".join(str(i) for i in v)
+            elif v is None:
+                md[k] = ""
+        md.update({
+            "createdAt": now,
+            "updatedAt": now,
+            "memoryType": md.get("memoryType", "long_term"),
+            "contentHash": hashlib.md5(content.encode()).hexdigest(),
+            "contentLength": str(len(content)),
+            "wordCount": str(len(content.split())),
+            "processingReasoning": reasoning,
+            "intelligentlyProcessed": "true",
+        })
+        emb = await self.generate_embedding(content, 'add')
+        self.collection.add(embeddings=[emb], documents=[content], metadatas=[md], ids=[memory_id])
+        return memory_id
 
-Summary:
-"""
-            
-            response = await self.model.generate_content_async(prompt)
-            return response.text.strip()
-            
-        except Exception as e:
-            logger.error(f"Summary generation failed: {e}")
-            return "Summary generation failed"
-    
-    async def detect_duplicates(self, content: str, existing_contents: List[str]) -> List[Dict]:
-        """Detect potential duplicates using semantic analysis"""
-        try:
-            if not existing_contents:
-                return []
-            
-            prompt = f"""
-Analyze if the new content is a duplicate or near-duplicate of any existing content.
-Return potential duplicates with confidence scores.
+    async def create_memory(self, request: MemoryCreateRequest) -> MemoryResponse:
+        md = request.metadata
+        memory_id = await self._create_single_memory(request.content, request.user_id, md, "Original user input")
+        now = datetime.now(timezone.utc).isoformat()
+        return MemoryResponse(
+            id=memory_id,
+            content=request.content,
+            metadata={"userId": request.user_id, "createdAt": now, "updatedAt": now},
+            userId=request.user_id,
+            createdAt=now,
+            updatedAt=now,
+        )
 
-NEW CONTENT:
-{content}
+    async def _update_single_memory(self, memory_id: str, new_content: str, user_id: str, reasoning: str = ""):
+        now = datetime.now(timezone.utc).isoformat()
+        existing = self.collection.get(ids=[memory_id], where={"userId": user_id})
+        if not existing.get('ids'):
+            raise ValueError("Memory not found or access denied")
+        md = dict((existing.get('metadatas') or [{}])[0] or {})
+        md.update({
+            "updatedAt": now,
+            "contentHash": hashlib.md5(new_content.encode()).hexdigest(),
+            "contentLength": str(len(new_content)),
+            "wordCount": str(len(new_content.split())),
+            "updateReasoning": reasoning,
+            "intelligentlyUpdated": "true",
+        })
+        emb = await self.generate_embedding(new_content, 'update')
+        self.collection.update(ids=[memory_id], embeddings=[emb], documents=[new_content], metadatas=[md])
 
-EXISTING CONTENT:
-{json.dumps(existing_contents[:20], indent=2)}
+    async def search_memories(self, request: MemorySearchRequest) -> List[MemoryResponse]:
+        if request.query:
+            q_emb = await self.generate_embedding(request.query, 'search')
+            res = self.collection.query(query_embeddings=[q_emb], n_results=int(request.limit or 10), where={"userId": request.user_id})
+        else:
+            res = self.collection.get(where={"userId": request.user_id}, limit=int(request.limit or 10))
+        out: List[MemoryResponse] = []
+        # Normalize shapes from Chroma (query vs get)
+        ids_val = res.get('ids') or []
+        docs_val = res.get('documents') or []
+        metas_val = res.get('metadatas') or []
+        dists_val = res.get('distances') or []
+        # If nested, take the first list
+        if isinstance(ids_val, list) and ids_val and isinstance(ids_val[0], list):
+            ids_seq = ids_val[0] or []
+            docs_seq = (docs_val[0] if isinstance(docs_val, list) and docs_val else []) or []
+            metas_seq = (metas_val[0] if isinstance(metas_val, list) and metas_val else []) or []
+            dists_seq = (dists_val[0] if isinstance(dists_val, list) and dists_val else []) or []
+        else:
+            ids_seq = ids_val if isinstance(ids_val, list) else [ids_val]
+            docs_seq = docs_val if isinstance(docs_val, list) else [docs_val]
+            metas_seq = metas_val if isinstance(metas_val, list) else ([metas_val] if metas_val else [])
+            dists_seq = dists_val if isinstance(dists_val, list) else ([dists_val] if dists_val is not None else [])
+        # Build responses
+        for i in range(len(ids_seq)):
+            mid = ids_seq[i]
+            content = docs_seq[i] if i < len(docs_seq) else ""
+            meta_raw = metas_seq[i] if i < len(metas_seq) and isinstance(metas_seq[i], dict) else {}
+            meta: Dict[str, Any] = {str(k): v for k, v in (meta_raw.items() if isinstance(meta_raw, dict) else [])}
+            # Distance handling (could be float or nested list)
+            rel = None
+            if i < len(dists_seq):
+                dv = dists_seq[i]
+                if isinstance(dv, (int, float)):
+                    rel = 1.0 - float(dv)
+                elif isinstance(dv, list) and dv and isinstance(dv[0], (int, float)):
+                    rel = 1.0 - float(dv[0])
+            out.append(MemoryResponse(
+                id=str(mid),
+                content=str(content),
+                metadata=meta,
+                userId=str(meta.get('userId', request.user_id)),
+                createdAt=str(meta.get('createdAt', '')),
+                updatedAt=str(meta.get('updatedAt', '')),
+                relevanceScore=rel
+            ))
+        return out
 
-IMPORTANT: Return ONLY a valid JSON array, nothing else. No markdown code blocks, no explanations.
-Format:
-[
-  {{"index": 0, "confidence": 0.95, "reasoning": "Nearly identical content"}}
-]
+    async def delete_memory(self, memory_id: str, user_id: str) -> bool:
+        res = self.collection.get(ids=[memory_id], where={"userId": user_id})
+        if not res.get('ids'):
+            raise HTTPException(status_code=404, detail="Memory not found or access denied")
+        self.collection.delete(ids=[memory_id])
+        return True
 
-Only return matches with confidence > 0.8
-"""
-            
-            response = await self.model.generate_content_async(prompt)
-            duplicates_text = response.text.strip()
-            
-            # Use robust JSON parsing
-            duplicates = self._parse_json_response(duplicates_text)
-            if duplicates:
-                return [dup for dup in duplicates if dup.get("confidence", 0) > 0.8]
+    async def deduplicate_memories(self, user_id: str) -> Dict[str, int]:
+        all_mem = self.collection.get(where={"userId": user_id})
+        ids = all_mem.get('ids') or []
+        if not ids:
+            return {"removed": 0, "total": 0, "remaining": 0}
+        seen = set(); removed = 0
+        for i, mid in enumerate(ids):
+            md = (all_mem.get('metadatas') or [])
+            md_i = md[i] if md and len(md) > i and isinstance(md[i], dict) else {}
+            ch = md_i.get('contentHash')
+            if ch in seen:
+                self.collection.delete(ids=[mid]); removed += 1
             else:
-                return []
-                
-        except Exception as e:
-            logger.error(f"Duplicate detection failed: {e}")
-            return []
+                seen.add(ch)
+        total = len(ids)
+        return {"removed": removed, "total": total, "remaining": total - removed}
 
-    def _parse_json_response(self, response_text: str) -> List:
-        """
-        Robust JSON parsing that handles common LLM response formats
-        
-        Args:
-            response_text: Raw text response from LLM
-            
-        Returns:
-            List: Parsed JSON array or None if parsing fails
-        """
-        try:
-            # Clean the response text
-            cleaned = response_text.strip()
-            
-            # Handle markdown code blocks
-            if cleaned.startswith('```json'):
-                cleaned = cleaned[7:]  # Remove ```json
-            elif cleaned.startswith('```'):
-                cleaned = cleaned[3:]   # Remove ```
-            
-            if cleaned.endswith('```'):
-                cleaned = cleaned[:-3]  # Remove trailing ```
-            
-            # Remove any leading/trailing whitespace again
-            cleaned = cleaned.strip()
-            
-            # Try direct JSON parsing
-            if cleaned.startswith('[') and cleaned.endswith(']'):
-                return json.loads(cleaned)
-            
-            # Try to extract JSON from response
-            json_start = cleaned.find('[')
-            json_end = cleaned.rfind(']')
-            
-            if json_start != -1 and json_end != -1 and json_end > json_start:
-                json_str = cleaned[json_start:json_end+1]
-                return json.loads(json_str)
-                
-            # Try to parse as single-line JSON (without brackets)
-            if '{' in cleaned and '}' in cleaned:
-                # Extract individual JSON objects and wrap in array
-                import re
-                json_objects = re.findall(r'\{[^}]*\}', cleaned)
-                if json_objects:
-                    parsed_objects = []
-                    for obj_str in json_objects:
-                        try:
-                            parsed_objects.append(json.loads(obj_str))
-                        except:
-                            continue
-                    return parsed_objects
-                    
-            return None
-            
-        except Exception as e:
-            logger.error(f"JSON parsing failed: {e} for text: {response_text[:100]}...")
-            return None
+    async def get_memory_statistics(self, user_id: str) -> Dict[str, Any]:
+        user_mem = self.collection.get(where={"userId": user_id})
+        ids = user_mem.get('ids') or []
+        if not ids:
+            return {"total": 0, "types": {}, "avgLength": 0}
+        total = len(ids); total_len = 0; types: Dict[str,int] = {}
+        for md in (user_mem.get('metadatas') or []):
+            md_dict = md or {}
+            mtype = str(md_dict.get('memoryType', 'unknown'))
+            types[mtype] = int(types.get(mtype, 0)) + 1
+            try:
+                total_len += int(str(md_dict.get('contentLength', '0')))
+            except Exception:
+                pass
+        return {"total": total, "types": types, "avgLength": (total_len/total if total else 0)}
 
-# ============================================================================
-# MEMORY MANAGEMENT SYSTEM
-# ============================================================================
+    def get_stats(self) -> Dict[str, Any]:
+        total = self.collection.count()
+        return {
+            "total_memories": total,
+            "collection_name": a_config.collection_name,
+            "storage_path": a_config.storage_path,
+            "embedding_model": self.embedding_model,
+            "dimensions": a_config.embedding_dimensions,
+            "uptime": "operational",
+            "version": f"{ONEAGENT_VERSION}-Clean",
+        }
 
-# ============================================================================
-# FASTAPI APPLICATION
-# ============================================================================
+# FastAPI app
 
-# Initialize FastAPI app
-from contextlib import asynccontextmanager
+app = FastAPI(title="OneAgent Memory Server", version="4.1.0")
+app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_credentials=True, allow_methods=["*"], allow_headers=["*"],)
 
-@asynccontextmanager
-async def lifespan(app):
-    await startup_tasks()
-    yield
-
-# Initialize FastAPI app with lifespan handler
-app = FastAPI(
-    title="OneAgent Memory Server",
-    description="Production-grade memory system with Gemini embeddings and ChromaDB",
-    version="4.0.0",
-    docs_url="/docs",
-    redoc_url="/redoc",
-    lifespan=lifespan
-)
-
-# Add CORS middleware
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
-
-# Initialize memory system
 memory_system = OneAgentMemorySystem()
-
-# ============================================================================
-# API ENDPOINTS
-# ============================================================================
 
 @app.get("/health", response_model=MemoryOperationResponse)
 async def health_check():
-    """Health check with system statistics"""
-    return MemoryOperationResponse(
-        success=True,
-        data=memory_system.get_stats(),
-        message="OneAgent Memory Server v4.0.0 - Operational"
-    )
+    return MemoryOperationResponse(success=True, data=memory_system.get_stats(), message="OneAgent Memory Server - Operational")
 
 @app.post("/v1/memories", response_model=MemoryOperationResponse)
-async def create_memory(request: MemoryCreateRequest, deps=Depends(require_mcp_headers)):
-    """Create new memory"""
-    memory = await memory_system.create_memory(request)
-    return MemoryOperationResponse(
-        success=True,
-        data=memory,
-        message="Memory created successfully"
-    )
+async def create_memory(req: MemoryCreateRequest, deps=Depends(require_mcp_headers)):
+    mem = await memory_system.create_memory(req)
+    return MemoryOperationResponse(success=True, data=mem, message="Memory created successfully")
 
 @app.get("/v1/memories", response_model=MemoryOperationResponse)
-async def search_memories(
-    userId: str = Query(..., description="User ID"),
-    query: Optional[str] = Query(None, description="Search query"),
-    limit: int = Query(10, ge=1, le=100, description="Result limit"),
-    deps=Depends(require_mcp_headers)
-):
-    """Search or retrieve memories"""
-    search_request = MemorySearchRequest(
-        query=query,
-        userId=userId,
-        limit=limit
-    )
-    memories = await memory_system.search_memories(search_request)
-    return MemoryOperationResponse(
-        success=True,
-        data=memories,
-        message=f"Retrieved {len(memories)} memories"
-    )
+async def search_memories(userId: str = Query(...), query: Optional[str] = Query(None), limit: int = Query(10, ge=1, le=500), deps=Depends(require_mcp_headers)):
+    res = await memory_system.search_memories(MemorySearchRequest(userId=userId, query=query, limit=limit))
+    return MemoryOperationResponse(success=True, data=res, message=f"Retrieved {len(res)} memories")
 
 @app.put("/v1/memories/{memory_id}", response_model=MemoryOperationResponse)
-async def update_memory(
-    memory_id: str = Path(..., description="Memory ID"),
-    request: MemoryCreateRequest = None,
-    deps=Depends(require_mcp_headers)
-):
-    """Update an existing memory (content and/or metadata)"""
-    # Validate input
-    if request is None:
-        raise HTTPException(status_code=400, detail="Missing request body")
-    try:
-        await memory_system._update_single_memory(
-            memory_id,
-            request.content,
-            request.user_id,
-            "API update via PUT /v1/memories/{id}"
-        )
-        return MemoryOperationResponse(
-            success=True,
-            message="Memory updated successfully",
-            data={"id": memory_id}
-        )
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Memory update failed: {str(e)}")
-    
+async def update_memory(memory_id: str, req: MemoryCreateRequest, deps=Depends(require_mcp_headers)):
+    await memory_system._update_single_memory(memory_id, req.content, req.user_id, "API update")
+    return MemoryOperationResponse(success=True, data={"id": memory_id}, message="Memory updated successfully")
 
 @app.delete("/v1/memories/{memory_id}", response_model=MemoryOperationResponse)
-async def delete_memory(
-    memory_id: str = Path(..., description="Memory ID"),
-    userId: str = Query(..., description="User ID for verification"),
-    deps=Depends(require_mcp_headers)
-):
-    """Delete memory"""
-    success = await memory_system.delete_memory(memory_id, userId)
-    return MemoryOperationResponse(
-        success=success,
-        message="Memory deleted successfully"
-    )
+async def delete_memory(memory_id: str = Path(...), userId: str = Query(...), deps=Depends(require_mcp_headers)):
+    ok = await memory_system.delete_memory(memory_id, userId)
+    return MemoryOperationResponse(success=ok, message="Memory deleted successfully")
 
 @app.post("/v1/memories/deduplicate", response_model=MemoryOperationResponse)
-async def deduplicate_user_memories(userId: str = Query(..., description="User ID"), deps=Depends(require_mcp_headers)):
-    """Remove duplicate memories for a user"""
+async def deduplicate(userId: str = Query(...), deps=Depends(require_mcp_headers)):
     result = await memory_system.deduplicate_memories(userId)
-    return MemoryOperationResponse(
-        success=True,
-        data=result,
-        message=f"Deduplication completed: removed {result.get('removed', 0)} duplicates"
-    )
+    return MemoryOperationResponse(success=True, data=result, message="Deduplication completed")
 
 @app.get("/v1/memories/stats", response_model=MemoryOperationResponse)
-async def get_memory_statistics(userId: str = Query(..., description="User ID"), deps=Depends(require_mcp_headers)):
-    """Get detailed memory statistics for a user"""
-    stats = await memory_system.get_memory_statistics(userId)
-    return MemoryOperationResponse(
-        success=True,
-        data=stats,
-        message="Memory statistics retrieved successfully"
-    )
-
-@app.post("/v1/memories/bulk", response_model=MemoryOperationResponse)
-async def create_bulk_memories(
-    requests: List[MemoryCreateRequest],
-    background_tasks: BackgroundTasks,
-    deps=Depends(require_mcp_headers)
-):
-    """Create multiple memories with intelligent processing"""
-    results = []
-    for request in requests:
-        try:
-            memory = await memory_system.create_memory(request)
-            results.append({
-                "success": True,
-                "memory_id": memory.id,
-                "user_id": memory.userId
-            })
-        except Exception as e:
-            results.append({
-                "success": False,
-                "error": str(e),
-                "user_id": request.user_id
-            })
-    return MemoryOperationResponse(
-        success=True,
-        data={
-            "processed": len(results),
-            "successful": sum(1 for r in results if r["success"]),
-            "failed": sum(1 for r in results if not r["success"]),
-            "results": results
-        },
-        message=f"Bulk operation completed: {len(results)} memories processed"
-    )
+async def stats(userId: str = Query(...), deps=Depends(require_mcp_headers)):
+    result = await memory_system.get_memory_statistics(userId)
+    return MemoryOperationResponse(success=True, data=result, message="Memory statistics retrieved successfully")
 
 @app.get("/mcp/version")
 async def mcp_version():
     return {"mcp_protocol_version": MCP_PROTOCOL_VERSION}
 
 @app.get("/mcp/capabilities")
-async def mcp_capabilities():
+async def mcp_caps():
     return {"capabilities": ["memory", "embedding", "search", "graph"], "mcp_protocol_version": MCP_PROTOCOL_VERSION}
 
-# =========================================================================
-# HEALTH/LIVENESS/READINESS ENDPOINTS (ROBUST, EXPANDABLE)
-# =========================================================================
+async def startup_tasks():
+    logger.info(f"OneAgent Memory Server v{ONEAGENT_VERSION} starting...")
+    logger.info(f"Server ready at http://{a_config.host}:{a_config.port}")
+    # Probe embeddings gateway once on startup for operator clarity
+    if getattr(memory_system, 'use_node_gateway', False):
+        try:
+            payload = json.dumps({"content": "startup-probe", "action": "probe"}).encode('utf-8')
+            headers = {'Content-Type': 'application/json', 'Accept': 'application/json', 'MCP-Protocol-Version': MCP_PROTOCOL_VERSION}
+            req = urlrequest.Request(a_config.embeddings_url, data=payload, headers=headers, method='POST')
+            def _call():
+                with urlrequest.urlopen(req, timeout=5) as r:
+                    return r.read()
+            raw = await asyncio.to_thread(_call)
+            ok = bool(raw)
+            if ok:
+                logger.info("Embeddings gateway: ready")
+                memory_system._gateway_cooldown_until = 0.0
+            else:
+                raise RuntimeError("Empty response")
+        except Exception as e:
+            logger.warning(f"Embeddings gateway unavailable at startup: {e}. Falling back to Gemini/local. Cooldown {a_config.embeddings_gateway_cooldown_seconds}s")
+            memory_system._gateway_cooldown_until = time.time() + float(getattr(a_config, 'embeddings_gateway_cooldown_seconds', 5.0))
 
-def minimal_health_status() -> dict:
-    """Minimal liveness response for /ping, /livez, /readyz"""
+# ---------------------------------------------------------------------------
+# Additional minimal health endpoints (liveness/readiness) - canonical
+# ---------------------------------------------------------------------------
+def _minimal_health() -> Dict[str, Any]:
     return {
         "status": "ok",
         "service": "oneagent-memory",
         "version": ONEAGENT_VERSION,
-        "mcp_protocol_version": MCP_PROTOCOL_VERSION
+        "mcp_protocol_version": MCP_PROTOCOL_VERSION,
     }
 
-@app.get("/ping", tags=["health"])
+@app.get("/ping")
 async def ping():
-    """Minimal liveness endpoint for health checks and client pings"""
-    return minimal_health_status()
+    return _minimal_health()
 
-@app.get("/livez", tags=["health"])
+@app.get("/livez")
 async def livez():
-    """Liveness probe endpoint (expandable for future checks)"""
-    return minimal_health_status()
+    return _minimal_health()
 
-@app.get("/readyz", tags=["health"])
+@app.get("/readyz")
 async def readyz():
-    """Readiness probe endpoint (expandable for future checks)"""
-    # In future, add DB/model checks here
-    return minimal_health_status()
+    return _minimal_health()
 
-# ============================================================================
-# SERVER STARTUP
-# ============================================================================
-
-async def startup_tasks():
-    """Startup tasks and validation"""
-    logger.info(f"OneAgent Memory Server v{ONEAGENT_VERSION} Starting...")
-    logger.info(f"Configuration validated successfully")
-    logger.info(f"Memory system operational: {memory_system.collection.count()} memories")
-    logger.info(f"Server ready at http://{config.host}:{config.port}")
-
-# ============================================================================
-# MAIN EXECUTION
-# ============================================================================
+# Ensure startup tasks run in all server start modes
+@app.on_event("startup")
+async def _on_startup():
+    await startup_tasks()
 
 if __name__ == "__main__":
-    logger.info(f"Initializing OneAgent Memory Server v{ONEAGENT_VERSION}...")
-    
-    try:
-        uvicorn.run(
-            app,
-            host=config.host,
-            port=config.port,
-            log_level="info",
-            access_log=True,
-            loop="asyncio"
-        )
-    except KeyboardInterrupt:
-        logger.info("🛑 Server stopped by user")
-    except Exception as e:
-        logger.error(f"Server startup failed: {e}")
-        raise
+    uvicorn.run(app, host=a_config.host, port=a_config.port, log_level="info")

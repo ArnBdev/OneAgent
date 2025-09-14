@@ -40,6 +40,7 @@ import { ConstitutionValidator } from './validation/ConstitutionValidator';
 import { proactiveObserverService } from './services/ProactiveTriageOrchestrator';
 import { taskDelegationService } from './services/TaskDelegationService';
 import { unifiedMonitoringService } from './monitoring/UnifiedMonitoringService';
+import { TOOL_SETS, DEFAULT_ALWAYS_ALLOWED_TOOLS } from './tools/ToolSets';
 
 export type OneAgentMode = 'mcp-http' | 'mcp-stdio' | 'standalone' | 'cli' | 'vscode-embedded';
 
@@ -119,6 +120,9 @@ export class OneAgentEngine extends EventEmitter {
   private taskDispatchTimer?: NodeJS.Timeout;
   private readonly TASK_DISPATCH_BASE_INTERVAL =
     parseInt(process.env.ONEAGENT_TASK_DISPATCH_INTERVAL_MS || '10000', 10) || 10000; // configurable base (default 10s)
+  // Active tool-set management (canonical)
+  private activeToolSetIds: Set<string> = new Set(Object.keys(TOOL_SETS));
+  private readonly ALWAYS_ALLOWED_PREFIXES = ['oneagent_a2a_'];
   constructor(_config?: Partial<typeof UnifiedBackboneService.config>) {
     super();
     this.config = UnifiedBackboneService.config;
@@ -354,7 +358,7 @@ export class OneAgentEngine extends EventEmitter {
   getAvailableTools(): ToolDescriptor[] {
     const tools = toolRegistry.getToolSchemas();
     const dynamic = Array.from(this.dynamicTools.values());
-    // Add OneAgent-specific tools (ensure inputSchema is Record<string, unknown>)
+    // OneAgent meta-tools (listing only; execution handled via registry if present)
     const oneAgentTools: ToolDescriptor[] = [
       {
         name: 'oneagent_constitutional_validate',
@@ -380,9 +384,28 @@ export class OneAgentEngine extends EventEmitter {
           criteria: { type: 'array', items: { type: 'string' }, description: 'Quality criteria' },
         },
       },
+      {
+        name: 'oneagent_toolsets_toggle',
+        description:
+          'Activate a subset of tool sets to control available tools (keeps always-allowed tools)',
+        inputSchema: {
+          setIds: {
+            type: 'array',
+            items: { type: 'string' },
+            description: 'Tool set IDs to activate',
+          },
+        },
+      },
     ];
     const a2aTools = unifiedAgentCommunicationService.getToolSchemas();
-    return [...tools, ...dynamic, ...oneAgentTools, ...a2aTools];
+
+    // Apply active tool-set filtering
+    const allowed = this.getAllowedToolNames();
+    // Ensure management tool is always discoverable
+    allowed.add('oneagent_toolsets_toggle');
+    const merged = [...tools, ...dynamic, ...oneAgentTools, ...a2aTools];
+    const filtered = merged.filter((t) => this.isToolAllowed(t.name, allowed));
+    return filtered;
   }
 
   getAvailableResources(): ResourceDescriptor[] {
@@ -438,6 +461,32 @@ export class OneAgentEngine extends EventEmitter {
     if (request.method.startsWith('oneagent_a2a_')) {
       return this.handleA2AToolCall(request);
     }
+    // Handle engine-native toggle tool
+    if (request.method === 'oneagent_toolsets_toggle') {
+      const ids = Array.isArray((request.params as unknown as { setIds?: unknown }).setIds)
+        ? ((request.params as unknown as { setIds: unknown[] }).setIds as string[])
+        : [];
+      const status = this.setActiveToolSetIds(ids);
+      return {
+        success: true,
+        data: status,
+        timestamp: createUnifiedTimestamp(),
+      };
+    }
+    // Enforce active tool-set restriction (except always-allowed and A2A)
+    const allowed = this.getAllowedToolNames();
+    if (!this.isToolAllowed(request.method, allowed)) {
+      return {
+        success: false,
+        error: {
+          code: 'TOOL_SET_RESTRICTED',
+          message:
+            'This tool is not currently enabled. Activate its tool set via oneagent_toolsets_toggle or tools/sets/activate.',
+          timestamp: createUnifiedTimestamp(),
+        } as ErrorDetails,
+        timestamp: createUnifiedTimestamp(),
+      };
+    }
     // Pre-execution constitutional compliance check (skip canonical memory tools)
     const canonicalMemoryTools = [
       'oneagent_memory_add',
@@ -472,6 +521,56 @@ export class OneAgentEngine extends EventEmitter {
     }
     const result = await tool.execute(request.params);
     return { ...(result as ToolResult), timestamp: createUnifiedTimestamp() };
+  }
+
+  // =======================
+  // Tool-sets management
+  // =======================
+  public getActiveToolSetIds(): string[] {
+    return Array.from(this.activeToolSetIds);
+  }
+
+  public setActiveToolSetIds(ids: string[]): {
+    active: string[];
+    appliedCount: number;
+    totalToolCount: number;
+  } {
+    const valid = ids.filter((id) => Object.prototype.hasOwnProperty.call(TOOL_SETS, id));
+    // Fallback: ensure at least one set stays active
+    const next = new Set(valid.length ? valid : ['system-management']);
+    this.activeToolSetIds = next;
+    const allowed = this.getAllowedToolNames();
+    // Notify listeners that tools list may have changed
+    this.emit('toolsChanged', { tools: this.getAvailableTools() });
+    return {
+      active: Array.from(this.activeToolSetIds),
+      appliedCount: allowed.size,
+      totalToolCount: toolRegistry.getToolSchemas().length,
+    };
+  }
+
+  private getAllowedToolNames(): Set<string> {
+    const names = new Set<string>();
+    for (const id of this.activeToolSetIds) {
+      const set = TOOL_SETS[id];
+      if (set) {
+        for (const n of set.tools) names.add(n);
+      }
+    }
+    for (const n of DEFAULT_ALWAYS_ALLOWED_TOOLS) names.add(n);
+    return names;
+  }
+
+  private isToolAllowed(name: string, allowed: Set<string>): boolean {
+    if (allowed.has(name)) return true;
+    if (this.ALWAYS_ALLOWED_PREFIXES.some((p) => name.startsWith(p))) return true;
+    return false;
+  }
+
+  // Public helper for server-side enforcement without duplicating logic
+  public isToolCurrentlyAllowed(name: string): boolean {
+    const allowed = this.getAllowedToolNames();
+    return this.isToolAllowed(name, allowed);
   }
 
   private async handleResourceGet(_request: OneAgentRequest): Promise<never> {

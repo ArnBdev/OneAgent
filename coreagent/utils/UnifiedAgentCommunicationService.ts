@@ -580,6 +580,29 @@ export class UnifiedAgentCommunicationService implements UnifiedAgentCommunicati
       };
 
       // Canonical metadata: expose entityType and messageData at top-level for efficient filtering
+      // Include durable NLACS hint in tags so downstream memory store retains it for filtering/verification
+      const hasNlacs = Boolean(
+        (message.metadata as Record<string, unknown> | undefined)?.nlacs === true ||
+          (Array.isArray((message.metadata as Record<string, unknown> | undefined)?.extensions)
+            ? ((message.metadata as Record<string, unknown>)?.extensions as unknown[]).some(
+                (e: unknown) =>
+                  !!(
+                    e &&
+                    typeof e === 'object' &&
+                    (e as { uri?: string }).uri === 'https://oneagent.ai/extensions/nlacs'
+                  ),
+              )
+            : false),
+      );
+
+      const baseTags = [
+        'message',
+        message.messageType || 'update',
+        `from:${message.fromAgent}`,
+        `to:${message.toAgent || 'all'}`,
+      ];
+      const tagsWithNlacs = hasNlacs ? [...baseTags, 'nlacs'] : baseTags;
+
       const messageMetadata = {
         ...unifiedMetadataService.create('agent_message', 'UnifiedAgentCommunicationService', {
           system: {
@@ -590,12 +613,7 @@ export class UnifiedAgentCommunicationService implements UnifiedAgentCommunicati
           },
           content: {
             category: 'agent_communication',
-            tags: [
-              'message',
-              message.messageType || 'update',
-              `from:${message.fromAgent}`,
-              `to:${message.toAgent || 'all'}`,
-            ],
+            tags: tagsWithNlacs,
             sensitivity: 'internal',
             relevanceScore: 1.0,
             contextDependency: 'session',

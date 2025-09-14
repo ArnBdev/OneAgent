@@ -1,4 +1,4 @@
-# OneAgent Consolidated Strategic Roadmap (v4.0.8)
+# OneAgent Consolidated Strategic Roadmap (v4.1.0)
 
 > **⚠️ Canonical File Notice**  
 > This is the **ONLY** authoritative roadmap. Do **not** create additional roadmap variants (e.g. `CONSOLIDATED_ROADMAP.md`, `roadmap_v2.md`, `HYBRID_ROADMAP`, etc.). All strategy, release planning, KPI updates and status changes MUST be applied here. Creating parallel roadmap documents is prohibited and will be treated as architecture drift. A future CI guard may fail builds if a new `*roadmap*.md` file appears outside this path.
@@ -49,7 +49,7 @@ OneAgent has completed foundational consolidation (time, ID, memory, cache, comm
 | v4.2    | +8 weeks      | Resilience & Policy Hooks           | Circuit breakers, retry policy hardening, chaos tests, orchestration governance/policy hooks     |
 | v4.3    | +12 weeks     | NLACS Phase 3 (Core)                | Entity extraction, constitutional validation pipeline, emergent insight MVP                      |
 | v4.4    | +16 weeks     | PlannerAgent Strategic Layer        | Task decomposition, dynamic replanning, memory-driven optimization                               |
-| v4.5    | +20 weeks     | Web UI Phase A                      | Dashboard (metrics, agents, memory explorer), SSE/WebSocket event stream                         |
+| v4.5    | +20 weeks     | Web UI Phase A                      | Dashboard (metrics, agents, memory explorer), HTTP NDJSON stream/WebSocket events                |
 | v4.6    | +24 weeks     | Web UI Phase B + Error Analytics    | SLO visualization, error drill-down, taxonomy management console                                 |
 | v5.0    | +32 weeks     | Hybrid Intelligence Launch          | Full NLACS + Planner integration, cross-session learning reports, stability SLA                  |
 | v5.1    | +40 weeks     | Extensibility & Plugin SDK          | Signed plugin packages, sandbox execution policies, marketplace seed                             |
@@ -65,7 +65,7 @@ OneAgent has completed foundational consolidation (time, ID, memory, cache, comm
 - SLO Config: `slo.config.json` listing targets (latency/error budgets) + loader & validator.
 - Alert Pack: `docs/monitoring/ALERTS.md` curated PromQL + rationale.
 - Anomaly Detection (Phase 2): Z-score or seasonal baseline; emits structured `monitoring.anomaly` events.
-- SSE Uptime & Health: Track MCP `/mcp` SSE stream uptime as a gauge; alert when below threshold; expose in JSON + Prometheus.
+- Stream Uptime & Health: Track MCP `/mcp/stream` NDJSON stream uptime as a gauge; alert when below threshold; expose in JSON + Prometheus.
 
 ### 5.2 NLACS & Intelligence
 
@@ -84,7 +84,7 @@ All agent-to-agent communication, including orchestration, reminders, and team m
 Acceptance (Phase A minimum):
 
 - Orchestration metrics table shows agent utilization and success rate derived from canonical events.
-- Live SSE viewer connected to `/mcp` with reconnection and health badge.
+- Live stream viewer connected to `/mcp/stream` with reconnection and health badge.
 - Domain selector in UI scopes views to a selected domain (work/personal/etc.) without crossing data.
 
 ### 5.5 Extensibility & Ecosystem
@@ -190,7 +190,7 @@ Adaptive Sampling → Clustering → Distributed Monitoring → Enterprise Scale
 | Adoption      | Active plugins installed (avg)        | 5           | 25          |
 | Scale         | Sustained ops/sec (single node)       | 150         | 400         |
 | Scale         | Cluster horizontal scaling efficiency | 70%         | 85%         |
-| Availability  | SSE stream uptime (monthly)           | 99.0%       | 99.9%       |
+| Availability  | NDJSON stream uptime (monthly)        | 99.0%       | 99.9%       |
 | UX            | Dashboard p95 load latency            | < 2s        | < 1s        |
 | Privacy       | Domain leakage incidents (monthly)    | 0           | 0           |
 | Routing       | MTMS (mean time to model swap)        | < 5m        | < 1m        |
@@ -243,7 +243,7 @@ Adaptive Sampling → Clustering → Distributed Monitoring → Enterprise Scale
 | 13  | Clustering design doc for orchestrator                               | v4.5               | ⏳ Planned | Stateless frontends, shared memory index, distributed events                                        |
 | 14  | CI guard to prevent parallel roadmap files                           | v4.1               | ⏳ Planned | Block any `*roadmap*.md` outside `docs/ROADMAP.md`                                                  |
 | 15  | Anomaly detection prototype (latency Z-score → events)               | v4.1               | ⏳ Planned | Emit `monitoring.anomaly` events; validate with synthetic spikes                                    |
-| 16  | SSE uptime gauge + alert                                             | v4.1               | ⏳ Planned | Gauge + alert rule; surface in JSON + Prometheus                                                    |
+| 16  | NDJSON stream uptime gauge + alert                                   | v4.1               | ⏳ Planned | Gauge + alert rule; surface in JSON + Prometheus                                                    |
 | 17  | Domain Profiles + Consent Bridges (MVP, policies + tests)            | v4.1               | ⏳ Planned | Implement domain compartments using policy hooks; CI conformance tests for leakage                  |
 | 18  | Model routing v1 (cost/quality/latency)                              | v4.1               | ⏳ Planned | Strengthen UnifiedModelPicker policies + telemetry; enable safe hot‑swap                            |
 | 19  | Reminder delegation pattern (OfficeAgent + calendar connector)       | v4.1               | ⏳ Planned | Orchestrator → OfficeAgent via unified comms; memory audit trail; example test                      |
@@ -272,10 +272,10 @@ This roadmap is considered active once merged to `main`. Quarterly review cycle;
 ---
 
 **Maintainer**: Lead Developer (OneAgent)  
-**Version**: 1.0.3 (Aligned to platform v4.0.8)  
+**Version**: 1.0.4 (Aligned to platform v4.1.0)  
 **Next Review**: +30 days from merge
 
-# OneAgent Consolidated Strategic Roadmap (v4.0.8)
+# OneAgent Consolidated Strategic Roadmap (v4.1.0)
 
 > **⚠️ Canonical File Notice**  
 > This is the **ONLY** authoritative roadmap. Do **not** create additional roadmap variants (e.g. `CONSOLIDATED_ROADMAP.md`, `roadmap_v2.md`, `HYBRID_ROADMAP`, etc.). All strategy, release planning, KPI updates and status changes MUST be applied here. Creating parallel roadmap documents is prohibited and will be treated as architecture drift. A future CI guard may fail builds if a new `*roadmap*.md` file appears outside this path.
@@ -326,7 +326,7 @@ OneAgent has completed foundational consolidation (time, ID, memory, cache, comm
 | v4.2    | +8 weeks      | Resilience & Policy Hooks           | Circuit breakers, retry policy hardening, chaos tests, orchestration governance/policy hooks     |
 | v4.3    | +12 weeks     | NLACS Phase 3 (Core)                | Entity extraction, constitutional validation pipeline, emergent insight MVP                      |
 | v4.4    | +16 weeks     | PlannerAgent Strategic Layer        | Task decomposition, dynamic replanning, memory-driven optimization                               |
-| v4.5    | +20 weeks     | Web UI Phase A                      | Dashboard (metrics, agents, memory explorer), SSE/WebSocket event stream                         |
+| v4.5    | +20 weeks     | Web UI Phase A                      | Dashboard (metrics, agents, memory explorer), HTTP NDJSON stream/WebSocket events                |
 | v4.6    | +24 weeks     | Web UI Phase B + Error Analytics    | SLO visualization, error drill-down, taxonomy management console                                 |
 | v5.0    | +32 weeks     | Hybrid Intelligence Launch          | Full NLACS + Planner integration, cross-session learning reports, stability SLA                  |
 | v5.1    | +40 weeks     | Extensibility & Plugin SDK          | Signed plugin packages, sandbox execution policies, marketplace seed                             |
@@ -342,7 +342,7 @@ OneAgent has completed foundational consolidation (time, ID, memory, cache, comm
 - SLO Config: `slo.config.json` listing targets (latency/error budgets) + loader & validator.
 - Alert Pack: `docs/monitoring/ALERTS.md` curated PromQL + rationale.
 - Anomaly Detection (Phase 2): Z-score or seasonal baseline; emits structured `monitoring.anomaly` events.
-- SSE Uptime & Health: Track MCP `/mcp` SSE stream uptime as a gauge; alert when below threshold; expose in JSON + Prometheus.
+- Stream Uptime & Health: Track MCP `/mcp/stream` NDJSON stream uptime as a gauge; alert when below threshold; expose in JSON + Prometheus.
 
 ### 5.2 NLACS & Intelligence
 
@@ -361,7 +361,7 @@ All agent-to-agent communication, including orchestration, reminders, and team m
 Acceptance (Phase A minimum):
 
 - Orchestration metrics table shows agent utilization and success rate derived from canonical events.
-- Live SSE viewer connected to `/mcp` with reconnection and health badge.
+- Live stream viewer connected to `/mcp/stream` with reconnection and health badge.
 - Domain selector in UI scopes views to a selected domain (work/personal/etc.) without crossing data.
 
 ### 5.5 Extensibility & Ecosystem
@@ -549,5 +549,5 @@ This roadmap is considered active once merged to `main`. Quarterly review cycle;
 ---
 
 **Maintainer**: Lead Developer (OneAgent)  
-**Version**: 1.0.3 (Aligned to platform v4.0.8)  
+**Version**: 1.0.4 (Aligned to platform v4.1.0)  
 **Next Review**: +30 days from merge

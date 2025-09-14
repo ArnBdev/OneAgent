@@ -43,6 +43,11 @@ import { Request, Response, NextFunction } from 'express';
 import { createMetricsRouter } from '../api/metricsAPI';
 import { taskDelegationService } from '../services/TaskDelegationService';
 const app = express();
+import { TOOL_SETS } from '../tools/ToolSets';
+import { embeddingCacheService } from '../services/EmbeddingCacheService';
+import SmartGeminiClient from '../tools/SmartGeminiClient';
+import { getEmbeddingModel } from '../config/UnifiedModelPicker';
+import crypto from 'crypto';
 
 // Middleware
 app.use(express.json({ limit: '10mb' }));
@@ -212,31 +217,6 @@ const auditLogger = new SimpleAuditLogger({
 let serverInitialized = false;
 let clientInfo: { name: string; version: string } | null = null;
 
-// Store connected SSE clients
-const sseClients: Response[] = [];
-
-/**
- * Helper to send an SSE event to a client
- */
-function sendSseEvent(res: Response, eventName: string, data: unknown) {
-  res.write(`event: ${eventName}\n`);
-  res.write(`data: ${JSON.stringify(data)}\n\n`);
-}
-
-/**
- * Helper to send an MCP notification over SSE to all connected clients
- */
-function sendMcpNotificationToAllSseClients(method: string, params: unknown) {
-  const notification = {
-    jsonrpc: '2.0',
-    method,
-    params,
-  };
-  sseClients.forEach((clientRes) => {
-    sendSseEvent(clientRes, 'mcpNotification', notification);
-  });
-}
-
 /**
  * Initialize MCP server and OneAgent engine
  */
@@ -303,6 +283,9 @@ async function handleMCPRequest(mcpRequest: MCPRequest): Promise<MCPResponse> {
     // MCP 2025 Enhanced Methods
     if (mcpRequest.method === 'tools/sets') {
       return handleToolSets(mcpRequest);
+    }
+    if (mcpRequest.method === 'tools/sets/activate') {
+      return handleToolSetsActivate(mcpRequest);
     }
 
     if (mcpRequest.method === 'resources/templates') {
@@ -462,6 +445,46 @@ async function handleToolCall(mcpRequest: MCPRequest): Promise<MCPResponse> {
       error: {
         code: -32602,
         message: 'Invalid tool name',
+      },
+    };
+  }
+  // Enforce active tool-set restriction at server layer for clearer MCP error semantics
+  const activeIds = new Set(oneAgent.getActiveToolSetIds());
+  let serverAllowed = false;
+  if (name.startsWith('oneagent_a2a_')) serverAllowed = true; // A2A tools always allowed
+  // Always-allowed list
+  if (!serverAllowed) {
+    try {
+      const { DEFAULT_ALWAYS_ALLOWED_TOOLS } = await import('../tools/ToolSets');
+      if (DEFAULT_ALWAYS_ALLOWED_TOOLS.includes(name)) serverAllowed = true;
+    } catch {
+      /* ignore */
+    }
+  }
+  // Active sets
+  if (!serverAllowed) {
+    try {
+      const { TOOL_SETS } = await import('../tools/ToolSets');
+      for (const id of activeIds) {
+        const set = (TOOL_SETS as Record<string, { tools: string[] }>)[id];
+        if (set && Array.isArray(set.tools) && set.tools.includes(name)) {
+          serverAllowed = true;
+          break;
+        }
+      }
+    } catch {
+      /* ignore */
+    }
+  }
+
+  if (!serverAllowed) {
+    return {
+      jsonrpc: '2.0',
+      id: mcpRequest.id,
+      error: {
+        code: -32601,
+        message:
+          'This tool is not currently enabled. Activate its tool set via oneagent_toolsets_toggle or tools/sets/activate.',
       },
     };
   }
@@ -920,68 +943,6 @@ app.post('/mcp/stream', async (req: Request, res: Response) => {
   }
 });
 
-// Enhance SSE endpoint for MCP notifications
-// SSE fallback endpoint (legacy)
-app.get('/mcp', (req: Request, res: Response) => {
-  res.setHeader('Content-Type', 'text/event-stream');
-  res.setHeader('Cache-Control', 'no-cache');
-  res.setHeader('Connection', 'keep-alive');
-  res.flushHeaders(); // Flush headers to open the connection
-
-  // Add to clients list
-  sseClients.push(res);
-
-  // Send initial notification
-  sendSseEvent(res, 'mcpNotification', {
-    jsonrpc: '2.0',
-    method: 'notifications/initialized',
-    params: { timestamp: createUnifiedTimestamp().iso },
-  });
-
-  // Heartbeat
-  const heartbeatInterval = setInterval(() => {
-    res.write(':heartbeat\n\n');
-  }, 15000);
-  (heartbeatInterval as unknown as NodeJS.Timer).unref?.();
-
-  // Remove client on disconnect
-  req.on('close', () => {
-    clearInterval(heartbeatInterval);
-    const idx = sseClients.indexOf(res);
-    if (idx !== -1) sseClients.splice(idx, 1);
-    if (!QUIET_MODE) console.log('Client disconnected from SSE stream');
-  });
-
-  if (!QUIET_MODE) console.log('🔗 SSE stream opened for client');
-  // In a real implementation, you would push events here
-  // For now, this just establishes the connection.
-});
-
-// Explicit SSE alias path for clients expecting /mcp/sse
-app.get('/mcp/sse', (req: Request, res: Response) => {
-  res.setHeader('Content-Type', 'text/event-stream');
-  res.setHeader('Cache-Control', 'no-cache');
-  res.setHeader('Connection', 'keep-alive');
-  res.flushHeaders();
-
-  sseClients.push(res);
-  sendSseEvent(res, 'mcpNotification', {
-    jsonrpc: '2.0',
-    method: 'notifications/initialized',
-    params: { timestamp: createUnifiedTimestamp().iso },
-  });
-
-  const hb = setInterval(() => res.write(':heartbeat\n\n'), 15000);
-  (hb as unknown as NodeJS.Timer).unref?.();
-  req.on('close', () => {
-    clearInterval(hb);
-    const idx = sseClients.indexOf(res);
-    if (idx !== -1) sseClients.splice(idx, 1);
-    if (!QUIET_MODE) console.log('Client disconnected from SSE stream');
-  });
-  if (!QUIET_MODE) console.log('SSE stream opened for client (/mcp/sse)');
-});
-
 /**
  * Health check endpoint
  */
@@ -1012,17 +973,80 @@ app.get('/info', (_req: Request, res: Response) => {
       bmadFramework: true,
       multiAgent: true,
       unifiedMemory: true,
+      embeddingsGateway: true,
       qualityScoring: true,
     },
     endpoints: {
       mcp: '/mcp',
       health: '/health',
       info: '/info',
+      embeddings: '/api/v1/embeddings',
     },
     client: clientInfo,
     initialized: serverInitialized,
     timestamp: createUnifiedTimestamp().iso,
   });
+});
+
+// ==============================================
+// Embeddings Gateway (Phase 1)
+// ==============================================
+
+type EmbeddingAction = 'add' | 'search' | 'update';
+
+function mapActionToKind(action?: EmbeddingAction): 'rule' | 'query' | 'generic' {
+  switch ((action || 'add').toLowerCase()) {
+    case 'search':
+      return 'query';
+    case 'add':
+    case 'update':
+      return 'rule';
+    default:
+      return 'generic';
+  }
+}
+
+function normalizeDimensions(vec: number[], targetDim: number): number[] {
+  if (vec.length === targetDim) return vec;
+  if (vec.length > targetDim) return vec.slice(0, targetDim);
+  // pad with zeros
+  const out = vec.slice();
+  while (out.length < targetDim) out.push(0);
+  return out;
+}
+
+app.post('/api/v1/embeddings', async (req: Request, res: Response) => {
+  try {
+    const content = String(req.body?.content || '').trim();
+    const action = (req.body?.action || 'add') as EmbeddingAction;
+    if (!content) {
+      res.status(400).json({ error: 'content_required' });
+      return;
+    }
+    // Determine target dimensions (canonical). Default 768 for cross-system compatibility.
+    const targetDim = Number(process.env.ONEAGENT_EMBEDDING_DIM || 768);
+    const model = getEmbeddingModel();
+
+    // Build client via unified picker (Gemini today; extend later)
+    const client = new SmartGeminiClient({ apiKey: process.env.GEMINI_API_KEY });
+
+    const kind = mapActionToKind(action);
+    const vec = await embeddingCacheService.getOrCompute(client, content, kind);
+    const normalized = normalizeDimensions(vec, targetDim);
+
+    // Optional: weak cache hint using hash compare (best effort)
+    const h = crypto.createHash('sha256').update(content).digest('hex').slice(0, 24);
+    res.setHeader('X-Embedding-Model', model);
+    res.setHeader('X-Embedding-Target-Dim', String(targetDim));
+    res.setHeader('X-Embedding-Content-Hash', h);
+    res.json({ model, dimensions: normalized.length, embedding: normalized });
+  } catch (error) {
+    await getUnifiedErrorHandler().handleError(error as Error, {
+      component: 'UnifiedMCPServer',
+      operation: 'embeddingsEndpoint',
+    });
+    res.status(500).json({ error: 'embedding_failed', message: (error as Error)?.message });
+  }
 });
 
 /**
@@ -1135,8 +1159,9 @@ async function startServer(): Promise<void> {
     await initializeServer();
 
     const port = UnifiedBackboneService.config.mcpPort;
+    const host = UnifiedBackboneService.config.host;
 
-    const server = app.listen(port, () => {
+    const server = app.listen(port, host, () => {
       // Canonical startup banner
       if (!QUIET_MODE) {
         console.log('==============================================');
@@ -1212,10 +1237,17 @@ async function startServer(): Promise<void> {
 export { app };
 
 // Conditional auto-start: Skip when running under Jest (NODE_ENV === 'test') or explicit disable flag.
+// Avoid auto-start when executed under ts-node (common in local tests), to prevent
+// multiple server/engine instances and racey state between instances.
+const IS_TS_NODE =
+  !!process.env.TS_NODE ||
+  (process.env._ || '').includes('ts-node') ||
+  process.argv.some((a) => a.toLowerCase().includes('ts-node'));
 const SHOULD_AUTOSTART =
   process.env.ONEAGENT_DISABLE_AUTOSTART !== '1' &&
   process.env.NODE_ENV !== 'test' &&
-  process.env.ONEAGENT_FAST_TEST_MODE !== '1';
+  process.env.ONEAGENT_FAST_TEST_MODE !== '1' &&
+  !IS_TS_NODE;
 if (SHOULD_AUTOSTART) {
   startServer().catch((error) => {
     console.error('💥 Startup failed:', error);
@@ -1225,104 +1257,27 @@ if (SHOULD_AUTOSTART) {
 
 export { startServer, oneAgent };
 
-// Example: Dynamic notification triggers for tools/resources/prompts
-// These can be called after any change to tools/resources/prompts
-function notifyToolsListChanged() {
-  sendMcpNotificationToAllSseClients('tools/listChanged', {
-    timestamp: createUnifiedTimestamp().iso,
-  });
-}
-function notifyResourcesListChanged() {
-  sendMcpNotificationToAllSseClients('resources/listChanged', {
-    timestamp: createUnifiedTimestamp().iso,
-  });
-}
-function notifyPromptsListChanged() {
-  sendMcpNotificationToAllSseClients('prompts/listChanged', {
-    timestamp: createUnifiedTimestamp().iso,
-  });
-}
-
-// Wire dynamic notifications to OneAgentEngine events for full compliance
-if (typeof oneAgent.on === 'function') {
-  oneAgent.on('toolsChanged', notifyToolsListChanged);
-  oneAgent.on('resourcesChanged', notifyResourcesListChanged);
-  oneAgent.on('promptsChanged', notifyPromptsListChanged);
-}
-
-// Example: Hook into tool/resource/prompt registration (pseudo-code, adapt as needed)
-// oneAgent.on('toolsChanged', notifyToolsListChanged);
-// oneAgent.on('resourcesChanged', notifyResourcesListChanged);
-// oneAgent.on('promptsChanged', notifyPromptsListChanged);
-
-// You can also call these functions directly after any dynamic change
-// For example, after registering a new tool:
-// notifyToolsListChanged();
-
 // MCP 2025 Enhanced MethodHandlers
 
 function handleToolSets(mcpRequest: MCPRequest): MCPResponse {
-  // Tool sets organize tools into logical groups for better UX
-  const toolSets = {
-    'constitutional-ai': {
-      name: 'Constitutional AI',
-      description: 'AI validation and quality assurance tools',
-      tools: [
-        'oneagent_constitutional_validate',
-        'oneagent_bmad_analyze',
-        'oneagent_quality_score',
-      ],
-      icon: 'shield-check',
-    },
-    'memory-context': {
-      name: 'Memory & Context',
-      description: 'Memory management and context handling tools',
-      tools: [
-        'oneagent_memory_search',
-        'oneagent_memory_add',
-        'oneagent_memory_edit',
-        'oneagent_memory_delete',
-      ],
-      icon: 'database',
-    },
-    'development-docs': {
-      name: 'Development Documentation',
-      description: 'Web development documentation retrieval and storage (Context7)',
-      tools: ['oneagent_context7_query'],
-      icon: 'book',
-    },
-    'research-analysis': {
-      name: 'Research & Analysis',
-      description: 'Web search and analysis tools',
-      tools: [
-        'oneagent_enhanced_search',
-        'oneagent_web_search',
-        'oneagent_web_fetch',
-        'oneagent_code_analyze',
-      ],
-      icon: 'search',
-    },
-    'system-management': {
-      name: 'System Management',
-      description: 'System health and communication tools',
-      tools: [
-        'oneagent_system_health',
-        'oneagent_conversation_retrieve',
-        'oneagent_conversation_search',
-      ],
-      icon: 'settings',
-    },
-  };
-
   return {
     jsonrpc: '2.0',
     id: mcpRequest.id,
     result: {
-      toolSets: Object.entries(toolSets).map(([id, set]) => ({
-        id,
-        ...set,
-      })),
+      toolSets: Object.values(TOOL_SETS),
+      active: oneAgent.getActiveToolSetIds(),
     },
+  };
+}
+
+function handleToolSetsActivate(mcpRequest: MCPRequest): MCPResponse {
+  const params = (mcpRequest.params || {}) as { setIds?: string[] };
+  const setIds = Array.isArray(params.setIds) ? params.setIds : [];
+  const status = oneAgent.setActiveToolSetIds(setIds);
+  return {
+    jsonrpc: '2.0',
+    id: mcpRequest.id,
+    result: status,
   };
 }
 

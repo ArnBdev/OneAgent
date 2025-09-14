@@ -29,7 +29,7 @@ class OneAgentVerifier {
   }
 
   async runVerification(): Promise<void> {
-    console.log('🔍 OneAgent v4.0.0 - Final System Verification');
+  console.log('🔍 OneAgent v4.0.0 - Final System Verification');
     console.log('=' .repeat(60));
     
     await this.verifyTypeScript();
@@ -224,7 +224,7 @@ class OneAgentVerifier {
     console.log('\n🏆 OVERALL SYSTEM STATUS:');
     if (criticalFail === 0) {
       console.log('✅ PRODUCTION READY - All critical systems operational!');
-      console.log('🚀 OneAgent v4.0.0 is ready for deployment as:');
+  console.log('🚀 OneAgent v4.0.0 is ready for deployment as:');
       console.log('   • MCP Server for VS Code Copilot');
       console.log('   • Standalone Multi-Agent System');
       console.log('   • Development Environment');

@@ -369,7 +369,7 @@ class CanonicalSystemValidator {
 
     if (criticalIssues === 0) {
       console.log('\n🎉 CANONICAL SYSTEM READY');
-      console.log('OneAgent v4.0.0 canonical system is operational!');
+      console.log('OneAgent v4.1.0 canonical system is operational!');
     } else {
       console.log('\n⚠️ CRITICAL ISSUES FOUND');
       console.log('Please address critical issues before deployment.');

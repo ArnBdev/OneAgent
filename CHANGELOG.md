@@ -1,12 +1,39 @@
-# 📝 OneAgent v4.0.8 Professional - Changelog
+# 📝 OneAgent v4.1.0 Professional - Changelog
 
-**Current Version**: v4.0.8 Professional  
+**Current Version**: v4.1.0 Professional  
+Note: v4.1.0 aligns versions across manifests (package.json, mcp-manifest.json, server defaults) and updates A2A docs to reflect the adapter delegation to UnifiedAgentCommunicationService. No breaking API changes.
 **Quality Score**: 96.85% (Grade A+)  
 **System Health**: Optimal with ALITA Metadata Enhancement
 
 ---
 
 > Maintainer Note: Let me know if you’d like a concise changelog snippet.
+
+## v4.1.0 (Maintenance) — Canonical System Health + Readiness
+
+### 🏥 SystemHealthTool Canonicalization
+
+- Switched SystemHealthTool to canonical error handling via `getUnifiedErrorHandler().handleError(...)` (no static references).
+- Version now sourced from `getAppVersion()`; timestamp/IDs via unified helpers.
+- Added `operationSummary` powered by canonical monitoring aggregation (`UnifiedBackboneService.monitoring.summarizeOperationMetrics`) — no parallel counters.
+- Performance metrics now come from `UnifiedMonitoringService.getPerformanceMetrics()` (CPU, memory, latency p95/p99, throughput, quality/compliance).
+- MCP health details now derived from `getUnifiedMCPClient().getHealth()` (status, response time, error rate, active connections, cache hit rate, server list).
+- Removed illustrative/placeholder counts and unused locals; tightened types. Public tool name unchanged: `oneagent_system_health`.
+
+Documentation: API reference updated to reflect enriched response (`healthMetrics.overall/components` + `operationSummary`).
+
+### ⏱️ Memory Readiness Helpers + Test Stabilization
+
+- Added `OneAgentMemory.ready()` (GET `/readyz`) and `waitForReady(totalTimeoutMs, intervalMs)` polling helper.
+- NLACS persistence test updated to poll readiness and gracefully skip when memory backend is unavailable; reduces flakes under CI.
+- README Testing section now notes readiness behavior for persistence-style tests.
+
+Integrity: No parallel systems introduced; all new data flows through canonical backbones (UnifiedMonitoringService, UnifiedBackboneService, unified MCP client, OneAgentMemory).
+
+### 🧰 CI/Docs Minor Additions (Windows parity)
+
+- CI: Added Windows readiness-gated NLACS persistence job mirroring Linux (starts memory server, polls `/readyz`, runs NLACS persistence test, cleans up).
+- Docs: README adds a quick link to `tests/README.md` for the readiness-gated persistence test quickstart.
 
 ## v4.0.2 - 2025-08-16
 

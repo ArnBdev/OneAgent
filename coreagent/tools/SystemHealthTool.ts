@@ -4,7 +4,14 @@
  */
 
 import { UnifiedMCPTool, ToolExecutionResult, InputSchema } from './UnifiedMCPTool';
-import { UnifiedBackboneService } from '../utils/UnifiedBackboneService';
+import {
+  UnifiedBackboneService,
+  createUnifiedTimestamp,
+  createUnifiedId,
+  getUnifiedErrorHandler,
+  getAppVersion,
+  getUnifiedMCPClient,
+} from '../utils/UnifiedBackboneService';
 
 interface SystemHealthArgs {
   includeDetails?: boolean;
@@ -49,6 +56,10 @@ export class SystemHealthTool extends UnifiedMCPTool {
 
   public async executeCore(args: SystemHealthArgs): Promise<ToolExecutionResult> {
     try {
+      const operationId = createUnifiedId('operation', 'system_health_tool');
+      const ts = createUnifiedTimestamp();
+      // Access endpoints via UnifiedBackboneService when needed; avoid unused locals
+      const version = getAppVersion();
       const {
         includeDetails = true,
         components = ['memory', 'agents', 'mcp', 'constitutional', 'performance'],
@@ -58,8 +69,8 @@ export class SystemHealthTool extends UnifiedMCPTool {
         overall: {
           status: 'healthy',
           uptime: process.uptime(),
-          timestamp: new Date().toISOString(),
-          version: '4.0.0',
+          timestamp: ts,
+          version,
         },
         components: {} as ComponentMetrics,
       };
@@ -89,15 +100,17 @@ export class SystemHealthTool extends UnifiedMCPTool {
       }
 
       if (components.includes('mcp')) {
+        const mcpEndpoint = UnifiedBackboneService.getEndpoints().mcp;
+        const mcpStatus = getUnifiedMCPClient().getHealth();
         healthMetrics.components.mcp = {
-          status: 'operational',
-          protocol: 'HTTP MCP 2024-11-05',
-          port: UnifiedBackboneService.getResolvedConfig().mcpPort,
-          toolsAvailable: 7,
-          resourcesAvailable: 3,
-          promptsAvailable: 2,
-          requestsHandled: 12,
-          errorRate: '0%',
+          status: mcpStatus.status === 'healthy' ? 'operational' : mcpStatus.status,
+          protocol: 'HTTP MCP 2025-06-18',
+          port: mcpEndpoint.port,
+          averageResponseTimeMs: mcpStatus.details.averageResponseTime,
+          errorRate: `${Math.round(mcpStatus.details.errorRate * 100)}%`,
+          activeConnections: mcpStatus.details.activeConnections,
+          servers: mcpStatus.details.servers,
+          cacheHitRate: `${Math.round(mcpStatus.details.cacheHitRate * 100)}%`,
         };
       }
 
@@ -113,18 +126,29 @@ export class SystemHealthTool extends UnifiedMCPTool {
       }
 
       if (components.includes('performance')) {
+        const perf = await UnifiedBackboneService.monitoring.getPerformanceMetrics();
+        const score = perf.constitutionalAI.qualityScore;
         healthMetrics.components.performance = {
-          status: 'optimal',
-          cpuUsage: '15%',
+          status: score >= 80 ? 'optimal' : score >= 60 ? 'degraded' : 'unhealthy',
+          cpuUsage: `${Math.round(perf.resources.cpuUsage * 100)}%`,
+          memoryUsage: `${Math.round(perf.resources.memoryUsage * 100)}%`,
           responseTime: {
-            average: '120ms',
-            p95: '250ms',
-            p99: '500ms',
+            average: `${Math.round(perf.responseTime.average)}ms`,
+            p95: `${Math.round(perf.responseTime.p95)}ms`,
+            p99: `${Math.round(perf.responseTime.p99)}ms`,
           },
-          throughput: '50 requests/minute',
-          errorRate: '0%',
+          throughput: `${perf.throughput.requestsPerSecond.toFixed(2)} req/s`,
+          operationsPerSecond: perf.throughput.operationsPerSecond,
+          qualityScore: score,
+          complianceRate: perf.constitutionalAI.complianceRate,
+          safetyScore: perf.constitutionalAI.safetyScore,
         };
       }
+
+      // Summarize recent operation metrics (last 5 minutes) using canonical monitoring
+      const operationSummary = UnifiedBackboneService.monitoring.summarizeOperationMetrics({
+        window: 5 * 60 * 1000,
+      });
 
       return {
         success: true,
@@ -133,6 +157,7 @@ export class SystemHealthTool extends UnifiedMCPTool {
           healthMetrics,
           includeDetails,
           components,
+          operationSummary,
           message: 'System health check completed successfully',
           capabilities: [
             'Real-time performance monitoring',
@@ -143,21 +168,32 @@ export class SystemHealthTool extends UnifiedMCPTool {
           qualityScore: 100,
           toolName: 'oneagent_system_health',
           constitutionalCompliant: true,
-          timestamp: new Date().toISOString(),
+          timestamp: ts,
           metadata: {
             checkType: 'comprehensive',
             toolFramework: 'unified_mcp_v1.0',
             constitutionalLevel: 'basic',
+            operationId,
           },
         },
       };
     } catch (error) {
+      // Canonical error handling
+      try {
+        await getUnifiedErrorHandler().handleError(error as Error, {
+          component: 'tools',
+          operation: 'system_health',
+          toolName: 'oneagent_system_health',
+        });
+      } catch {
+        // swallow to ensure tool returns a structured error payload
+      }
       return {
         success: false,
         data: {
           success: false,
           error: error instanceof Error ? error.message : 'Unknown error',
-          timestamp: new Date().toISOString(),
+          timestamp: createUnifiedTimestamp(),
         },
       };
     }

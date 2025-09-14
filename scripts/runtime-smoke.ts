@@ -27,6 +27,7 @@ const memStats = (userId = 'smoke-user') =>
 const mcpHealth = `http://127.0.0.1:${mcpPort}/health`;
 const mcpUrl = `http://127.0.0.1:${mcpPort}/mcp`;
 const mcpInfo = `http://127.0.0.1:${mcpPort}/info`;
+const mcpStream = `http://127.0.0.1:${mcpPort}/mcp/stream`;
 const MCP_PROTOCOL_VERSION = '2025-06-18';
 
 function httpGet(url: string, timeoutMs = 3000): Promise<{ status: number; body: string }> {
@@ -157,53 +158,66 @@ function startMcpServer(cwd: string): ChildProcess {
   );
 }
 
-function sseProbe(url: string, timeoutMs = 6000): Promise<boolean> {
+type MCPRequest = {
+  jsonrpc: '2.0';
+  id: number | string;
+  method: string;
+  params?: Record<string, unknown>;
+};
+
+function streamProbe(url: string, request: MCPRequest, timeoutMs = 6000): Promise<boolean> {
   return new Promise((resolve, reject) => {
     const u = new URL(url);
+    const payload = Buffer.from(JSON.stringify(request));
     const req = http.request(
       {
         hostname: u.hostname,
         port: u.port,
         path: u.pathname,
-        method: 'GET',
-        headers: { Accept: 'text/event-stream' },
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Content-Length': payload.length },
       },
       (res) => {
         const ct = String(res.headers['content-type'] || '');
-        if (res.statusCode !== 200 || !ct.includes('text/event-stream')) {
+        if (!ct.includes('application/json')) {
           res.resume();
-          return reject(new Error(`SSE probe failed: status=${res.statusCode} content-type=${ct}`));
+          return reject(new Error(`Stream probe failed: content-type=${ct}`));
         }
-        let resolved = false;
+        let sawStart = false;
+        let sawMessage = false;
+        let sawEnd = false;
         res.setEncoding('utf8');
-        const onData = (chunk: string) => {
-          // Accept either heartbeat comments or any named event
-          if (chunk.includes(':heartbeat') || chunk.includes('event:')) {
-            resolved = true;
-            cleanup();
-            resolve(true);
+        res.on('data', (chunk: string) => {
+          for (const line of chunk.split('\n')) {
+            const s = line.trim();
+            if (!s) continue;
+            try {
+              const obj = JSON.parse(s);
+              if (obj.type === 'meta' && obj.event === 'start') sawStart = true;
+              if (obj.type === 'message') sawMessage = true;
+              if (obj.type === 'meta' && obj.event === 'end') sawEnd = true;
+            } catch {
+              // ignore partial lines
+            }
           }
-        };
-        const cleanup = () => {
-          res.removeListener('data', onData);
-          clearTimeout(timer);
+        });
+        res.on('end', () => {
+          if (sawStart && sawMessage && sawEnd) resolve(true);
+          else reject(new Error('Stream probe incomplete'));
+        });
+        const timer = setTimeout(() => {
           try {
             req.destroy();
           } catch {
-            /* ignore */
+            /* noop */
           }
-        };
-        res.on('data', onData);
-        const timer = setTimeout(() => {
-          if (!resolved) {
-            cleanup();
-            reject(new Error('SSE probe timeout'));
-          }
+          reject(new Error('Stream probe timeout'));
         }, timeoutMs);
         (timer as unknown as NodeJS.Timer).unref?.();
       },
     );
     req.on('error', reject);
+    req.write(payload);
     req.end();
   });
 }
@@ -234,7 +248,7 @@ async function main() {
       } catch {
         // Fallback to existing env or leave unset; non-fatal
         if (!process.env.ONEAGENT_VERSION) {
-          process.env.ONEAGENT_VERSION = '4.0.2';
+          process.env.ONEAGENT_VERSION = '4.1.0';
         }
       }
       // Ensure MEM0_API_KEY exists for authenticated memory routes
@@ -344,12 +358,16 @@ async function main() {
     );
     if (!toolsOk) throw new Error('MCP tools/list failed');
 
-    // MCP SSE probe: verify we can open the event stream and receive a heartbeat or event
-    const sseOk = await sseProbe(mcpUrl, 6000).catch(() => false);
-    if (!sseOk) throw new Error('MCP SSE probe failed');
+    // MCP streaming probe: verify NDJSON meta/message/end on /mcp/stream
+    const streamOk = await streamProbe(
+      mcpStream,
+      { jsonrpc: '2.0', id: 99, method: 'tools/list' },
+      8000,
+    ).catch(() => false);
+    if (!streamOk) throw new Error('MCP stream probe failed');
 
-    // Success only after SSE probe to guarantee streaming readiness
-    console.log('✓ Runtime smoke passed (SSE ready)');
+    // Success only after streaming probe to guarantee streaming readiness
+    console.log('✓ Runtime smoke passed (stream ready)');
   } finally {
     // Gracefully shutdown processes we started
     const kill = (p: ChildProcess | null) => {

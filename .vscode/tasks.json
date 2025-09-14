@@ -106,6 +106,63 @@
       "command": "pwsh",
       "args": ["-NoProfile", "-Command", "npm run -s story:new -- \"${input:storyTitle}\""],
       "group": "build"
+    },
+    {
+      "label": "MCP: Generate VS Code config from .env",
+      "type": "shell",
+      "command": "pwsh",
+      "args": ["-NoProfile", "-Command", "npm run -s mcp:config"],
+      "group": "build"
+    },
+    {
+      "label": "Start Memory + MCP servers (HTTP)",
+      "type": "shell",
+      "command": "pwsh",
+      "args": ["-NoProfile", "-Command", "npm run -s servers:start"],
+      "isBackground": false,
+      "group": "build"
+    },
+    {
+      "label": "Start: Memory server (bg)",
+      "type": "shell",
+      "command": "pwsh",
+      "args": ["-NoProfile", "-Command", "npm run -s memory:server"],
+      "isBackground": true,
+      "problemMatcher": []
+    },
+    {
+      "label": "Start: MCP server (bg)",
+      "type": "shell",
+      "command": "pwsh",
+      "args": ["-NoProfile", "-Command", "npm run -s server:unified"],
+      "isBackground": true,
+      "problemMatcher": []
+    },
+    {
+      "label": "Start OneAgent (bg)",
+      "dependsOn": ["Start: Memory server (bg)", "Start: MCP server (bg)"],
+      "dependsOrder": "parallel"
+    },
+    {
+      "label": "Start: Memory server (bg)",
+      "type": "shell",
+      "command": "pwsh",
+      "args": ["-NoProfile", "-Command", "npm run -s memory:server"],
+      "isBackground": true,
+      "group": "build"
+    },
+    {
+      "label": "Start: MCP server (bg)",
+      "type": "shell",
+      "command": "pwsh",
+      "args": ["-NoProfile", "-Command", "npm run -s server:unified"],
+      "isBackground": true,
+      "group": "build"
+    },
+    {
+      "label": "Start OneAgent (bg)",
+      "dependsOn": ["Start: Memory server (bg)", "Start: MCP server (bg)"],
+      "dependsOrder": "parallel"
     }
   ],
   "inputs": [

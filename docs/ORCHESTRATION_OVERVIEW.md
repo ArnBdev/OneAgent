@@ -70,4 +70,4 @@ See also: `docs/CONTRIBUTING-ORCHESTRATION.md` for extension patterns and audit 
 ---
 
 Maintainer: Orchestration Lead
-Version: 1.1.0 (endpoints wired with orchestrator metrics; aligned to v4.0.8)
+Version: 1.1.0 (endpoints wired with orchestrator metrics; aligned to v4.1.0)

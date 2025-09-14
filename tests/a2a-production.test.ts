@@ -8,7 +8,7 @@ import { v4 as uuidv4 } from 'uuid';
 const productionAgentCard: AgentCard = {
   protocolVersion: UnifiedBackboneService.getResolvedConfig().a2aProtocolVersion,
   name: 'OneAgent-Production',
-  version: '4.0.0',
+  version: '4.1.0',
   url: UnifiedBackboneService.getResolvedConfig().a2aBaseUrl,
   description: 'Production OneAgent with A2A Protocol v0.2.5 support',
   defaultInputModes: ['text', 'file', 'data'],
@@ -101,7 +101,7 @@ describe('A2A Production Protocol', () => {
           data: {
             timestamp: new Date().toISOString(),
             source: 'a2a-production-test',
-            version: '4.0.0',
+            version: '4.1.0',
           },
         },
       ],

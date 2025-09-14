@@ -13,8 +13,7 @@ This lightweight checklist captures the minimum steps, env matrix, and required 
 - Verify orchestration startup and proactive loop (logs show observation cycle start)
 - Confirm MCP endpoints:
   - JSON-RPC (HTTP): POST /mcp
-  - Streamable HTTP: POST /mcp/stream (newline-delimited JSON)
-  - SSE fallback: GET /mcp and GET /mcp/sse
+  - Streaming (NDJSON): POST /mcp/stream (newline-delimited JSON events: meta→message→end)
 
 ## Environment variables (matrix)
 
@@ -42,6 +41,7 @@ This lightweight checklist captures the minimum steps, env matrix, and required 
 - Backup: Ensure profile backups exist under data/agent-profiles/archive
 - Rollback: Use ProfileManager.rollbackProfile to restore previous configurations
 - Tool count control: Keep active tools under ~128/request. Monitor header `X-OneAgent-Tool-Count` on /mcp responses and split tool sets if needed.
+  - Use tool-set toggling to reduce exposed tools when necessary: list sets via `tools/sets`, activate via `tools/sets/activate` with `{ setIds: string[] }`.
 
 ## Quick verification
 
@@ -53,10 +53,15 @@ This lightweight checklist captures the minimum steps, env matrix, and required 
   - Prometheus: GET http://localhost:8083/api/v1/metrics/prometheus and confirm presence of `oneagent_orchestrator_operations_total`, `oneagent_orchestrator_success_rate_percent`, and `oneagent_orchestrator_agent_utilization_total{agent="..."}`
 - MCP protocol quick checks:
   - HTTP JSON-RPC: POST http://localhost:8083/mcp with `{ "jsonrpc":"2.0", "id":1, "method":"initialize", "params":{ "clientInfo": {"name":"ops","version":"1.0"} } }` and confirm `protocolVersion` and headers `X-MCP-Protocol-Version` and `X-OneAgent-Tool-Count`.
-  - Streamable HTTP: POST http://localhost:8083/mcp/stream with same payload and expect newline-delimited JSON events: `meta(start)`, `message`, `meta(end)`.
-  - SSE: GET http://localhost:8083/mcp/sse and observe initial `notifications/initialized` event; keep connection alive (15s heartbeat).
+  - Streaming: POST http://localhost:8083/mcp/stream with the same JSON-RPC body and expect NDJSON events: `{type:"meta",event:"start"}` → `{type:"message"}` → `{type:"meta",event:"end"}`.
+  - Tool sets: POST http://localhost:8083/mcp with `{ "jsonrpc":"2.0", "id":2, "method":"tools/sets" }` to list; activate with `{ "jsonrpc":"2.0", "id":3, "method":"tools/sets/activate", "params": { "setIds": ["system-management","research-analysis"] } }` and confirm `result.active` and reduced `X-OneAgent-Tool-Count`.
 
 ## Notes
 
 - This is a minimal checklist. Expand with infra-specific tasks (k8s manifests, secrets manager policies, CI/CD steps) before production rollout.
-- Stdio MCP transport is for local IDE integration; production deployments should expose the HTTP endpoints (`/mcp`, `/mcp/stream`, and SSE fallback).
+- Stdio MCP transport is for local IDE integration; production deployments should expose the HTTP endpoints (`/mcp` and `/mcp/stream`).
+  - For VS Code MCP (stdio), OneAgent now hard-blocks any non-framed writes to stdout. Only JSON-RPC frames are emitted; all other logs go to stderr.
+  - Env toggles:
+    - `ONEAGENT_STDIO_MODE=1` (default) ensures quiet stdio mode.
+    - Optional diagnostics: `ONEAGENT_STDIO_LOG_TO_FILE=1` to write suppressed stdout to a file; `ONEAGENT_STDIO_LOG_FILE=<path>` (default `./logs/mcp-server/stdio.log`).
+  - Avoid any direct stdout writes in custom extensions; use stderr or structured server logging.

@@ -11,6 +11,6 @@ This directory contains completion reports, analysis documents, and architectura
 
 ## Current Status
 
-- OneAgent v4.0.2 current
+- OneAgent v4.1.0 current
 - Phase 4 Memory-Driven Intelligence: COMPLETE
 - Phase 5 Autonomous Intelligence: ROADMAP ACTIVE

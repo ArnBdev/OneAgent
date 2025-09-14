@@ -5,12 +5,13 @@
  * for true peer-to-peer agent communication with enterprise-grade security.
  *
  * @see https://a2aproject.github.io/A2A/latest/specification/
- * @version 4.0.0-A2A-COMPLIANT
+ * @version 4.1.0-A2A-ADAPTER
  * @author OneAgent Professional Development Platform
  */
 
 import { EventEmitter } from 'events';
 import { generateUnifiedId } from '../../utils/UnifiedBackboneService';
+import { unifiedAgentCommunicationService } from '../../utils/UnifiedAgentCommunicationService';
 import { OneAgentMemory } from '../../memory/OneAgentMemory';
 import { OneAgentUnifiedBackbone } from '../../utils/UnifiedBackboneService';
 import { UnifiedBackboneService } from '../../utils/UnifiedBackboneService';
@@ -307,6 +308,9 @@ export class OneAgentA2AProtocol extends EventEmitter {
   private activeTasks: Map<string, Task> = new Map();
   private taskContexts: Map<string, string[]> = new Map(); // contextId -> taskIds
   private isInitialized: boolean = false;
+  // Adapter state for canonical unified communication service
+  private _defaultSessionId?: string;
+  private _defaultSessionName?: string;
 
   constructor(agentCard: AgentCard) {
     super();
@@ -337,6 +341,21 @@ export class OneAgentA2AProtocol extends EventEmitter {
       // Store agent card in memory for discovery
       await this.storeAgentCard();
 
+      // Canonical registration via unified communication service (idempotent in fast mode)
+      try {
+        const caps: string[] = Array.isArray(this.agentCard.capabilities as unknown as string[])
+          ? (this.agentCard.capabilities as unknown as string[]) || []
+          : Object.keys(this.agentCard.capabilities || {});
+        await unifiedAgentCommunicationService.registerAgent({
+          id: this.agentCard.name,
+          name: this.agentCard.name,
+          capabilities: caps,
+          metadata: { adapter: 'A2AProtocol', url: this.agentCard.url },
+        });
+      } catch {
+        console.warn('[A2AProtocol Adapter] Agent registration skipped/failed.');
+      }
+
       // Initialize task management
       await this.initializeTaskManagement();
 
@@ -351,6 +370,57 @@ export class OneAgentA2AProtocol extends EventEmitter {
     } catch (error) {
       console.error('❌ A2A Protocol initialization failed:', error);
       return false;
+    }
+  }
+
+  /**
+   * Ensure a default canonical session exists for this protocol instance and return its id.
+   * Adds provided participants to the session (idempotent).
+   */
+  private async ensureDefaultSession(participants: string[]): Promise<string> {
+    if (this._defaultSessionId) {
+      // Best-effort ensure participants are part of the session
+      for (const p of participants) {
+        try {
+          await unifiedAgentCommunicationService.joinSession(this._defaultSessionId, p);
+        } catch {
+          // ignore if already in session or session not found in fast mode
+        }
+      }
+      return this._defaultSessionId;
+    }
+    const name = this._defaultSessionName || `A2AProtocol:${this.agentCard.name}`;
+    const baseParticipants = Array.from(new Set([this.agentCard.name, ...participants]));
+    try {
+      const sessionId = await unifiedAgentCommunicationService.createSession({
+        name,
+        participants: baseParticipants,
+        mode: 'collaborative',
+        topic: `Default session for ${this.agentCard.name}`,
+        metadata: { adapter: 'A2AProtocol' },
+      });
+      this._defaultSessionId = sessionId;
+      this._defaultSessionName = name;
+      return sessionId;
+    } catch {
+      // Fallback: create with only this agent, then try to join others
+      const sessionId = await unifiedAgentCommunicationService.createSession({
+        name,
+        participants: [this.agentCard.name],
+        mode: 'collaborative',
+        topic: `Default session for ${this.agentCard.name}`,
+        metadata: { adapter: 'A2AProtocol' },
+      });
+      this._defaultSessionId = sessionId;
+      this._defaultSessionName = name;
+      for (const p of participants) {
+        try {
+          await unifiedAgentCommunicationService.joinSession(sessionId, p);
+        } catch {
+          // ignore
+        }
+      }
+      return sessionId;
     }
   }
 
@@ -799,7 +869,35 @@ export class OneAgentA2AProtocol extends EventEmitter {
   }): Promise<string> {
     const start = Date.now();
     try {
-      const messageId = await this._sendAgentMessageInternal(params);
+      // Delegate via canonical unified service using an implicit default session
+      const sessionId = await this.ensureDefaultSession([params.toAgent]);
+      // Map protocol messageType to canonical set (update|question|decision|action|insight)
+      const mtBase =
+        params.messageType === 'context'
+          ? 'update'
+          : params.messageType === 'learning'
+            ? 'insight'
+            : params.messageType === 'coordination'
+              ? 'action'
+              : params.messageType || 'update';
+      const mt: 'update' | 'question' | 'decision' | 'action' | 'insight' =
+        mtBase === 'direct' || mtBase === 'broadcast'
+          ? 'update'
+          : (mtBase as 'update' | 'question' | 'decision' | 'action' | 'insight');
+      const messageId = await unifiedAgentCommunicationService.sendMessage({
+        sessionId,
+        fromAgent: this.agentCard.name,
+        toAgent: params.messageType === 'broadcast' ? undefined : params.toAgent,
+        content: params.content,
+        messageType: mt,
+        metadata: {
+          adapter: 'A2AProtocol',
+          priority: params.priority || 'medium',
+          threadId: params.threadId,
+          replyToMessageId: params.replyToMessageId,
+          ...(params.metadata || {}),
+        },
+      });
       unifiedMonitoringService.trackOperation(
         'A2AProtocol',
         COMM_OPERATION.sendAgentMessage,
@@ -885,111 +983,33 @@ export class OneAgentA2AProtocol extends EventEmitter {
   }
 
   /**
-   * Get messages for this agent from memory
+   * Get messages for this agent from the canonical unified communication history
    */
   async getAgentMessages(options?: {
     messageTypes?: string[];
     since?: Date;
     limit?: number;
-  }): Promise<CommunicationPattern[]> {
-    const searchQuery = `agent communication message to:${this.agentCard.name} OR broadcast`;
-
-    const searchResult = await this.memory.searchMemory({
-      query: searchQuery,
-      user_id: this.agentCard.name,
-      limit: options?.limit || 50,
-      semanticSearch: true,
-      type: 'agent-message',
-    });
-    const results = searchResult?.results || [];
-    const filtered = results.filter((result: unknown) => {
-      const res = result as { metadata?: { messageType?: string; timestamp?: string } };
-      if (
-        options?.messageTypes &&
-        res.metadata?.messageType &&
-        !options.messageTypes.includes(res.metadata.messageType)
+  }): Promise<unknown[]> {
+    await this.ensureDefaultSession([]);
+    if (!this._defaultSessionId) return [];
+    const limit = options?.limit || 50;
+    const history = await unifiedAgentCommunicationService.getMessageHistory(
+      this._defaultSessionId,
+      limit,
+    );
+    const mapped = history
+      .filter((m) =>
+        options?.messageTypes && options.messageTypes.length
+          ? options.messageTypes.includes(m.messageType)
+          : true,
       )
-        return false;
-      if (options?.since && res.metadata?.timestamp) {
-        const messageTime = new Date(res.metadata.timestamp);
-        if (messageTime < options.since) return false;
-      }
-      return true;
-    });
-    // Map to CommunicationPattern (minimal message-as-pattern representation)
-    return filtered.map((m): CommunicationPattern => {
-      const mem = m as unknown as {
-        id: string;
-        content?: string;
-        metadata?: { messageType?: string };
-      };
-      return {
-        id: mem.id,
-        type: 'knowledge_sharing',
-        description: mem.content?.slice(0, 120) || 'agent message',
-        frequency: 1,
-        participants: [this.agentCard.name],
-        contexts: [mem.metadata?.messageType || 'general'],
-        effectiveness: 0.5,
-        metadata: (mem.metadata as Record<string, unknown>) || {},
-        relevanceScore: 0.5,
-      };
-    });
-  }
-
-  /**
-   * Search agent communication history
-   */
-  async searchAgentCommunications(
-    query: string,
-    options?: {
-      messageTypes?: string[];
-      timeRange?: { start: Date; end: Date };
-      limit?: number;
-      minQualityScore?: number;
-    },
-  ): Promise<CommunicationPattern[]> {
-    const searchResult2 = await this.memory.searchMemory({
-      query,
-      user_id: this.agentCard.name,
-      limit: options?.limit || 20,
-      semanticSearch: true,
-      type: 'agent-message',
-    });
-    const results2 = searchResult2?.results || [];
-    const filtered2 = results2.filter((result: unknown) => {
-      const res = result as {
-        metadata?: { messageType?: string; timestamp?: string; qualityScore?: number };
-      };
-      const md = res.metadata || {};
-      if (options?.messageTypes && md.messageType && !options.messageTypes.includes(md.messageType))
-        return false;
-      if (options?.timeRange && md.timestamp) {
-        const ts = new Date(md.timestamp);
-        if (ts < options.timeRange.start || ts > options.timeRange.end) return false;
-      }
-      if (options?.minQualityScore && (md.qualityScore || 0) < options.minQualityScore)
-        return false;
-      return true;
-    });
-    return filtered2.map((m): CommunicationPattern => {
-      const mem = m as unknown as {
-        id: string;
-        content?: string;
-        metadata?: { messageType?: string };
-      };
-      return {
-        id: mem.id,
-        type: 'knowledge_sharing',
-        description: mem.content?.slice(0, 120) || 'agent message',
-        frequency: 1,
-        participants: [this.agentCard.name],
-        contexts: [mem.metadata?.messageType || 'general'],
-        effectiveness: 0.5,
-        metadata: (mem.metadata as Record<string, unknown>) || {},
-        relevanceScore: 0.5,
-      };
-    });
+      .filter((m) => (options?.since ? new Date(m.timestamp.iso) >= options.since : true))
+      .map((m) => ({
+        id: m.id,
+        parts: [{ kind: 'text', text: m.message }],
+        metadata: { messageType: m.messageType, timestamp: m.timestamp.iso, ...(m.metadata || {}) },
+      }));
+    return mapped as unknown[];
   }
 
   // =============================================================================
@@ -1023,10 +1043,21 @@ export class OneAgentA2AProtocol extends EventEmitter {
       // Get relevant history based on current task
       let relevantHistory: unknown[] = [];
       if (currentTask) {
-        relevantHistory = await this.searchAgentCommunications(currentTask, {
-          limit: 5,
-          minQualityScore: 0.7,
-        });
+        try {
+          await this.ensureDefaultSession([]);
+          if (this._defaultSessionId) {
+            const hist = await unifiedAgentCommunicationService.getMessageHistory(
+              this._defaultSessionId,
+              50,
+            );
+            relevantHistory = hist
+              .filter((m) => m.message.toLowerCase().includes(currentTask.toLowerCase()))
+              .slice(0, 5)
+              .map((m) => ({ id: m.id, content: m.message, metadata: m.metadata }));
+          }
+        } catch {
+          relevantHistory = [];
+        }
       }
 
       // Get peer agent information from memory

@@ -1,4 +1,4 @@
-# OneAgent v4.0.8 - Memory-Driven Intelligence Platform
+# OneAgent v4.1.0 - Memory-Driven Intelligence Platform
 
 Note for contributors and Copilot users: See the canonical repository agent instructions in [AGENTS.md](./AGENTS.md).
 
@@ -43,7 +43,7 @@ OneAgent is a **professional-grade, memory-driven multiagent AI platform** featu
 
 - Windows PowerShell: `./scripts/start-oneagent-system.ps1`
 
-3. Validate runtime (type-check, lint, smoke including SSE and memory health):
+3. Validate runtime (type-check, lint, smoke including HTTP stream and memory health):
 
 - `npm run verify:runtime`
 
@@ -51,7 +51,8 @@ OneAgent is a **professional-grade, memory-driven multiagent AI platform** featu
 
 - See [docs/IDE_SETUP.md](./docs/IDE_SETUP.md) for wiring Copilot Chat to the unified MCP server and recommended extensions.
 - Copilot Chat expects command-based MCP (see `.vscode/mcp.json`). The HTTP endpoint (`http://localhost:8083/mcp`) is for tooling/debug only.
-- We set `ONEAGENT_MCP_QUIET=1` when launched from VS Code to suppress stdout banners so Copilot doesn’t try to parse them as JSON.
+- Stdio mode now hard-blocks any non-framed stdout writes: only JSON-RPC frames go to stdout; all other logs are routed to stderr (or an optional file). Set `ONEAGENT_STDIO_MODE=1` (default).
+- Optional diagnostics for stdio: set `ONEAGENT_STDIO_LOG_TO_FILE=1` and (optionally) `ONEAGENT_STDIO_LOG_FILE=./logs/mcp-server/stdio.log` to capture suppressed stdout text.
 - Ports/URLs are env-driven. Set `ONEAGENT_HOST` and the `ONEAGENT_*_PORT` values (or explicit `*_URL`s) to avoid conflicts.
 
 #### Create a BMAD Story (DX improvement)
@@ -61,8 +62,8 @@ OneAgent is a **professional-grade, memory-driven multiagent AI platform** featu
 
 Default endpoints:
 
-- Memory server: http://127.0.0.1:8010 (GET /health)
-- MCP server: http://127.0.0.1:8083 (GET /health, GET /mcp for SSE)
+- Memory server: http://127.0.0.1:8010 (GET /health, GET /readyz for readiness)
+- MCP server: http://127.0.0.1:8083 (GET /health, POST /mcp for JSON-RPC, POST /mcp/stream for NDJSON)
 - A2A well-known Agent Card (served by MCP server):
   - Preferred (A2A >= 0.3.0): http://127.0.0.1:8083/.well-known/agent-card.json
   - Legacy alias (A2A 0.2.x): http://127.0.0.1:8083/.well-known/agent.json
@@ -76,7 +77,34 @@ With servers running:
 npm run demo:hello
 ```
 
-This validates MCP /health, /info, JSON-RPC initialize, tools/list, and confirms SSE heartbeat—without writing to memory.
+This validates MCP /health, /info, JSON-RPC initialize, tools/list, and confirms NDJSON streaming via /mcp/stream—without writing to memory.
+
+### Tool Sets control (limit exposed tools)
+
+To keep the active tool list small, use tool-set toggling via MCP methods:
+
+- List sets:
+
+```json
+{ "jsonrpc": "2.0", "id": 1, "method": "tools/sets" }
+```
+
+- Activate sets (applies engine-level filtering to tools/list and execution):
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 2,
+  "method": "tools/sets/activate",
+  "params": { "setIds": ["system-management", "research-analysis"] }
+}
+```
+
+Notes:
+
+- The server adds `X-OneAgent-Tool-Count` header on /mcp responses to observe the filtered count.
+- Some tools are always allowed (e.g., `oneagent_system_health`), and A2A-prefixed tools remain available.
+- You can also toggle inside the engine via tool `oneagent_toolsets_toggle` with the same `setIds` shape.
 
 ### Developer commands
 
@@ -90,7 +118,7 @@ npm run verify
 # Start MCP only
 npm run server:unified
 
-# Runtime smoke (starts memory + MCP if needed, probes SSE)
+# Runtime smoke (starts memory + MCP if needed, probes stream)
 npm run verify:runtime
 
 # A2A tests (fast mode, runner ensures memory is up)
@@ -139,6 +167,16 @@ Environment Flags Summary:
 Rate limit enforcement (30 msgs / 60s per agent-session) is covered by `tests/canonical/communication-rate-limit.test.ts` and executes in fast mode. Both conformance and rate limit tests exit cleanly to avoid lingering handles, ensuring CI stability.
 
 This dual-mode strategy delivers deterministic coverage plus minimal runtime overhead, preserving canonical single-source monitoring (UnifiedMonitoringService) without introducing parallel systems.
+
+### Memory-backed tests and readiness
+
+- The canonical memory client exposes readiness helpers:
+  - `await OneAgentMemory.getInstance().ready()` → probes `/readyz`
+  - `await OneAgentMemory.getInstance().waitForReady(20000, 750)` → polls until ready or timeout
+- Persistence-oriented tests should call `waitForReady(...)` and skip gracefully if not ready (useful in CI where the memory backend may be disabled).
+- The NLACS persistence test adopts this pattern to avoid flakes while keeping coverage meaningful when memory is available.
+
+See also: `tests/README.md` → “Persistence tests with readiness” for a quickstart and the local script to run NLACS persistence tests.
 
 ### A2A invariants and conformance
 
@@ -194,7 +232,7 @@ Includes a bounded task delegation queue with:
 
 ## 🔮 **Roadmap (Canonical)**
 
-The previous fragmented roadmap files have been superseded by a single canonical roadmap: **[docs/ROADMAP.md](./docs/ROADMAP.md)** (aligned with v4.0.8). It defines release train (v4.1–v6.0), thematic backlogs (Observability, NLACS, Planner, UI, Extensibility, Scale, Governance), KPIs, risks, and an Immediate Action Queue.
+The previous fragmented roadmap files have been superseded by a single canonical roadmap: **[docs/ROADMAP.md](./docs/ROADMAP.md)** (aligned with v4.1.0). It defines release train (v4.1–v6.0), thematic backlogs (Observability, NLACS, Planner, UI, Extensibility, Scale, Governance), KPIs, risks, and an Immediate Action Queue.
 
 Key near-term (v4.1–v4.2):
 
@@ -356,4 +394,4 @@ MIT License - See LICENSE file for details
 
 ---
 
-_This is the canonical README for OneAgent v4.0.8. All documentation is current and reflects the consolidated Phase 4 implementation plus communication persistence & retry groundwork._
+_This is the canonical README for OneAgent v4.1.0. All documentation is current and reflects the consolidated Phase 4 implementation plus communication persistence & retry groundwork._

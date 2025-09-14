@@ -1,6 +1,6 @@
 #!/usr/bin/env ts-node
 /**
- * OneAgent v4.0.0 - Final System Verification Script (TypeScript + Graceful Shutdown)
+ * OneAgent v4.1.0 - Final System Verification Script (TypeScript + Graceful Shutdown)
  */
 import { exec } from 'child_process';
 import { promisify } from 'util';
@@ -23,7 +23,7 @@ class OneAgentVerifier {
   private projectRoot = process.cwd();
 
   async runVerification(): Promise<number> {
-    console.log('🔍 OneAgent v4.0.0 - Final System Verification');
+    console.log('🔍 OneAgent v4.1.0 - Final System Verification');
     console.log('='.repeat(60));
 
     await this.verifyTypeScript();

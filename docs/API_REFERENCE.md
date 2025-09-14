@@ -1,4 +1,4 @@
-# OneAgent v4.0.0 Professional - API Reference
+# OneAgent v4.1.0 Professional - API Reference
 
 ## Constitutional AI Tools
 
@@ -151,29 +151,58 @@ interface SemanticAnalysisRequest {
 
 ### `oneagent_system_health`
 
-Comprehensive system health and performance metrics.
+Comprehensive system health and performance metrics derived from canonical services.
 
 ```typescript
 interface SystemHealthResponse {
-  status: 'healthy' | 'degraded' | 'error';
-  version: string;
-  components: {
-    constitutionalAI: ComponentStatus;
-    bmadFramework: ComponentStatus;
-    memorySystem: ComponentStatus;
-    aiAssistant: ComponentStatus;
-    webSearch: ComponentStatus;
-    semanticSearch: ComponentStatus;
+  success: boolean;
+  healthMetrics: {
+    overall: {
+      status: 'healthy' | 'degraded' | 'error';
+      uptime: number; // process.uptime()
+      timestamp: number | string; // unified timestamp
+      version: string; // from getAppVersion()
+    };
+    components: Record<
+      string,
+      {
+        status: string;
+        // Additional component-specific fields (canonical):
+        // memory: process memoryUsage, connection status, ops summary
+        // mcp: protocol, port, avg response time, error rate, active connections, servers, cache hit rate
+        // performance: cpu/memory usage, response time (avg/p95/p99), throughput, quality/compliance
+      }
+    >;
   };
-  metrics: {
+  operationSummary: {
+    generatedAt: string;
     totalOperations: number;
-    averageLatency: number;
-    errorRate: number;
-    qualityScore: number;
+    components: Record<
+      string,
+      {
+        operations: Record<
+          string,
+          { success: number; error: number; total: number; errorRate: number }
+        >;
+        totals: { success: number; error: number; total: number; errorRate: number };
+      }
+    >;
   };
+  includeDetails: boolean;
+  components: string[]; // requested components
   capabilities: string[];
+  toolName: 'oneagent_system_health';
+  constitutionalCompliant: true;
+  qualityScore: number; // informational
+  timestamp: number | string;
+  metadata: Record<string, unknown> & { operationId: string };
 }
 ```
+
+Notes:
+
+- All metrics are sourced from canonical systems: UnifiedMonitoringService, UnifiedBackboneService, and the unified MCP client; no parallel counters or stores are introduced.
+- The `operationSummary` shape matches `docs/monitoring/OPERATION_METRICS.md`.
 
 ## Life Companion Frameworks
 
@@ -227,6 +256,76 @@ if (validation.score >= 85) {
   console.log('High-quality response validated');
 }
 ```
+
+## MCP Methods (HTTP JSON-RPC)
+
+### tools/sets
+
+List available tool sets and the currently active set IDs.
+
+Request:
+
+```json
+{ "jsonrpc": "2.0", "id": 1, "method": "tools/sets" }
+```
+
+Response:
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 1,
+  "result": {
+    "toolSets": [
+      {
+        "id": "constitutional-ai",
+        "name": "Constitutional AI",
+        "tools": ["oneagent_constitutional_validate", "oneagent_quality_score"]
+      },
+      {
+        "id": "memory-context",
+        "name": "Memory Context",
+        "tools": [
+          "oneagent_memory_search",
+          "oneagent_memory_add",
+          "oneagent_memory_edit",
+          "oneagent_memory_delete"
+        ]
+      }
+      // ...
+    ],
+    "active": ["system-management"]
+  }
+}
+```
+
+Headers: The server adds `X-OneAgent-Tool-Count` to show the count after filtering.
+
+### tools/sets/activate
+
+Activate a specific set of tool sets by ID.
+
+Request:
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 2,
+  "method": "tools/sets/activate",
+  "params": { "setIds": ["system-management", "research-analysis"] }
+}
+```
+
+Response:
+
+```json
+{ "jsonrpc": "2.0", "id": 2, "result": { "active": ["system-management", "research-analysis"] } }
+```
+
+Notes:
+
+- Some tools are always allowed (e.g., `oneagent_system_health`) and A2A-prefixed tools remain available regardless of set activation.
+- You can also toggle from inside the engine using the tool `oneagent_toolsets_toggle` with the same `setIds` parameter.
 
 ### BMAD Analysis for Complex Tasks
 

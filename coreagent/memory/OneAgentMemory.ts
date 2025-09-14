@@ -538,6 +538,59 @@ export class OneAgentMemory {
   }
 
   /**
+   * Readiness check (waits for embeddings index/db readiness on server side)
+   * Uses /readyz endpoint exposed by the Python FastAPI server.
+   */
+  async ready(): Promise<HTTPJsonResult | undefined> {
+    const baseUrl = this.config.apiUrl || environmentConfig.endpoints.memory.url;
+    const endpoint = `${baseUrl.replace(/\/$/, '')}/readyz`;
+    const timeoutMs = 5000;
+    try {
+      const controller = typeof AbortController !== 'undefined' ? new AbortController() : undefined;
+      const timeout = setTimeout(() => controller && controller.abort(), timeoutMs);
+      timeout.unref?.();
+      const fetchOptions: NodeFetchRequestInit = {
+        method: 'GET',
+        headers: {
+          Authorization: `Bearer ${this.config.apiKey || process.env.MEM0_API_KEY}`,
+          'MCP-Protocol-Version': MCP_PROTOCOL_VERSION,
+        },
+      };
+      if (controller && controller.signal) {
+        (fetchOptions as NodeFetchRequestInit & { signal?: AbortSignal }).signal =
+          controller.signal;
+      }
+      const res = await fetch(endpoint, fetchOptions);
+      clearTimeout(timeout);
+      if (!res.ok) {
+        const text = await res.text();
+        throw new Error(`HTTP ${res.status}: ${text}`);
+      }
+      const json = await res.json();
+      unifiedLogger.debug(`[OneAgentMemory] [ready] HTTP result`, json);
+      return json;
+    } catch (httpError) {
+      this.handleError('ready', httpError);
+    }
+  }
+
+  /**
+   * Wait for memory server to be ready, polling /readyz until timeout.
+   * Returns true if ready within timeout; false otherwise.
+   */
+  async waitForReady(totalTimeoutMs = 15000, intervalMs = 500): Promise<boolean> {
+    const start = Date.now();
+    while (Date.now() - start < totalTimeoutMs) {
+      const ok = await this.ready()
+        .then((r) => !!r)
+        .catch(() => false);
+      if (ok) return true;
+      await new Promise((resolve) => setTimeout(resolve, intervalMs));
+    }
+    return false;
+  }
+
+  /**
    * Partially update a memory item (PATCH, deeply integrated advanced metadata)
    * Supports extensible, nested, and typed metadata (backbone metadata system)
    */

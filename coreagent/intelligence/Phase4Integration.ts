@@ -255,7 +255,7 @@ export class Phase4MemoryDrivenIntelligence {
       metadata: {
         exportTime: createUnifiedTimestamp().unix,
         configuration: this.configuration,
-        version: '4.0.0',
+        version: '4.1.0',
       },
     };
   }

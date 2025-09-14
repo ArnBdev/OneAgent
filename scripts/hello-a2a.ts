@@ -3,7 +3,7 @@
  * - Loads .env for ports/keys
  * - Checks MCP /health and /info
  * - Performs JSON-RPC initialize and tools/list
- * - Opens SSE on GET /mcp and waits for a heartbeat/event
+ * - Probes NDJSON streaming via POST /mcp/stream and checks meta/message/end
  *
  * This does not write to memory; it’s safe to run repeatedly.
  */
@@ -23,6 +23,7 @@ const mcpPort = envInt('ONEAGENT_MCP_PORT', 8083);
 const mcpHealth = `http://127.0.0.1:${mcpPort}/health`;
 const mcpInfo = `http://127.0.0.1:${mcpPort}/info`;
 const mcpUrl = `http://127.0.0.1:${mcpPort}/mcp`;
+const mcpStream = `http://127.0.0.1:${mcpPort}/mcp/stream`;
 
 function httpGet(
   url: string,
@@ -88,52 +89,66 @@ function httpPostJson(url: string, body: unknown, timeoutMs = 5000): Promise<Jso
   });
 }
 
-function sseProbe(url: string, timeoutMs = 6000): Promise<boolean> {
+type MCPRequest = {
+  jsonrpc: '2.0';
+  id: number | string;
+  method: string;
+  params?: Record<string, unknown>;
+};
+
+function streamProbe(url: string, request: MCPRequest, timeoutMs = 6000): Promise<boolean> {
   return new Promise((resolve, reject) => {
     const u = new URL(url);
+    const payload = Buffer.from(JSON.stringify(request));
     const req = http.request(
       {
         hostname: u.hostname,
         port: u.port,
         path: u.pathname,
-        method: 'GET',
-        headers: { Accept: 'text/event-stream' },
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Content-Length': payload.length },
       },
       (res) => {
         const ct = String(res.headers['content-type'] || '');
-        if (res.statusCode !== 200 || !ct.includes('text/event-stream')) {
+        if (!ct.includes('application/json')) {
           res.resume();
-          return reject(new Error(`SSE probe failed: status=${res.statusCode} content-type=${ct}`));
+          return reject(new Error(`Stream probe failed: content-type=${ct}`));
         }
-        let resolved = false;
+        let sawStart = false;
+        let sawMessage = false;
+        let sawEnd = false;
         res.setEncoding('utf8');
-        const onData = (chunk: string) => {
-          if (chunk.includes(':heartbeat') || chunk.includes('event:')) {
-            resolved = true;
-            cleanup();
-            resolve(true);
+        res.on('data', (chunk: string) => {
+          for (const line of chunk.split('\n')) {
+            const s = line.trim();
+            if (!s) continue;
+            try {
+              const obj = JSON.parse(s);
+              if (obj.type === 'meta' && obj.event === 'start') sawStart = true;
+              if (obj.type === 'message') sawMessage = true;
+              if (obj.type === 'meta' && obj.event === 'end') sawEnd = true;
+            } catch {
+              // ignore partial lines
+            }
           }
-        };
-        const cleanup = () => {
-          res.removeListener('data', onData);
-          clearTimeout(timer);
+        });
+        res.on('end', () => {
+          if (sawStart && sawMessage && sawEnd) resolve(true);
+          else reject(new Error('Stream probe incomplete'));
+        });
+        const timer = setTimeout(() => {
           try {
             req.destroy();
           } catch {
-            /* ignore */
+            /* noop */
           }
-        };
-        res.on('data', onData);
-        const timer = setTimeout(() => {
-          if (!resolved) {
-            cleanup();
-            reject(new Error('SSE probe timeout'));
-          }
+          reject(new Error('Stream probe timeout'));
         }, timeoutMs);
         (timer as unknown as NodeJS.Timer).unref?.();
       },
     );
     req.on('error', reject);
+    req.write(payload);
     req.end();
   });
 }
@@ -195,8 +210,8 @@ async function main() {
   const tools = await httpPostJson(mcpUrl, { jsonrpc: '2.0', id: 2, method: 'tools/list' });
   console.log('MCP tools/list:', JSON.stringify(tools?.result ?? {}, null, 2));
 
-  await sseProbe(mcpUrl, 6000);
-  console.log('SSE: heartbeat/event observed');
+  await streamProbe(mcpStream, { jsonrpc: '2.0', id: 99, method: 'tools/list' }, 8000);
+  console.log('Stream: NDJSON meta/message/end observed');
 
   console.log('✅ Hello A2A demo completed');
   // best-effort cleanup if we started it
