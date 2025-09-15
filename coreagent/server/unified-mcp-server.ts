@@ -49,6 +49,7 @@ import { embeddingCacheService } from '../services/EmbeddingCacheService';
 import { getEmbeddingModel, getEmbeddingClient } from '../config/UnifiedModelPicker';
 import crypto from 'crypto';
 import { WebSocketServer, WebSocket } from 'ws';
+import type { RawData } from 'ws';
 import type { IncomingMessage } from 'http';
 import type { Duplex } from 'stream';
 
@@ -209,6 +210,24 @@ interface MCPServerCapabilities {
 
 // MCP 2025-06-18 protocol version
 const MCP_PROTOCOL_VERSION = '2025-06-18';
+
+// Mission Control WS constants and types
+const MISSION_CONTROL_WS_PATH = '/ws/mission-control';
+
+type MissionControlInbound =
+  | { type: 'ping'; id?: string }
+  | { type: 'whoami'; id?: string }
+  | { type: 'subscribe'; channels?: string[]; id?: string };
+
+interface MissionControlOutbound<T = unknown> {
+  type: string;
+  id: string;
+  timestamp: string;
+  unix: number;
+  server: { name: string; version: string };
+  payload?: T;
+  error?: { code: string; message: string };
+}
 
 // Initialize audit logger
 const auditLogger = new SimpleAuditLogger({
@@ -1173,11 +1192,11 @@ async function startServer(): Promise<void> {
         console.log('🌟 OneAgent Unified MCP Server Started Successfully!');
         console.log('');
         console.log('📡 Server Information:');
-        const base = environmentConfig.endpoints.mcp.url.replace(/\/mcp$/, '');
+  const base = environmentConfig.endpoints.mcp.url.replace(/\/mcp$/, '');
         console.log(`   • HTTP MCP Endpoint: ${base}/mcp`);
         console.log(`   • Health Check: ${base}/health`);
-  console.log(`   • Server Info: ${base}/info`);
-  console.log(`   • Mission Control WS: ${base.replace(/\/$/, '')}/ws/mission-control`);
+        console.log(`   • Server Info: ${base}/info`);
+  console.log(`   • Mission Control WS: ${base.replace(/\/$/, '')}${MISSION_CONTROL_WS_PATH}`);
         console.log('');
         console.log('🎯 Features:');
         console.log('   • Constitutional AI Validation ✅');
@@ -1193,14 +1212,15 @@ async function startServer(): Promise<void> {
       }
     });
 
-    // Mission Control WebSocket endpoint (AUIP-inspired, skeleton only)
+  // Mission Control WebSocket endpoint (AUIP-inspired, skeleton with heartbeat + minimal RPC)
   const wssMissionControl = new WebSocketServer({ noServer: true });
+  const mcConnections = new Set<WebSocket>();
 
     // Route HTTP upgrade requests to our WS endpoint
     server.on('upgrade', (request: IncomingMessage, socket: Duplex, head: Buffer) => {
       try {
         const url = new URL(request.url || '/', 'http://localhost');
-        if (url.pathname === '/ws/mission-control') {
+        if (url.pathname === MISSION_CONTROL_WS_PATH) {
           wssMissionControl.handleUpgrade(request, socket, head, (ws: WebSocket) => {
             wssMissionControl.emit('connection', ws, request);
           });
@@ -1216,22 +1236,92 @@ async function startServer(): Promise<void> {
     wssMissionControl.on('connection', (ws: WebSocket) => {
       try {
         const ts = createUnifiedTimestamp();
-        const welcome = {
+        const welcome: MissionControlOutbound<{ status: 'connected'; agentId: string }> = {
           type: 'system_status',
-          status: 'connected',
-          agentId: 'OneAgentCore',
           id: createUnifiedId('system', 'mission_control'),
           timestamp: ts.iso,
           unix: ts.unix,
           server: { name: SERVER_NAME, version: SERVER_VERSION },
+          payload: { status: 'connected', agentId: 'OneAgentCore' },
         };
         ws.send(JSON.stringify(welcome));
       } catch {
         // non-fatal
       }
 
+      // Track connections and establish heartbeat
+      mcConnections.add(ws);
+      const heartbeat = setInterval(() => {
+        try {
+          const ts = createUnifiedTimestamp();
+          const hb: MissionControlOutbound = {
+            type: 'heartbeat',
+            id: createUnifiedId('system', 'heartbeat'),
+            timestamp: ts.iso,
+            unix: ts.unix,
+            server: { name: SERVER_NAME, version: SERVER_VERSION },
+          };
+          ws.send(JSON.stringify(hb));
+        } catch {
+          /* ignore */
+        }
+      }, 30000);
+
+      ws.on('message', (data: RawData) => {
+        try {
+          const text = typeof data === 'string' ? data : data.toString('utf8');
+          const msg = JSON.parse(text) as MissionControlInbound & { id?: string };
+          const ts = createUnifiedTimestamp();
+          switch (msg?.type) {
+            case 'ping': {
+              const pong: MissionControlOutbound<{ ok: true }> = {
+                type: 'pong',
+                id: msg.id || createUnifiedId('system', 'pong'),
+                timestamp: ts.iso,
+                unix: ts.unix,
+                server: { name: SERVER_NAME, version: SERVER_VERSION },
+                payload: { ok: true },
+              };
+              ws.send(JSON.stringify(pong));
+              break;
+            }
+            case 'whoami': {
+              const info: MissionControlOutbound<{ server: string; version: string }> = {
+                type: 'whoami',
+                id: msg.id || createUnifiedId('system', 'whoami'),
+                timestamp: ts.iso,
+                unix: ts.unix,
+                server: { name: SERVER_NAME, version: SERVER_VERSION },
+                payload: { server: SERVER_NAME, version: SERVER_VERSION },
+              };
+              ws.send(JSON.stringify(info));
+              break;
+            }
+            default: {
+              const err: MissionControlOutbound = {
+                type: 'error',
+                id: msg?.id || createUnifiedId('system', 'mc_error'),
+                timestamp: ts.iso,
+                unix: ts.unix,
+                server: { name: SERVER_NAME, version: SERVER_VERSION },
+                error: { code: 'unknown_message_type', message: 'Unsupported message type' },
+              };
+              ws.send(JSON.stringify(err));
+              break;
+            }
+          }
+        } catch (e) {
+          if (!QUIET_MODE) console.error('WS /ws/mission-control parse/handle error:', e);
+        }
+      });
+
       ws.on('error', (err: unknown) => {
         if (!QUIET_MODE) console.error('WS /ws/mission-control error:', err);
+      });
+
+      ws.on('close', () => {
+        clearInterval(heartbeat);
+        mcConnections.delete(ws);
       });
     });
 
