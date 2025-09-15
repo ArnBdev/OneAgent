@@ -1,4 +1,4 @@
-# OneAgent v4.1.0 - Memory-Driven Intelligence Platform
+# OneAgent v4.1.1 - Memory-Driven Intelligence Platform
 
 Note for contributors and Copilot users: See the canonical repository agent instructions in [AGENTS.md](./AGENTS.md).
 
@@ -46,6 +46,15 @@ OneAgent is a **professional-grade, memory-driven multiagent AI platform** featu
 3. Validate runtime (type-check, lint, smoke including HTTP stream and memory health):
 
 - `npm run verify:runtime`
+
+Embedding provider selection (envs):
+
+- `ONEAGENT_EMBEDDINGS_SOURCE=openai|gemini|node` (default `node`)
+- If `openai`: set `OPENAI_API_KEY`, optionally `OPENAI_EMBEDDING_MODEL` (default `text-embedding-3-small`) and for the Python memory server `OPENAI_EMBED_DIM` (default `1536`).
+- Cooldown control: `ONEAGENT_EMBEDDINGS_COOLDOWN_SECONDS=5` (reduces log spam when gateway is down).
+- LLM preference toggles: `ONEAGENT_PREFER_OPENAI=1`, `ONEAGENT_DISABLE_GEMINI=1`.
+
+Startup tip: Start MCP before the memory server (or ensure MCP is ready) to avoid temporary memory-server gateway warnings while it tries to reach `/api/v1/embeddings`.
 
 #### VS Code + Copilot Integration
 
@@ -112,13 +121,13 @@ Notes:
 # Install deps
 npm install
 
-# Type + lint quick verify
+# Type + lint quick verify (TypeScript 5.9, ESLint 9)
 npm run verify
 
 # Start MCP only
 npm run server:unified
 
-# Runtime smoke (starts memory + MCP if needed, probes stream)
+# Runtime smoke (starts memory + MCP if needed, probes stream). UI uses Vite 7.
 npm run verify:runtime
 
 # A2A tests (fast mode, runner ensures memory is up)
@@ -288,10 +297,11 @@ See the lightweight deployment checklist and required secrets in `docs/PRODUCTIO
 
 ### **Requirements**
 
-- **Node.js v22+**: Modern JavaScript runtime
-- **TypeScript 5.7+**: Strict type safety
-- **mem0**: Memory backend system
-- **Constitutional AI**: Safety and ethical validation
+- Node.js v22+
+- TypeScript 5.9+
+- Vite 7 (UI tooling)
+- mem0 (memory backend)
+- Constitutional AI (safety and ethical validation)
 
 ### **Architecture**
 

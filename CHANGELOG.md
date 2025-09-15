@@ -1,6 +1,6 @@
 # 📝 OneAgent v4.1.0 Professional - Changelog
 
-**Current Version**: v4.1.0 Professional  
+**Current Version**: v4.1.1 Professional  
 Note: v4.1.0 aligns versions across manifests (package.json, mcp-manifest.json, server defaults) and updates A2A docs to reflect the adapter delegation to UnifiedAgentCommunicationService. No breaking API changes.
 **Quality Score**: 96.85% (Grade A+)  
 **System Health**: Optimal with ALITA Metadata Enhancement
@@ -8,6 +8,28 @@ Note: v4.1.0 aligns versions across manifests (package.json, mcp-manifest.json, 
 ---
 
 > Maintainer Note: Let me know if you’d like a concise changelog snippet.
+
+## v4.1.1 (Maintenance) — Version sync + Tailwind 4.1 consolidation
+
+### 🔢 Version & Manifest Sync
+
+- Bumped repository version to 4.1.1 in `package.json` and `mcp-manifest.json`.
+- Updated README header to v4.1.1.
+
+### 🖌️ UI Tooling: Tailwind 4.1 alignment
+
+- Ensured Tailwind v4.1 series across the workspace:
+  - Root devDependency `@tailwindcss/postcss` set to ^4.1.0.
+  - Root `tailwindcss` remains ^4.1.12 (latest 4.1.x at time of change).
+  - UI workspace continues with Tailwind CSS 4.x via Vite 7. See Tailwind v4.1 notes for performance and DX improvements.
+- PostCSS config uses the v4 plugin (`@tailwindcss/postcss`) consistent with Tailwind 4 documentation.
+
+References:
+- Tailwind Plus announcement: https://tailwindcss.com/blog/tailwind-plus
+- Tailwind CSS v4.1: https://tailwindcss.com/blog/tailwindcss-v4-1
+- Vite usage: https://tailwindcss.com/docs/installation/using-vite
+
+No behavior changes to UI styles are expected; this is a dependency alignment to keep us current.
 
 ## v4.1.0 (Maintenance) — Canonical System Health + Readiness
 
@@ -29,6 +51,16 @@ Documentation: API reference updated to reflect enriched response (`healthMetric
 - README Testing section now notes readiness behavior for persistence-style tests.
 
 Integrity: No parallel systems introduced; all new data flows through canonical backbones (UnifiedMonitoringService, UnifiedBackboneService, unified MCP client, OneAgentMemory).
+
+### 🛠️ Toolchain Consolidation (Modernize & Deduplicate)
+
+- Unified Vite to 7.1.5 at the root; removed secondary Vite from `ui/` to avoid multi-major hoisting conflicts.
+- Upgraded TypeScript to 5.9.2 (root) and aligned UI tooling to use the same compiler.
+- Upgraded ESLint to 9.35 and `@typescript-eslint/*` to 8.39 for compatibility.
+- Upgraded `@vitejs/plugin-react` to 5.x to match Vite 7.
+- VS Code extension: bumped TypeScript to 5.9, ESLint to 9, `@types/vscode` to latest (no legacy editor support required).
+- Removed duplicate frontend libraries from the root (`react`, `react-dom`, `clsx`, `class-variance-authority`, `lucide-react`) to keep UI dependencies isolated under `ui/`.
+- Verified: type-check, lint, runtime smoke, toolsets E2E, and stdio framing all pass.
 
 ### 🧰 CI/Docs Minor Additions (Windows parity)
 

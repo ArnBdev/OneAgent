@@ -19,6 +19,7 @@ import {
 import { ISpecializedAgent, AgentHealthStatus } from '../base/ISpecializedAgent';
 import { OneAgentMemory } from '../../memory/OneAgentMemory';
 import { UnifiedMetadata, MemoryRecord } from '../../types/oneagent-backbone-types';
+import { generateUnifiedId } from '../../utils/UnifiedBackboneService';
 
 export interface ValidationResult {
   isValid: boolean;
@@ -216,7 +217,7 @@ export class ValidationAgent extends BaseAgent implements ISpecializedAgent {
   private createValidationMemoryRecord(sample: string): MemoryRecord | null {
     try {
       return {
-        id: `validation-${Date.now()}`,
+        id: generateUnifiedId('validation', this.config.id),
         content: sample,
         metadata: {
           type: 'validation_sample',
@@ -867,7 +868,7 @@ export class ValidationAgent extends BaseAgent implements ISpecializedAgent {
     try {
       const timestamp = this.unifiedBackbone.getServices().timeService.now();
       const metadata: UnifiedMetadata = {
-        id: `validation-${timestamp.unix}`, // Use BaseAgent canonical time pattern
+        id: generateUnifiedId('validation', this.config.id),
         type: 'validation-result',
         version: '1.0.0',
         system: {

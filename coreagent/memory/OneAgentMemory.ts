@@ -2,9 +2,7 @@
 // All memory operations must use the canonical RESTful API and follow OneAgent/ALITA standards.
 // This module provides a production-grade, type-safe interface for memory actions.
 
-import fetch from 'node-fetch';
 import { unifiedLogger } from '../utils/UnifiedLogger';
-import type { RequestInit as NodeFetchRequestInit } from 'node-fetch';
 import {
   OneAgentUnifiedBackbone,
   createUnifiedId,
@@ -251,7 +249,7 @@ export class OneAgentMemory {
         });
       }
 
-      const fetchOptions: NodeFetchRequestInit = {
+      const fetchOptions: RequestInit = {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -261,8 +259,7 @@ export class OneAgentMemory {
         body: JSON.stringify(data),
       };
       if (controller && controller.signal) {
-        (fetchOptions as NodeFetchRequestInit & { signal?: AbortSignal }).signal =
-          controller.signal;
+        (fetchOptions as RequestInit & { signal?: AbortSignal }).signal = controller.signal;
       }
 
       const res = await fetch(endpoint, fetchOptions);
@@ -382,7 +379,7 @@ export class OneAgentMemory {
       const controller = typeof AbortController !== 'undefined' ? new AbortController() : undefined;
       const timeout = setTimeout(() => controller && controller.abort(), timeoutMs);
       timeout.unref?.();
-      const fetchOptions: NodeFetchRequestInit = {
+      const fetchOptions: RequestInit = {
         method: 'GET',
         headers: {
           Authorization: `Bearer ${this.config.apiKey || process.env.MEM0_API_KEY}`,
@@ -390,8 +387,7 @@ export class OneAgentMemory {
         },
       };
       if (controller && controller.signal) {
-        (fetchOptions as NodeFetchRequestInit & { signal?: AbortSignal }).signal =
-          controller.signal;
+        (fetchOptions as RequestInit & { signal?: AbortSignal }).signal = controller.signal;
       }
       const res = await fetch(endpoint, fetchOptions);
       clearTimeout(timeout);
@@ -437,7 +433,7 @@ export class OneAgentMemory {
       const controller = typeof AbortController !== 'undefined' ? new AbortController() : undefined;
       const timeout = setTimeout(() => controller && controller.abort(), timeoutMs);
       timeout.unref?.();
-      const fetchOptions: NodeFetchRequestInit = {
+      const fetchOptions: RequestInit = {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -447,8 +443,7 @@ export class OneAgentMemory {
         body: JSON.stringify(payload),
       };
       if (controller && controller.signal) {
-        (fetchOptions as NodeFetchRequestInit & { signal?: AbortSignal }).signal =
-          controller.signal;
+        (fetchOptions as RequestInit & { signal?: AbortSignal }).signal = controller.signal;
       }
       const res = await fetch(endpoint, fetchOptions);
       clearTimeout(timeout);
@@ -476,7 +471,7 @@ export class OneAgentMemory {
       const controller = typeof AbortController !== 'undefined' ? new AbortController() : undefined;
       const timeout = setTimeout(() => controller && controller.abort(), timeoutMs);
       timeout.unref?.();
-      const fetchOptions: NodeFetchRequestInit = {
+      const fetchOptions: RequestInit = {
         method: 'DELETE',
         headers: {
           Authorization: `Bearer ${this.config.apiKey || process.env.MEM0_API_KEY}`,
@@ -484,8 +479,7 @@ export class OneAgentMemory {
         },
       };
       if (controller && controller.signal) {
-        (fetchOptions as NodeFetchRequestInit & { signal?: AbortSignal }).signal =
-          controller.signal;
+        (fetchOptions as RequestInit & { signal?: AbortSignal }).signal = controller.signal;
       }
       const res = await fetch(endpoint, fetchOptions);
       clearTimeout(timeout);
@@ -512,7 +506,7 @@ export class OneAgentMemory {
       const controller = typeof AbortController !== 'undefined' ? new AbortController() : undefined;
       const timeout = setTimeout(() => controller && controller.abort(), timeoutMs);
       timeout.unref?.();
-      const fetchOptions: NodeFetchRequestInit = {
+      const fetchOptions: RequestInit = {
         method: 'GET',
         headers: {
           Authorization: `Bearer ${this.config.apiKey || process.env.MEM0_API_KEY}`,
@@ -520,8 +514,7 @@ export class OneAgentMemory {
         },
       };
       if (controller && controller.signal) {
-        (fetchOptions as NodeFetchRequestInit & { signal?: AbortSignal }).signal =
-          controller.signal;
+        (fetchOptions as RequestInit & { signal?: AbortSignal }).signal = controller.signal;
       }
       const res = await fetch(endpoint, fetchOptions);
       clearTimeout(timeout);
@@ -549,7 +542,7 @@ export class OneAgentMemory {
       const controller = typeof AbortController !== 'undefined' ? new AbortController() : undefined;
       const timeout = setTimeout(() => controller && controller.abort(), timeoutMs);
       timeout.unref?.();
-      const fetchOptions: NodeFetchRequestInit = {
+      const fetchOptions: RequestInit = {
         method: 'GET',
         headers: {
           Authorization: `Bearer ${this.config.apiKey || process.env.MEM0_API_KEY}`,
@@ -557,8 +550,7 @@ export class OneAgentMemory {
         },
       };
       if (controller && controller.signal) {
-        (fetchOptions as NodeFetchRequestInit & { signal?: AbortSignal }).signal =
-          controller.signal;
+        (fetchOptions as RequestInit & { signal?: AbortSignal }).signal = controller.signal;
       }
       const res = await fetch(endpoint, fetchOptions);
       clearTimeout(timeout);
@@ -618,7 +610,7 @@ export class OneAgentMemory {
       const controller = typeof AbortController !== 'undefined' ? new AbortController() : undefined;
       const timeout = setTimeout(() => controller && controller.abort(), timeoutMs);
       timeout.unref?.();
-      const fetchOptions: NodeFetchRequestInit = {
+      const fetchOptions: RequestInit = {
         method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',
@@ -628,8 +620,7 @@ export class OneAgentMemory {
         body: JSON.stringify(payload),
       };
       if (controller && controller.signal) {
-        (fetchOptions as NodeFetchRequestInit & { signal?: AbortSignal }).signal =
-          controller.signal;
+        (fetchOptions as RequestInit & { signal?: AbortSignal }).signal = controller.signal;
       }
       const res = await fetch(endpoint, fetchOptions);
       clearTimeout(timeout);

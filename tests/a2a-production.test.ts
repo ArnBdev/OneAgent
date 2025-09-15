@@ -2,7 +2,7 @@
 
 import { OneAgentA2AProtocol, AgentCard } from '../coreagent/protocols/a2a/A2AProtocol';
 import { UnifiedBackboneService } from '../coreagent/utils/UnifiedBackboneService';
-import { v4 as uuidv4 } from 'uuid';
+import { createUnifiedId } from '../coreagent/utils/UnifiedBackboneService';
 
 // Production-ready Agent Card
 const productionAgentCard: AgentCard = {
@@ -105,7 +105,7 @@ describe('A2A Production Protocol', () => {
           },
         },
       ],
-      messageId: uuidv4(),
+      messageId: createUnifiedId('message', 'a2a'),
       kind: 'message' as const,
     };
     expect(multipartMessage.parts.length).toBe(2);

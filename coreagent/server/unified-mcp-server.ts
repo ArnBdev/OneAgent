@@ -45,8 +45,7 @@ import { taskDelegationService } from '../services/TaskDelegationService';
 const app = express();
 import { TOOL_SETS } from '../tools/ToolSets';
 import { embeddingCacheService } from '../services/EmbeddingCacheService';
-import SmartGeminiClient from '../tools/SmartGeminiClient';
-import { getEmbeddingModel } from '../config/UnifiedModelPicker';
+import { getEmbeddingModel, getEmbeddingClient } from '../config/UnifiedModelPicker';
 import crypto from 'crypto';
 
 // Middleware
@@ -1026,9 +1025,8 @@ app.post('/api/v1/embeddings', async (req: Request, res: Response) => {
     // Determine target dimensions (canonical). Default 768 for cross-system compatibility.
     const targetDim = Number(process.env.ONEAGENT_EMBEDDING_DIM || 768);
     const model = getEmbeddingModel();
-
-    // Build client via unified picker (Gemini today; extend later)
-    const client = new SmartGeminiClient({ apiKey: process.env.GEMINI_API_KEY });
+    // Build client via unified picker (Gemini or OpenAI depending on env)
+    const client = getEmbeddingClient();
 
     const kind = mapActionToKind(action);
     const vec = await embeddingCacheService.getOrCompute(client, content, kind);

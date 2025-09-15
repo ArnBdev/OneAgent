@@ -83,7 +83,9 @@ class MemoryConfig:
         self.host = os.getenv('MEMORY_HOST', '127.0.0.1')
         # Default to 8010 to align with OneAgent docs and prior configuration
         self.port = int(os.getenv('ONEAGENT_MEMORY_PORT', '8010'))
-        self.storage_path = os.getenv('MEMORY_STORAGE_PATH', './oneagent_memory')
+        # Consolidated canonical storage path
+        # Configure via MEMORY_STORAGE_PATH; default to unified path under repo root
+        self.storage_path = os.getenv('MEMORY_STORAGE_PATH', './oneagent_unified_memory')
         self.collection_name = os.getenv('MEMORY_COLLECTION', 'oneagent_memories')
         self.embedding_dimensions = 768
         self.search_similarity_threshold = float(os.getenv('MEMORY_SIMILARITY_THRESHOLD', '0.7'))
@@ -95,6 +97,15 @@ class MemoryConfig:
         if base_url.endswith('/mcp'):
             base_url = base_url[:-4]
         self.embeddings_url = base_url.rstrip('/') + '/api/v1/embeddings'
+
+        # OpenAI Embeddings configuration (optional; used when ONEAGENT_EMBEDDINGS_SOURCE=openai)
+        self.openai_embedding_model = os.getenv('OPENAI_EMBEDDING_MODEL', 'text-embedding-3-small')
+        # If user selects OpenAI embeddings, default embedding dimensions accordingly (can be overridden)
+        if self.embeddings_source == 'openai':
+            try:
+                self.embedding_dimensions = int(os.getenv('OPENAI_EMBED_DIM', '1536'))
+            except Exception:
+                self.embedding_dimensions = 1536
 
         # Cooldown to reduce log spam when gateway is unavailable (seconds)
         try:
@@ -264,9 +275,12 @@ class LLMMemoryProcessor:
 class OneAgentMemorySystem:
     def __init__(self):
         self.use_node_gateway = (a_config.embeddings_source == 'node')
+        self.openai_enabled = (a_config.embeddings_source == 'openai') and bool(a_config.openai_api_key)
         self.gemini_enabled = (not a_config.gemini_disabled) and bool(a_config.gemini_api_key) and genai is not None
         if self.use_node_gateway:
             self.embedding_model = 'oneagent-node-gateway'
+        elif self.openai_enabled:
+            self.embedding_model = f"openai:{a_config.openai_embedding_model}"
         elif self.gemini_enabled:
             self.embedding_model = 'gemini-embedding-001'
         else:
@@ -303,6 +317,40 @@ class OneAgentMemorySystem:
         key = f"{self.embedding_model}:{action}:{hashlib.sha256(text.encode('utf-8')).hexdigest()}"
         if key in self._embedding_cache:
             return self._embedding_cache[key]
+        # Direct OpenAI embeddings path when configured
+        if self.openai_enabled:
+            try:
+                import urllib.request as _req
+                url = 'https://api.openai.com/v1/embeddings'
+                body = json.dumps({
+                    'input': text,
+                    'model': a_config.openai_embedding_model,
+                }).encode('utf-8')
+                headers = {
+                    'Content-Type': 'application/json',
+                    'Authorization': f'Bearer {a_config.openai_api_key}',
+                }
+                def _call():
+                    req = _req.Request(url, data=body, headers=headers, method='POST')
+                    with _req.urlopen(req, timeout=15) as r:
+                        return r.read()
+                raw = await asyncio.to_thread(_call)
+                data = json.loads(raw.decode('utf-8'))
+                emb = None
+                try:
+                    emb = (((data.get('data') or [])[0] or {}).get('embedding'))
+                except Exception:
+                    emb = None
+                if isinstance(emb, list):
+                    # Normalize to configured dimensions
+                    if len(emb) > a_config.embedding_dimensions:
+                        emb = emb[:a_config.embedding_dimensions]
+                    elif len(emb) < a_config.embedding_dimensions:
+                        emb = emb + [0.0]*(a_config.embedding_dimensions - len(emb))
+                    self._embedding_cache[key] = emb
+                    return emb
+            except Exception as e:
+                logger.warning(f"OpenAI embedding failed: {e}")
         if self.use_node_gateway:
             # Respect cooldown to avoid repeated noisy logs when gateway is down
             now = time.time()
@@ -465,7 +513,9 @@ class OneAgentMemorySystem:
         for i in range(len(ids_seq)):
             mid = ids_seq[i]
             content = docs_seq[i] if i < len(docs_seq) else ""
-            meta_raw = metas_seq[i] if i < len(metas_seq) and isinstance(metas_seq[i], dict) else {}
+            # Ensure type for static analysis and safe access
+            metas_seq_t = cast(List[Dict[str, Any]], metas_seq if isinstance(metas_seq, list) else [])
+            meta_raw = metas_seq_t[i] if i < len(metas_seq_t) else {}
             meta: Dict[str, Any] = {str(k): v for k, v in (meta_raw.items() if isinstance(meta_raw, dict) else [])}
             # Distance handling (could be float or nested list)
             rel = None

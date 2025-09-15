@@ -1,6 +1,6 @@
 import * as vscode from 'vscode';
 import { OneAgentClient, AIAssistantResponse } from '../connection/oneagent-client';
-import { createUnifiedTimestamp } from '../utils/unified-backbone';
+import { createUnifiedTimestamp } from '../utils/backbone';
 
 // Canonical timestamp function using UnifiedBackboneService
 const getCanonicalTimestamp = () => {

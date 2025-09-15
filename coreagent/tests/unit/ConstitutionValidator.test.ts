@@ -5,6 +5,7 @@ import ConstitutionValidator from '../../validation/ConstitutionValidator';
 import { OneAgentMemory } from '../../memory/OneAgentMemory';
 import { GeminiClient } from '../../tools/geminiClient';
 import type { EmbeddingResult } from '../../types/gemini';
+import { createUnifiedTimestamp } from '../../utils/UnifiedBackboneService';
 import type { MemoryRecord, MemorySearchResult } from '../../types/oneagent-backbone-types';
 
 // Ensure fast mode is disabled for these tests so validator doesn't auto-allow
@@ -28,7 +29,7 @@ describe('ConstitutionValidator.check', () => {
         temporal: {
           created: {
             iso: new Date().toISOString(),
-            unix: Date.now(),
+            unix: createUnifiedTimestamp().unix,
             utc: new Date().toUTCString(),
             local: new Date().toString(),
             timezone: 'UTC',
@@ -38,7 +39,7 @@ describe('ConstitutionValidator.check', () => {
           },
           updated: {
             iso: new Date().toISOString(),
-            unix: Date.now(),
+            unix: createUnifiedTimestamp().unix,
             utc: new Date().toUTCString(),
             local: new Date().toString(),
             timezone: 'UTC',

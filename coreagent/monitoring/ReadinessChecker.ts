@@ -2,7 +2,6 @@
  * ReadinessChecker - Centralized health & readiness probes for OneAgent subsystems
  * Implements Step 3: readiness/health polling utility (memory + MCP endpoints)
  */
-import fetch from 'node-fetch';
 import { environmentConfig } from '../config/EnvironmentConfig';
 import { createUnifiedTimestamp } from '../utils/UnifiedBackboneService';
 

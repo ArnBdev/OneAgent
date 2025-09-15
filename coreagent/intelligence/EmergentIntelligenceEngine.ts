@@ -1,6 +1,7 @@
 import { OneAgentMemory } from '../memory/OneAgentMemory';
 import {
   createUnifiedTimestamp,
+  createUnifiedId,
   OneAgentUnifiedMetadataService,
 } from '../utils/UnifiedBackboneService';
 
@@ -273,7 +274,7 @@ export class EmergentIntelligenceEngine {
       for (const conversation of conversations) {
         if (conversation.confidence > 0.8) {
           const insight: BreakthroughInsight = {
-            id: `breakthrough-${createUnifiedTimestamp().unix}-${Math.random()}`,
+            id: createUnifiedId('intelligence', 'breakthrough'),
             type: 'breakthrough',
             domain: conversation.domain,
             content: conversation.content,
@@ -778,7 +779,7 @@ export class EmergentIntelligenceEngine {
     const strength = Math.min(sharedConcepts.length / 5, 1.0);
 
     return {
-      id: `connection-${domain1}-${domain2}-${createUnifiedTimestamp().unix}`,
+      id: createUnifiedId('intelligence', `connection_${domain1}_${domain2}`),
       domains: [domain1, domain2],
       strength,
       type: 'concept_overlap',
@@ -786,6 +787,7 @@ export class EmergentIntelligenceEngine {
       metadata: {
         sharedConcepts,
         analysisTimestamp: new Date(),
+        analysisTimestampUnix: createUnifiedTimestamp().unix,
       },
     };
   }
@@ -812,7 +814,7 @@ export class EmergentIntelligenceEngine {
     );
 
     return {
-      id: `synthesis-${createUnifiedTimestamp().unix}`,
+      id: createUnifiedId('intelligence', 'synthesis'),
       type: 'cross_domain_synthesis',
       content,
       confidence,
@@ -821,6 +823,7 @@ export class EmergentIntelligenceEngine {
         sourceDomains: [...new Set(insights.map((i) => i.domain))],
         connectionCount: connections.length,
         synthesisMethod: 'cross_domain_analysis',
+        synthesisTimestampUnix: createUnifiedTimestamp().unix,
       },
     };
   }
@@ -903,8 +906,9 @@ export class EmergentIntelligenceEngine {
           contextDependency: 'global',
         },
         contextual: {
-          evolutionId: `evolution-${createUnifiedTimestamp().unix}`,
+          evolutionId: createUnifiedId('intelligence', 'evolution'),
           changeType: evolution.changeType,
+          evolutionTimestampUnix: createUnifiedTimestamp().unix,
         },
       }),
       'system',

@@ -25,7 +25,6 @@ import type { MetricLog } from '../../services/MetricsService';
 import { OneAgentMemory } from '../../memory/OneAgentMemory';
 import { getModelFor } from '../../config/UnifiedModelPicker';
 import { simpleGit } from 'simple-git';
-import fetch from 'node-fetch';
 import * as fs from 'fs/promises';
 import * as path from 'path';
 

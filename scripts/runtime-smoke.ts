@@ -11,74 +11,107 @@ import fs from 'node:fs';
 import dotenv from 'dotenv';
 // Load environment from project root so MEM0_API_KEY, ports, etc. are consistent across Node and Python
 dotenv.config({ path: path.join(process.cwd(), '.env') });
-import http from 'node:http';
+// Use Node 22+ native fetch for HTTP calls
+import type { IncomingHttpHeaders } from 'node:http';
+// no net usage; HTTP-based probes only
+import { environmentConfig } from '../coreagent/config/EnvironmentConfig';
 
-function envInt(name: string, def: number): number {
-  const v = process.env[name];
-  const n = v ? parseInt(v, 10) : NaN;
-  return Number.isFinite(n) ? n : def;
-}
+// no envInt; we derive ports from canonical environmentConfig
 
-const memPort = envInt('ONEAGENT_MEMORY_PORT', 8010);
-const mcpPort = envInt('ONEAGENT_MCP_PORT', 8083);
-const memHealth = `http://127.0.0.1:${memPort}/health`;
+// Derive canonical endpoints from environmentConfig to avoid host/IPv6 mismatches
+const memEndpoint = environmentConfig.endpoints.memory.url.replace(/\/$/, '');
+const mcpEndpoint = environmentConfig.endpoints.mcp.url.replace(/\/$/, '');
+const memUrl = new URL(memEndpoint);
+const memHost = memUrl.hostname;
+const memPort = Number(memUrl.port || environmentConfig.endpoints.memory.port || 8010);
+// derive but only use URLs for HTTP readiness
+const mcpBase = mcpEndpoint.replace(/\/mcp$/, '');
+const memBase = memEndpoint;
+const memHealth = `${memBase}/health`;
+const memReadyz = `${memBase}/readyz`;
 const memStats = (userId = 'smoke-user') =>
-  `http://127.0.0.1:${memPort}/v1/memories/stats?userId=${encodeURIComponent(userId)}`;
-const mcpHealth = `http://127.0.0.1:${mcpPort}/health`;
-const mcpUrl = `http://127.0.0.1:${mcpPort}/mcp`;
-const mcpInfo = `http://127.0.0.1:${mcpPort}/info`;
-const mcpStream = `http://127.0.0.1:${mcpPort}/mcp/stream`;
+  `${memBase}/v1/memories/stats?userId=${encodeURIComponent(userId)}`;
+// Candidate bases to tolerate IPv4/IPv6/localhost differences on Windows
+function buildMcpCandidates(base: string): string[] {
+  const u = new URL(base);
+  const host = u.hostname.toLowerCase();
+  const port = u.port;
+  const candidates = new Set<string>();
+  candidates.add(`http://${host}:${port}`);
+  if (host !== '127.0.0.1') candidates.add(`http://127.0.0.1:${port}`);
+  if (host !== 'localhost') candidates.add(`http://localhost:${port}`);
+  // IPv6 loopback form
+  candidates.add(`http://[::1]:${port}`);
+  return Array.from(candidates);
+}
+let mcpBaseCurrent = mcpBase;
+const mcpHealthUrl = () => `${mcpBaseCurrent}/health`;
+const mcpInfoUrl = () => `${mcpBaseCurrent}/info`;
+const mcpRpcUrl = () => `${mcpBaseCurrent}/mcp`;
+const mcpStreamUrl = () => `${mcpBaseCurrent}/mcp/stream`;
+
+async function selectReachableMcpBase(
+  candidates: string[],
+  totalMs = 20000,
+): Promise<string | null> {
+  const start = Date.now();
+  const urls = candidates.flatMap((b) => [`${b}/health`, `${b}/info`]);
+  while (Date.now() - start < totalMs) {
+    for (const url of urls) {
+      try {
+        const res = await httpGet(url, 1500);
+        if (res.status >= 200 && res.status < 500) {
+          // Pick the base of this url
+          return url.replace(/\/(health|info)$/i, '');
+        }
+      } catch {
+        // ignore, rotate
+      }
+    }
+    await new Promise((r) => setTimeout(r, 500));
+  }
+  return null;
+}
 const MCP_PROTOCOL_VERSION = '2025-06-18';
 
-function httpGet(url: string, timeoutMs = 3000): Promise<{ status: number; body: string }> {
-  return new Promise((resolve, reject) => {
-    const u = new URL(url);
-    const req = http.request(
-      { hostname: u.hostname, port: u.port, path: u.pathname, method: 'GET', timeout: timeoutMs },
-      (res) => {
-        res.setEncoding('utf8');
-        let raw = '';
-        res.on('data', (d: string) => {
-          raw += d;
-        });
-        res.on('end', () => resolve({ status: res.statusCode || 0, body: raw }));
-      },
-    );
-    req.on('error', reject);
-    req.end();
-  });
+async function httpGet(
+  url: string,
+  timeoutMs = 3000,
+): Promise<{ status: number; body: string; headers: IncomingHttpHeaders }> {
+  const controller = new AbortController();
+  const t = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const res = await fetch(url, { signal: controller.signal });
+    const body = await res.text();
+    // Map Headers to Node-like IncomingHttpHeaders shape minimally
+    const headers: IncomingHttpHeaders = {};
+    res.headers.forEach((v, k) => {
+      (headers as Record<string, string>)[k.toLowerCase()] = v;
+    });
+    return { status: res.status, body, headers };
+  } finally {
+    clearTimeout(t);
+  }
 }
 
-function httpGetWithHeaders(
+async function httpGetWithHeaders(
   url: string,
   headers: Record<string, string>,
   timeoutMs = 5000,
-): Promise<{ status: number; body: string; headers: http.IncomingHttpHeaders }> {
-  return new Promise((resolve, reject) => {
-    const u = new URL(url);
-    const req = http.request(
-      {
-        hostname: u.hostname,
-        port: u.port,
-        path: `${u.pathname}${u.search}`,
-        method: 'GET',
-        timeout: timeoutMs,
-        headers,
-      },
-      (res) => {
-        res.setEncoding('utf8');
-        let raw = '';
-        res.on('data', (d: string) => {
-          raw += d;
-        });
-        res.on('end', () =>
-          resolve({ status: res.statusCode || 0, body: raw, headers: res.headers }),
-        );
-      },
-    );
-    req.on('error', reject);
-    req.end();
-  });
+): Promise<{ status: number; body: string; headers: IncomingHttpHeaders }> {
+  const controller = new AbortController();
+  const t = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const res = await fetch(url, { headers, signal: controller.signal });
+    const body = await res.text();
+    const outHeaders: IncomingHttpHeaders = {};
+    res.headers.forEach((v, k) => {
+      (outHeaders as Record<string, string>)[k.toLowerCase()] = v;
+    });
+    return { status: res.status, body, headers: outHeaders };
+  } finally {
+    clearTimeout(t);
+  }
 }
 
 interface JsonRpcResponse {
@@ -87,45 +120,32 @@ interface JsonRpcResponse {
   result?: unknown;
   error?: unknown;
 }
-function httpPostJson(url: string, body: unknown, timeoutMs = 5000): Promise<JsonRpcResponse> {
-  return new Promise((resolve, reject) => {
-    const u = new URL(url);
-    const payload = Buffer.from(JSON.stringify(body));
-    const req = http.request(
-      {
-        hostname: u.hostname,
-        port: u.port,
-        path: u.pathname,
-        method: 'POST',
-        timeout: timeoutMs,
-        headers: { 'Content-Type': 'application/json', 'Content-Length': payload.length },
-      },
-      (res) => {
-        res.setEncoding('utf8');
-        let raw = '';
-        res.on('data', (d: string) => {
-          raw += d;
-        });
-        res.on('end', () => {
-          try {
-            resolve(JSON.parse(raw));
-          } catch (e) {
-            reject(e);
-          }
-        });
-      },
-    );
-    req.on('error', reject);
-    req.write(payload);
-    req.end();
-  });
+async function httpPostJson(
+  url: string,
+  body: unknown,
+  timeoutMs = 8000,
+): Promise<JsonRpcResponse> {
+  const controller = new AbortController();
+  const t = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+      signal: controller.signal,
+    });
+    const text = await res.text();
+    return JSON.parse(text || '{}');
+  } finally {
+    clearTimeout(t);
+  }
 }
 
 async function waitReady(url: string, totalMs = 30000, stepMs = 500): Promise<boolean> {
   const deadline = Date.now() + totalMs;
   while (Date.now() < deadline) {
     try {
-      const res = await httpGet(url, stepMs);
+      const res = await httpGet(url, Math.max(750, stepMs));
       if (res.status >= 200 && res.status < 500) return true; // accept 404 as socket-open
     } catch {
       // ignore and retry
@@ -135,6 +155,25 @@ async function waitReady(url: string, totalMs = 30000, stepMs = 500): Promise<bo
   return false;
 }
 
+async function waitAnyReady(urls: string[], totalMs = 30000, stepMs = 500): Promise<boolean> {
+  const deadline = Date.now() + totalMs;
+  let idx = 0;
+  while (Date.now() < deadline) {
+    const url = urls[idx % urls.length];
+    try {
+      const res = await httpGet(url, Math.max(750, stepMs));
+      if (res.status >= 200 && res.status < 500) return true;
+    } catch {
+      // ignore and rotate
+    }
+    idx++;
+    await new Promise((r) => setTimeout(r, stepMs));
+  }
+  return false;
+}
+
+// TCP port probe removed (HTTP readiness checks are sufficient and more portable)
+
 function run(cmd: string, args: string[], cwd: string): ChildProcess {
   const child = spawn(cmd, args, { cwd, stdio: ['ignore', 'pipe', 'pipe'], shell: false });
   child.stdout.on('data', (d) => process.stdout.write(d));
@@ -143,19 +182,51 @@ function run(cmd: string, args: string[], cwd: string): ChildProcess {
 }
 
 function startMcpServer(cwd: string): ChildProcess {
-  // Start via ts-node/register (robust across shells/Windows)
-  let tsNodeRegister: string;
-  try {
-    // Resolve from current Node resolution (devDependency)
-    tsNodeRegister = require.resolve('ts-node/register');
-  } catch {
-    throw new Error('ts-node/register not found to start MCP server');
+  // Start via dedicated launcher to force explicit startServer() and avoid auto-start heuristics
+  const launcher = path.join(cwd, 'scripts', 'start-mcp-launcher.cjs');
+  if (!fs.existsSync(launcher)) {
+    throw new Error('MCP launcher not found');
   }
-  return run(
-    process.execPath,
-    ['-r', tsNodeRegister, 'coreagent/server/unified-mcp-server.ts'],
-    cwd,
-  );
+  return run(process.execPath, [launcher], cwd);
+}
+
+async function waitForChildOutput(
+  child: ChildProcess,
+  pattern: RegExp,
+  timeoutMs = 20000,
+): Promise<boolean> {
+  return new Promise((resolve) => {
+    let done = false;
+    const onData = (d: Buffer) => {
+      if (done) return;
+      const s = d.toString();
+      if (pattern.test(s)) {
+        done = true;
+        cleanup();
+        resolve(true);
+      }
+    };
+    const onExit = () => {
+      if (done) return;
+      done = true;
+      cleanup();
+      resolve(false);
+    };
+    const cleanup = () => {
+      child.stdout?.off('data', onData);
+      child.stderr?.off('data', onData);
+      child.off('exit', onExit);
+    };
+    child.stdout?.on('data', onData);
+    child.stderr?.on('data', onData);
+    child.on('exit', onExit);
+    setTimeout(() => {
+      if (done) return;
+      done = true;
+      cleanup();
+      resolve(false);
+    }, timeoutMs);
+  });
 }
 
 type MCPRequest = {
@@ -165,61 +236,83 @@ type MCPRequest = {
   params?: Record<string, unknown>;
 };
 
-function streamProbe(url: string, request: MCPRequest, timeoutMs = 6000): Promise<boolean> {
-  return new Promise((resolve, reject) => {
-    const u = new URL(url);
-    const payload = Buffer.from(JSON.stringify(request));
-    const req = http.request(
-      {
-        hostname: u.hostname,
-        port: u.port,
-        path: u.pathname,
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Content-Length': payload.length },
-      },
-      (res) => {
-        const ct = String(res.headers['content-type'] || '');
-        if (!ct.includes('application/json')) {
-          res.resume();
-          return reject(new Error(`Stream probe failed: content-type=${ct}`));
+async function tryMcpInitializeProbe(url: string, attempts = 3): Promise<boolean> {
+  for (let i = 0; i < attempts; i++) {
+    try {
+      const res = await httpPostJson(
+        url,
+        {
+          jsonrpc: '2.0',
+          id: `probe-${Date.now()}-${i}`,
+          method: 'initialize',
+          params: {
+            protocolVersion: MCP_PROTOCOL_VERSION,
+            capabilities: {},
+            clientInfo: { name: 'runtime-smoke-probe', version: '0.0.0' },
+          },
+        },
+        6000,
+      );
+      const ok = Boolean(
+        res &&
+          typeof res === 'object' &&
+          res.result &&
+          typeof (res.result as { serverInfo?: unknown }).serverInfo !== 'undefined',
+      );
+      if (ok) return true;
+    } catch {
+      // ignore and backoff
+    }
+    await new Promise((r) => setTimeout(r, 500 + i * 500));
+  }
+  return false;
+}
+
+async function streamProbe(url: string, request: MCPRequest, timeoutMs = 8000): Promise<boolean> {
+  const controller = new AbortController();
+  const t = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(request),
+      signal: controller.signal,
+    });
+    const ct = String(res.headers.get('content-type') || '');
+    if (!ct.includes('application/json')) {
+      return Promise.reject(new Error(`Stream probe failed: content-type=${ct}`));
+    }
+    const reader = res.body?.getReader();
+    if (!reader) return Promise.reject(new Error('No stream reader available'));
+    let sawStart = false;
+    let sawMessage = false;
+    let sawEnd = false;
+    let buf = '';
+    for (;;) {
+      const { value, done } = await reader.read();
+      if (done) break;
+      buf += new TextDecoder().decode(value);
+      let idx;
+      while ((idx = buf.indexOf('\n')) >= 0) {
+        const line = buf.slice(0, idx);
+        buf = buf.slice(idx + 1);
+        const s = line.trim();
+        if (!s) continue;
+        try {
+          const obj = JSON.parse(s);
+          if (obj.type === 'meta' && obj.event === 'start') sawStart = true;
+          if (obj.type === 'message') sawMessage = true;
+          if (obj.type === 'meta' && obj.event === 'end') sawEnd = true;
+        } catch {
+          // ignore partial lines
         }
-        let sawStart = false;
-        let sawMessage = false;
-        let sawEnd = false;
-        res.setEncoding('utf8');
-        res.on('data', (chunk: string) => {
-          for (const line of chunk.split('\n')) {
-            const s = line.trim();
-            if (!s) continue;
-            try {
-              const obj = JSON.parse(s);
-              if (obj.type === 'meta' && obj.event === 'start') sawStart = true;
-              if (obj.type === 'message') sawMessage = true;
-              if (obj.type === 'meta' && obj.event === 'end') sawEnd = true;
-            } catch {
-              // ignore partial lines
-            }
-          }
-        });
-        res.on('end', () => {
-          if (sawStart && sawMessage && sawEnd) resolve(true);
-          else reject(new Error('Stream probe incomplete'));
-        });
-        const timer = setTimeout(() => {
-          try {
-            req.destroy();
-          } catch {
-            /* noop */
-          }
-          reject(new Error('Stream probe timeout'));
-        }, timeoutMs);
-        (timer as unknown as NodeJS.Timer).unref?.();
-      },
-    );
-    req.on('error', reject);
-    req.write(payload);
-    req.end();
-  });
+      }
+      if (sawStart && sawMessage && sawEnd) break;
+    }
+    return sawStart && sawMessage && sawEnd;
+  } finally {
+    clearTimeout(t);
+  }
 }
 
 async function main() {
@@ -227,9 +320,18 @@ async function main() {
   let mcp: ChildProcess | null = null;
   const cwd = process.cwd();
 
+  // Startup banner to verify the HTTP-only readiness harness is running
+  console.log(
+    `→ Runtime Smoke (HTTP-only readiness) starting...\n  mem: ${memHealth} | readyz: ${memReadyz}\n  mcp: ${mcpHealthUrl()} | info: ${mcpInfoUrl()} | url: ${mcpRpcUrl()}\n  stream: ${mcpStreamUrl()}`,
+  );
+
   // Pre-check: are they already up?
   const memUp = await waitReady(memHealth, 1000, 250);
-  const mcpUp = await waitReady(mcpHealth, 1000, 250);
+  const mcpUp = await waitAnyReady(
+    buildMcpCandidates(mcpBase).map((b) => `${b}/health`),
+    1500,
+    300,
+  );
 
   try {
     if (!memUp) {
@@ -265,23 +367,103 @@ async function main() {
           '--app-dir',
           'servers',
           '--host',
-          '127.0.0.1',
+          memHost,
           '--port',
           String(memPort),
         ],
         cwd,
       );
+      // Wait for memory full readiness before starting MCP to avoid seeding races
+      const readyzOk = await waitReady(memReadyz, 45000, 500);
+      if (!readyzOk) throw new Error('Memory server not ready (/readyz)');
     }
+    // If memory was already up, still ensure readyz before bringing up MCP
+    if (memUp) {
+      await waitReady(memReadyz, 20000, 500);
+    }
+
     if (!mcpUp) {
       // Start MCP via local tsx binary or ts-node/register fallback (no reliance on npx)
       mcp = startMcpServer(cwd);
+      // Wait for startup banner or endpoint lines to appear before probing
+      await waitForChildOutput(
+        mcp,
+        /(Unified MCP Server Started Successfully!|HTTP MCP Endpoint:|Ready for VS Code Copilot Chat)/,
+        25000,
+      );
     }
 
-    // Wait readiness
+    // Small settle delay to allow bind to complete on Windows
+    if (!mcpUp) await new Promise((r) => setTimeout(r, 1000));
+
+    // Wait readiness (memory)
     const memReady = await waitReady(memHealth, 30000, 500);
-    const mcpReady = await waitReady(mcpHealth, 45000, 500);
     if (!memReady) throw new Error('Memory server not ready');
-    if (!mcpReady) throw new Error('MCP server not ready');
+
+    // Select a reachable MCP base across IPv4/IPv6/localhost variants
+    const candidates = buildMcpCandidates(mcpBase);
+    const picked = await selectReachableMcpBase(candidates, 25000);
+    if (picked) {
+      mcpBaseCurrent = picked;
+    }
+    // MCP readiness (HTTP-only). First quick probe, then robust retries on health/info.
+    let mcpReady = await waitAnyReady([mcpHealthUrl(), mcpInfoUrl()], 15000, 800);
+    if (!mcpReady) {
+      // Attempt direct initialize probe as an alternative readiness signal
+      mcpReady = await tryMcpInitializeProbe(mcpRpcUrl(), 3);
+    }
+    // Final health/info verification with retry loop (Windows binding lag resilience)
+    let healthOk = false;
+    let infoOk = false;
+    // Track last few observations for debugging on failure
+    const lastHealth: { status: number; body: string }[] = [];
+    const lastInfo: { status: number; body: string }[] = [];
+    const healthErrors: string[] = [];
+    const infoErrors: string[] = [];
+    const deadline = Date.now() + 45000;
+    while (Date.now() < deadline && !(healthOk && infoOk)) {
+      try {
+        const res = await httpGet(mcpHealthUrl(), 2000);
+        // Capture a small snippet for visibility when failing
+        lastHealth.push({ status: res.status, body: (res.body || '').slice(0, 200) });
+        if (lastHealth.length > 5) lastHealth.shift();
+        const json = JSON.parse(res.body || '{}');
+        healthOk = json && json.status === 'healthy';
+      } catch (e) {
+        healthErrors.push((e as Error)?.message || String(e));
+        if (healthErrors.length > 5) healthErrors.shift();
+      }
+      try {
+        const res = await httpGet(mcpInfoUrl(), 2000);
+        lastInfo.push({ status: res.status, body: (res.body || '').slice(0, 200) });
+        if (lastInfo.length > 5) lastInfo.shift();
+        const json = JSON.parse(res.body || '{}');
+        infoOk = Boolean(json && json.server && json.server.version);
+      } catch (e) {
+        infoErrors.push((e as Error)?.message || String(e));
+        if (infoErrors.length > 5) infoErrors.shift();
+      }
+      if (!(healthOk && infoOk)) await new Promise((r) => setTimeout(r, 800));
+    }
+    mcpReady = mcpReady || (healthOk && infoOk);
+    if (!mcpReady) {
+      console.error('⚠️ MCP readiness diagnostics:');
+      if (lastHealth.length) {
+        const h = lastHealth[lastHealth.length - 1];
+        console.error(`  /health last -> status=${h.status}, body=${JSON.stringify(h.body)}`);
+      } else {
+        console.error('  /health: no responses captured');
+      }
+      if (lastInfo.length) {
+        const i = lastInfo[lastInfo.length - 1];
+        console.error(`  /info last -> status=${i.status}, body=${JSON.stringify(i.body)}`);
+      } else {
+        console.error('  /info: no responses captured');
+      }
+      if (healthErrors.length) console.error(`  /health errors: ${healthErrors.join(' | ')}`);
+      if (infoErrors.length) console.error(`  /info errors: ${infoErrors.join(' | ')}`);
+      throw new Error('MCP server not ready');
+    }
 
     // Memory health
     const memHealthRes = await httpGet(memHealth);
@@ -321,15 +503,15 @@ async function main() {
     }
 
     // Health
-    const healthJson = JSON.parse((await httpGet(mcpHealth)).body);
+    const healthJson = JSON.parse((await httpGet(mcpHealthUrl(), 5000)).body || '{}');
     if (healthJson.status !== 'healthy') throw new Error('MCP /health not healthy');
     // Info
-    const infoJson = JSON.parse((await httpGet(mcpInfo)).body);
+    const infoJson = JSON.parse((await httpGet(mcpInfoUrl(), 5000)).body || '{}');
     if (!infoJson.server || !infoJson.server.version)
       throw new Error('MCP /info missing server metadata');
 
     // MCP initialize
-    const initRes = await httpPostJson(mcpUrl, {
+    const initRes = await httpPostJson(mcpRpcUrl(), {
       jsonrpc: '2.0',
       id: 1,
       method: 'initialize',
@@ -349,7 +531,7 @@ async function main() {
     if (!initOk) throw new Error('MCP initialize failed');
 
     // tools/list
-    const tools = await httpPostJson(mcpUrl, { jsonrpc: '2.0', id: 2, method: 'tools/list' });
+    const tools = await httpPostJson(mcpRpcUrl(), { jsonrpc: '2.0', id: 2, method: 'tools/list' });
     const toolsOk = Boolean(
       tools &&
         typeof tools === 'object' &&
@@ -360,7 +542,7 @@ async function main() {
 
     // MCP streaming probe: verify NDJSON meta/message/end on /mcp/stream
     const streamOk = await streamProbe(
-      mcpStream,
+      mcpStreamUrl(),
       { jsonrpc: '2.0', id: 99, method: 'tools/list' },
       8000,
     ).catch(() => false);

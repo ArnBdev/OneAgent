@@ -13,7 +13,7 @@ import { EventEmitter } from 'events';
 import { personaLoader, PersonaConfig } from './PersonaLoader';
 import { OneAgentMemory, OneAgentMemoryConfig } from '../../memory/OneAgentMemory';
 // ALITA Integration
-import { createUnifiedTimestamp } from '../../utils/UnifiedBackboneService';
+import { generateUnifiedId } from '../../utils/UnifiedBackboneService';
 
 export interface PerformanceMetrics {
   agentId: string;
@@ -203,7 +203,7 @@ export class SelfImprovementSystem extends EventEmitter {
           userId: 'system',
           source: 'self_improvement',
           component: 'evaluation',
-          sessionId: this.generateUnifiedId('self_evaluation'),
+          sessionId: generateUnifiedId('session', 'self_evaluation'),
         },
         content: {
           category: 'agent_evaluation',
@@ -606,23 +606,7 @@ export class SelfImprovementSystem extends EventEmitter {
     this.isActive = false;
   }
 
-  /**
-   * Generate unified ID following canonical architecture
-   */
-  private generateUnifiedId(type: string, context?: string): string {
-    const timestamp = createUnifiedTimestamp().unix;
-    const randomSuffix = this.generateSecureRandomSuffix();
-    const prefix = context ? `${type}_${context}` : type;
-    return `${prefix}_${timestamp}_${randomSuffix}`;
-  }
-
-  private generateSecureRandomSuffix(): string {
-    // Use crypto.randomUUID() for better randomness, fallback to Math.random()
-    if (typeof crypto !== 'undefined' && crypto.randomUUID) {
-      return crypto.randomUUID().split('-')[0]; // Use first segment
-    }
-    return Math.random().toString(36).substr(2, 9);
-  }
+  // ID generation is handled by UnifiedBackboneService.generateUnifiedId; no local helpers.
 }
 
 // Export singleton instance

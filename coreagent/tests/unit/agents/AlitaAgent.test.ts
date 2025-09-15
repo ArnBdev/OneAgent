@@ -2,7 +2,6 @@ import { AlitaAgent } from '../../../agents/specialized/AlitaAgent';
 import { OneAgentMemory } from '../../../memory/OneAgentMemory';
 import SmartGeminiClient from '../../../tools/SmartGeminiClient';
 import { simpleGit } from 'simple-git';
-import fetch from 'node-fetch';
 
 // Explicit factory mocks
 jest.mock('../../../tools/SmartGeminiClient', () => ({
@@ -21,7 +20,6 @@ jest.mock('../../../tools/SmartGeminiClient', () => ({
 jest.mock('simple-git', () => ({
   simpleGit: jest.fn(),
 }));
-jest.mock('node-fetch', () => jest.fn());
 jest.mock('fs/promises', () => ({
   __esModule: true,
   readFile: jest.fn().mockRejectedValue(new Error('not found')),
@@ -31,10 +29,13 @@ jest.mock('fs/promises', () => ({
 
 describe('AlitaAgent.execute end-to-end (mocked)', () => {
   const FIX_TASK = 'task-abc';
+  let fetchMock: jest.MockedFunction<typeof fetch>;
 
   beforeEach(() => {
     jest.resetAllMocks();
     process.env.GITHUB_TOKEN = 'test-token';
+    fetchMock = jest.fn() as unknown as jest.MockedFunction<typeof fetch>;
+    (global as unknown as { fetch: typeof fetch }).fetch = fetchMock;
   });
 
   it('collects experience, calls LLM, writes file, commits, pushes, and opens draft PR', async () => {
@@ -117,10 +118,10 @@ describe('AlitaAgent.execute end-to-end (mocked)', () => {
     simpleGitMockFn.mockReturnValue(gitMock);
 
     // Mock fetch for PR creation
-    (fetch as unknown as jest.Mock).mockResolvedValue({
+    fetchMock.mockResolvedValue({
       ok: true,
       json: async () => ({ html_url: 'https://github.com/acme/oneagent/pull/1' }),
-    });
+    } as unknown as Response);
 
     const agent = new AlitaAgent();
     const result = await agent.execute(10);
@@ -138,7 +139,7 @@ describe('AlitaAgent.execute end-to-end (mocked)', () => {
     expect(gitMock.push).toHaveBeenCalled();
 
     // Verify PR HTTP
-    expect(fetch).toHaveBeenCalledWith(
+    expect(fetchMock).toHaveBeenCalledWith(
       expect.stringContaining('/repos/acme/oneagent/pulls'),
       expect.objectContaining({ method: 'POST' }),
     );

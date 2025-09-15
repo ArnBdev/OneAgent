@@ -1,4 +1,6 @@
 // ...existing code...
+// Re-export canonical ID helper through the backbone to avoid parallel systems
+export { createCanonicalId } from './canonical-id';
 import {
   UnifiedAgentCommunicationInterface,
   UnifiedMetadata,

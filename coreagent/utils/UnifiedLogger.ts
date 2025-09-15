@@ -43,6 +43,17 @@ function safeGenerateId(prefix: string, context?: string): string {
   } catch {
     /* ignore */
   }
+  // Prefer UUID v4 when available to avoid ad-hoc time-based ID generation
+  try {
+    const anyCrypto = (globalThis as unknown as { crypto?: { randomUUID?: () => string } }).crypto;
+    if (anyCrypto && typeof anyCrypto.randomUUID === 'function') {
+      const short = anyCrypto.randomUUID().split('-')[0];
+      return context ? `${prefix}_${context}_${short}` : `${prefix}_${short}`;
+    }
+  } catch {
+    /* ignore */
+  }
+  // Fallback: retain a low-collision suffix using time only if crypto is unavailable
   const ts = Date.now().toString(36);
   return context ? `${prefix}_${context}_${ts}` : `${prefix}_${ts}`;
 }

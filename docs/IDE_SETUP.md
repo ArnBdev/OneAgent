@@ -6,6 +6,7 @@ This guide wires VS Code, Copilot Chat, and the OneAgent Unified MCP Server for 
 
 - Node.js 22+
 - Python 3.11+
+- VS Code 1.93+ (extension builds on TypeScript 5.9)
 
 ## Install
 
@@ -15,6 +16,30 @@ This guide wires VS Code, Copilot Chat, and the OneAgent Unified MCP Server for 
 
 - Memory server: npm run memory:server
 - Unified MCP server: npm run server:unified
+
+Note: The UI uses Vite 7 via the root toolchain (TypeScript 5.9). Use root scripts for builds and type-checking.
+
+UI styling: Tailwind CSS v4.1
+
+- Tailwind CSS is configured using the v4 PostCSS plugin (`@tailwindcss/postcss`) and Tailwind v4.1.x.
+- See Tailwind docs for Vite integration: https://tailwindcss.com/docs/installation/using-vite
+- Tailwind v4.1 release notes: https://tailwindcss.com/blog/tailwindcss-v4-1 and Tailwind Plus: https://tailwindcss.com/blog/tailwind-plus
+
+Recommended startup order: Start the MCP server before the memory server (or ensure MCP is ready) to avoid the memory server’s embeddings gateway cooldown warnings. The memory server calls the MCP `/api/v1/embeddings` gateway; if MCP isn’t up yet, it will log temporary warnings and apply a cooldown.
+
+Embedding provider selection (env-driven):
+
+- ONEAGENT_EMBEDDINGS_SOURCE=openai|gemini|node
+  - openai → direct OpenAI embeddings
+  - gemini → Gemini embeddings
+  - node → OneAgent node gateway (default)
+- OPENAI_API_KEY=... (required when source=openai)
+- OPENAI_EMBEDDING_MODEL=text-embedding-3-small (default if unset)
+- OPENAI_EMBED_DIM=1536 (Python memory server dimensionality when source=openai)
+- ONEAGENT_EMBEDDINGS_COOLDOWN_SECONDS=5 (cooldown when gateway is unavailable)
+- Preferences for LLM routing (text models):
+  - ONEAGENT_PREFER_OPENAI=1 (prefer OpenAI where applicable)
+  - ONEAGENT_DISABLE_GEMINI=1 (disable Gemini fallback)
 
 ## Copilot Chat integration
 

@@ -20,6 +20,16 @@ Single entrypoint: `coreagent/config/UnifiedModelPicker.ts`
   - Keep `.env` for API keys and endpoints only (GEMINI_API_KEY, OPENAI_API_KEY, MEM0_API_URL, …).
   - Multimodality placeholders exist (vision, audio, multimodal) — add concrete models later.
 
+Embedding provider selection (envs):
+
+- `ONEAGENT_EMBEDDINGS_SOURCE=openai|gemini|node` (default `node`)
+- If `openai`:
+  - `OPENAI_API_KEY` required
+  - `OPENAI_EMBEDDING_MODEL` optional (default `text-embedding-3-small`)
+  - Python memory server normalization via `OPENAI_EMBED_DIM` (default `1536`)
+- Cooldown when gateway unavailable: `ONEAGENT_EMBEDDINGS_COOLDOWN_SECONDS` (default `5`)
+- LLM routing preferences (text models): `ONEAGENT_PREFER_OPENAI=1`, `ONEAGENT_DISABLE_GEMINI=1`
+
 Examples:
 
 ```ts

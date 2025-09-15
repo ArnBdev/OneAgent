@@ -10,7 +10,6 @@
  */
 
 import { EventEmitter } from 'events';
-import { v4 as uuidv4 } from 'uuid';
 import {
   ContextCategory,
   PrivacyLevel,
@@ -739,7 +738,7 @@ class TeamMeetingEngine {
   }
 
   async conductMeeting(request: TeamMeetingRequest): Promise<TeamMeeting> {
-    const meetingId = uuidv4();
+    const meetingId = createUnifiedId('discussion', 'team_meeting');
     const meeting: TeamMeeting = {
       id: meetingId,
       topic: request.topic,

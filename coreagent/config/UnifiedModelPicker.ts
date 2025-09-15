@@ -39,11 +39,28 @@ export type ModelClient = SmartOpenAIClient | SmartGeminiClient;
 // Simple in-memory client cache to prevent repeated instantiation noise
 const clientCache = new Map<string, ModelClient>();
 
-// Canonical embedding model constant (single source of truth)
-const EMBEDDING_MODEL = 'gemini-embedding-001';
-
+// Canonical embedding model selector (single source of truth)
 export function getEmbeddingModel(): string {
-  return EMBEDDING_MODEL;
+  const source = (process.env.ONEAGENT_EMBEDDINGS_SOURCE || '').toLowerCase();
+  if (source === 'openai' && process.env.OPENAI_API_KEY) {
+    return process.env.OPENAI_EMBEDDING_MODEL || 'text-embedding-3-small';
+  }
+  // Default to Gemini embedding model
+  return 'gemini-embedding-001';
+}
+
+/**
+ * Provider-agnostic embedding client factory with minimal surface required by EmbeddingCacheService
+ */
+export function getEmbeddingClient(): ModelClient {
+  const source = (process.env.ONEAGENT_EMBEDDINGS_SOURCE || '').toLowerCase();
+  if (source === 'openai' && process.env.OPENAI_API_KEY) {
+    return new SmartOpenAIClient({
+      apiKey: process.env.OPENAI_API_KEY,
+      model: getEmbeddingModel(),
+    });
+  }
+  return new SmartGeminiClient({ apiKey: process.env.GEMINI_API_KEY, model: getEmbeddingModel() });
 }
 
 export function getModelFor(capability: ModelCapability): ModelClient {

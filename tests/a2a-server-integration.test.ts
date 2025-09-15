@@ -16,7 +16,6 @@
 
 import { OneAgentA2AProtocol, AgentCard } from '../coreagent/protocols/a2a/A2AProtocol';
 import { UnifiedBackboneService } from '../coreagent/utils/UnifiedBackboneService';
-import { v4 as uuidv4 } from 'uuid';
 import { createUnifiedId } from '../coreagent/utils/UnifiedBackboneService';
 
 // Test Agent Card for real server integration
@@ -75,7 +74,7 @@ describe('A2A Protocol server integration (structural)', () => {
     const testMessage = {
       role: 'user' as const,
       parts: [{ kind: 'text' as const, text: 'Hello from A2A protocol test!' }],
-      messageId: uuidv4(),
+      messageId: createUnifiedId('message', 'a2a'),
       kind: 'message' as const,
     };
     expect(testMessage.parts.length).toBe(1);

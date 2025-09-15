@@ -31,7 +31,7 @@ import {
 } from '../base/BaseAgent';
 import { ISpecializedAgent, AgentHealthStatus } from '../base/ISpecializedAgent';
 import { MemoryRecord } from '../../types/oneagent-backbone-types';
-import { createUnifiedTimestamp } from '../../utils/UnifiedBackboneService';
+import { createUnifiedTimestamp, createUnifiedId } from '../../utils/UnifiedBackboneService';
 
 export class TemplateAgent extends BaseAgent implements ISpecializedAgent {
   public readonly id: string;
@@ -356,7 +356,7 @@ Be [PERSONALITY TRAITS: professional, friendly, expert, etc.] in your responses.
     return {
       content: `Action 1 completed with input: ${params.input}`,
       metadata: {
-        actionId: `action1_${createUnifiedTimestamp().unix}`,
+        actionId: createUnifiedId('operation', 'template_1'),
         success: true,
         timestamp: createUnifiedTimestamp().iso,
       },
@@ -371,7 +371,7 @@ Be [PERSONALITY TRAITS: professional, friendly, expert, etc.] in your responses.
     return {
       content: `Action 2 completed with data: ${JSON.stringify(params.data)}`,
       metadata: {
-        actionId: `action2_${createUnifiedTimestamp().unix}`,
+        actionId: createUnifiedId('operation', 'template_2'),
         success: true,
         timestamp: createUnifiedTimestamp().iso,
       },
@@ -385,7 +385,7 @@ Be [PERSONALITY TRAITS: professional, friendly, expert, etc.] in your responses.
     return {
       content: 'Action 3 completed',
       metadata: {
-        actionId: `action3_${createUnifiedTimestamp().unix}`,
+        actionId: createUnifiedId('operation', 'template_3'),
         success: true,
         timestamp: createUnifiedTimestamp().iso,
       },
