@@ -33,6 +33,7 @@ import {
   getAppName,
   OneAgentUnifiedMetadataService,
   OneAgentUnifiedTimeService,
+  createUnifiedId,
 } from '../utils/UnifiedBackboneService';
 import { createAgentCard } from '../types/AgentCard';
 import { SimpleAuditLogger } from '../audit/auditLogger';
@@ -47,6 +48,9 @@ import { TOOL_SETS } from '../tools/ToolSets';
 import { embeddingCacheService } from '../services/EmbeddingCacheService';
 import { getEmbeddingModel, getEmbeddingClient } from '../config/UnifiedModelPicker';
 import crypto from 'crypto';
+import { WebSocketServer, WebSocket } from 'ws';
+import type { IncomingMessage } from 'http';
+import type { Duplex } from 'stream';
 
 // Middleware
 app.use(express.json({ limit: '10mb' }));
@@ -1172,7 +1176,8 @@ async function startServer(): Promise<void> {
         const base = environmentConfig.endpoints.mcp.url.replace(/\/mcp$/, '');
         console.log(`   • HTTP MCP Endpoint: ${base}/mcp`);
         console.log(`   • Health Check: ${base}/health`);
-        console.log(`   • Server Info: ${base}/info`);
+  console.log(`   • Server Info: ${base}/info`);
+  console.log(`   • Mission Control WS: ${base.replace(/\/$/, '')}/ws/mission-control`);
         console.log('');
         console.log('🎯 Features:');
         console.log('   • Constitutional AI Validation ✅');
@@ -1186,6 +1191,48 @@ async function startServer(): Promise<void> {
         console.log('');
         console.log('🎪 Ready for VS Code Copilot Chat! 🎪');
       }
+    });
+
+    // Mission Control WebSocket endpoint (AUIP-inspired, skeleton only)
+  const wssMissionControl = new WebSocketServer({ noServer: true });
+
+    // Route HTTP upgrade requests to our WS endpoint
+    server.on('upgrade', (request: IncomingMessage, socket: Duplex, head: Buffer) => {
+      try {
+        const url = new URL(request.url || '/', 'http://localhost');
+        if (url.pathname === '/ws/mission-control') {
+          wssMissionControl.handleUpgrade(request, socket, head, (ws: WebSocket) => {
+            wssMissionControl.emit('connection', ws, request);
+          });
+        } else {
+          socket.destroy();
+        }
+      } catch {
+        socket.destroy();
+      }
+    });
+
+    // On connection, send a simple AUIP-style welcome/status message
+    wssMissionControl.on('connection', (ws: WebSocket) => {
+      try {
+        const ts = createUnifiedTimestamp();
+        const welcome = {
+          type: 'system_status',
+          status: 'connected',
+          agentId: 'OneAgentCore',
+          id: createUnifiedId('system', 'mission_control'),
+          timestamp: ts.iso,
+          unix: ts.unix,
+          server: { name: SERVER_NAME, version: SERVER_VERSION },
+        };
+        ws.send(JSON.stringify(welcome));
+      } catch {
+        // non-fatal
+      }
+
+      ws.on('error', (err: unknown) => {
+        if (!QUIET_MODE) console.error('WS /ws/mission-control error:', err);
+      });
     });
 
     // Proactive, friendly error handling for common startup issues
