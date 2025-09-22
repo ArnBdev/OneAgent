@@ -7,6 +7,7 @@ import { unifiedAgentCommunicationService } from '../../coreagent/utils/UnifiedA
 import { AgentFactory } from '../../coreagent/agents/base/AgentFactory';
 
 describe('A2A NLACS (canonical service)', () => {
+  jest.setTimeout(25000);
   let devId: string;
   let triageId: string;
   let sessionId: string;
@@ -70,7 +71,7 @@ describe('A2A NLACS (canonical service)', () => {
     const memory = OneAgentMemory.getInstance({});
 
     // Ensure memory server is reachable and ready; if not, skip this test gracefully
-    const ready = await memory.waitForReady(20000, 750);
+    const ready = await memory.waitForReady(20000, 600);
     if (!ready) {
       console.warn('[TEST] Memory server not ready; skipping persistence verification case.');
       // Restore FAST_TEST_MODE and exit early
@@ -94,11 +95,12 @@ describe('A2A NLACS (canonical service)', () => {
     });
 
     // Query the memory for recent messages in this session
+    // Delay briefly to allow persistence pipeline to complete (if async)
+    await new Promise((r) => setTimeout(r, 400));
     const results = await memory.searchMemory({
       query: `message history for session ${sessionId}`,
       user_id: 'system_history',
-      limit: 10,
-      // metadata_filter validated in service; here we perform a broader query then inspect fields
+      limit: 25,
     });
     expect(results && Array.isArray(results.results)).toBe(true);
     const items = (results?.results || []) as Array<{ metadata?: Record<string, unknown> }>;

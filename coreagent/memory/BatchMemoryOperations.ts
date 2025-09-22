@@ -35,11 +35,16 @@ export class BatchMemoryOperations {
   private batchSize: number;
   private batchTimeout: number;
   private batchTimer: NodeJS.Timeout | null = null;
+  private deterministic: boolean;
+  private immediateFlush: boolean;
 
   constructor(memory: OneAgentMemory, batchSize: number = 10, batchTimeoutMs: number = 2000) {
     this.memory = memory;
     this.batchSize = batchSize;
     this.batchTimeout = batchTimeoutMs;
+    // Deterministic mode for tests: immediate flush & disable timers when env flag set
+    this.deterministic = process.env.ONEAGENT_BATCH_DETERMINISTIC === '1';
+    this.immediateFlush = process.env.ONEAGENT_BATCH_IMMEDIATE_FLUSH === '1';
   }
 
   /**
@@ -47,6 +52,12 @@ export class BatchMemoryOperations {
    */
   async queueOperation(operation: BatchOperation): Promise<void> {
     this.batchQueue.push(operation);
+
+    // Immediate flush path (test determinism)
+    if (this.immediateFlush) {
+      await this.processBatch();
+      return;
+    }
 
     // Process batch if size limit reached
     if (this.batchQueue.length >= this.batchSize) {
@@ -56,9 +67,16 @@ export class BatchMemoryOperations {
 
     // Set timeout for batch processing
     if (!this.batchTimer) {
-      this.batchTimer = setTimeout(() => {
-        this.processBatch();
-      }, this.batchTimeout);
+      if (this.deterministic) {
+        // In deterministic mode, process synchronously after microtask
+        this.batchTimer = setTimeout(() => {
+          this.processBatch();
+        }, 0);
+      } else {
+        this.batchTimer = setTimeout(() => {
+          this.processBatch();
+        }, this.batchTimeout);
+      }
       // Do not keep the process alive solely for batch flush
       (this.batchTimer as unknown as NodeJS.Timer).unref?.();
     }
@@ -285,5 +303,10 @@ export class BatchMemoryOperations {
       batchSize: this.batchSize,
       hasTimer: this.batchTimer !== null,
     };
+  }
+
+  /** Test-only helper to force deterministic processing of current queue without side-effects */
+  async __testForceProcess(): Promise<BatchResult> {
+    return await this.processBatch();
   }
 }

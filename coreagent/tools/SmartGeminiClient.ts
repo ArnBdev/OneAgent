@@ -1,16 +1,21 @@
 /**
  * SmartGeminiClient - Hybrid AI Client Implementation
  *
- * Implements smart fallback strategy:
- * 1. Try enterprise GeminiClient wrapper first (with retries, monitoring, safety)
- * 2. Fall back to direct @google/generative-ai calls if wrapper fails
- * 3. Provide consistent interface regardless of underlying implementation
+ * Strategy:
+ * 1. Primary path: Enterprise wrapper (GeminiClient) providing retries, safety, monitoring.
+ * 2. Fallback path: Direct Google Gen AI SDK (@google/genai) if wrapper fails or is disabled.
+ * 3. Uniform ChatResponse interface regardless of underlying execution path.
  *
- * This ensures immediate working AI while preserving enterprise features.
+ * Design Goals:
+ * - Zero deprecated dependencies (removed @google/generative-ai).
+ * - Clear separation of responsibilities (wrapper vs direct).
+ * - Explicit environment-based control: ONEAGENT_DISABLE_GENAI_DIRECT=1 to disable fallback.
+ * - Strong typing (no implicit any) and transparent error reporting.
  */
 
-import { GoogleGenerativeAI, GenerativeModel } from '@google/generative-ai';
+import { GoogleGenAI, GenerateContentResponse } from '@google/genai';
 import { GeminiClient } from './geminiClient';
+import { unifiedMonitoringService } from '../monitoring/UnifiedMonitoringService';
 import {
   GeminiConfig,
   ChatResponse,
@@ -34,18 +39,18 @@ export interface SmartGeminiConfig {
 
 export class SmartGeminiClient {
   private wrapperClient: GeminiClient;
-  private directClient: GoogleGenerativeAI;
-  private directModel: GenerativeModel;
+  private directClient: GoogleGenAI | null = null;
   private config: SmartGeminiConfig;
   private fallbackActive: boolean = false;
 
   constructor(config: SmartGeminiConfig = {}) {
     const apiKey = config.apiKey || process.env.GOOGLE_API_KEY || process.env.GEMINI_API_KEY;
     this.config = {
-      apiKey: apiKey,
-      model: config.model || 'gemini-2.5-flash', // Updated to latest stable model
-      useWrapperFirst: config.useWrapperFirst !== false, // Default true
-      enableFallback: config.enableFallback !== false, // Default true
+      apiKey,
+      model: config.model || 'gemini-2.5-flash',
+      useWrapperFirst: config.useWrapperFirst !== false,
+      enableFallback:
+        process.env.ONEAGENT_DISABLE_GENAI_DIRECT === '1' ? false : config.enableFallback !== false,
       maxRetries: config.maxRetries || 2,
       ...config,
     };
@@ -74,9 +79,12 @@ export class SmartGeminiClient {
       model: this.config.model,
     } as GeminiConfig);
 
-    // Initialize direct Google Generative AI client
-    this.directClient = new GoogleGenerativeAI(this.config.apiKey);
-    this.directModel = this.directClient.getGenerativeModel({ model: this.config.model! });
+    try {
+      this.directClient = new GoogleGenAI({ apiKey: this.config.apiKey });
+    } catch (e) {
+      console.warn('[SmartGeminiClient] Failed to initialize GoogleGenAI client', e);
+      this.directClient = null;
+    }
 
     console.log(`🧠 SmartGeminiClient initialized with model: ${this.config.model}`);
     console.log(
@@ -89,6 +97,7 @@ export class SmartGeminiClient {
    */
   async generateContent(prompt: string, options?: ChatOptions): Promise<ChatResponse> {
     const startTime = createUnifiedTimestamp().unix;
+    const model = this.config.model || 'unknown-model';
 
     // Try enterprise wrapper first (if enabled)
     if (this.config.useWrapperFirst && !this.fallbackActive) {
@@ -100,10 +109,31 @@ export class SmartGeminiClient {
         console.log(
           `✅ Enterprise wrapper success (${createUnifiedTimestamp().unix - startTime}ms)`,
         );
+        try {
+          unifiedMonitoringService.trackOperation('AI', 'gemini_wrapper_generate', 'success', {
+            durationMs: createUnifiedTimestamp().unix - startTime,
+            model,
+            path: 'wrapper',
+            fallbackActive: this.fallbackActive,
+          });
+        } catch {
+          /* non-fatal monitoring */
+        }
         return response;
       } catch (error: unknown) {
         const err = error as Error;
         console.log(`⚠️ Enterprise wrapper failed: ${err.message}`);
+        try {
+          unifiedMonitoringService.trackOperation('AI', 'gemini_wrapper_generate', 'error', {
+            durationMs: createUnifiedTimestamp().unix - startTime,
+            model,
+            path: 'wrapper',
+            fallbackActive: this.fallbackActive,
+            errorMessage: err.message?.slice(0, 180),
+          });
+        } catch {
+          /* non-fatal */
+        }
 
         // Don't retry wrapper if it's clearly in mock mode
         if (err.message?.includes('rate limit') || err.message?.includes('mock mode')) {
@@ -113,45 +143,9 @@ export class SmartGeminiClient {
       }
     }
 
-    // Fall back to direct Google Generative AI
+    // Fallback: Direct Google Gen AI
     if (this.config.enableFallback) {
-      try {
-        console.log('🚀 Using direct Gemini API approach...');
-
-        const result = await this.directModel.generateContent(prompt);
-        const response = result.response;
-        const text = response.text();
-
-        const chatResponse: ChatResponse = {
-          response: text,
-          finishReason: 'STOP',
-          timestamp: new Date().toISOString(),
-        };
-
-        console.log(`✅ Direct Gemini success (${createUnifiedTimestamp().unix - startTime}ms)`);
-        return chatResponse;
-      } catch (error: unknown) {
-        const err = error as unknown;
-        // Try to extract useful info from library error
-        let msg = String(err);
-        if (typeof err === 'object' && err !== null) {
-          const maybeMessage = (err as unknown as { message?: unknown }).message;
-          if (maybeMessage) msg = String(maybeMessage);
-          try {
-            const resp = (err as unknown as { response?: { text?: () => Promise<string> } })
-              .response;
-            if (resp && typeof resp.text === 'function') {
-              // attempt to read body
-              const body = await resp.text();
-              if (body) msg += ` | response_body: ${body}`;
-            }
-          } catch {
-            // noop
-          }
-        }
-        console.error('❌ Direct Gemini also failed:', msg);
-        throw new Error(`Both enterprise wrapper and direct Gemini failed: ${msg}`);
-      }
+      return this.directGenerate(prompt, startTime);
     }
 
     throw new Error('All AI generation methods failed and fallback is disabled');
@@ -206,8 +200,85 @@ export class SmartGeminiClient {
       enableFallback: this.config.enableFallback,
       fallbackActive: this.fallbackActive,
       hasApiKey: !!this.config.apiKey,
+      directAvailable: !!this.directClient,
       wrapperConfig: this.wrapperClient.getConfig(),
     };
+  }
+
+  /**
+   * Direct generation path using Google Gen AI SDK.
+   * Extracted for reuse (main generation + testBothApproaches).
+   */
+  private async directGenerate(prompt: string, startedUnix?: number): Promise<ChatResponse> {
+    if (!this.directClient) throw new Error('Direct GoogleGenAI client not initialized');
+    const began = startedUnix ?? createUnifiedTimestamp().unix;
+    const model = this.config.model || 'unknown-model';
+    const maxRetries = Math.max(0, this.config.maxRetries || 0);
+    let attempt = 0;
+    const baseDelay = 250;
+    // Basic retry classification function
+    const isTransient = (msg: string) =>
+      /timeout|ECONN|network|429|temporar|ETIMEDOUT|ECONNRESET|ENOTFOUND|5\d{2}/i.test(msg);
+
+    while (true) {
+      try {
+        const genStart = createUnifiedTimestamp().unix;
+        const result: GenerateContentResponse = await this.directClient.models.generateContent({
+          model: this.config.model!,
+          contents: prompt,
+        });
+        const text = this.extractText(result);
+        const response: ChatResponse = {
+          response: text,
+          finishReason: 'STOP',
+          timestamp: new Date().toISOString(),
+        };
+        const total = createUnifiedTimestamp().unix - began;
+        console.log(
+          `✅ Direct Gemini success (${total}ms) [model=${this.config.model}] attempts=${attempt + 1}`,
+        );
+        try {
+          unifiedMonitoringService.trackOperation('AI', 'gemini_direct_generate', 'success', {
+            durationMs: total,
+            model,
+            attempts: attempt + 1,
+            path: 'direct',
+            fallbackActive: this.fallbackActive,
+            lastAttemptDuration: createUnifiedTimestamp().unix - genStart,
+          });
+        } catch {
+          /* ignore monitoring */
+        }
+        return response;
+      } catch (error) {
+        const msg = error instanceof Error ? error.message : String(error);
+        const total = createUnifiedTimestamp().unix - began;
+        console.error(`❌ Direct Gemini failed attempt ${attempt + 1}:`, msg);
+        const transient = isTransient(msg);
+        // Permanent fallback disable if auth/config issue
+        if (msg.includes('API key') || msg.includes('unauthorized')) this.fallbackActive = true;
+        try {
+          unifiedMonitoringService.trackOperation('AI', 'gemini_direct_generate', 'error', {
+            durationMs: total,
+            model,
+            attempts: attempt + 1,
+            path: 'direct',
+            fallbackActive: this.fallbackActive,
+            transient,
+            errorMessage: msg.slice(0, 200),
+          });
+        } catch {
+          /* ignore */
+        }
+        attempt++;
+        if (!(transient && attempt <= maxRetries)) {
+          throw new Error(`Direct Gemini failed: ${msg}`);
+        }
+        // Backoff with jitter
+        const delayMs = baseDelay * Math.pow(2, attempt - 1) + Math.floor(Math.random() * 100);
+        await new Promise((res) => setTimeout(res, delayMs));
+      }
+    }
   }
 
   /**
@@ -241,12 +312,7 @@ export class SmartGeminiClient {
     // Test direct
     try {
       console.log('🧪 Testing direct Gemini...');
-      const result = await this.directModel.generateContent(testPrompt);
-      results.direct = {
-        response: result.response.text(),
-        finishReason: 'STOP',
-        timestamp: new Date().toISOString(),
-      };
+      results.direct = await this.directGenerate(testPrompt);
       console.log('✅ Direct test passed');
     } catch (error: unknown) {
       const err = error as Error;
@@ -255,6 +321,35 @@ export class SmartGeminiClient {
     }
 
     return results;
+  }
+
+  /** Extract text from GenerateContentResponse safely */
+  private extractText(resp: GenerateContentResponse): string {
+    try {
+      const anyResp = resp as unknown as { text?: string };
+      if (typeof anyResp.text === 'string') return anyResp.text;
+      // Fallback: inspect candidates if present (future-proofing)
+      const candList = (
+        resp as unknown as {
+          candidates?: Array<{ content?: { parts?: Array<{ text?: string }> } }>;
+        }
+      ).candidates;
+      if (Array.isArray(candList)) {
+        for (const c of candList) {
+          const parts = c?.content?.parts;
+          if (Array.isArray(parts)) {
+            const partText = parts
+              .map((p) => p?.text || '')
+              .join('')
+              .trim();
+            if (partText) return partText;
+          }
+        }
+      }
+    } catch {
+      /* ignore */
+    }
+    return '';
   }
 }
 

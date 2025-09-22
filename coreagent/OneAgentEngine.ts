@@ -187,10 +187,55 @@ export class OneAgentEngine extends EventEmitter {
     try {
       // Initialize core systems
       await this.initializeMemorySystem();
-      // One-time constitution sync (ingest /specs/*.spec.md into memory with embeddings)
+      // One-time constitution sync with memory readiness gating
       try {
-        const sync = new SyncService();
-        await sync.syncConstitution();
+        const memUrl =
+          process.env.MEM0_API_URL ||
+          `http://127.0.0.1:${process.env.ONEAGENT_MEMORY_PORT || '8010'}`;
+        const readyUrl = `${memUrl.replace(/\/$/, '')}/readyz`;
+        const authKey = process.env.MEM0_API_KEY || process.env.MEM0_API_TOKEN || '';
+        const startWait = Date.now();
+        const timeoutMs = 15000; // 15s max wait
+        let ready = false;
+        for (let attempt = 0; attempt < 30; attempt++) {
+          if (Date.now() - startWait > timeoutMs) break;
+          try {
+            const controller = new AbortController();
+            const t = setTimeout(() => controller.abort(), 2500);
+            const resp = await fetch(readyUrl, {
+              method: 'GET',
+              headers: {
+                Authorization: authKey ? `Bearer ${authKey}` : '',
+                'MCP-Protocol-Version': '2025-06-18',
+              },
+              signal: controller.signal,
+            }).catch((e) => {
+              throw e;
+            });
+            clearTimeout(t);
+            if (resp && resp.ok) {
+              ready = true;
+              break;
+            }
+          } catch {
+            // swallow and retry
+          }
+          await new Promise((r) => setTimeout(r, 500));
+        }
+        if (!ready) {
+          console.warn(
+            '⚠️ Memory readiness probe timed out; continuing without pre-sync (will retry async)',
+          );
+          // Fire and forget background sync attempt later
+          setTimeout(() => {
+            new SyncService()
+              .syncConstitution()
+              .catch((e) => console.warn('⚠️ Deferred SyncService failed:', e));
+          }, 5000);
+        } else {
+          const sync = new SyncService();
+          await sync.syncConstitution();
+        }
       } catch (e) {
         console.warn('⚠️ SyncService failed (continuing startup):', e);
       }

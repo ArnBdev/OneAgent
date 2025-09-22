@@ -1,20 +1,7 @@
-/**
- * UnifiedMonitoringService - Canonical Health & Performance Monitoring
- *
- * Constitutional AI Implementation:
- * - Accuracy: Unified metrics collection from all monitoring sources
- * - Transparency: Clear monitoring event flow and metric provenance
- * - Helpfulness: Centralized health status with actionable insights
- * - Safety: Predictive alerts and Constitutional AI compliance tracking
- *
- * Composes PerformanceMonitor, HealthMonitoringService, and integrates with TriageAgent.
- * Exposes a single, extensible API for health checks, metrics, and events.
- * Registers itself as UnifiedBackboneService.monitoring.
- */
-
+// (legacy overloads removed; single generic on() method defined earlier)
 import { EventEmitter } from 'events';
-import { PerformanceMonitor } from './PerformanceMonitor';
 import { HealthMonitoringService } from './HealthMonitoringService';
+import { PerformanceMonitor } from './PerformanceMonitor';
 import { TriageAgent } from '../agents/specialized/TriageAgent';
 import { UnifiedSystemHealth } from '../types/oneagent-backbone-types';
 import {
@@ -101,6 +88,11 @@ export class UnifiedMonitoringService extends EventEmitter {
     this.healthMonitoringService = healthMonitoringService || new HealthMonitoringService();
     if (triageAgent) this.triageAgent = triageAgent;
     this.setupEventForwarding();
+  }
+
+  /** Subscribe to monitoring events (generic). */
+  public on(event: string, handler: (data: unknown) => void): this {
+    return super.on(event, handler as (data: unknown) => void);
   }
 
   private setupEventForwarding() {
@@ -617,13 +609,6 @@ export class UnifiedMonitoringService extends EventEmitter {
 
   async getComponentHealth(component: string): Promise<unknown> {
     return this.healthMonitoringService.getComponentHealth(component);
-  }
-
-  on(
-    event: 'health_critical' | 'health_degraded' | 'predictive_alert',
-    handler: (data: unknown) => void,
-  ): this {
-    return super.on(event, handler);
   }
 
   registerMetricProvider(name: string, provider: () => Promise<unknown>): void {

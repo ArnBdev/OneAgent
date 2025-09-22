@@ -79,16 +79,16 @@ function Wait-HttpReady {
 $memProbeUrl = "http://127.0.0.1:$memPort/health"  # memory server exposes /health
 $mcpProbeUrl = "http://127.0.0.1:$mcpPort/health"
 
-$memReady = Wait-HttpReady -Url $memProbeUrl -TimeoutSec 30
-$mcpReady = Wait-HttpReady -Url $mcpProbeUrl -TimeoutSec 45
+$memReady = Wait-HttpReady -Url $memProbeUrl -TimeoutSec 45
+$mcpReady = Wait-HttpReady -Url $mcpProbeUrl -TimeoutSec 60
+
+if ($memReady) { Write-Host "[Probe] Memory server READY ($memProbeUrl)" -ForegroundColor Green } else { Write-Host "[Probe] Memory server TIMEOUT ($memProbeUrl)" -ForegroundColor Yellow }
+if ($mcpReady) { Write-Host "[Probe] MCP server READY ($mcpProbeUrl)" -ForegroundColor Green } else { Write-Host "[Probe] MCP server TIMEOUT ($mcpProbeUrl)" -ForegroundColor Yellow }
 
 if ($memReady -and $mcpReady) {
     Write-Host "[OneAgent] Both servers are UP and responding." -ForegroundColor Green
-    Write-Host "[Memory]   $memProbeUrl" -ForegroundColor DarkGray
-    Write-Host "[MCP]      $mcpProbeUrl" -ForegroundColor DarkGray
 } else {
-    if (-not $memReady) { Write-Host "[OneAgent] Memory server did not respond in time." -ForegroundColor Yellow }
-    if (-not $mcpReady) { Write-Host "[OneAgent] MCP server did not respond in time." -ForegroundColor Yellow }
+    Write-Host "[OneAgent] One or more services not ready within timeout window (memory=$memReady mcp=$mcpReady). Check individual windows; they may still finish starting." -ForegroundColor Yellow
 }
 
 Write-Host "[OneAgent] Both servers launched. Check their windows for output." -ForegroundColor Green

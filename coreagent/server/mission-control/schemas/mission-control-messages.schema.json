@@ -1,0 +1,55 @@
+﻿{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://oneagent.dev/schemas/mission-control-messages.json",
+  "title": "Mission Control Inbound Messages",
+  "oneOf": [
+    {
+      "type": "object",
+      "required": ["type", "channels"],
+      "properties": {
+        "type": { "const": "subscribe" },
+        "channels": { "type": "array", "items": { "type": "string" }, "minItems": 1 }
+      },
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "required": ["type", "channels"],
+      "properties": {
+        "type": { "const": "unsubscribe" },
+        "channels": { "type": "array", "items": { "type": "string" }, "minItems": 1 }
+      },
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "required": ["type"],
+      "properties": { "type": { "const": "ping" } },
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "required": ["type"],
+      "properties": { "type": { "const": "whoami" } },
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "required": ["type", "command"],
+      "properties": {
+        "type": { "const": "mission_start" },
+        "command": { "type": "string", "minLength": 1 }
+      },
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "required": ["type", "missionId"],
+      "properties": {
+        "type": { "const": "mission_cancel" },
+        "missionId": { "type": "string", "minLength": 1 }
+      },
+      "additionalProperties": false
+    }
+  ]
+}

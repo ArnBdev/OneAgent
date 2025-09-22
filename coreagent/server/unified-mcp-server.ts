@@ -33,7 +33,6 @@ import {
   getAppName,
   OneAgentUnifiedMetadataService,
   OneAgentUnifiedTimeService,
-  createUnifiedId,
 } from '../utils/UnifiedBackboneService';
 import { createAgentCard } from '../types/AgentCard';
 import { SimpleAuditLogger } from '../audit/auditLogger';
@@ -48,10 +47,7 @@ import { TOOL_SETS } from '../tools/ToolSets';
 import { embeddingCacheService } from '../services/EmbeddingCacheService';
 import { getEmbeddingModel, getEmbeddingClient } from '../config/UnifiedModelPicker';
 import crypto from 'crypto';
-import { WebSocketServer, WebSocket } from 'ws';
-import type { RawData } from 'ws';
-import type { IncomingMessage } from 'http';
-import type { Duplex } from 'stream';
+import { createMissionControlWSS, missionControlWsMetrics } from './mission-control-ws';
 
 // Middleware
 app.use(express.json({ limit: '10mb' }));
@@ -211,23 +207,8 @@ interface MCPServerCapabilities {
 // MCP 2025-06-18 protocol version
 const MCP_PROTOCOL_VERSION = '2025-06-18';
 
-// Mission Control WS constants and types
+// Mission Control WS path constant (channel & message types are now defined in mission-control-ws module)
 const MISSION_CONTROL_WS_PATH = '/ws/mission-control';
-
-type MissionControlInbound =
-  | { type: 'ping'; id?: string }
-  | { type: 'whoami'; id?: string }
-  | { type: 'subscribe'; channels?: string[]; id?: string };
-
-interface MissionControlOutbound<T = unknown> {
-  type: string;
-  id: string;
-  timestamp: string;
-  unix: number;
-  server: { name: string; version: string };
-  payload?: T;
-  error?: { code: string; message: string };
-}
 
 // Initialize audit logger
 const auditLogger = new SimpleAuditLogger({
@@ -238,6 +219,8 @@ const auditLogger = new SimpleAuditLogger({
 // Store server state
 let serverInitialized = false;
 let clientInfo: { name: string; version: string } | null = null;
+// Mission Control live status (for lightweight diagnostics endpoints)
+let missionControlActiveConnections = 0;
 
 /**
  * Initialize MCP server and OneAgent engine
@@ -968,16 +951,76 @@ app.post('/mcp/stream', async (req: Request, res: Response) => {
 /**
  * Health check endpoint
  */
-app.get('/health', (_req: Request, res: Response) => {
-  res.json({
-    status: 'healthy',
-    server: SERVER_NAME,
-    version: SERVER_VERSION,
-    initialized: serverInitialized,
-    constitutional: true,
-    bmad: true,
-    timestamp: createUnifiedTimestamp().iso,
-  });
+// Lightweight type guard for unified health structure returned by monitoring
+interface UnifiedHealthLike {
+  overall?: { status?: string; score?: number };
+  [key: string]: unknown;
+}
+
+app.get('/health', async (req: Request, res: Response) => {
+  try {
+    // Leverage canonical UnifiedMonitoringService via backbone; avoid parallel health logic
+    const backbone = UnifiedBackboneService;
+    const monitoring = backbone.monitoring;
+    let unifiedHealth: unknown = null;
+    try {
+      unifiedHealth = await monitoring.getSystemHealth({ details: true });
+    } catch (err) {
+      // Fallback minimally if monitoring health fails; do NOT throw to keep liveness responsive
+      unifiedHealth = { overall: { status: 'unknown', score: 0 } };
+      try {
+        await getUnifiedErrorHandler().handleError(err as Error, {
+          component: 'UnifiedMCPServer',
+          operation: 'health-endpoint-monitoring-fallback',
+        });
+      } catch {
+        /* ignore secondary */
+      }
+    }
+
+    const ts = createUnifiedTimestamp();
+    const detailed = String(req.query.details || '').toLowerCase() === 'true';
+    // Shape response for forward compatibility; embed unified health under canonical key
+    const base = {
+      server: SERVER_NAME,
+      version: SERVER_VERSION,
+      initialized: serverInitialized,
+      timestamp: ts.iso,
+      constitutionalAI: true,
+      bmadFramework: true,
+      protocolVersion: MCP_PROTOCOL_VERSION,
+    };
+    const healthObj = unifiedHealth as UnifiedHealthLike | null;
+    if (!detailed) {
+      const overall = healthObj?.overall?.status || 'unknown';
+      res.json({ status: overall, ...base });
+      return;
+    }
+    res.json({
+      status: healthObj?.overall?.status || 'unknown',
+      health: unifiedHealth,
+      metrics: {
+        activeConnections: missionControlActiveConnections,
+        ws: {
+          connectionsOpen: missionControlWsMetrics.connectionsOpen,
+          connectionsTotal: missionControlWsMetrics.connectionsTotal,
+          messagesSentTotal: missionControlWsMetrics.messagesSentTotal,
+          subscriptionsTotal: missionControlWsMetrics.subscriptionsTotal,
+          channels: Array.from(missionControlWsMetrics.channelSubscriptions.entries()).map(
+            ([channel, count]) => ({ channel, count }),
+          ),
+        },
+      },
+      ...base,
+    });
+  } catch (error) {
+    // Last resort fallback; keep endpoint fast and resilient
+    res.status(500).json({
+      status: 'error',
+      error: (error as Error)?.message || 'health_check_failed',
+      timestamp: createUnifiedTimestamp().iso,
+    });
+  }
 });
 
 /**
@@ -1001,11 +1044,48 @@ app.get('/info', (_req: Request, res: Response) => {
     endpoints: {
       mcp: '/mcp',
       health: '/health',
+      missionControlWsMetrics: '/mission-control/ws-metrics',
       info: '/info',
       embeddings: '/api/v1/embeddings',
     },
     client: clientInfo,
     initialized: serverInitialized,
+    timestamp: createUnifiedTimestamp().iso,
+  });
+});
+
+/**
+ * Mission Control WS metrics endpoint (lightweight JSON; no auth – internal usage)
+ */
+app.get('/mission-control/ws-metrics', (_req: Request, res: Response) => {
+  try {
+    res.json({
+      timestamp: createUnifiedTimestamp().iso,
+      metrics: {
+        connectionsOpen: missionControlWsMetrics.connectionsOpen,
+        connectionsTotal: missionControlWsMetrics.connectionsTotal,
+        messagesSentTotal: missionControlWsMetrics.messagesSentTotal,
+        subscriptionsTotal: missionControlWsMetrics.subscriptionsTotal,
+        channels: Array.from(missionControlWsMetrics.channelSubscriptions.entries()).map(
+          ([channel, count]) => ({ channel, count }),
+        ),
+      },
+    });
+  } catch (error) {
+    res.status(500).json({
+      error: (error as Error)?.message || 'metrics_unavailable',
+      timestamp: createUnifiedTimestamp().iso,
+    });
+  }
+});
+
+/**
+ * Mission Control status (minimal, unauthenticated; local tooling only for now)
+ */
+app.get('/api/v1/mission-control/status', (_req: Request, res: Response) => {
+  res.json({
+    success: true,
+    activeConnections: missionControlActiveConnections,
     timestamp: createUnifiedTimestamp().iso,
   });
 });
@@ -1192,11 +1272,13 @@ async function startServer(): Promise<void> {
         console.log('🌟 OneAgent Unified MCP Server Started Successfully!');
         console.log('');
         console.log('📡 Server Information:');
-  const base = environmentConfig.endpoints.mcp.url.replace(/\/mcp$/, '');
+        const base = environmentConfig.endpoints.mcp.url.replace(/\/mcp$/, '');
         console.log(`   • HTTP MCP Endpoint: ${base}/mcp`);
         console.log(`   • Health Check: ${base}/health`);
         console.log(`   • Server Info: ${base}/info`);
-  console.log(`   • Mission Control WS: ${base.replace(/\/$/, '')}${MISSION_CONTROL_WS_PATH}`);
+        console.log(
+          `   • Mission Control WS: ${base.replace(/\/$/, '')}${MISSION_CONTROL_WS_PATH}`,
+        );
         console.log('');
         console.log('🎯 Features:');
         console.log('   • Constitutional AI Validation ✅');
@@ -1212,117 +1294,42 @@ async function startServer(): Promise<void> {
       }
     });
 
-  // Mission Control WebSocket endpoint (AUIP-inspired, skeleton with heartbeat + minimal RPC)
-  const wssMissionControl = new WebSocketServer({ noServer: true });
-  const mcConnections = new Set<WebSocket>();
-
-    // Route HTTP upgrade requests to our WS endpoint
-    server.on('upgrade', (request: IncomingMessage, socket: Duplex, head: Buffer) => {
-      try {
-        const url = new URL(request.url || '/', 'http://localhost');
-        if (url.pathname === MISSION_CONTROL_WS_PATH) {
-          wssMissionControl.handleUpgrade(request, socket, head, (ws: WebSocket) => {
-            wssMissionControl.emit('connection', ws, request);
-          });
-        } else {
-          socket.destroy();
-        }
-      } catch {
-        socket.destroy();
-      }
-    });
-
-    // On connection, send a simple AUIP-style welcome/status message
-    wssMissionControl.on('connection', (ws: WebSocket) => {
-      try {
-        const ts = createUnifiedTimestamp();
-        const welcome: MissionControlOutbound<{ status: 'connected'; agentId: string }> = {
-          type: 'system_status',
-          id: createUnifiedId('system', 'mission_control'),
-          timestamp: ts.iso,
-          unix: ts.unix,
-          server: { name: SERVER_NAME, version: SERVER_VERSION },
-          payload: { status: 'connected', agentId: 'OneAgentCore' },
+    // Use new modular Mission Control WebSocket server with health delta streaming
+    const missionControlWSS = createMissionControlWSS(
+      server,
+      async () => {
+        // Use canonical health aggregation; Mission Control only needs overall.status.
+        type FullHealth = { overall?: { status?: string } } & Record<string, unknown>;
+        const full = (await UnifiedBackboneService.monitoring.getSystemHealth({
+          details: true,
+        })) as unknown as FullHealth;
+        const overallStatus = full.overall?.status || 'unknown';
+        return { overall: { status: overallStatus }, full } as {
+          overall: { status: string };
+          full: FullHealth;
         };
-        ws.send(JSON.stringify(welcome));
-      } catch {
-        // non-fatal
+      },
+      (count) => {
+        missionControlActiveConnections = count;
+      },
+    );
+    // Channel discovery endpoint (read-only)
+    app.get('/mission-control/channels', (_req, res) => {
+      try {
+        interface RegistryLike {
+          list?: () => string[];
+        }
+        const regLike = (missionControlWSS as unknown as { _registry?: RegistryLike })._registry;
+        const channels = regLike?.list ? regLike.list() : [];
+        res.json({ channels, protocolVersion: 1 });
+      } catch (e) {
+        res
+          .status(500)
+          .json({
+            error: 'channel_discovery_failed',
+            detail: e instanceof Error ? e.message : String(e),
+          });
       }
-
-      // Track connections and establish heartbeat
-      mcConnections.add(ws);
-      const heartbeat = setInterval(() => {
-        try {
-          const ts = createUnifiedTimestamp();
-          const hb: MissionControlOutbound = {
-            type: 'heartbeat',
-            id: createUnifiedId('system', 'heartbeat'),
-            timestamp: ts.iso,
-            unix: ts.unix,
-            server: { name: SERVER_NAME, version: SERVER_VERSION },
-          };
-          ws.send(JSON.stringify(hb));
-        } catch {
-          /* ignore */
-        }
-      }, 30000);
-
-      ws.on('message', (data: RawData) => {
-        try {
-          const text = typeof data === 'string' ? data : data.toString('utf8');
-          const msg = JSON.parse(text) as MissionControlInbound & { id?: string };
-          const ts = createUnifiedTimestamp();
-          switch (msg?.type) {
-            case 'ping': {
-              const pong: MissionControlOutbound<{ ok: true }> = {
-                type: 'pong',
-                id: msg.id || createUnifiedId('system', 'pong'),
-                timestamp: ts.iso,
-                unix: ts.unix,
-                server: { name: SERVER_NAME, version: SERVER_VERSION },
-                payload: { ok: true },
-              };
-              ws.send(JSON.stringify(pong));
-              break;
-            }
-            case 'whoami': {
-              const info: MissionControlOutbound<{ server: string; version: string }> = {
-                type: 'whoami',
-                id: msg.id || createUnifiedId('system', 'whoami'),
-                timestamp: ts.iso,
-                unix: ts.unix,
-                server: { name: SERVER_NAME, version: SERVER_VERSION },
-                payload: { server: SERVER_NAME, version: SERVER_VERSION },
-              };
-              ws.send(JSON.stringify(info));
-              break;
-            }
-            default: {
-              const err: MissionControlOutbound = {
-                type: 'error',
-                id: msg?.id || createUnifiedId('system', 'mc_error'),
-                timestamp: ts.iso,
-                unix: ts.unix,
-                server: { name: SERVER_NAME, version: SERVER_VERSION },
-                error: { code: 'unknown_message_type', message: 'Unsupported message type' },
-              };
-              ws.send(JSON.stringify(err));
-              break;
-            }
-          }
-        } catch (e) {
-          if (!QUIET_MODE) console.error('WS /ws/mission-control parse/handle error:', e);
-        }
-      });
-
-      ws.on('error', (err: unknown) => {
-        if (!QUIET_MODE) console.error('WS /ws/mission-control error:', err);
-      });
-
-      ws.on('close', () => {
-        clearInterval(heartbeat);
-        mcConnections.delete(ws);
-      });
     });
 
     // Proactive, friendly error handling for common startup issues
@@ -1348,6 +1355,18 @@ async function startServer(): Promise<void> {
     process.on('SIGINT', () => {
       if (!QUIET_MODE) console.log('\n🛑 Shutting down OneAgent Unified MCP Server...');
       server.close(async () => {
+        // Close WS connections gracefully
+        try {
+          missionControlWSS.clients.forEach((s) => {
+            try {
+              s.close(1001, 'server_shutdown');
+            } catch {
+              /* ignore */
+            }
+          });
+        } catch {
+          /* ignore */
+        }
         await oneAgent.shutdown();
         if (!QUIET_MODE) console.log('✅ Server shutdown complete');
         process.exit(0);
@@ -1357,6 +1376,18 @@ async function startServer(): Promise<void> {
     process.on('SIGTERM', () => {
       if (!QUIET_MODE) console.log('\n🛑 Shutting down OneAgent Unified MCP Server...');
       server.close(async () => {
+        // Close WS connections gracefully
+        try {
+          missionControlWSS.clients.forEach((s) => {
+            try {
+              s.close(1001, 'server_shutdown');
+            } catch {
+              /* ignore */
+            }
+          });
+        } catch {
+          /* ignore */
+        }
         await oneAgent.shutdown();
         if (!QUIET_MODE) console.log('✅ Server shutdown complete');
         process.exit(0);

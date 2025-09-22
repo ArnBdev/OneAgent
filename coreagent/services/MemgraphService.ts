@@ -1,4 +1,5 @@
 import { UnifiedBackboneService, OneAgentUnifiedBackbone } from '../utils/UnifiedBackboneService';
+// Canonical adapter (shimmed implementation lives in MemgraphDriverAdapter.ts)
 import * as MemgraphAdapter from './MemgraphDriverAdapter';
 import type { GraphDriver } from './MemgraphDriverAdapter';
 

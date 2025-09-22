@@ -9,6 +9,7 @@ Establish a single, memory-driven, auditable channel for all agent-to-agent (A2A
 - **UnifiedAgentCommunicationService**: Internal backbone implementing registration, discovery, sessions, messaging, facilitation, consensus, insight synthesis. All operations instrumented via unified monitoring.
 - **A2AProtocol** (`protocols/a2a/A2AProtocol.ts`): Spec-compliant façade + NLACS extensions (discussions, insights, knowledge synthesis). Delegates persistence to the adapter; no direct ad-hoc metadata construction.
 - **CommunicationPersistenceAdapter** (`communication/CommunicationPersistenceAdapter.ts`): Canonical persistence layer for messages, discussions, contributions, insights, synthesized knowledge, status, tasks, and discussion aggregate updates.
+- **Mission Control Registry (v4.2.0)**: Ephemeral mission lifecycle tracking feeding WebSocket `mission_stats` snapshots (separate concern from communication persistence, avoids parallel counters).
 - **OneAgentEngine**: Exposes `oneagent_a2a_*` tool methods routing to the unified service.
 - **OneAgentMemory**: Persistent canonical store of all communication artifacts (agent registrations, sessions, messages, discussions, insights, synthesized knowledge).
 
@@ -40,13 +41,15 @@ Every meaningful communication event results in a `addMemoryCanonical` call with
 
 Defined in `coreagent/types/communication-constants.ts` under `COMM_OPERATION`.
 
-## Upcoming Enhancements (Post-Consolidation)
+## Upcoming Enhancements (Post-Consolidation & v4.2.0 Follow-Ups)
 
-1. Error taxonomy surfaced as per-operation error counters
+1. Error taxonomy surfaced as per-operation error counters (partially present; expand labeling depth)
 2. Parallelize metrics exposition (performance optimization)
 3. Adaptive routing (agent subset selection)
 4. Replay & simulation endpoint
 5. Advanced semantic threading & summarization
+6. Mission Control anomaly detection channel
+7. Prometheus mission metrics derivation (no parallel store)
 
 ## Metadata Normalization (Target Schema Keys)
 

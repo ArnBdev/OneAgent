@@ -1,20 +1,16 @@
-import { getModelFor } from '../../config/UnifiedModelPicker';
+import { getModelFor, type ModelCapability } from '../../config/UnifiedModelPicker';
 
-function expect(condition: boolean, message: string) {
-  if (!condition) throw new Error(message);
-}
-
-// Capability clients should instantiate without throwing
-const caps: import('../../config/UnifiedModelPicker').ModelCapability[] = [
-  'fast_text',
-  'advanced_text',
-  'fast_multimodal',
-  'advanced_multimodal',
-];
-
-for (const c of caps) {
-  const client = getModelFor(c);
-  expect(!!client, `Client should be created for capability ${c}`);
-}
-
-console.log('UnifiedModelPicker capability test passed.');
+describe('UnifiedModelPicker', () => {
+  const caps: ModelCapability[] = [
+    'fast_text',
+    'advanced_text',
+    'fast_multimodal',
+    'advanced_multimodal',
+  ];
+  it('creates model clients for all primary capabilities', () => {
+    for (const c of caps) {
+      const client = getModelFor(c);
+      expect(client).toBeTruthy();
+    }
+  });
+});

@@ -1,6 +1,98 @@
-# 📝 OneAgent v4.1.0 Professional - Changelog
+# 📝 OneAgent v4.2.0 Professional - Changelog
 
-**Current Version**: v4.1.1 Professional  
+## v4.2.0 (Current) — Mission Control Streaming, Type-Safe Schema Codegen & AI Client Hardening
+
+### 🌐 Mission Control WebSocket (Streaming Foundations)
+
+- Introduced dedicated Mission Control WS endpoint with modular channel registry and JSON Schema–validated inbound/outbound frames.
+- Channels implemented: `metrics_tick`, `health_delta`, and new mission lifecycle stream (`mission_update`) plus consolidated stats channel `mission_stats`.
+- Full lifecycle statuses: `planning_started`, `tasks_generated`, `planned`, `execution_started`, `execution_progress`, `completed`, `cancelled`, `error`.
+- Added cancellation support via `mission_cancel` inbound command (gracefully stops execution engine & records terminal state).
+- Outbound schema consolidation: expanded mission_update status union and added distinct `mission_stats` schema variant.
+
+### 📊 Mission Registry (Ephemeral O(1) Aggregation)
+
+- Added in-memory mission registry tracking start time, last status, terminal status, durationMs, and error details.
+- Provides snapshot aggregates for `mission_stats` (active, completed, cancelled, errors, avgDurationMs, total).
+- Zero parallel cache counters: removed placeholder cache key lookups; registry is the authoritative ephemeral source.
+- Test coverage: `missionRegistry.test.ts` validates multi-mission aggregation & terminal status classification.
+
+### 🧬 Schema → Type Generation Pipeline
+
+- Added `scripts/generate-mission-control-types.ts` producing discriminated unions for inbound/outbound mission control messages.
+- Generated file: `mission-control-message-types.ts` (no `any`, includes type guards per variant) with drift detection script `codegen:mission-control:check`.
+- Coverage test ensures all lifecycle statuses and `mission_stats` variant present (prevents silent schema drift).
+
+### 🧪 Validation & Observability Enhancements
+
+- Runtime outbound validation integrated into send wrapper; invalid frames blocked before network transmission.
+- Monitoring instrumentation for mission lifecycle transitions & mission stats emission (`MissionStats.emit`).
+- Mission completion / cancellation / error events now emit durationMs via unified monitoring service.
+
+### 🛡️ Lint & Quality
+
+- Eliminated all residual `as any` casts post-codegen; strict ESLint passes with zero warnings.
+- Added precise status union narrowing in mission handler monkey patch (completion observer) without weakening types.
+
+### 🧩 AI Client Modernization (Carried from in-progress scope)
+
+- Gemini client migration & monitoring instrumentation (see prior v4.2.0 in-progress notes) finalized under current release.
+
+### 🔄 Follow-Up (Deferred Post 4.2.0)
+
+- Mission Control: anomaly detection channel (`anomaly_alert`) & authenticated channel access.
+- Prometheus integration for mission stats (derive gauges from registry on scrape, no new store).
+- Richer `execution_progress` payload (per-task metadata, ETA, cumulative completion percent).
+- Named interfaces in generated types for each schema variant + docstring propagation.
+- Runtime schema fuzz tests (negative case generation) for hardened validation.
+
+### 🤖 Gemini Migration Hardening & Instrumentation
+
+- Completed migration off deprecated `@google/generative-ai` (now guarded to prevent reintroduction).
+- `SmartGeminiClient` now emits canonical monitoring operations:
+  - `AI/gemini_wrapper_generate` (success|error)
+  - `AI/gemini_direct_generate` (success|error) with attempts, transient classification, fallback state.
+- Added structured retry/backoff for direct path (exponential + jitter) with transient error classification.
+- Added model + path metadata in monitoring events (no parallel metric store; uses `unifiedMonitoringService.trackOperation`).
+- Introduced safe text extraction helper + duration metadata for last attempt.
+- Pinned `@google/genai` to `1.20.0` (no caret) for reproducible builds.
+
+### 🧪 Batch Memory Determinism (Test Stability)
+
+- `BatchMemoryOperations` gained deterministic test flags:
+  - `ONEAGENT_BATCH_DETERMINISTIC=1` → microtask flush (timer=0ms) for stable ordering.
+  - `ONEAGENT_BATCH_IMMEDIATE_FLUSH=1` → synchronous batch processing for unit tests.
+- Added `__testForceProcess()` helper (explicitly internal) to enable targeted flush without timing races.
+- Ensures memory-related suites on low-resource hardware avoid flaky timing dependent waits.
+
+### 🛡️ Dependency Guardrails
+
+- New `scripts/guard-deprecated-deps.cjs` integrated into `verify` & `precommit`:
+  - Bans `@google/generative-ai` package & legacy symbols `GoogleGenerativeAI`, `GenerativeModel`.
+  - Scans `coreagent/`, `src/`, `tests/`, `scripts/` directories.
+
+### 📦 Dependency Updates (Selective Non-Breaking)
+
+- Pinned / upgraded (non-breaking):
+  - `chalk` 5.6.2, `chromadb` 3.0.15, `dotenv` 16.6.1, `mem0ai` 2.1.38, `openai` 5.22.0, `ws` 8.18.3.
+  - Dev: `@tailwindcss/postcss` 4.1.13, `@types/express` 4.17.23, `@types/node` 22.18.6, `ts-jest` 29.4.4, `vite` 7.1.7.
+- Rationale: security/bug fixes, improved editor types, alignment with existing major versions (no API changes consumed by OneAgent).
+
+### 🔍 Integrity & Canonical Guarantees
+
+- All new instrumentation funnels through existing monitoring service; no parallel counters or latency arrays created.
+- Retry logic does not persist state outside the SmartGeminiClient instance; all durations reported via canonical `trackOperation` path.
+- Batch determinism flags alter scheduling only; write path remains canonical via `addMemoryCanonical`.
+
+### 📌 Follow-Up (Deferred)
+
+- Potential centralized AI model configuration map (single source for allowed models / capabilities).
+- Add Prometheus AI latency gauges derived from existing monitoring events (derivational, not new store).
+- Additional test utilities consolidating batch flag toggling + memory readiness in a shared helper.
+
+---
+
+**Current Version**: v4.2.0 Professional  
 Note: v4.1.0 aligns versions across manifests (package.json, mcp-manifest.json, server defaults) and updates A2A docs to reflect the adapter delegation to UnifiedAgentCommunicationService. No breaking API changes.
 **Quality Score**: 96.85% (Grade A+)  
 **System Health**: Optimal with ALITA Metadata Enhancement
@@ -25,6 +117,7 @@ Note: v4.1.0 aligns versions across manifests (package.json, mcp-manifest.json, 
 - PostCSS config uses the v4 plugin (`@tailwindcss/postcss`) consistent with Tailwind 4 documentation.
 
 References:
+
 - Tailwind Plus announcement: https://tailwindcss.com/blog/tailwind-plus
 - Tailwind CSS v4.1: https://tailwindcss.com/blog/tailwindcss-v4-1
 - Vite usage: https://tailwindcss.com/docs/installation/using-vite

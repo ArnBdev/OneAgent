@@ -1,0 +1,156 @@
+﻿{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://oneagent.dev/schemas/mission-control-ws-messages.json",
+  "title": "Mission Control WebSocket Outbound Messages",
+  "type": "object",
+  "definitions": {
+    "base": {
+      "type": "object",
+      "required": ["type", "id", "timestamp", "unix", "server"],
+      "properties": {
+        "type": { "type": "string" },
+        "id": { "type": "string" },
+        "timestamp": { "type": "string" },
+        "unix": { "type": "number" },
+        "server": {
+          "type": "object",
+          "required": ["name", "version"],
+          "properties": {
+            "name": { "type": "string" },
+            "version": { "type": "string" }
+          }
+        },
+        "error": {
+          "type": "object",
+          "required": ["code", "message"],
+          "properties": {
+            "code": { "type": "string" },
+            "message": { "type": "string" }
+          }
+        }
+      }
+    },
+    "subscription_ack": {
+      "allOf": [
+        { "$ref": "#/definitions/base" },
+        {
+          "properties": {
+            "type": { "const": "subscription_ack" },
+            "payload": {
+              "type": "object",
+              "required": ["channel", "status"],
+              "properties": {
+                "channel": { "type": "string" },
+                "status": { "type": "string" }
+              }
+            }
+          },
+          "required": ["payload"]
+        }
+      ]
+    },
+    "subscription_error": {
+      "allOf": [
+        { "$ref": "#/definitions/base" },
+        {
+          "properties": {
+            "type": { "const": "subscription_error" },
+            "error": {
+              "type": "object",
+              "required": ["code", "message"],
+              "properties": {
+                "code": { "type": "string" },
+                "message": { "type": "string" }
+              }
+            }
+          }
+        }
+      ]
+    },
+    "heartbeat": {
+      "allOf": [
+        { "$ref": "#/definitions/base" },
+        { "properties": { "type": { "const": "heartbeat" } } }
+      ]
+    },
+    "pong": {
+      "allOf": [{ "$ref": "#/definitions/base" }, { "properties": { "type": { "const": "pong" } } }]
+    },
+    "whoami": {
+      "allOf": [
+        { "$ref": "#/definitions/base" },
+        {
+          "properties": {
+            "type": { "const": "whoami" },
+            "payload": {
+              "type": "object",
+              "required": ["server", "version", "channels"],
+              "properties": {
+                "server": { "type": "string" },
+                "version": { "type": "string" },
+                "channels": { "type": "array", "items": { "type": "string" } }
+              }
+            }
+          },
+          "required": ["payload"]
+        }
+      ]
+    },
+    "protocol_error": {
+      "allOf": [
+        { "$ref": "#/definitions/base" },
+        {
+          "properties": {
+            "type": { "const": "protocol_error" },
+            "error": {
+              "type": "object",
+              "required": ["code", "message"],
+              "properties": {
+                "code": { "type": "string" },
+                "message": { "type": "string" }
+              }
+            }
+          }
+        }
+      ]
+    },
+    "metrics_tick": {
+      "allOf": [
+        { "$ref": "#/definitions/base" },
+        {
+          "properties": {
+            "type": { "const": "metrics_tick" },
+            "payload": {
+              "type": "object",
+              "required": ["p95", "p99"],
+              "properties": {
+                "p95": { "type": "number" },
+                "p99": { "type": "number" },
+                "tISO": { "type": "string" }
+              }
+            }
+          },
+          "required": ["payload"]
+        }
+      ]
+    },
+    "health_delta": {
+      "allOf": [
+        { "$ref": "#/definitions/base" },
+        {
+          "properties": {
+            "type": { "const": "health_delta" },
+            "payload": {
+              "type": "object",
+              "required": ["status"],
+              "properties": {
+                "status": { "type": "string" }
+              }
+            }
+          },
+          "required": ["payload"]
+        }
+      ]
+    }
+  }
+}

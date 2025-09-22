@@ -138,9 +138,10 @@ export class ProactiveTriageOrchestrator {
       if (needDeep) {
         deep = await this.performDeepAnalysis(snapshot, triage);
         if (deep) this.lastSnapshotHash = deep.snapshotHash;
+        const autoDelegate = process.env.ONEAGENT_PROACTIVE_AUTO_DELEGATE !== '0';
         if (
           deep &&
-          process.env.ONEAGENT_PROACTIVE_AUTO_DELEGATE === '1' &&
+          autoDelegate &&
           Array.isArray(deep.recommendedActions) &&
           deep.recommendedActions.length > 0
         ) {

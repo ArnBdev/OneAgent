@@ -1,4 +1,4 @@
-# OneAgent v4.1.1 - Memory-Driven Intelligence Platform
+# OneAgent v4.2.0 - Memory-Driven Intelligence Platform
 
 Note for contributors and Copilot users: See the canonical repository agent instructions in [AGENTS.md](./AGENTS.md).
 
@@ -19,6 +19,8 @@ OneAgent is a **professional-grade, memory-driven multiagent AI platform** featu
 
 - **Constitutional AI Integration**: Built-in safety and ethical validation
 - **Canonical Memory System**: OneAgentMemory with mem0 backend
+- **Unified Mission Control (NEW v4.2.0)**: Real-time WebSocket protocol with JSON Schema validated outbound frames (mission lifecycle + stats streaming)
+- **Mission Registry (NEW v4.2.0)**: In‑memory O(1) lifecycle tracker powering `mission_stats` snapshots (active/completed/cancelled/errors/avgDurationMs)
 - **Strict TypeScript**: 70,000+ lines of error-free, professional-grade code
 - **MCP Server**: VS Code Copilot integration and standalone operation
 - **Modular Agent Design**: BaseAgent and ISpecializedAgent architecture
@@ -144,7 +146,7 @@ npm run test:a2a
 - Provider explicit picks supported (OpenAI GPT‑5 family). Env model-name variables are deprecated; keep env for API keys only.
 - See docs/models/README.md for examples.
 
-## 🧪 Testing (Dual-Mode Communication & Monitoring Verification)
+## 🧪 Testing (Dual-Mode Communication, Mission Control & Monitoring Verification)
 
 The communication subsystem is validated in two modes to ensure zero regression while keeping CI fast:
 
@@ -176,6 +178,14 @@ Environment Flags Summary:
 Rate limit enforcement (30 msgs / 60s per agent-session) is covered by `tests/canonical/communication-rate-limit.test.ts` and executes in fast mode. Both conformance and rate limit tests exit cleanly to avoid lingering handles, ensuring CI stability.
 
 This dual-mode strategy delivers deterministic coverage plus minimal runtime overhead, preserving canonical single-source monitoring (UnifiedMonitoringService) without introducing parallel systems.
+
+### Mission Control Test Coverage (v4.2.0)
+
+- JSON Schema validation for all outbound mission control frames (including new `mission_stats` variant)
+- Lifecycle sequencing: planning_started → tasks_generated → planned → execution_started → execution_progress → (completed|cancelled|error)
+- Cancellation path: `mission_cancel` inbound frame triggers engine termination, registry updates, and terminal status emission
+- Code generation drift guard: `npm run codegen:mission-control:check` fails if generated types not in sync with schemas
+- Generated type coverage test ensures new statuses & `mission_stats` presence
 
 ### Memory-backed tests and readiness
 
@@ -243,9 +253,10 @@ Includes a bounded task delegation queue with:
 
 The previous fragmented roadmap files have been superseded by a single canonical roadmap: **[docs/ROADMAP.md](./docs/ROADMAP.md)** (aligned with v4.1.0). It defines release train (v4.1–v6.0), thematic backlogs (Observability, NLACS, Planner, UI, Extensibility, Scale, Governance), KPIs, risks, and an Immediate Action Queue.
 
-Key near-term (v4.1–v4.2):
+Key near-term (v4.2+):
 
-- Error taxonomy enforcement in metrics & JSON endpoint
+- Mission Control: anomaly_alert channel & authentication options
+- Error taxonomy enforcement in metrics & JSON endpoint (enhanced status labeling)
 - SLO config + baseline alert pack (see `docs/monitoring/ALERTS.md`)
 - Histogram implementation (foundation for accurate p95/p99 & burn rates)
 - Resilience primitives (circuit breakers, retry policy hardening)

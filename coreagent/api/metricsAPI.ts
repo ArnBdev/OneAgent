@@ -550,5 +550,42 @@ export function createMetricsRouter(): Router {
       });
     }
   });
+
+  // Historical latency time series derived from canonical monitoring events (no parallel store)
+  // GET /api/v1/metrics/latency-series?windowMs=300000&bucketMs=30000&operation=execute
+  router.get('/api/v1/metrics/latency-series', async (req: Request, res: Response) => {
+    const ts = createUnifiedTimestamp();
+    try {
+      const windowMs = Math.min(
+        60 * 60 * 1000,
+        Math.max(10_000, parseInt(String(req.query.windowMs || '300000'), 10) || 300000),
+      );
+      const bucketMs = Math.min(
+        5 * 60 * 1000,
+        Math.max(1000, parseInt(String(req.query.bucketMs || '30000'), 10) || 30000),
+      );
+      const operation = typeof req.query.operation === 'string' ? req.query.operation : undefined;
+      const { buildLatencySeriesFromRecent } = await import('../monitoring/LatencySeries');
+      const series = buildLatencySeriesFromRecent(windowMs, bucketMs, operation);
+      res.json({ success: true, timestamp: ts.utc, data: series });
+    } catch (error) {
+      const entry = await errorHandler.handleError(error as Error, {
+        component,
+        operation: 'metrics_latency_series',
+      });
+      res.status(500).json({
+        success: false,
+        error: 'Failed to compute latency series',
+        errorDetails: {
+          id: entry.id,
+          type: entry.type,
+          severity: entry.severity,
+          message: entry.message,
+          timestamp: entry.timestamp.utc,
+        },
+        timestamp: ts.utc,
+      });
+    }
+  });
   return router;
 }

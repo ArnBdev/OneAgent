@@ -45,7 +45,24 @@ _ENV_FILE = '.env.production' if _ENV_NAME == 'production' else '.env'
 load_dotenv(os.path.join(_ROOT, _ENV_FILE))
 
 MCP_PROTOCOL_VERSION = "2025-06-18"
-ONEAGENT_VERSION = os.getenv("ONEAGENT_VERSION", "4.1.0")
+ONEAGENT_VERSION = os.getenv("ONEAGENT_VERSION", "0.0.0")
+# Derive version from root package.json (canonical) unless explicitly overridden by env
+try:
+    _pkg_path = os.path.join(_ROOT, 'package.json')
+    if os.path.exists(_pkg_path):
+        with open(_pkg_path, 'r', encoding='utf-8') as _pf:
+            _pkg_json = json.load(_pf)
+            _pkg_ver = str(_pkg_json.get('version', '')).strip()
+            if _pkg_ver:
+                if os.getenv('ONEAGENT_VERSION') and os.getenv('ONEAGENT_VERSION') != _pkg_ver:
+                    # Environment override explicit
+                    logger = logging.getLogger("OneAgent.Memory")
+                    logger.info(f"Environment ONEAGENT_VERSION override: pkg={_pkg_ver} env={os.getenv('ONEAGENT_VERSION')}")
+                else:
+                    ONEAGENT_VERSION = _pkg_ver
+except Exception:
+    # Non-fatal; keep existing value (could be env override or default)
+    pass
 MEM0_API_KEY = os.getenv("MEM0_API_KEY")
 
 # Logging
@@ -590,7 +607,7 @@ class OneAgentMemorySystem:
 
 # FastAPI app
 
-app = FastAPI(title="OneAgent Memory Server", version="4.1.0")
+app = FastAPI(title="OneAgent Memory Server", version=ONEAGENT_VERSION)
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_credentials=True, allow_methods=["*"], allow_headers=["*"],)
 
 memory_system = OneAgentMemorySystem()
@@ -640,7 +657,9 @@ async def mcp_caps():
 async def startup_tasks():
     logger.info(f"OneAgent Memory Server v{ONEAGENT_VERSION} starting...")
     logger.info(f"Server ready at http://{a_config.host}:{a_config.port}")
-    # Probe embeddings gateway once on startup for operator clarity
+    # Slight delay to allow MCP server (embeddings gateway) to come up, reducing false-negative warnings
+    await asyncio.sleep(1.5)
+    # Probe embeddings gateway once on startup for operator clarity (non-fatal)
     if getattr(memory_system, 'use_node_gateway', False):
         try:
             payload = json.dumps({"content": "startup-probe", "action": "probe"}).encode('utf-8')
@@ -650,12 +669,11 @@ async def startup_tasks():
                 with urlrequest.urlopen(req, timeout=5) as r:
                     return r.read()
             raw = await asyncio.to_thread(_call)
-            ok = bool(raw)
-            if ok:
+            if raw:
                 logger.info("Embeddings gateway: ready")
                 memory_system._gateway_cooldown_until = 0.0
             else:
-                raise RuntimeError("Empty response")
+                raise RuntimeError("Empty response from embeddings gateway")
         except Exception as e:
             logger.warning(f"Embeddings gateway unavailable at startup: {e}. Falling back to Gemini/local. Cooldown {a_config.embeddings_gateway_cooldown_seconds}s")
             memory_system._gateway_cooldown_until = time.time() + float(getattr(a_config, 'embeddings_gateway_cooldown_seconds', 5.0))

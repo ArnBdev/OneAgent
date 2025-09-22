@@ -8,13 +8,13 @@ interface MinimalMonitoringShape {
   isMonitoring?: boolean;
 }
 
-(async () => {
-  if ((unifiedMonitoringService as unknown as MinimalMonitoringShape).isMonitoring !== false) {
-    throw new Error('Expected no-op unifiedMonitoringService when disabled');
-  }
-  // Should not throw
-  await unifiedMonitoringService.startMonitoring();
-  await unifiedMonitoringService.stopMonitoring();
-  unifiedMonitoringService.trackOperation?.('test', 'op', 'success', {});
-  console.log('[monitoring-disable-behavior.test] PASS');
-})();
+describe('monitoring disable behavior', () => {
+  it('provides a no-op monitoring service when disabled', async () => {
+    expect((unifiedMonitoringService as unknown as MinimalMonitoringShape).isMonitoring).toBe(
+      false,
+    );
+    await unifiedMonitoringService.startMonitoring();
+    await unifiedMonitoringService.stopMonitoring();
+    unifiedMonitoringService.trackOperation?.('test', 'op', 'success', {} as any);
+  });
+});
