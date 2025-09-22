@@ -187,6 +187,109 @@ This dual-mode strategy delivers deterministic coverage plus minimal runtime ove
 - Code generation drift guard: `npm run codegen:mission-control:check` fails if generated types not in sync with schemas
 - Generated type coverage test ensures new statuses & `mission_stats` presence
 
+### Mission Control Quick Start
+
+Subscribe to channels after opening a WebSocket to `/ws/mission-control`:
+
+```json
+{ "type": "subscribe", "channels": ["mission_update", "mission_stats"] }
+```
+
+Start a mission (send as normal client message):
+
+```json
+{ "type": "mission_start", "command": "/mission { \n  \"objective\": \"Generate project initialization plan\"\n}" }
+```
+
+Receive lifecycle frames (example abbreviated):
+
+```json
+{ "type": "mission_update", "payload": { "missionId": "...", "status": "planning_started" }}
+{ "type": "mission_update", "payload": { "missionId": "...", "status": "tasks_generated", "tasksSummary": ["Task A", "Task B"] }}
+{ "type": "mission_update", "payload": { "missionId": "...", "status": "planned" }}
+{ "type": "mission_update", "payload": { "missionId": "...", "status": "execution_started" }}
+{ "type": "mission_update", "payload": { "missionId": "...", "status": "execution_progress", "progress": { "index": 1, "total": 4 } }}
+{ "type": "mission_update", "payload": { "missionId": "...", "status": "completed" }}
+```
+
+Cancel a mission:
+
+```json
+{ "type": "mission_cancel", "missionId": "<id>" }
+```
+
+Stats snapshot (emitted immediately + interval):
+
+```json
+{ "type": "mission_stats", "payload": { "active": 1, "completed": 3, "cancelled": 0, "errors": 0, "avgDurationMs": 542, "snapshotId": "op_..." }}
+```
+
+TypeScript guard usage (generated):
+
+```ts
+import { isMissionUpdate, isMissionStats } from './coreagent/server/mission-control/generated/mission-control-message-types';
+
+function handle(msg: unknown) {
+  if (isMissionUpdate(msg)) {
+    // Narrowed to mission_update variant
+    console.log(msg.payload.status);
+  } else if (isMissionStats(msg)) {
+    console.log('Active missions', msg.payload.active);
+  }
+}
+```
+
+### Mission Lifecycle Diagram
+
+```
+            +--------------------+
+            |  planning_started  |
+            +----------+---------+
+                       |
+                 (tasks generated?)
+                       v
+            +--------------------+
+            |   tasks_generated  |  (optional)
+            +----------+---------+
+                       |
+                       v
+            +--------------------+
+            |       planned      |
+            +----------+---------+
+                       |
+                       v
+            +--------------------+
+            |  execution_started |
+            +----------+---------+
+                       |
+                 progress loop
+                       v
+            +--------------------+
+            | execution_progress | (repeat)
+            +----------+---------+
+                       |
+             +---------+-----------+-----------------+
+             |                     |                 |
+             v                     v                 v
+      +-------------+       +-------------+   +-------------+
+      |  completed  |       |  cancelled  |   |    error    |
+      +-------------+       +-------------+   +-------------+
+```
+
+### Planned Metrics Export (v4.2.x)
+
+Upcoming Prometheus derivations (no parallel store):
+
+| Gauge / Counter | Description | Source |
+| --------------- | ----------- | ------ |
+| `oneagent_mission_active` | Current active missions | Mission registry snapshot |
+| `oneagent_mission_completed_total` | Total completed missions since process start | Registry terminal counts |
+| `oneagent_mission_cancelled_total` | Total cancelled missions | Registry terminal counts |
+| `oneagent_mission_error_total` | Total errored missions | Registry terminal counts |
+| `oneagent_mission_avg_duration_ms` | Rolling average completion duration | Computed per snapshot |
+
+All will be derived on scrape from the registry to maintain single-source state.
+
 ### Memory-backed tests and readiness
 
 - The canonical memory client exposes readiness helpers:
