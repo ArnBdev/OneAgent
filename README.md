@@ -415,4 +415,4 @@ MIT License - See LICENSE file for details
 
 ---
 
-_This is the canonical README for OneAgent v4.1.0. All documentation is current and reflects the consolidated Phase 4 implementation plus communication persistence & retry groundwork._
+_This is the canonical README for OneAgent v4.2.0. All documentation is current and reflects the consolidated Phase 4 implementation plus communication persistence & retry groundwork._
