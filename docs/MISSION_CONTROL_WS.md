@@ -30,6 +30,7 @@ Channels can be unsubscribed similarly:
 | `health_delta`   | Health status transitions                       | Event-driven             | On `health_degraded`, `health_critical`, `system_recovery` monitoring events                      |
 | `mission_stats`  | Ephemeral aggregate mission metrics snapshot    | Interval (configurable)  | Default 10s (env `ONEAGENT_MISSION_STATS_INTERVAL_MS`); on subscribe emits immediately            |
 | `mission_update` | Per-mission lifecycle status & execution events | Event-driven             | Planning start, task generation, planning complete, execution start/progress/terminal transitions |
+| `anomaly_alert`  | Derived anomaly signals (mission/perf/health)   | Interval (configurable)  | Default 15s (env `ONEAGENT_ANOMALY_ALERT_INTERVAL_MS`) – emits only when heuristics trigger       |
 
 ## Outbound Message Types
 
@@ -39,6 +40,7 @@ Channels can be unsubscribed similarly:
 | `health_delta`       | Server | Includes `payload.status` and echo of health object                                                                                                                                              |
 | `mission_update`     | Server | `payload.status` ∈ {planning_started,tasks_generated,planned,execution_started,execution_progress,completed,cancelled,error}; may include `tasksSummary`, `planningSession`, `progress`, `error` |
 | `mission_stats`      | Server | Snapshot: `active`, `completed`, `cancelled`, `errors`, `avgDurationMs`, `snapshotId`                                                                                                            |
+| `anomaly_alert`      | Server | Emits anomaly payload: `category`, `severity`, `message`, optional `metric`, `value`, `threshold`, `details`                                                                                     |
 | `subscription_ack`   | Server | Acknowledges subscribe/unsubscribe with `payload.channel`, `payload.status`                                                                                                                      |
 | `subscription_error` | Server | Unknown channel error with `error.code` & `error.message`                                                                                                                                        |
 | `heartbeat`          | Server | 30s interval liveness ping (no payload)                                                                                                                                                          |
@@ -88,6 +90,24 @@ Tests:
 }
 ```
 
+## Mission Metrics (Prometheus)
+
+The Prometheus exposition endpoint (`GET /api/v1/metrics/prometheus`) now includes derived mission gauges. These are computed on-demand from the in-memory mission registry (no parallel counters stored):
+
+| Metric                             | Type  | Description                                                |
+| ---------------------------------- | ----- | ---------------------------------------------------------- |
+| `oneagent_mission_active`          | gauge | Currently active (non-terminal) missions                   |
+| `oneagent_mission_completed`       | gauge | Missions completed successfully                            |
+| `oneagent_mission_cancelled`       | gauge | Missions cancelled by request or timeout                   |
+| `oneagent_mission_errors`          | gauge | Missions ended in error state                              |
+| `oneagent_mission_total`           | gauge | Total missions tracked (active + terminal)                 |
+| `oneagent_mission_avg_duration_ms` | gauge | Average duration (ms) across terminal missions (0 if none) |
+| `oneagent_mission_error_rate`      | gauge | Error rate among terminal missions (0–1)                   |
+
+All values are recomputed at scrape time ensuring canonical single source (registry snapshot). No accumulation drift is possible because no counters are incremented outside the registry lifecycle updates.
+
+These metrics support external dashboards & alerting (e.g., high active backlog, rising error rate). Combine with anomaly alerts channel for proactive streaming signals.
+
 ## Canonical Patterns Used
 
 - Time & IDs via `createUnifiedTimestamp()` / `createUnifiedId()`
@@ -96,7 +116,7 @@ Tests:
 
 ## Future Enhancements (Planned)
 
-- `anomaly_alert` channel (statistical deviation detection)
+- Adaptive anomaly thresholds (EWMA / z-score vs static)
 - Backpressure / compression negotiation
 - AuthZ integration for channels (multi-tenant scenarios)
 - Structured latency bins / histogram export
