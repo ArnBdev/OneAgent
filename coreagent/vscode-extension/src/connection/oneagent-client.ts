@@ -356,7 +356,8 @@ export class OneAgentClient {
         };
       }
 
-      const result = await response.json();
+      // Response.json() is typed as unknown in some environments; cast to a permissive shape
+      const result: any = await response.json();
 
       // Handle health check response
       if (endpoint === '/health') {

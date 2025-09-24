@@ -59,7 +59,8 @@ export class OneAgentPanel implements vscode.WebviewViewProvider {
 
     try {
       const isConnected = await this.client.healthCheck();
-      let healthData = null;
+      let healthData: import('../connection/oneagent-client').SystemHealthResponse | undefined =
+        undefined;
 
       if (isConnected) {
         const healthResult = await this.client.systemHealth();
@@ -75,7 +76,10 @@ export class OneAgentPanel implements vscode.WebviewViewProvider {
     }
   }
 
-  private getWebviewContent(isConnected: boolean, healthData: unknown): string {
+  private getWebviewContent(
+    isConnected: boolean,
+    healthData: import('../connection/oneagent-client').SystemHealthResponse | undefined,
+  ): string {
     const config = this.client.getConfiguration();
 
     if (!isConnected) {

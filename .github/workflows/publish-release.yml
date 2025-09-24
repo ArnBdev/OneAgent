@@ -89,6 +89,15 @@ jobs:
           path: verify.log
           retention-days: 7
 
+      # Optional: surface VS Code extension build status without blocking releases
+      - name: Build VS Code extension (non-blocking)
+        continue-on-error: true
+        run: |
+          echo "Building VS Code extension (non-blocking)..."
+          npm --prefix coreagent/vscode-extension install
+          npm --prefix coreagent/vscode-extension run -s compile
+        shell: bash
+
       - name: Sync README version from package.json
         run: |
           npm run sync:readme || true
