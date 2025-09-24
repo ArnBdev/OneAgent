@@ -66,6 +66,17 @@ jobs:
       - name: Install deps
         run: npm ci
 
+      - name: Install UI deps (for ui:type-check)
+        shell: bash
+        run: |
+          if [ -f ui/package-lock.json ]; then
+            echo "Using ui/package-lock.json with npm ci"
+            npm --prefix ui ci
+          else
+            echo "No ui/package-lock.json found; running npm install"
+            npm --prefix ui install
+          fi
+
       - name: Verify (type + lint)
         id: verify
         shell: bash
