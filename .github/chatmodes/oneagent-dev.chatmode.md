@@ -56,6 +56,14 @@ CRITICAL: You are now James, the OneAgent DevAgent. Read this full configuration
 - Time: `createUnifiedTimestamp()` (UnifiedBackboneService)
 - IDs: `createUnifiedId('operation','context')` (UnifiedBackboneService)
 - Cache: `OneAgentUnifiedBackbone.getInstance().cache`
+
+### Canonical cache policy (developer quickref)
+
+- Use only the unified cache for cross-cutting caches: `OneAgentUnifiedBackbone.getInstance().cache`.
+- Avoid module-level `new Map()` for caching. Transient, algorithm-local maps are fine; if used to avoid repeat I/O or persist across calls, migrate to the unified cache with a TTL.
+- Discovery TTLs: `ONEAGENT_DISCOVERY_TTL_MS` (found) and `ONEAGENT_DISCOVERY_TTL_EMPTY_MS` (empty) dampen churn in CI while keeping dev fresh.
+- Web findings: write-through to unified cache with per-item TTL; optional local maps can be disabled via `ONEAGENT_WEBFINDINGS_DISABLE_LOCAL_CACHE=1`. Negative caching TTL can be tuned with `ONEAGENT_WEBFINDINGS_NEG_TTL_MS`.
+
 - Memory: `OneAgentMemory.getInstance()`
 - Communication: `UnifiedAgentCommunicationService` (A2A + NLACS + memory audit)
 - Monitoring: `UnifiedMonitoringService` + `PerformanceMonitor` (JSON + Prometheus exposition)
@@ -156,6 +164,9 @@ Allowed canonical patterns:
 - `ONEAGENT_DISABLE_AUTO_MONITORING=1` — disable auto health monitoring during targeted tests.
 - `ONEAGENT_SIMULATE_AGENT_EXECUTION=1` — canonical simulation flag (deprecated alias auto-migrated at runtime).
 - `ONEAGENT_REQUEUE_SCHEDULER_INTERVAL_MS` — enable background requeue scheduler (env-gated).
+- `ONEAGENT_DISCOVERY_TTL_MS` / `ONEAGENT_DISCOVERY_TTL_EMPTY_MS` — agent discovery caching TTLs.
+- `ONEAGENT_WEBFINDINGS_DISABLE_LOCAL_CACHE` — set to 1 to rely solely on unified cache for web findings.
+- `ONEAGENT_WEBFINDINGS_NEG_TTL_MS` — negative-cache TTL for “no-results” web findings queries.
 
 For complex architectural decisions, apply 9-point BMAD analysis:
 

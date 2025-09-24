@@ -115,7 +115,8 @@ Canonical caching policy:
 - OneAgent has a single system-level cache: `OneAgentUnifiedBackbone.getInstance().cache`. All cross-cutting caching must route through this canonical cache (no parallel cache subsystems).
 - Module-local, algorithmic maps (short-lived structures) are permitted for transient computation, not as general-purpose caches. If a map persists beyond a local operation or is used to avoid repeat I/O, migrate it to the unified cache with an appropriate TTL.
 - Embedding-related caching is implemented via `EmbeddingCacheService`, which internally uses the canonical unified cache. No separate embedding cache stores exist.
- - Web findings caching (search + fetch) now writes through the unified cache with per-item TTL, with optional local in-memory maps used only as ephemeral indices. Set `ONEAGENT_WEBFINDINGS_DISABLE_LOCAL_CACHE=1` to disable the local map layer entirely and rely solely on the unified cache.
+- Web findings caching (search + fetch) now writes through the unified cache with per-item TTL, with optional local in-memory maps used only as ephemeral indices. Set `ONEAGENT_WEBFINDINGS_DISABLE_LOCAL_CACHE=1` to disable the local map layer entirely and rely solely on the unified cache.
+- Web findings also employ a short negative cache for “no-result” queries to reduce repeated empty scans; tune via `ONEAGENT_WEBFINDINGS_NEG_TTL_MS`.
 
 ## Environment Flags (selected)
 
@@ -132,7 +133,8 @@ Canonical caching policy:
 - `ONEAGENT_HEALTH_ORCH_QUEUE_WARN` — orchestrator queue depth warn threshold
 - `ONEAGENT_HEALTH_API_LATENCY_WARN_MS` / `ONEAGENT_HEALTH_API_ERROR_RATE_WARN` — API degraded thresholds
 - `ONEAGENT_HEALTH_API_LATENCY_UNHEALTHY_MULTIPLIER` / `ONEAGENT_HEALTH_API_ERROR_RATE_UNHEALTHY_MULTIPLIER` — multipliers for API unhealthy
- - `ONEAGENT_WEBFINDINGS_DISABLE_LOCAL_CACHE=1` — disable WebFindingsManager local Map caches and use only the canonical unified cache
+- `ONEAGENT_WEBFINDINGS_DISABLE_LOCAL_CACHE=1` — disable WebFindingsManager local Map caches and use only the canonical unified cache
+- `ONEAGENT_WEBFINDINGS_NEG_TTL_MS` — TTL for negative cache entries (no-result queries) in WebFindingsManager
 
 Notes:
 

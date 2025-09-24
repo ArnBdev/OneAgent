@@ -22,6 +22,12 @@ OneAgent is a professional multi-agent AI platform with canonical systems for ti
 
 Forbidden (parallel systems): direct `Date.now()`, custom ID/caches/memory, ad-hoc comms, shadow metrics stores.
 
+Unified cache policy and env notes
+
+- Cross-cutting caching must use `OneAgentUnifiedBackbone.getInstance().cache`; avoid module-level `Map`-based caches.
+- Agent discovery uses unified cache with TTL: tune via `ONEAGENT_DISCOVERY_TTL_MS` and `ONEAGENT_DISCOVERY_TTL_EMPTY_MS` (CI can raise empty TTL to reduce churn).
+- Web findings (search/fetch) write-through to unified cache with per-item TTL; disable local map indices with `ONEAGENT_WEBFINDINGS_DISABLE_LOCAL_CACHE=1`. Negative caching for no-result queries can be tuned via `ONEAGENT_WEBFINDINGS_NEG_TTL_MS`.
+
 ## Build, Test, Verify
 
 - Install: `npm ci`

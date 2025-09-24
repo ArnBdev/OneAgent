@@ -28,6 +28,9 @@ export class WebFindingsManager {
   // Allow disabling module-local map caches in favor of canonical unified cache only
   private readonly localCacheDisabled: boolean =
     process.env.ONEAGENT_WEBFINDINGS_DISABLE_LOCAL_CACHE === '1';
+  private readonly negativeCacheTtlMs: number = Number(
+    process.env.ONEAGENT_WEBFINDINGS_NEG_TTL_MS ?? 120000,
+  );
 
   // In-memory caches
   private searchCache = new Map<string, WebSearchFinding>();
@@ -665,14 +668,30 @@ export class WebFindingsManager {
     const findings: (WebSearchFinding | WebFetchFinding)[] = [];
     const seen = new Set<string>();
 
+    // Negative cache: if we know this query had no results recently, short-circuit
+    if (this.config.storage.enableCaching && options.query) {
+      try {
+        const q = options.query.trim();
+        const nkey = this.buildQueryNegativeKey(this.hashQuery(q));
+        const neg = (await this.cacheSystem.get(nkey)) as boolean | null;
+        if (neg) {
+          this.stats.cacheHits++;
+          return [];
+        }
+      } catch {
+        // ignore
+      }
+    }
+
     // Prefer unified cache direct lookups when query provided
     if (this.config.storage.enableCaching && options.query) {
       try {
         const q = options.query.trim();
         const queryHash = this.hashQuery(q);
-        const byQuery = (await this.cacheSystem.get(
-          this.buildQueryKey(queryHash),
-        )) as (WebSearchFinding | WebFetchFinding | null);
+        const byQuery = (await this.cacheSystem.get(this.buildQueryKey(queryHash))) as
+          | WebSearchFinding
+          | WebFetchFinding
+          | null;
         if (byQuery && this.matchesSearchOptions(byQuery, options)) {
           findings.push(byQuery);
           seen.add(byQuery.id);
@@ -682,9 +701,10 @@ export class WebFindingsManager {
         // If the query looks like a URL, also try URL-hash key
         if (/^https?:\/\//i.test(q) || /\w+\.[a-z]{2,}/i.test(q)) {
           const urlHash = this.hashUrl(q);
-          const byUrl = (await this.cacheSystem.get(
-            this.buildUrlKey(urlHash),
-          )) as (WebSearchFinding | WebFetchFinding | null);
+          const byUrl = (await this.cacheSystem.get(this.buildUrlKey(urlHash))) as
+            | WebSearchFinding
+            | WebFetchFinding
+            | null;
           if (byUrl && !seen.has(byUrl.id) && this.matchesSearchOptions(byUrl, options)) {
             findings.push(byUrl);
             seen.add(byUrl.id);
@@ -713,6 +733,16 @@ export class WebFindingsManager {
           seen.add(finding.id);
           this.stats.cacheHits++;
         }
+      }
+    }
+
+    // If still empty and a query was provided, set a short negative cache marker
+    if (this.config.storage.enableCaching && options.query && findings.length === 0) {
+      try {
+        const nkey = this.buildQueryNegativeKey(this.hashQuery(options.query.trim()));
+        await this.cacheSystem.set(nkey, true, this.negativeCacheTtlMs);
+      } catch {
+        // best-effort only
       }
     }
 
@@ -1115,5 +1145,8 @@ export class WebFindingsManager {
   }
   private buildUrlKey(urlHash: string): string {
     return `webfindings:u:${urlHash}`;
+  }
+  private buildQueryNegativeKey(queryHash: string): string {
+    return `webfindings:qneg:${queryHash}`;
   }
 }
