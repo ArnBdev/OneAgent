@@ -52,7 +52,7 @@
 
 ---
 
-## v4.2.2 (Current) — Mission Metrics Export & Typed Variant Interfaces
+## v4.2.2 (Current) — Mission Metrics Export, Unified Cache Policy, Discovery Backoff, and Web Findings Caching
 
 ### 📦 Tooling / Version
 
@@ -86,6 +86,39 @@
 - JSDoc enrichment pulling schema descriptions into generated interfaces.
 - Guard factory helpers (generic `isOutboundType<'...'>`).
 - Extended negative schema fuzz tests for outbound variants.
+
+### 🗄️ Canonical Cache & Discovery (Consolidation)
+
+- Enforced single canonical cache usage across cross‑cutting concerns via `OneAgentUnifiedBackbone.getInstance().cache`.
+- Discovery now backed by unified cache with TTL/backoff:
+  - Configurable TTLs: `ONEAGENT_DISCOVERY_TTL_MS` (found results) and `ONEAGENT_DISCOVERY_TTL_EMPTY_MS` (empty results) to reduce churn in CI while keeping dev fresh.
+  - Emits `discovery_delta` events only when topology changes to reduce log noise; supplemented by env‑gated comm log level.
+  - Cycle‑safe dynamic imports used in `UnifiedAgentCommunicationService` to avoid initialization order issues.
+- Added cache health details to system health reporting; health endpoints derive exclusively from canonical services.
+
+### 🔎 Web Findings — Unified Cache + Negative Caching
+
+- Migrated `WebFindingsManager` caching to the unified cache with write‑through semantics and per‑item TTL.
+- Deterministic cache keys:
+  - `webfindings:search:id:${id}`, `webfindings:fetch:id:${id}`
+  - Query/url indices: `webfindings:q:${md5(query)}`, `webfindings:u:${md5(url)}`
+- Optional local in‑process maps retained only as transient indices and fully disable‑able via `ONEAGENT_WEBFINDINGS_DISABLE_LOCAL_CACHE=1` (default relies on unified cache).
+- Introduced negative caching for no‑result queries with `ONEAGENT_WEBFINDINGS_NEG_TTL_MS` to curb repeated upstream calls without creating stale positives.
+
+### 🧰 Developer Experience & Logging
+
+- Communication log verbosity is env‑tunable; discovery logs quiet by default unless level increased.
+- Documentation and Dev chatmode updated with a canonical cache policy quickref and env flags.
+
+### 🗎 Docs & Chatmode Alignment
+
+- `AGENTS.md` reinforced unified cache policy and discovery/web findings env guidance.
+- `ONEAGENT_ARCHITECTURE.md` expanded with: discovery caching/backoff, health thresholds, discovery signals/logging, unified cache health, and web findings negative‑cache policy.
+- Dev chatmode updated to reflect anti‑parallel guardrails and unified cache quickref.
+
+### ✅ Integrity (Reiterated)
+
+- No parallel time/ID/cache/memory systems introduced. All caching now routes through the unified cache. Health/metrics derive from canonical services only.
 
 ---
 
@@ -216,7 +249,7 @@
 
 ---
 
-**Current Version**: v4.2.0 Professional  
+**Current Version**: v4.2.2 Professional  
 Note: v4.1.0 aligns versions across manifests (package.json, mcp-manifest.json, server defaults) and updates A2A docs to reflect the adapter delegation to UnifiedAgentCommunicationService. No breaking API changes.
 **Quality Score**: 96.85% (Grade A+)  
 **System Health**: Optimal with ALITA Metadata Enhancement

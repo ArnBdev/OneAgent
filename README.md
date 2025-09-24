@@ -1,4 +1,4 @@
-# OneAgent v4.2.0 - Memory-Driven Intelligence Platform
+# OneAgent v4.2.2 - Memory-Driven Intelligence Platform
 
 Note for contributors and Copilot users: See the canonical repository agent instructions in [AGENTS.md](./AGENTS.md).
 
@@ -179,7 +179,7 @@ Rate limit enforcement (30 msgs / 60s per agent-session) is covered by `tests/ca
 
 This dual-mode strategy delivers deterministic coverage plus minimal runtime overhead, preserving canonical single-source monitoring (UnifiedMonitoringService) without introducing parallel systems.
 
-### Mission Control Test Coverage (v4.2.0)
+### Mission Control Test Coverage (v4.2.2)
 
 - JSON Schema validation for all outbound mission control frames (including new `mission_stats` variant)
 - Lifecycle sequencing: planning_started → tasks_generated → planned → execution_started → execution_progress → (completed|cancelled|error)
@@ -534,4 +534,4 @@ MIT License - See LICENSE file for details
 
 ---
 
-_This is the canonical README for OneAgent v4.2.0. All documentation is current and reflects the consolidated Phase 4 implementation plus communication persistence & retry groundwork._
+_This is the canonical README for OneAgent v4.2.2. All documentation is current and reflects the consolidated Phase 4 implementation plus communication persistence & retry groundwork._
