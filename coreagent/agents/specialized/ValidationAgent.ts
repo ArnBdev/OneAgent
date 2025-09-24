@@ -958,7 +958,8 @@ export class ValidationAgent extends BaseAgent implements ISpecializedAgent {
 
   /**
    * Process incoming messages with validation and Constitutional AI compliance
-   */ async processMessage(context: AgentContext, message: string): Promise<AgentResponse> {
+   */
+  async processMessage(context: AgentContext, message: string): Promise<AgentResponse> {
     try {
       // Store user message in memory (if memory enabled)
       if (this.config.memoryEnabled) {
@@ -978,7 +979,7 @@ export class ValidationAgent extends BaseAgent implements ISpecializedAgent {
         if (this.config.memoryEnabled) {
           // TODO: Implement memory storage when available
         }
-        return {
+        const base = {
           content: `Constitutional validation completed. Overall: ${validationResult.compliant ? 'COMPLIANT' : 'NON-COMPLIANT'}. Score: ${validationResult.overallScore}%. Recommendations: ${validationResult.recommendations.join(', ')}.`,
           metadata: {
             validationType: 'constitutional_check',
@@ -988,6 +989,7 @@ export class ValidationAgent extends BaseAgent implements ISpecializedAgent {
             constitutionalResult: validationResult,
           },
         };
+        return await this.finalizeResponseWithTaskDetection(message, base);
       } else {
         // General validation guidance
         const response = `I'm ValidationAgent, specialized in code quality validation and Constitutional AI compliance. I can help you:
@@ -1003,7 +1005,7 @@ What would you like me to validate or analyze?`;
         if (this.config.memoryEnabled) {
           // TODO: Implement memory storage when available
         }
-        return {
+        const base = {
           content: response,
           metadata: {
             validationType: 'general_guidance',
@@ -1012,11 +1014,26 @@ What would you like me to validate or analyze?`;
             confidence: 0.8,
           },
         };
+        return await this.finalizeResponseWithTaskDetection(message, base);
       }
     } catch (error: Error | unknown) {
       const errorMessage = `ValidationAgent error: ${error instanceof Error ? error.message : 'Unknown error'}`;
       console.error(errorMessage);
-      return {
+      // Structured failure emission (session-aware) if this was a delegated task
+      try {
+        const taskId = this.detectTaskId(message);
+        if (taskId) {
+          await this.emitTaskFailure(
+            taskId,
+            'VALIDATION_PROCESS_ERROR',
+            error instanceof Error ? error.message : 'Unknown error',
+            { agentId: this.id },
+          );
+        }
+      } catch (emitErr) {
+        console.warn(`[ValidationAgent:${this.id}] Warning emitting task failure:`, emitErr);
+      }
+      const errResp: AgentResponse = {
         content: errorMessage,
         metadata: {
           validationType: 'error',
@@ -1026,6 +1043,7 @@ What would you like me to validate or analyze?`;
           confidence: 0.1,
         },
       };
+      return await this.finalizeResponseWithTaskDetection(message, errResp);
     }
   }
 }

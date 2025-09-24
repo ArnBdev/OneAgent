@@ -1404,7 +1404,7 @@ export class PlannerAgent extends BaseAgent implements ISpecializedAgent {
         constitutionalValid: agentResponse.metadata?.constitutionalValid,
         qualityScore: agentResponse.metadata?.qualityScore || 90,
       };
-      return agentResponse;
+      return await this.finalizeResponseWithTaskDetection(message, agentResponse);
     } catch (error) {
       // CANONICAL ERROR HANDLING: Use UnifiedBackboneService.errorHandler
       const errorHandler = this.unifiedBackbone.getServices().errorHandler;
@@ -1415,7 +1415,22 @@ export class PlannerAgent extends BaseAgent implements ISpecializedAgent {
         context: 'message_processing',
       });
 
-      return {
+      // Structured failure emission (session-aware) if this was a delegated task
+      try {
+        const taskId = this.detectTaskId(message);
+        if (taskId) {
+          await this.emitTaskFailure(
+            taskId,
+            'PLANNER_PROCESS_ERROR',
+            error instanceof Error ? error.message : 'Unknown error',
+            { agentId: this.config.id, planningIntent: 'unknown' },
+          );
+        }
+      } catch (emitErr) {
+        console.warn(`[PlannerAgent:${this.config.id}] Warning emitting task failure:`, emitErr);
+      }
+
+      const errResp = {
         content:
           'I apologize, but I encountered an error processing your planning request. Please try again.',
         metadata: {
@@ -1426,6 +1441,7 @@ export class PlannerAgent extends BaseAgent implements ISpecializedAgent {
           qualityScore: 50,
         },
       };
+      return await this.finalizeResponseWithTaskDetection(message, errResp);
     }
   }
 

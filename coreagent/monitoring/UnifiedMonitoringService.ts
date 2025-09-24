@@ -90,6 +90,11 @@ export class UnifiedMonitoringService extends EventEmitter {
     this.setupEventForwarding();
   }
 
+  /** Canonical accessor to underlying PerformanceMonitor (read-only usage) */
+  public getPerformanceMonitor(): PerformanceMonitor {
+    return this.performanceMonitor;
+  }
+
   /** Subscribe to monitoring events (generic). */
   public on(event: string, handler: (data: unknown) => void): this {
     return super.on(event, handler as (data: unknown) => void);

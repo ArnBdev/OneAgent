@@ -50,14 +50,30 @@ export class FitnessAgent extends BaseAgent implements ISpecializedAgent {
         sessionId: context.sessionId,
       });
 
-      return this.createResponse(response, [], relevantMemories);
+      const base = this.createResponse(response, [], relevantMemories);
+      return await this.finalizeResponseWithTaskDetection(message, base);
     } catch (error) {
       console.error('RealFitnessAgent: Error processing message:', error);
-      return this.createResponse(
+      // Structured failure emission (session-aware) if this was a delegated task
+      try {
+        const taskId = this.detectTaskId(message);
+        if (taskId) {
+          await this.emitTaskFailure(
+            taskId,
+            'FITNESS_PROCESS_ERROR',
+            error instanceof Error ? error.message : 'Unknown error',
+            { agentId: this.config.id },
+          );
+        }
+      } catch (emitErr) {
+        console.warn(`[FitnessAgent:${this.config.id}] Warning emitting task failure:`, emitErr);
+      }
+      const errResp = this.createResponse(
         'I apologize, but I encountered an error while processing your fitness query. Please try again.',
         [],
         [],
       );
+      return await this.finalizeResponseWithTaskDetection(message, errResp);
     }
   }
 

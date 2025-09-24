@@ -17,6 +17,8 @@
 
 import { EventEmitter } from 'events';
 import { createUnifiedTimestamp } from '../utils/UnifiedBackboneService';
+// NOTE: Avoid static import of UnifiedAgentCommunicationService to prevent circular deps
+// We'll resolve it lazily via dynamic import in methods that need it.
 import { unifiedLogger } from '../utils/UnifiedLogger';
 import { embeddingCacheService } from '../services/EmbeddingCacheService';
 
@@ -199,8 +201,8 @@ export class HealthMonitoringService extends EventEmitter {
     performanceHistoryLimit: 100,
     healthHistoryLimit: 50,
     alertThresholds: {
-      responseTime: 200, // ms
-      errorRate: 0.05, // 5%
+      responseTime: Number(process.env.ONEAGENT_HEALTH_API_LATENCY_WARN_MS || 200), // ms
+      errorRate: Number(process.env.ONEAGENT_HEALTH_API_ERROR_RATE_WARN || 0.05), // 5%
       memoryLatency: 100, // ms
       cpuUsage: 80, // %
       memoryUsage: 85, // %
@@ -209,6 +211,17 @@ export class HealthMonitoringService extends EventEmitter {
       qualityScore: 80,
       complianceRate: 95,
       safetyScore: 90,
+    },
+    orchestratorThresholds: {
+      p95WarnMs: Number(process.env.ONEAGENT_HEALTH_ORCH_P95_WARN_MS || 3000),
+      p95UnhealthyMs: Number(process.env.ONEAGENT_HEALTH_ORCH_P95_UNHEALTHY_MS || 5000),
+      errWarn: Number(process.env.ONEAGENT_HEALTH_ORCH_ERROR_RATE_WARN || 0.05),
+      errUnhealthy: Number(process.env.ONEAGENT_HEALTH_ORCH_ERROR_RATE_UNHEALTHY || 0.1),
+      queueWarn: Number(process.env.ONEAGENT_HEALTH_ORCH_QUEUE_WARN || 50),
+    },
+    apiUnhealthyMultipliers: {
+      latency: Number(process.env.ONEAGENT_HEALTH_API_LATENCY_UNHEALTHY_MULTIPLIER || 5),
+      errorRate: Number(process.env.ONEAGENT_HEALTH_API_ERROR_RATE_UNHEALTHY_MULTIPLIER || 2),
     },
   };
 
@@ -339,6 +352,14 @@ export class HealthMonitoringService extends EventEmitter {
         };
       } catch (e) {
         details.embeddingCache = { error: String(e) };
+      }
+      // Include unified cache health from canonical backbone
+      try {
+        const backbone = await import('../utils/UnifiedBackboneService');
+        const cacheHealth = backbone.OneAgentUnifiedBackbone.getInstance().cache.getHealth();
+        details.unifiedCache = cacheHealth;
+      } catch (e) {
+        details.unifiedCache = { error: String(e) };
       }
     }
 
@@ -611,41 +632,189 @@ export class HealthMonitoringService extends EventEmitter {
 
     return { registry, agents, orchestrator, api };
   }
+  /**
+   * Lazily resolve the canonical UnifiedAgentCommunicationService to avoid circular imports
+   */
+  private async getComm() {
+    const mod = await import('../utils/UnifiedAgentCommunicationService');
+    return mod.UnifiedAgentCommunicationService.getInstance();
+  }
 
   private async getRegistryHealth(): Promise<ComponentHealth> {
-    return this.createUnhealthyComponent('Agent registry not implemented in canonical system');
+    const start = createUnifiedTimestamp().unix;
+    try {
+      const comm = await this.getComm();
+      const agents = await comm.discoverAgents({} as unknown as Record<string, never>);
+      const now = createUnifiedTimestamp();
+      const online = agents.filter((a) => a.status === 'online').length;
+      const offline = agents.filter((a) => a.status === 'offline').length;
+      const busy = agents.filter((a) => a.status === 'busy').length;
+      const recentActiveWindowMs = 5 * 60 * 1000; // 5 minutes
+      const recentActive = agents.filter((a) => {
+        const t = a.lastActive?.getTime?.() ?? 0;
+        return now.unix - t <= recentActiveWindowMs;
+      }).length;
+      const respMs = Math.max(0, createUnifiedTimestamp().unix - start);
+      return {
+        status: 'healthy',
+        uptime: now.unix, // using current unified time as synthetic uptime source for this component
+        responseTime: respMs,
+        errorRate: 0,
+        lastCheck: new Date(now.utc),
+        details: {
+          totalAgents: agents.length,
+          online,
+          offline,
+          busy,
+          recentActive,
+        },
+      };
+    } catch (e) {
+      return this.createUnhealthyComponent(
+        `registry_health_failed: ${e instanceof Error ? e.message : String(e)}`,
+      );
+    }
   }
   private async getAgentsHealth(): Promise<ComponentHealth> {
-    return this.createUnhealthyComponent('Agent health not implemented in canonical system');
+    const start = createUnifiedTimestamp().unix;
+    try {
+      const comm = await this.getComm();
+      const agents = await comm.discoverAgents({} as unknown as Record<string, never>);
+      const now = createUnifiedTimestamp();
+      const total = agents.length;
+      const online = agents.filter((a) => a.status === 'online').length;
+      const offline = agents.filter((a) => a.status === 'offline').length;
+      const busy = agents.filter((a) => a.status === 'busy').length;
+      const staleWindowMs = 30 * 60 * 1000; // 30 minutes
+      const stale = agents.filter((a) => {
+        const t = a.lastActive?.getTime?.() ?? 0;
+        return now.unix - t > staleWindowMs;
+      }).length;
+      // Compute an overall status heuristic
+      let status: HealthStatus = 'healthy';
+      if (total === 0) {
+        status = 'degraded';
+      } else if (online === 0 || online / Math.max(1, total) < 0.25 || stale > total / 2) {
+        status = 'degraded';
+      }
+      const respMs = Math.max(0, createUnifiedTimestamp().unix - start);
+      return {
+        status,
+        uptime: now.unix,
+        responseTime: respMs,
+        errorRate: 0,
+        lastCheck: new Date(now.utc),
+        details: {
+          total,
+          online,
+          offline,
+          busy,
+          stale,
+        },
+      };
+    } catch (e) {
+      return this.createUnhealthyComponent(
+        `agents_health_failed: ${e instanceof Error ? e.message : String(e)}`,
+      );
+    }
   }
   private async getOrchestratorHealth(): Promise<ComponentHealth> {
-    // Placeholder - would check orchestrator health
-    return {
-      status: 'healthy',
-      uptime: createUnifiedTimestamp().unix,
-      responseTime: 30,
-      errorRate: 0,
-      lastCheck: new Date(createUnifiedTimestamp().utc),
-      details: {
-        requestsProcessed: 100,
-        averageResponseTime: 150,
-      },
-    };
+    const start = createUnifiedTimestamp().unix;
+    try {
+      // Lazily resolve canonical services to avoid circular deps
+      const backboneMod = await import('../utils/UnifiedBackboneService');
+      const monitoring = backboneMod.UnifiedBackboneService.monitoring;
+      const perf = monitoring.getPerformanceMonitor();
+      const { taskDelegationService } = await import('../services/TaskDelegationService');
+
+      // Canonical orchestrator signals live under TaskDelegation.* operations
+      const exec = await perf.getDetailedMetrics('TaskDelegation.execute');
+      const dispatch = await perf.getDetailedMetrics('TaskDelegation.dispatch');
+      const queueDepth = taskDelegationService.getQueuedTasks().length;
+      const totalTasks = taskDelegationService.getAllTasks().length;
+
+      // Health heuristic (align to configured thresholds when applicable)
+      const errorRate = exec.errorRate; // execution path dominates health
+      const p95 = exec.p95;
+      let status: HealthStatus = 'healthy';
+      const th = this.config.orchestratorThresholds;
+      if (errorRate >= th.errUnhealthy || p95 >= th.p95UnhealthyMs) status = 'unhealthy';
+      else if (errorRate >= th.errWarn || p95 >= th.p95WarnMs || queueDepth > th.queueWarn)
+        status = 'degraded';
+
+      const now = createUnifiedTimestamp();
+      return {
+        status,
+        uptime: now.unix,
+        responseTime: Math.max(0, now.unix - start),
+        errorRate,
+        lastCheck: new Date(now.utc),
+        details: {
+          queueDepth,
+          totalTasks,
+          exec: {
+            count: exec.count,
+            avgLatency: Number(exec.avgLatency.toFixed?.(2) ?? exec.avgLatency),
+            p95,
+            p99: exec.p99,
+            errorRate: Number(exec.errorRate.toFixed?.(4) ?? exec.errorRate),
+          },
+          dispatch: {
+            count: dispatch.count,
+            avgLatency: Number(dispatch.avgLatency.toFixed?.(2) ?? dispatch.avgLatency),
+            p95: dispatch.p95,
+            p99: dispatch.p99,
+            errorRate: Number(dispatch.errorRate.toFixed?.(4) ?? dispatch.errorRate),
+          },
+        },
+      };
+    } catch (e) {
+      return this.createUnhealthyComponent(
+        `orchestrator_health_failed: ${e instanceof Error ? e.message : String(e)}`,
+      );
+    }
   }
 
   private async getApiHealth(): Promise<ComponentHealth> {
-    // Placeholder - would check API health
-    return {
-      status: 'healthy',
-      uptime: createUnifiedTimestamp().unix,
-      responseTime: 25,
-      errorRate: 0,
-      lastCheck: new Date(createUnifiedTimestamp().utc),
-      details: {
-        endpointsAvailable: 15,
-        averageLatency: 75,
-      },
-    };
+    const start = createUnifiedTimestamp().unix;
+    try {
+      // Use canonical monitoring performance summary as proxy for API health (no shadow stores)
+      const backboneMod = await import('../utils/UnifiedBackboneService');
+      const monitoring = backboneMod.UnifiedBackboneService.monitoring;
+      const perf = monitoring.getPerformanceMonitor();
+      const summary = await perf.getPerformanceSummary();
+
+      const avgLatency = summary.overall.averageLatency;
+      const errorRate = summary.overall.errorRate;
+      let status: HealthStatus = 'healthy';
+      // Align thresholds to config.alertThresholds where semantically applicable
+      const respThreshold = this.config.alertThresholds.responseTime; // 200ms
+      const errThreshold = this.config.alertThresholds.errorRate; // 5%
+      const mult = this.config.apiUnhealthyMultipliers;
+      if (avgLatency >= respThreshold * mult.latency || errorRate >= errThreshold * mult.errorRate)
+        status = 'unhealthy';
+      else if (avgLatency >= respThreshold || errorRate >= errThreshold) status = 'degraded';
+
+      const now = createUnifiedTimestamp();
+      return {
+        status,
+        uptime: now.unix,
+        responseTime: Math.max(0, now.unix - start),
+        errorRate,
+        lastCheck: new Date(now.utc),
+        details: {
+          averageLatency: Number(avgLatency.toFixed?.(2) ?? avgLatency),
+          errorRate: Number(errorRate.toFixed?.(4) ?? errorRate),
+          operationsTracked: (perf.getRecordedOperations?.() || []).length,
+          healthStatus: summary.healthStatus,
+          totalOperations: summary.overall.totalOperations,
+        },
+      };
+    } catch (e) {
+      return this.createUnhealthyComponent(
+        `api_health_failed: ${e instanceof Error ? e.message : String(e)}`,
+      );
+    }
   }
 
   private createUnhealthyComponent(reason: string): ComponentHealth {

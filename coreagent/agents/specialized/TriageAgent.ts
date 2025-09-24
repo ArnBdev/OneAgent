@@ -540,14 +540,30 @@ export class TriageAgent extends BaseAgent implements ISpecializedAgent {
         },
       );
 
-      return this.createResponse(response, [], relevantMemories);
+      const base = this.createResponse(response, [], relevantMemories);
+      return await this.finalizeResponseWithTaskDetection(message, base);
     } catch (error) {
       console.error('RealTriageAgent: Error processing message:', error);
-      return this.createResponse(
+      // Structured failure emission (session-aware) if this was a delegated task
+      try {
+        const taskId = this.detectTaskId(message);
+        if (taskId) {
+          await this.emitTaskFailure(
+            taskId,
+            'TRIAGE_PROCESS_ERROR',
+            error instanceof Error ? error.message : 'Unknown error',
+            { agentId: this.config.id },
+          );
+        }
+      } catch (emitErr) {
+        console.warn(`[TriageAgent:${this.config.id}] Warning emitting task failure:`, emitErr);
+      }
+      const errResp = this.createResponse(
         'I apologize, but I encountered an error while analyzing your request for routing. Please try again.',
         [],
         [],
       );
+      return await this.finalizeResponseWithTaskDetection(message, errResp);
     }
   }
   /**

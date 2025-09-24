@@ -159,6 +159,28 @@
         }
       },
       "additionalProperties": true
+    },
+    {
+      "type": "object",
+      "required": ["type", "id", "timestamp", "server", "payload"],
+      "properties": {
+        "type": { "const": "anomaly_alert" },
+        "payload": {
+          "type": "object",
+          "required": ["category", "severity", "message"],
+          "properties": {
+            "category": { "enum": ["mission", "performance", "health", "monitoring"] },
+            "severity": { "enum": ["info", "warning", "critical"] },
+            "message": { "type": "string" },
+            "details": { "type": ["object", "null"], "nullable": true },
+            "metric": { "type": ["string", "null"] },
+            "value": { "type": ["number", "null"] },
+            "threshold": { "type": ["number", "null"] }
+          },
+          "additionalProperties": true
+        }
+      },
+      "additionalProperties": true
     }
   ]
 }

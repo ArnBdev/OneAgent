@@ -425,9 +425,11 @@ OUTPUT: Return ONLY strict JSON with keys: analysis, targetFile, suggestedChange
         `ALITA reflection prepared at ${createUnifiedTimestamp().iso}. Prompt length=${prompt.length}`,
         { type: 'alita_reflection_prep' },
       );
-      return this.createResponse('ALITA reflection prompt is ready.', [], []);
+      const base = this.createResponse('ALITA reflection prompt is ready.', [], []);
+      return await this.finalizeResponseWithTaskDetection(message, base);
     }
     // Default to BaseAgent behavior
-    return super.processMessage(context, message);
+    const resp = await super.processMessage(context, message);
+    return await this.finalizeResponseWithTaskDetection(message, resp);
   }
 }

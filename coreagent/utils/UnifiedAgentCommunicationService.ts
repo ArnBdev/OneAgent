@@ -51,6 +51,7 @@ import {
 import { ToolDescriptor } from '../OneAgentEngine';
 import { ConsensusEngine } from '../coordination/ConsensusEngine';
 import { InsightSynthesisEngine } from '../coordination/InsightSynthesisEngine';
+import { unifiedLogger } from './UnifiedLogger';
 
 export class UnifiedAgentCommunicationService implements UnifiedAgentCommunicationInterface {
   private static instance: UnifiedAgentCommunicationService;
@@ -61,6 +62,16 @@ export class UnifiedAgentCommunicationService implements UnifiedAgentCommunicati
   private fastTestSessions?: Map<string, A2AGroupSession>;
   private fastTestMessages?: Map<string, A2AMessage[]>;
   private silentLogging: boolean = process.env.ONEAGENT_SILENCE_COMM_LOGS === '1';
+  private logLevel: 'debug' | 'info' | 'warn' | 'error' = (():
+    | 'debug'
+    | 'info'
+    | 'warn'
+    | 'error' => {
+    const lvl = (process.env.ONEAGENT_COMM_LOG_LEVEL || '').toLowerCase();
+    return lvl === 'debug' || lvl === 'info' || lvl === 'warn' || lvl === 'error'
+      ? (lvl as 'debug' | 'info' | 'warn' | 'error')
+      : 'debug';
+  })();
 
   // Phase 3 Enhanced Coordination Engines
   private consensusEngine: ConsensusEngine;
@@ -73,6 +84,18 @@ export class UnifiedAgentCommunicationService implements UnifiedAgentCommunicati
   // Configuration (future: externalize to unified config)
   private readonly RATE_LIMIT_MAX_MESSAGES = 30; // messages
   private readonly RATE_LIMIT_WINDOW_MS = 60_000; // 60s
+
+  // Discovery caching (uses canonical OneAgentUnifiedBackbone cache)
+  private readonly DISCOVERY_TTL_MS: number = (() => {
+    const v = process.env.ONEAGENT_DISCOVERY_TTL_MS;
+    const n = v ? Number(v) : NaN;
+    return Number.isFinite(n) && n >= 0 ? n : 3_000; // default 3s
+  })();
+  private readonly DISCOVERY_TTL_EMPTY_MS: number = (() => {
+    const v = process.env.ONEAGENT_DISCOVERY_TTL_EMPTY_MS;
+    const n = v ? Number(v) : NaN;
+    return Number.isFinite(n) && n >= 0 ? n : 10_000; // default 10s when empty
+  })();
 
   // Helper error codes
   private error(code: string, message: string): Error {
@@ -387,6 +410,20 @@ export class UnifiedAgentCommunicationService implements UnifiedAgentCommunicati
           metadata: agent.metadata,
         }));
       }
+      // Try unified cache first (canonical cache, short TTL)
+      const { OneAgentUnifiedBackbone } = await import('../utils/UnifiedBackboneService');
+      const cache = OneAgentUnifiedBackbone.getInstance().cache;
+      const cacheKey = this.buildDiscoveryCacheKey(filter);
+      try {
+        const cached = (await cache.get(cacheKey)) as AgentCardWithHealth[] | null;
+        if (cached) {
+          // Silent cache hit to avoid log noise; metrics still captured by runSafely wrapper
+          return cached;
+        }
+      } catch {
+        // Cache read is best-effort; continue on failure
+      }
+
       const metadata_filter: Record<string, unknown> = { entityType: 'A2AAgent' };
 
       if (filter.status) {
@@ -432,10 +469,68 @@ export class UnifiedAgentCommunicationService implements UnifiedAgentCommunicati
           }),
         );
 
-      console.log(`🔍 Agent discovery found ${agents.length} agents.`);
+      // Populate cache with short TTL (longer when empty to add backoff)
+      try {
+        const ttl = agents.length === 0 ? this.DISCOVERY_TTL_EMPTY_MS : this.DISCOVERY_TTL_MS;
+        await cache.set(cacheKey, agents, ttl);
+      } catch {
+        // Best-effort; ignore cache write failures
+      }
+
+      // Reduce log noise: only log when count changes materially; honor silentLogging flag
+      try {
+        const self = this as unknown as { __lastDiscoveryCount?: number; silentLogging?: boolean };
+        const prev = self.__lastDiscoveryCount;
+        if (prev !== agents.length) {
+          self.__lastDiscoveryCount = agents.length;
+          if (!self.silentLogging) {
+            const payload = { previous: prev ?? null, current: agents.length };
+            // honor configured log level
+            const msg = `Agent discovery count changed`;
+            switch (this.logLevel) {
+              case 'info':
+                unifiedLogger.info(msg, payload);
+                break;
+              case 'warn':
+                unifiedLogger.warn(msg, payload);
+                break;
+              case 'error':
+                unifiedLogger.error(msg, payload);
+                break;
+              case 'debug':
+              default:
+                unifiedLogger.debug(msg, payload);
+            }
+            // Emit a structured delta event for Mission Control / observers
+            this.emit('discovery_delta', payload);
+          }
+        }
+      } catch {
+        /* noop */
+      }
       // removed gauge call – discovery count can be derived by monitoring if needed
       return agents;
     });
+  }
+
+  /**
+   * Build a deterministic cache key for agent discovery. Uses only serializable filter fields.
+   */
+  private buildDiscoveryCacheKey(
+    filter: AgentFilter & {
+      health?: 'healthy' | 'degraded' | 'critical' | 'offline';
+      role?: string;
+    },
+  ): string {
+    const caps = (filter.capabilities || []).slice().sort();
+    const parts = [
+      `caps:${caps.join('|')}`,
+      `status:${filter.status || 'any'}`,
+      `health:${filter.health || 'any'}`,
+      `role:${filter.role || 'any'}`,
+      `limit:${filter.limit ?? 'none'}`,
+    ];
+    return `uacs:discover:${parts.join(';')}`;
   }
 
   /**
@@ -1613,4 +1708,42 @@ export class UnifiedAgentCommunicationService implements UnifiedAgentCommunicati
 }
 
 // Export a single, canonical instance for the entire application to use.
-export const unifiedAgentCommunicationService = UnifiedAgentCommunicationService.getInstance();
+// Export a lazily-resolved, singleton-backed proxy to avoid eager initialization at module load
+// This prevents test flakes due to import timing and circular resolution during ts-node boot.
+let __uacsSingleton: UnifiedAgentCommunicationService | null = null;
+function __resolveUacs(): UnifiedAgentCommunicationService {
+  if (!__uacsSingleton) {
+    __uacsSingleton = UnifiedAgentCommunicationService.getInstance();
+  }
+  return __uacsSingleton;
+}
+
+export const unifiedAgentCommunicationService: UnifiedAgentCommunicationService = new Proxy(
+  {} as UnifiedAgentCommunicationService,
+  {
+    get(_target, prop, _receiver) {
+      const inst = __resolveUacs();
+      const rec = inst as unknown as Record<PropertyKey, unknown>;
+      const value = rec[prop as PropertyKey];
+      if (typeof value === 'function') {
+        const fn = value as (...args: unknown[]) => unknown;
+        return fn.bind(inst);
+      }
+      return value;
+    },
+    set(_target, prop, value) {
+      const inst = __resolveUacs();
+      (inst as unknown as Record<PropertyKey, unknown>)[prop as PropertyKey] = value as unknown;
+      return true;
+    },
+    has(_target, prop) {
+      const inst = __resolveUacs();
+      return prop in (inst as unknown as Record<PropertyKey, unknown>);
+    },
+  },
+);
+
+// Typed accessor for composition/testability without relying on Proxy interception
+export function getUnifiedAgentCommunicationService(): UnifiedAgentCommunicationService {
+  return __resolveUacs();
+}

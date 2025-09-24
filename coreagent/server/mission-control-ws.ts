@@ -7,6 +7,7 @@ import { ChannelRegistry } from './mission-control/ChannelRegistry';
 import { createHealthDeltaChannel } from './mission-control/healthDeltaChannel';
 import { createMetricsTickChannel } from './mission-control/metricsTickChannel';
 import { createMissionStatsChannel } from './mission-control/missionStatsChannel';
+import { createAnomalyAlertChannel } from './mission-control/anomalyAlertChannel';
 import { handleMissionStart } from './mission-control/missionHandler';
 import {
   MISSION_CONTROL_WS_PATH,
@@ -66,6 +67,7 @@ export function createMissionControlWSS(
   registry.register(createHealthDeltaChannel());
   registry.register(createMetricsTickChannel());
   registry.register(createMissionStatsChannel());
+  registry.register(createAnomalyAlertChannel());
 
   // Upgrade handling
   server.on('upgrade', (request: IncomingMessage, socket: Duplex, head: Buffer) => {

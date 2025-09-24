@@ -1,6 +1,130 @@
-# 📝 OneAgent v4.2.0 Professional - Changelog
+# 📝 OneAgent v4.2.2 Professional - Changelog
 
-## v4.2.0 (Current) — Mission Control Streaming, Type-Safe Schema Codegen & AI Client Hardening
+## v4.2.3 (Unreleased) — Structured Task Emissions & Latency Instrumentation
+
+### ✨ Features
+
+- Canonical structured `agent_execution_result` emissions (success/failure) centralized in `BaseAgent` with idempotency guard.
+- Added task lifecycle timestamps (`dispatchedAt`, `completedAt`) and derived `durationMs` in `TaskDelegationService` (anti-parallel: all timestamps via `createUnifiedTimestamp()`).
+- Orchestrator now measures dispatch→completion latency and passes `durationMs` to delegation + monitoring pipeline.
+- Background requeue scheduler added (env-gated via `ONEAGENT_REQUEUE_SCHEDULER_INTERVAL_MS`) to periodically invoke `processDueRequeues()` outside of plan execution; provides steady retry waves without manual triggers.
+
+### 📊 Observability
+
+- Per-terminal task broadcast of `operation_metrics_snapshot` containing avg/p95/p99/errorRate for `TaskDelegation.execute` sourced from canonical `PerformanceMonitor` (no shadow histograms).
+- Added `HybridAgentOrchestrator.getLatestOperationMetricsSnapshot()` for programmatic retrieval.
+- Extended metrics export allowlist to include `TaskDelegation.execute` so latency gauges (avg/p95/p99) are exposed consistently alongside other canonical operations (JSON + Prometheus exposition paths). No parallel metrics stores introduced; all figures derive from `unifiedMonitoringService.trackOperation` → `PerformanceMonitor`.
+
+### 🔁 Reliability & Retry
+
+- Introduced explicit `processDueRequeues()` scanning failed tasks with elapsed backoff to requeue automatically and integrated it with the new background scheduler. Test coverage extended (see 🧪 Testing).
+- Added negative/edge tests for malformed or duplicate structured emissions (`agent-execution-negative.test.ts`).
+- Implemented exponential backoff with nextAttempt scheduling metadata (`nextAttemptUnix`/`nextAttemptAt`) and added multi-requeue ordering guarantees.
+
+### 🧪 Testing
+
+- Added a minimal Jest-like harness (`tests/canonical/jest-mini-globals.ts`) and runner to ensure A2A smoke tests execute reliably without global jest context; direct run now passes via the harness.
+- New tests:
+  - `coreagent/tests/agent-execution-fuzz.test.ts` — fuzz invalid `AgentExecutionResult` payloads and validate listener robustness.
+  - `coreagent/tests/mission-progress-invariant.test.ts` — invariant on mission progress accounting across dispatched/completed/failed.
+  - `coreagent/tests/multi-requeue-ordering.test.ts` — ensures deterministic behavior and no duplication when multiple tasks become eligible for requeue.
+- Expanded coverage verifying latency capture and metrics snapshots end-to-end.
+
+### 📖 Documentation
+
+- Updated `A2A_PROTOCOL_IMPLEMENTATION.md` with structured emission schema, latency flow, snapshot example, failure semantics, and backward compatibility notes.
+
+### 🔍 Integrity
+
+- No parallel time, ID, cache, or metrics systems introduced. Performance data sourced exclusively via `unifiedMonitoringService.trackOperation` → `PerformanceMonitor` ingestion.
+
+### 🧭 Scheduling & Shutdown
+
+- Orchestrator now starts a background requeue scheduler when enabled via env; graceful shutdown sequence stops the scheduler to avoid orphaned timers and ensures clean process exit.
+
+### ⚠️ Deprecations
+
+- `ONEAGENT_DISABLE_REAL_AGENT_EXECUTION` auto-migrated to `ONEAGENT_SIMULATE_AGENT_EXECUTION` with a one-time persisted deprecation notice stored via canonical memory. Runtime continues using the canonical flag.
+
+### 🚧 Deferred
+
+- Additional negative fuzz cases for broader schema coverage (beyond current corpus).
+
+---
+
+## v4.2.2 (Current) — Mission Metrics Export & Typed Variant Interfaces
+
+### 📦 Tooling / Version
+
+- Upgraded package manager pin from `npm@11.0.0` → `npm@11.6.0` (minor improvements & fixes within same major). `engines.npm` kept as minimum (>=11.0.0).
+
+### 📊 Observability
+
+- Prometheus mission gauges documented & test covered (`prometheusMissionMetrics.test.ts`).
+- Added mission snapshot fields into `anomaly_alert` `details` for richer context (active/completed/cancelled/errors/avgDurationMs/totalTerminated where relevant).
+
+### 🧪 Testing
+
+- Added lightweight Prometheus export assertion test validating presence of mission gauge metrics.
+
+### 🧬 Code Generation Upgrade
+
+- `generate-mission-control-types.ts` now emits named interfaces per variant (e.g., `Outbound_mission_update`) improving IDE discoverability & narrowing.
+- Regenerated `mission-control-message-types.ts` with interface blocks + safer discriminant guards (no `as any`).
+
+### 📖 Documentation
+
+- `MISSION_CONTROL_WS.md` updated with a dedicated Mission Metrics section enumerating each gauge and design rationale (derivational, no parallel counters).
+
+### 🔍 Integrity
+
+- No parallel state introduced; all derived metrics continue to source from mission registry snapshot and monitoring services.
+
+### 🔄 Deferred Post 4.2.2
+
+- Adaptive anomaly heuristics (EWMA/stddev windows).
+- JSDoc enrichment pulling schema descriptions into generated interfaces.
+- Guard factory helpers (generic `isOutboundType<'...'>`).
+- Extended negative schema fuzz tests for outbound variants.
+
+---
+
+## v4.2.1 — Anomaly Alerts & Mission Metrics Prep
+
+### 🚨 anomaly_alert Channel (Mission Control)
+
+- Added `anomaly_alert` outbound schema variant & channel implementation (interval evaluator).
+- Heuristics (initial transparent rules):
+  - Active missions >10 (warning) / >25 (critical).
+  - Error rate >30% (warning) / >50% (critical) once ≥5 terminated missions.
+- Emits: `category`, `severity`, `message`, plus optional `metric`, `value`, `threshold`, `details`.
+- Zero parallel metrics store: derives exclusively from mission registry snapshot & existing monitoring events.
+
+### 🧪 Type & Schema Sync
+
+- Regenerated mission-control types to include `anomaly_alert` (codegen pipeline unchanged; guard post-processed to remove unsafe casts).
+- Outbound schema updated (`mission-control-outbound-messages.schema.json`) with anomaly_alert object.
+
+### 📊 Upcoming Mission Metrics (Scaffolding)
+
+- Version bump reserved groundwork for Prometheus mission metrics (planned derivational gauges from registry on scrape; no persistent counters introduced yet).
+- Documentation updates pending for Prometheus section once gauges are added.
+- IMPLEMENTED (post-initial 4.2.1 commit): Prometheus endpoint now exposes derived mission gauges (`oneagent_mission_active`, `oneagent_mission_completed`, `oneagent_mission_cancelled`, `oneagent_mission_errors`, `oneagent_mission_total`, `oneagent_mission_avg_duration_ms`, `oneagent_mission_error_rate`). Zero parallel counters — all values derived on demand from mission registry snapshot.
+
+### 🔍 Integrity & Architecture
+
+- All additions use canonical ID/time functions, mission registry, and `unifiedMonitoringService.trackOperation`.
+- No new global singletons or caches; interval evaluators are per-subscriber and cleaned up on unsubscribe/connection dispose.
+
+### 🔄 Follow-Up (Deferred Post 4.2.1)
+
+- Prometheus mission metrics export (active/completed/cancelled/errors, avg duration, error rate gauges).
+- Adaptive anomaly heuristics (sliding window + standard deviation / EWMA based thresholds).
+- Named TS interfaces per outbound variant via codegen enhancement (interface emission with doc comments).
+
+---
+
+## v4.2.0 — Mission Control Streaming, Type-Safe Schema Codegen & AI Client Hardening
 
 ### 🌐 Mission Control WebSocket (Streaming Foundations)
 

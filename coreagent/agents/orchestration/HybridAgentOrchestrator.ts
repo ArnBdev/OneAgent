@@ -1,4 +1,6 @@
+// UPDATED: header touch to force recompilation after refactor removing waitPromise/_promise pattern.
 import type { AgentCard } from '../../types/oneagent-backbone-types';
+import { isAgentExecutionResult } from '../../types/agent-execution-types';
 import { unifiedAgentCommunicationService } from '../../utils/UnifiedAgentCommunicationService';
 import { OneAgentMemory } from '../../memory/OneAgentMemory';
 import {
@@ -32,10 +34,373 @@ export class HybridAgentOrchestrator {
   private comm = unifiedAgentCommunicationService;
   private memory = OneAgentMemory.getInstance();
   private orchestratorId: string;
+  /** Pending task completion promises keyed by taskId */
+  private pendingTasks: Map<
+    string,
+    { resolve: (ok: boolean) => void; reject: (e: Error) => void; timeout: NodeJS.Timeout }
+  > = new Map();
+  /** Track dispatch start times (unix ms) for latency measurement */
+  private dispatchStartTimes: Map<string, number> = new Map();
+  private listenersAttached = false;
+  /** Last operation metrics snapshot broadcast (in-memory only, non-authoritative) */
+  private lastOperationMetricsSnapshot: Record<string, unknown> | null = null;
+  /** Optional background requeue scheduler interval handle */
+  private requeueScheduler: NodeJS.Timeout | null = null;
+  /** One-time deprecation notice flag (process-local) */
+  private static warnedDeprecatedFlag = false;
 
   constructor() {
     this.orchestratorId = createUnifiedId('agent', 'orchestrator');
     this.logOperation('initialized', { timestamp: createUnifiedTimestamp() });
+    this.maybeStartRequeueScheduler();
+  }
+
+  /**
+   * Execute a proactive plan composed of delegated tasks sourced from TaskDelegationService.
+   * Order: resolve dependencies via simple iterative pass (no cycles expected for MVP). Tasks without
+   * dependencies run in insertion order. Future enhancement: topological sort + parallel dispatch.
+   */
+  async executePlan(options: { sessionId?: string; limit?: number } = {}): Promise<{
+    dispatched: string[];
+    completed: string[];
+    failed: Array<{ taskId: string; error: string }>;
+  }> {
+    // Backward compat: migrate deprecated simulation flag name
+    if (
+      process.env.ONEAGENT_DISABLE_REAL_AGENT_EXECUTION &&
+      !process.env.ONEAGENT_SIMULATE_AGENT_EXECUTION
+    ) {
+      // Inverted semantics: if disable real execution => simulate enabled
+      process.env.ONEAGENT_SIMULATE_AGENT_EXECUTION = '1';
+      // Non-noisy single-time note + persistent memory audit recorded once
+      if (!HybridAgentOrchestrator.warnedDeprecatedFlag) {
+        HybridAgentOrchestrator.warnedDeprecatedFlag = true;
+        console.warn(
+          '[HybridAgentOrchestrator] ONEAGENT_DISABLE_REAL_AGENT_EXECUTION is deprecated. Use ONEAGENT_SIMULATE_AGENT_EXECUTION (set to 1 by migration).',
+        );
+        try {
+          const ts = createUnifiedTimestamp();
+          await this.memory.addMemoryCanonical(
+            'Deprecation: ONEAGENT_DISABLE_REAL_AGENT_EXECUTION',
+            {
+              type: 'deprecation_notice',
+              flag: 'ONEAGENT_DISABLE_REAL_AGENT_EXECUTION',
+              replacement: 'ONEAGENT_SIMULATE_AGENT_EXECUTION',
+              timestamp: ts.iso,
+              details:
+                'Deprecated flag observed; auto-migrated to ONEAGENT_SIMULATE_AGENT_EXECUTION=1',
+            } as unknown as Record<string, unknown>,
+            'system_orchestration',
+          );
+        } catch {
+          /* ignore memory audit failures */
+        }
+      }
+    }
+    const { sessionId = 'plan-session', limit = 20 } = options;
+    const startTs = createUnifiedTimestamp();
+    await this.logOperation('plan_execute_started', { sessionId, limit });
+    this.ensureListeners();
+    // Lazy import to avoid circular at module load
+    const { taskDelegationService } = await import('../../services/TaskDelegationService');
+    const all = taskDelegationService.getQueuedTasks().slice(0, limit);
+    if (!all.length) {
+      await this.logOperation('plan_execute_no_tasks', { sessionId });
+      return { dispatched: [], completed: [], failed: [] };
+    }
+    const dispatched: string[] = [];
+    // completed + failed will be computed after async resolutions from delegation service state
+    const failed: Array<{ taskId: string; error: string }> = [];
+    const pendingPromises: Promise<boolean>[] = [];
+    // Simple linear pass – iterate until no progress
+    const unresolved = new Set(all.map((t) => t.id));
+    let progress = true;
+    while (progress && unresolved.size) {
+      progress = false;
+      // Automatic requeue scan at each wave start (best-effort)
+      try {
+        const { taskDelegationService } = await import('../../services/TaskDelegationService');
+        const requeued = taskDelegationService.processDueRequeues(Date.now());
+        if (requeued.length) {
+          await this.logOperation('requeue_wave', { count: requeued.length, taskIds: requeued });
+        }
+      } catch {
+        /* ignore requeue errors */
+      }
+      for (const taskId of Array.from(unresolved)) {
+        const task = all.find((t) => t.id === taskId);
+        if (!task) {
+          unresolved.delete(taskId);
+          continue;
+        }
+        // MVP: dependencies not yet encoded on task objects – placeholder for future dependsOn array
+        try {
+          // Mark dispatched in delegation service
+          const updated = taskDelegationService.markDispatched(task.id);
+          if (!updated) {
+            failed.push({ taskId: task.id, error: 'dispatch_mark_failed' });
+            unresolved.delete(taskId);
+            continue;
+          }
+          dispatched.push(task.id);
+          // Record dispatch start time for latency measurement
+          this.dispatchStartTimes.set(task.id, Date.now());
+          // Select agent (skill inference from action simple heuristic)
+          const skill = this.inferSkillFromAction(task.action);
+          const agent = skill ? await this.selectBestAgent(skill).catch(() => null) : null;
+          // Send instructions (even if no agent, we mark failure)
+          if (!agent) {
+            taskDelegationService.markDispatchFailure(task.id, 'no_agent', 'No suitable agent');
+            failed.push({ taskId: task.id, error: 'no_agent' });
+            unresolved.delete(task.id);
+            continue;
+          }
+          const instructions = `ACTION: ${task.action}\nSOURCE_FINDING: ${task.finding}\nTASK_ID: ${task.id}`;
+          const msgId = await this.sendMessageToAgent(agent.id, instructions, sessionId).catch(
+            (_e) => {
+              return null;
+            },
+          );
+          if (!msgId) {
+            taskDelegationService.markDispatchFailure(task.id, 'send_failed', 'Message send');
+            failed.push({ taskId: task.id, error: 'send_failed' });
+            unresolved.delete(task.id);
+            continue;
+          }
+          // Begin asynchronous wait for agent completion message.
+          // We track via pendingTasks map; when message with JSON {taskId,status:'completed'} arrives, we resolve.
+          const p: Promise<boolean> = new Promise<boolean>((resolve, reject) => {
+            const timeoutMs = parseInt(
+              process.env.ONEAGENT_TASK_EXECUTION_TIMEOUT_MS || '4000',
+              10,
+            );
+            const timeout = setTimeout(() => {
+              this.pendingTasks.delete(task.id);
+              reject(new Error('task_timeout'));
+            }, timeoutMs);
+            this.pendingTasks.set(task.id, {
+              resolve: (ok: boolean) => {
+                clearTimeout(timeout);
+                resolve(ok);
+              },
+              reject: (e) => {
+                clearTimeout(timeout);
+                reject(e);
+              },
+              timeout,
+            });
+          })
+            .catch((err) => {
+              taskDelegationService.markExecutionResult(task.id, false, err.message, err.message);
+              failed.push({ taskId: task.id, error: err.message });
+              return false;
+            })
+            .finally(() => {
+              this.broadcastMissionUpdate(sessionId).catch(() => {});
+            });
+          // Optionally simulate execution if no real agent response is expected
+          if (process.env.ONEAGENT_SIMULATE_AGENT_EXECUTION !== '0') {
+            this.simulateAgentExecution(agent.id, task.id, sessionId).catch(() => {});
+          }
+          // We don't await here inside dispatch loop; we collect promises and await after dispatching wave
+          pendingPromises.push(p);
+          unresolved.delete(task.id);
+          progress = true;
+        } catch (err) {
+          failed.push({ taskId: taskId, error: err instanceof Error ? err.message : String(err) });
+          taskDelegationService.markDispatchFailure(taskId, 'execution_error', String(err));
+          unresolved.delete(taskId);
+        }
+      }
+    }
+    // Await all pending promises for dispatched tasks
+    await Promise.all(pendingPromises);
+    // Derive final task statuses from delegation service
+    const finalTasks = taskDelegationService.getAllTasks().filter((t) => dispatched.includes(t.id));
+    const completed = finalTasks.filter((t) => t.status === 'completed').map((t) => t.id);
+    // augment failed array with any tasks that transitioned to failed but not already captured (e.g. agent reported failure)
+    for (const t of finalTasks) {
+      if (t.status === 'failed' && !failed.find((f) => f.taskId === t.id)) {
+        failed.push({ taskId: t.id, error: t.lastErrorCode || 'failed' });
+      }
+    }
+    await this.logOperation('plan_execute_completed', {
+      sessionId,
+      dispatched: dispatched.length,
+      completed: completed.length,
+      failed: failed.length,
+      durationMs: Date.now() - startTs.unix,
+    });
+    return { dispatched, completed, failed };
+  }
+
+  /** Infer a skill string from an action text (heuristic; future: ML classification) */
+  private inferSkillFromAction(action: string): string | null {
+    const l = action.toLowerCase();
+    if (l.includes('optimiz') || l.includes('refactor') || l.includes('code')) return 'development';
+    if (l.includes('document') || l.includes('write')) return 'documentation';
+    if (l.includes('analyz') || l.includes('analysis')) return 'analysis';
+    return 'general';
+  }
+
+  /** Ensure we have message listeners attached once for handling agent completion events */
+  private ensureListeners(): void {
+    if (this.listenersAttached) return;
+    this.comm.on('message_sent', (payload: unknown) => {
+      try {
+        const msgWrap = payload as { message?: { message?: string } };
+        const text = msgWrap?.message?.message;
+        if (!text) return;
+        let parsed: Record<string, unknown> | null = null;
+        if (/^{/.test(text.trim())) {
+          try {
+            parsed = JSON.parse(text);
+          } catch {
+            /* ignore */
+          }
+        }
+        // Support structured AgentExecutionResult if present
+        let taskId: string | null = null;
+        let status: string | undefined;
+        if (parsed && isAgentExecutionResult(parsed)) {
+          taskId = parsed.taskId;
+          status = parsed.status;
+        } else {
+          taskId = (parsed?.taskId as string | undefined) || this.extractTaskIdFromText(text);
+          status =
+            (parsed?.status as string | undefined) ||
+            (typeof parsed?.result === 'string' ? (parsed.result as string) : undefined);
+        }
+        if (!taskId || !this.pendingTasks.has(taskId)) return;
+        const terminal =
+          status === 'completed' ||
+          /TASK_COMPLETE/i.test(text) ||
+          status === 'failed' ||
+          /TASK_FAILED/i.test(text);
+        if (!terminal) return;
+        // Mark execution result
+        (async () => {
+          const { taskDelegationService } = await import('../../services/TaskDelegationService');
+          const success = status === 'completed' || /TASK_COMPLETE/i.test(text);
+          const start = this.dispatchStartTimes.get(taskId);
+          const durationMs = start ? Math.max(0, Date.now() - start) : undefined;
+          if (success) {
+            taskDelegationService.markExecutionResult(
+              taskId,
+              true,
+              undefined,
+              undefined,
+              durationMs,
+            );
+          } else {
+            taskDelegationService.markExecutionResult(
+              taskId,
+              false,
+              'agent_report_failure',
+              'Agent reported failure',
+              durationMs,
+            );
+          }
+          const entry = this.pendingTasks.get(taskId)!;
+          entry.resolve(success);
+          // Emit operation_metrics_snapshot (task_execution aggregate) after each terminal result
+          try {
+            const { unifiedMonitoringService } = await import(
+              '../../monitoring/UnifiedMonitoringService'
+            );
+            const perf = unifiedMonitoringService.getPerformanceMonitor();
+            if (perf && typeof perf.getDetailedMetrics === 'function') {
+              const snap = await perf.getDetailedMetrics('TaskDelegation.execute');
+              this.lastOperationMetricsSnapshot = snap as unknown as Record<string, unknown>;
+              await this.comm.broadcastMessage({
+                sessionId: 'orchestrator-metrics',
+                fromAgent: 'orchestrator',
+                content: JSON.stringify({
+                  type: 'operation_metrics_snapshot',
+                  operation: 'TaskDelegation.execute',
+                  snapshot: snap,
+                  timestamp: createUnifiedTimestamp().iso,
+                }),
+                messageType: 'update',
+                metadata: { orchestrator: true, metrics: true },
+              });
+            }
+          } catch {
+            /* ignore metrics snapshot errors */
+          }
+        })();
+        this.pendingTasks.delete(taskId);
+        this.dispatchStartTimes.delete(taskId);
+      } catch {
+        /* ignore listener errors */
+      }
+    });
+    this.listenersAttached = true;
+  }
+
+  /** Retrieve the last operation metrics snapshot (best-effort, may be null if none broadcast yet). */
+  getLatestOperationMetricsSnapshot(): Record<string, unknown> | null {
+    return this.lastOperationMetricsSnapshot ? { ...this.lastOperationMetricsSnapshot } : null;
+  }
+
+  /** Extract TASK_ID from raw instruction echo or agent reply */
+  private extractTaskIdFromText(text: string): string | null {
+    const m = text.match(/TASK_ID[:=]\s*([a-zA-Z0-9_-]+)/);
+    return m ? m[1] : null;
+  }
+
+  /** Simulate agent execution asynchronously (used until real agent active execution pipeline implemented) */
+  private async simulateAgentExecution(
+    agentId: string,
+    taskId: string,
+    sessionId: string,
+  ): Promise<void> {
+    const delay = parseInt(process.env.ONEAGENT_SIMULATED_AGENT_DELAY_MS || '120', 10);
+    await new Promise((r) => setTimeout(r, delay));
+    try {
+      await this.comm.sendMessage({
+        sessionId,
+        fromAgent: agentId,
+        toAgent: 'orchestrator',
+        // Use canonical AgentExecutionResult shape. messageType must be one of allowed backbone enums.
+        content: JSON.stringify({
+          taskId,
+          status: 'completed',
+          agentId,
+          type: 'agent_execution_result',
+        }),
+        messageType: 'action', // 'action_result' was rejected by type system; using 'action'
+        metadata: { simulated: true },
+      });
+    } catch {
+      // ignore
+    }
+  }
+
+  /** Broadcast a mission progress update summarizing plan progress (messageType: 'update') */
+  private async broadcastMissionUpdate(sessionId: string): Promise<void> {
+    try {
+      const { taskDelegationService } = await import('../../services/TaskDelegationService');
+      const all = taskDelegationService.getAllTasks();
+      const dispatched = all.filter((t) => t.status === 'dispatched').length;
+      const completed = all.filter((t) => t.status === 'completed').length;
+      const failed = all.filter((t) => t.status === 'failed').length;
+      const content = JSON.stringify({
+        type: 'mission_progress',
+        plan: { dispatched, completed, failed, total: all.length },
+        timestamp: createUnifiedTimestamp().iso,
+        orchestratorId: this.orchestratorId,
+      });
+      await this.comm.broadcastMessage({
+        sessionId,
+        fromAgent: 'orchestrator',
+        content,
+        messageType: 'update',
+        metadata: { orchestrator: true, progress: true },
+      });
+    } catch {
+      /* ignore */
+    }
   }
 
   /**
@@ -47,6 +412,39 @@ export class HybridAgentOrchestrator {
       HybridAgentOrchestrator.instance = new HybridAgentOrchestrator();
     }
     return HybridAgentOrchestrator.instance;
+  }
+
+  /** Start background scheduler to periodically invoke processDueRequeues (idempotent). */
+  private maybeStartRequeueScheduler(): void {
+    if (this.requeueScheduler) return; // already running
+    const intervalMs = parseInt(process.env.ONEAGENT_REQUEUE_SCHEDULER_INTERVAL_MS || '0', 10);
+    if (!intervalMs || intervalMs < 1000) return; // disabled unless >=1s
+    try {
+      this.requeueScheduler = setInterval(async () => {
+        try {
+          const { taskDelegationService } = await import('../../services/TaskDelegationService');
+          const requeued = taskDelegationService.processDueRequeues(Date.now());
+          if (requeued.length) {
+            await this.logOperation('requeue_scheduler_wave', {
+              count: requeued.length,
+              taskIds: requeued.slice(0, 5),
+            });
+          }
+        } catch {
+          /* ignore */
+        }
+      }, intervalMs).unref?.();
+    } catch {
+      /* ignore scheduler startup errors */
+    }
+  }
+
+  /** Stop background requeue scheduler (used in tests / graceful shutdown). */
+  stopRequeueScheduler(): void {
+    if (this.requeueScheduler) {
+      clearInterval(this.requeueScheduler);
+      this.requeueScheduler = null;
+    }
   }
 
   /**

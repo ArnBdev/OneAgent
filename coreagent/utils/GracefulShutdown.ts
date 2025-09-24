@@ -95,6 +95,19 @@ export class GracefulShutdownManager {
         this.logger.debug?.('Performance monitor stop error (non-fatal):', e);
       }
 
+      // Orchestrator background schedulers (e.g., requeue scheduler)
+      try {
+        const orchMod = await import('../agents/orchestration/HybridAgentOrchestrator');
+        type MaybeOrch = {
+          HybridAgentOrchestrator?: { getInstance: () => { stopRequeueScheduler?: () => void } };
+        };
+        const maybeOrch: MaybeOrch = orchMod as MaybeOrch;
+        const orch = maybeOrch.HybridAgentOrchestrator?.getInstance();
+        orch?.stopRequeueScheduler?.();
+      } catch (e) {
+        this.logger.debug?.('Orchestrator scheduler stop error (non-fatal):', e);
+      }
+
       // Await tasks with timeout
       await Promise.race([
         Promise.allSettled(tasks),

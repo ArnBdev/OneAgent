@@ -35,7 +35,12 @@ Returner kun ren, uformatert .tsx-kode, uten noen form for innpakning eller mark
   }
 
   async processMessage(context: AgentContext, message: string): Promise<AgentResponse> {
-    return (await this.executeAction('generate_ui', { prompt: message }, context)) as AgentResponse;
+    const resp = (await this.executeAction(
+      'generate_ui',
+      { prompt: message },
+      context,
+    )) as AgentResponse;
+    return await this.finalizeResponseWithTaskDetection(message, resp);
   }
 
   getAvailableActions(): AgentAction[] {

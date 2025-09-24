@@ -1,3 +1,38 @@
+// Minimal inline jest-like globals fallback to allow standalone execution via ts-node
+if (!(globalThis as any).describe) {
+  type TestFn = () => Promise<void> | void;
+  const tests: Array<{ name: string; fn: TestFn }> = [];
+  (globalThis as any).describe = (_name: string, fn: () => void) => fn();
+  (globalThis as any).it = (name: string, fn: TestFn) => tests.push({ name, fn });
+  (globalThis as any).test = (name: string, fn: TestFn) => tests.push({ name, fn });
+  (globalThis as any).jest = { setTimeout: (_ms: number) => {} };
+  (globalThis as any).expect = (received: any) => ({
+    toBeGreaterThanOrEqual: (min: number) => {
+      if (!(received >= min)) throw new Error(`Expected ${received} >= ${min}`);
+    },
+    toBeTruthy: () => {
+      if (!received) throw new Error('Expected value to be truthy');
+    },
+    toContain: (v: unknown) => {
+      if (!Array.isArray(received) || !received.includes(v))
+        throw new Error('Expected array to contain value');
+    },
+  });
+  // Auto-run queued tests at end of tick
+  queueMicrotask(async () => {
+    let failures = 0;
+    for (const t of tests) {
+      try {
+        await t.fn();
+        console.log(`✔ ${t.name}`);
+      } catch (e) {
+        failures++;
+        console.error(`✖ ${t.name}:`, e);
+      }
+    }
+    if (failures > 0) process.exitCode = 1;
+  });
+}
 process.env.ONEAGENT_FAST_TEST_MODE = '1';
 
 describe('A2A events smoke', () => {

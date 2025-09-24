@@ -150,11 +150,12 @@ export class OfficeAgent extends BaseAgent implements ISpecializedAgent {
     this.validateContext(context);
     // Example: implement actual office logic here, e.g., document creation, scheduling, etc.
     // For now, just return a placeholder response.
-    return {
+    const base: OfficeAgentResponse = {
       content: `OfficeAgent received: ${message}`,
       tasks: [],
       documents: [],
       suggestions: [],
     };
+    return (await this.finalizeResponseWithTaskDetection(message, base)) as OfficeAgentResponse;
   }
 }

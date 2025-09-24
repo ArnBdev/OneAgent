@@ -198,7 +198,10 @@ Subscribe to channels after opening a WebSocket to `/ws/mission-control`:
 Start a mission (send as normal client message):
 
 ```json
-{ "type": "mission_start", "command": "/mission { \n  \"objective\": \"Generate project initialization plan\"\n}" }
+{
+  "type": "mission_start",
+  "command": "/mission { \n  \"objective\": \"Generate project initialization plan\"\n}"
+}
 ```
 
 Receive lifecycle frames (example abbreviated):
@@ -221,13 +224,26 @@ Cancel a mission:
 Stats snapshot (emitted immediately + interval):
 
 ```json
-{ "type": "mission_stats", "payload": { "active": 1, "completed": 3, "cancelled": 0, "errors": 0, "avgDurationMs": 542, "snapshotId": "op_..." }}
+{
+  "type": "mission_stats",
+  "payload": {
+    "active": 1,
+    "completed": 3,
+    "cancelled": 0,
+    "errors": 0,
+    "avgDurationMs": 542,
+    "snapshotId": "op_..."
+  }
+}
 ```
 
 TypeScript guard usage (generated):
 
 ```ts
-import { isMissionUpdate, isMissionStats } from './coreagent/server/mission-control/generated/mission-control-message-types';
+import {
+  isMissionUpdate,
+  isMissionStats,
+} from './coreagent/server/mission-control/generated/mission-control-message-types';
 
 function handle(msg: unknown) {
   if (isMissionUpdate(msg)) {
@@ -280,13 +296,13 @@ function handle(msg: unknown) {
 
 Upcoming Prometheus derivations (no parallel store):
 
-| Gauge / Counter | Description | Source |
-| --------------- | ----------- | ------ |
-| `oneagent_mission_active` | Current active missions | Mission registry snapshot |
-| `oneagent_mission_completed_total` | Total completed missions since process start | Registry terminal counts |
-| `oneagent_mission_cancelled_total` | Total cancelled missions | Registry terminal counts |
-| `oneagent_mission_error_total` | Total errored missions | Registry terminal counts |
-| `oneagent_mission_avg_duration_ms` | Rolling average completion duration | Computed per snapshot |
+| Gauge / Counter                    | Description                                  | Source                    |
+| ---------------------------------- | -------------------------------------------- | ------------------------- |
+| `oneagent_mission_active`          | Current active missions                      | Mission registry snapshot |
+| `oneagent_mission_completed_total` | Total completed missions since process start | Registry terminal counts  |
+| `oneagent_mission_cancelled_total` | Total cancelled missions                     | Registry terminal counts  |
+| `oneagent_mission_error_total`     | Total errored missions                       | Registry terminal counts  |
+| `oneagent_mission_avg_duration_ms` | Rolling average completion duration          | Computed per snapshot     |
 
 All will be derived on scrape from the registry to maintain single-source state.
 

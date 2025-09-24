@@ -5,6 +5,12 @@ import { unifiedMonitoringService } from '../monitoring/UnifiedMonitoringService
 export interface DelegatedTask {
   id: string;
   createdAt: string;
+  /** ISO timestamp when task was dispatched to an agent (set when status -> dispatched) */
+  dispatchedAt?: string;
+  /** ISO timestamp when task reached terminal state (completed|failed) */
+  completedAt?: string;
+  /** Duration in ms between dispatch and completion (computed when completed) */
+  durationMs?: number;
   source: 'proactive_analysis';
   finding: string;
   action: string;
@@ -118,6 +124,7 @@ export class TaskDelegationService {
     if (!task) return undefined;
     if (task.status === 'queued') {
       task.status = 'dispatched';
+      task.dispatchedAt = createUnifiedTimestamp().iso;
       unifiedMonitoringService.trackOperation('TaskDelegation', 'dispatch_mark', 'success', {
         taskId,
         targetAgent: task.targetAgent || 'unassigned',
@@ -173,21 +180,46 @@ export class TaskDelegationService {
       task.status = 'completed';
       task.lastErrorCode = undefined;
       task.lastErrorMessage = undefined;
-      unifiedMonitoringService.trackOperation('TaskDelegation', 'execute', 'success', {
-        taskId: task.id,
-        targetAgent: task.targetAgent || 'unassigned',
-        ...(typeof durationMs === 'number' ? { durationMs } : {}),
-      });
+      task.completedAt = createUnifiedTimestamp().iso;
     } else {
       task.status = 'failed';
       task.lastErrorCode = errorCode || 'execution_error';
       task.lastErrorMessage = errorMessage;
+      task.completedAt = createUnifiedTimestamp().iso;
+    }
+    // Derive or assign duration
+    if (typeof durationMs === 'number') {
+      task.durationMs = durationMs;
+    } else if (typeof task.durationMs !== 'number' && task.dispatchedAt && task.completedAt) {
+      try {
+        const d = Date.parse(task.completedAt) - Date.parse(task.dispatchedAt);
+        if (isFinite(d) && d >= 0) task.durationMs = d;
+      } catch {
+        /* ignore parse errors */
+      }
+    }
+    const opMeta: Record<string, unknown> = {
+      taskId: task.id,
+      targetAgent: task.targetAgent || 'unassigned',
+      ...(typeof task.durationMs === 'number' ? { durationMs: task.durationMs } : {}),
+    };
+    if (success) {
+      unifiedMonitoringService.trackOperation('TaskDelegation', 'execute', 'success', opMeta);
+    } else {
       unifiedMonitoringService.trackOperation('TaskDelegation', 'execute', 'error', {
-        taskId: task.id,
-        targetAgent: task.targetAgent || 'unassigned',
+        ...opMeta,
         errorCode: task.lastErrorCode,
-        ...(typeof durationMs === 'number' ? { durationMs } : {}),
       });
+    }
+    // Specialized latency feed using compound operation id to disambiguate from any other generic 'execute' operations.
+    // This does NOT introduce a parallel metrics store; it reuses the canonical PerformanceMonitor with a distinct key.
+    try {
+      if (typeof task.durationMs === 'number') {
+        const perf = unifiedMonitoringService.getPerformanceMonitor();
+        perf.recordDurationFromEvent('TaskDelegation.execute', task.durationMs);
+      }
+    } catch {
+      /* non-fatal */
     }
     this.persistTaskMemory(task, true).catch(() => {});
     this.maybePersistSnapshot();
@@ -230,6 +262,34 @@ export class TaskDelegationService {
       lastErrorCode: task.lastErrorCode,
     });
     return task;
+  }
+
+  /**
+   * Process requeue eligibility for all failed tasks whose nextAttemptUnix has passed.
+   * Returns list of taskIds requeued. Designed to be invoked by orchestrator scheduler (future) or tests.
+   */
+  processDueRequeues(nowUnix: number = Date.now()): string[] {
+    const requeued: string[] = [];
+    for (const t of this.queue) {
+      if (
+        t.status === 'failed' &&
+        typeof t.nextAttemptUnix === 'number' &&
+        t.nextAttemptUnix <= nowUnix
+      ) {
+        const beforeAttempts = t.attempts || 0;
+        const updated = this.maybeRequeue(t.id);
+        if (updated && updated.status === 'queued' && (updated.attempts || 0) > beforeAttempts) {
+          requeued.push(updated.id);
+        }
+      }
+    }
+    if (requeued.length) {
+      // Aggregated wave metric (single event per sweep for observability, low cardinality)
+      unifiedMonitoringService.trackOperation('TaskDelegation', 'requeue_wave', 'success', {
+        count: requeued.length,
+      });
+    }
+    return requeued;
   }
 
   /** Mark dispatch failure before execution (e.g., no target agent). */

@@ -76,7 +76,7 @@ export class CoreAgent extends BaseAgent implements ISpecializedAgent {
       },
     );
 
-    return {
+    const base = {
       content: response,
       actions: [],
       memories: [],
@@ -87,6 +87,7 @@ export class CoreAgent extends BaseAgent implements ISpecializedAgent {
         isRealAgent: true,
       },
     };
+    return (await this.finalizeResponseWithTaskDetection(message, base)) as CoreAgentResponse;
   }
 
   /**

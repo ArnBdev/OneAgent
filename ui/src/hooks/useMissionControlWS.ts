@@ -138,7 +138,7 @@ export function useMissionControlWS(options: UseMissionControlOptions = {}): Use
         setLastError(e instanceof Error ? e.message : 'Connection error');
       }
     },
-    [url, options.onMessage, options.onOpen, options.onClose, options.onError],
+    [url, options],
   );
 
   const disconnect = useCallback(() => {

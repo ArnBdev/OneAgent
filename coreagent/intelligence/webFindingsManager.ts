@@ -25,6 +25,9 @@ export class WebFindingsManager {
   private memoryIntelligence: MemoryIntelligence | undefined;
   private cacheSystem = OneAgentUnifiedBackbone.getInstance().cache;
   private memoryClient: IMemoryClient | undefined;
+  // Allow disabling module-local map caches in favor of canonical unified cache only
+  private readonly localCacheDisabled: boolean =
+    process.env.ONEAGENT_WEBFINDINGS_DISABLE_LOCAL_CACHE === '1';
 
   // In-memory caches
   private searchCache = new Map<string, WebSearchFinding>();
@@ -137,14 +140,25 @@ export class WebFindingsManager {
         this.stats.persistedFindings++;
       }
 
-      // Cache the finding
+      // Cache the finding (canonical unified cache first, then optional local map)
       if (this.config.storage.enableCaching) {
-        this.searchCache.set(finding.id, finding);
-        finding.storage.cached = true;
+        try {
+          const ttl = finding.storage.ttl ?? this.config.storage.defaultTTL;
+          const queryHash = this.hashQuery(query);
+          await this.cacheSystem.set(this.buildSearchIdKey(finding.id), finding, ttl);
+          await this.cacheSystem.set(this.buildQueryKey(queryHash), finding, ttl);
+        } catch (e) {
+          // Best-effort cache; do not fail the operation
+          console.warn('⚠️ Unified cache set failed for search finding (non-fatal):', e);
+        }
 
-        // Also cache by query hash for quick lookup
-        const queryHash = this.hashQuery(query);
-        this.searchCache.set(queryHash, finding);
+        if (!this.localCacheDisabled) {
+          this.searchCache.set(finding.id, finding);
+          // Also cache by query hash for quick lookup
+          const queryHash = this.hashQuery(query);
+          this.searchCache.set(queryHash, finding);
+        }
+        finding.storage.cached = true;
       }
 
       // Save to persistent storage if enabled
@@ -222,14 +236,24 @@ export class WebFindingsManager {
         this.stats.persistedFindings++;
       }
 
-      // Cache the finding
+      // Cache the finding (canonical unified cache first, then optional local map)
       if (this.config.storage.enableCaching) {
-        this.fetchCache.set(finding.id, finding);
-        finding.storage.cached = true;
+        try {
+          const ttl = finding.storage.ttl ?? this.config.storage.defaultTTL;
+          const urlHash = this.hashUrl(url);
+          await this.cacheSystem.set(this.buildFetchIdKey(finding.id), finding, ttl);
+          await this.cacheSystem.set(this.buildUrlKey(urlHash), finding, ttl);
+        } catch (e) {
+          console.warn('⚠️ Unified cache set failed for fetch finding (non-fatal):', e);
+        }
 
-        // Also cache by URL hash for quick lookup
-        const urlHash = this.hashUrl(url);
-        this.fetchCache.set(urlHash, finding);
+        if (!this.localCacheDisabled) {
+          this.fetchCache.set(finding.id, finding);
+          // Also cache by URL hash for quick lookup
+          const urlHash = this.hashUrl(url);
+          this.fetchCache.set(urlHash, finding);
+        }
+        finding.storage.cached = true;
       }
 
       // Save to persistent storage if enabled
@@ -639,18 +663,56 @@ export class WebFindingsManager {
     options: FindingsSearchOptions,
   ): Promise<(WebSearchFinding | WebFetchFinding)[]> {
     const findings: (WebSearchFinding | WebFetchFinding)[] = [];
+    const seen = new Set<string>();
 
-    // Search in search cache
-    for (const finding of Array.from(this.searchCache.values())) {
-      if (this.matchesSearchOptions(finding, options)) {
-        findings.push(finding);
+    // Prefer unified cache direct lookups when query provided
+    if (this.config.storage.enableCaching && options.query) {
+      try {
+        const q = options.query.trim();
+        const queryHash = this.hashQuery(q);
+        const byQuery = (await this.cacheSystem.get(
+          this.buildQueryKey(queryHash),
+        )) as (WebSearchFinding | WebFetchFinding | null);
+        if (byQuery && this.matchesSearchOptions(byQuery, options)) {
+          findings.push(byQuery);
+          seen.add(byQuery.id);
+          this.stats.cacheHits++;
+        }
+
+        // If the query looks like a URL, also try URL-hash key
+        if (/^https?:\/\//i.test(q) || /\w+\.[a-z]{2,}/i.test(q)) {
+          const urlHash = this.hashUrl(q);
+          const byUrl = (await this.cacheSystem.get(
+            this.buildUrlKey(urlHash),
+          )) as (WebSearchFinding | WebFetchFinding | null);
+          if (byUrl && !seen.has(byUrl.id) && this.matchesSearchOptions(byUrl, options)) {
+            findings.push(byUrl);
+            seen.add(byUrl.id);
+            this.stats.cacheHits++;
+          }
+        }
+      } catch (e) {
+        // Best-effort; fallback to local scan
+        console.warn('⚠️ Unified cache query failed during searchInCache (non-fatal):', e);
+        this.stats.cacheMisses++;
       }
     }
 
-    // Search in fetch cache
-    for (const finding of Array.from(this.fetchCache.values())) {
-      if (this.matchesSearchOptions(finding, options)) {
-        findings.push(finding);
+    if (!this.localCacheDisabled) {
+      // Scan local in-memory maps as a fast, ephemeral index
+      for (const finding of Array.from(this.searchCache.values())) {
+        if (!seen.has(finding.id) && this.matchesSearchOptions(finding, options)) {
+          findings.push(finding);
+          seen.add(finding.id);
+          this.stats.cacheHits++;
+        }
+      }
+      for (const finding of Array.from(this.fetchCache.values())) {
+        if (!seen.has(finding.id) && this.matchesSearchOptions(finding, options)) {
+          findings.push(finding);
+          seen.add(finding.id);
+          this.stats.cacheHits++;
+        }
       }
     }
 
@@ -905,6 +967,11 @@ export class WebFindingsManager {
     let lowImportance = 0;
     const now = createUnifiedTimestamp();
 
+    if (this.localCacheDisabled) {
+      // Unified cache handles TTL expiry internally; nothing to do locally
+      return { expired: 0, lowImportance: 0 };
+    }
+
     // Clean search cache
     for (const [key, finding] of Array.from(this.searchCache.entries())) {
       const age = new Date(now.iso).getTime() - new Date(finding.storage.lastAccessed).getTime();
@@ -1034,5 +1101,19 @@ export class WebFindingsManager {
       // If URL parsing fails, return the URL as-is
       return url;
     }
+  }
+
+  // Unified cache key helpers
+  private buildSearchIdKey(id: string): string {
+    return `webfindings:search:id:${id}`;
+  }
+  private buildFetchIdKey(id: string): string {
+    return `webfindings:fetch:id:${id}`;
+  }
+  private buildQueryKey(queryHash: string): string {
+    return `webfindings:q:${queryHash}`;
+  }
+  private buildUrlKey(urlHash: string): string {
+    return `webfindings:u:${urlHash}`;
   }
 }

@@ -78,6 +78,23 @@ export function createMetricsRouter(): Router {
     try {
       // Escape helper declared once per handler
       const esc = (v: string) => v.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
+      // Mission registry derived snapshot (no persistent counters)
+      let missionSnapshot: {
+        active: number;
+        completed: number;
+        cancelled: number;
+        errors: number;
+        avgDurationMs: number | null;
+        total: number;
+      } | null = null;
+      try {
+        const { getMissionStatsSnapshot } = await import(
+          '../server/mission-control/missionRegistry'
+        );
+        missionSnapshot = getMissionStatsSnapshot();
+      } catch {
+        missionSnapshot = null; // mission control may be disabled in some contexts
+      }
       const stats = metricsService.getStats();
       const windowMs = Math.min(
         60 * 60 * 1000,
@@ -116,6 +133,37 @@ export function createMetricsRouter(): Router {
         );
         lines.push('# TYPE oneagent_metrics_latency_p99_ms gauge');
         lines.push(`oneagent_metrics_latency_p99_ms ${stats.latency.p99}`);
+      }
+      // Mission metrics (gauges) if snapshot available
+      if (missionSnapshot) {
+        lines.push('# HELP oneagent_mission_active Active (non-terminal) missions');
+        lines.push('# TYPE oneagent_mission_active gauge');
+        lines.push(`oneagent_mission_active ${missionSnapshot.active}`);
+        lines.push('# HELP oneagent_mission_completed Completed missions');
+        lines.push('# TYPE oneagent_mission_completed gauge');
+        lines.push(`oneagent_mission_completed ${missionSnapshot.completed}`);
+        lines.push('# HELP oneagent_mission_cancelled Cancelled missions');
+        lines.push('# TYPE oneagent_mission_cancelled gauge');
+        lines.push(`oneagent_mission_cancelled ${missionSnapshot.cancelled}`);
+        lines.push('# HELP oneagent_mission_errors Error (failed) missions');
+        lines.push('# TYPE oneagent_mission_errors gauge');
+        lines.push(`oneagent_mission_errors ${missionSnapshot.errors}`);
+        lines.push('# HELP oneagent_mission_total Total missions tracked (terminal + active)');
+        lines.push('# TYPE oneagent_mission_total gauge');
+        lines.push(`oneagent_mission_total ${missionSnapshot.total}`);
+        lines.push(
+          '# HELP oneagent_mission_avg_duration_ms Average duration (ms) for terminal missions',
+        );
+        lines.push('# TYPE oneagent_mission_avg_duration_ms gauge');
+        lines.push(
+          `oneagent_mission_avg_duration_ms ${missionSnapshot.avgDurationMs === null ? '0' : missionSnapshot.avgDurationMs}`,
+        );
+        const denom =
+          missionSnapshot.completed + missionSnapshot.cancelled + missionSnapshot.errors;
+        const errorRate = denom > 0 ? missionSnapshot.errors / denom : 0;
+        lines.push('# HELP oneagent_mission_error_rate Error rate among terminal missions (0-1)');
+        lines.push('# TYPE oneagent_mission_error_rate gauge');
+        lines.push(`oneagent_mission_error_rate ${errorRate.toFixed(6)}`);
       }
       // SLO targets exposition (static gauges per operation objective) + derived error budget burn
       try {
@@ -310,7 +358,9 @@ export function createMetricsRouter(): Router {
         if (perf && typeof perf.getRecordedOperations === 'function') {
           const recorded = perf.getRecordedOperations();
           // allowlist filter
-          extendedOps = recorded.filter((op) => op === 'execute');
+          extendedOps = recorded.filter(
+            (op) => op === 'execute' || op === 'TaskDelegation.execute',
+          );
         }
       } catch {
         // ignore extension failures

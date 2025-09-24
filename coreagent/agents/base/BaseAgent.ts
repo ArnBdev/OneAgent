@@ -118,6 +118,16 @@ export abstract class BaseAgent {
   // Background knowledge extraction (optional, feature-flagged)
   private knowledgeExtractor?: KnowledgeExtractor;
 
+  // =============================================================
+  // Asynchronous Task Completion Emission (AgentExecutionResult)
+  // =============================================================
+  // Tracks taskIds already emitted by this agent to ensure idempotency.
+  private emittedTaskCompletions: Set<string> = new Set();
+  // Regex used to detect delegated task identifiers embedded in orchestrator instructions.
+  private static readonly TASK_ID_REGEX = /TASK_ID[:=]\s*([a-zA-Z0-9_-]+)/i;
+  // Map of taskId to sessionId for accurate emission context
+  private taskSessionMap: Map<string, string> = new Map();
+
   // Canonical agent communication handled via UnifiedBackboneService only.
   protected currentSessions: Set<string> = new Set();
 
@@ -1315,16 +1325,23 @@ export abstract class BaseAgent {
    */
   async processMessage(context: AgentContext, message: string): Promise<AgentResponse> {
     this.validateContext(context);
+    // Capture mapping of taskId->sessionId if present in inbound message
+    const earlyTaskId = this.detectTaskId(message);
+    if (earlyTaskId && !this.taskSessionMap.has(earlyTaskId)) {
+      this.taskSessionMap.set(earlyTaskId, context.sessionId);
+    }
     // Enhanced path: use prompt engine + constitutional loop if configured
     if (this.promptEngine && this.constitutionalAI) {
-      return await this.generateWithConstitutionalLoop(context, message);
+      const resp = await this.generateWithConstitutionalLoop(context, message);
+      return await this.finalizeResponseWithTaskDetection(message, resp);
     }
     // Fallback legacy path
     const search = await this.searchMemories(context.user.id, message);
     const memories = search.result.results;
     const response = await this.generateResponse(message, memories);
     await this.addMemory(context.user.id, `User: ${message}\nAgent: ${response}`);
-    return this.createResponse(response, [], memories);
+    const baseResp = this.createResponse(response, [], memories);
+    return await this.finalizeResponseWithTaskDetection(message, baseResp);
   }
 
   /**
@@ -1415,5 +1432,96 @@ export abstract class BaseAgent {
       );
     }
     return this.unifiedContext;
+  }
+
+  // =============================================================
+  // Task Completion Emission Helpers
+  // =============================================================
+  /** Detect a TASK_ID token within an inbound message. */
+  protected detectTaskId(raw: string): string | null {
+    if (!raw) return null;
+    const m = raw.match(BaseAgent.TASK_ID_REGEX);
+    return m ? m[1] : null;
+  }
+
+  /** Emit a structured AgentExecutionResult completion for a given taskId (idempotent). */
+  protected async emitTaskCompletion(
+    taskId: string,
+    status: 'completed' | 'failed',
+    details?: {
+      result?: unknown;
+      errorCode?: string;
+      errorMessage?: string;
+      meta?: Record<string, unknown>;
+    },
+  ): Promise<void> {
+    if (!taskId) return;
+    if (this.emittedTaskCompletions.has(taskId)) return; // idempotency guard
+    this.emittedTaskCompletions.add(taskId);
+    try {
+      const ts = createUnifiedTimestamp().iso;
+      const payload = {
+        taskId,
+        status,
+        agentId: this.config.id,
+        timestamp: ts,
+        ...(details?.result !== undefined ? { result: this.serializeResult(details.result) } : {}),
+        ...(details?.errorCode ? { errorCode: details.errorCode } : {}),
+        ...(details?.errorMessage ? { errorMessage: details.errorMessage } : {}),
+        ...(details?.meta ? { meta: details.meta } : {}),
+      };
+      const sessionId = this.taskSessionMap.get(taskId) || 'plan-session';
+      await this.comm.sendMessage({
+        sessionId,
+        fromAgent: this.config.id as AgentId,
+        toAgent: 'orchestrator',
+        content: JSON.stringify(payload),
+        messageType: 'action',
+        metadata: { agentExecutionResult: true, emitted: true },
+      });
+    } catch (err) {
+      // Swallow to avoid disrupting agent normal response path
+      console.warn(
+        `[BaseAgent:${this.config.id}] Failed emitting task completion for ${taskId}:`,
+        err,
+      );
+    }
+  }
+
+  /** Convenience failure emission helper for specialized agents */
+  protected async emitTaskFailure(
+    taskId: string,
+    errorCode: string,
+    errorMessage: string,
+    meta?: Record<string, unknown>,
+  ): Promise<void> {
+    await this.emitTaskCompletion(taskId, 'failed', { errorCode, errorMessage, meta });
+  }
+
+  /** Serialize arbitrary result safely to a string (avoid circular structures). */
+  private serializeResult(result: unknown): string {
+    if (typeof result === 'string') return result;
+    try {
+      return JSON.stringify(result);
+    } catch {
+      return String(result);
+    }
+  }
+
+  /** Attach post-processing to emit completion if a taskId is detected. */
+  protected async finalizeResponseWithTaskDetection(
+    originalMessage: string,
+    agentResponse: AgentResponse,
+  ): Promise<AgentResponse> {
+    try {
+      const taskId = this.detectTaskId(originalMessage);
+      if (taskId) {
+        await this.emitTaskCompletion(taskId, 'completed', { result: agentResponse.content });
+      }
+    } catch (err) {
+      // Do not disrupt original response on emission issues
+      console.warn(`[BaseAgent:${this.config.id}] finalizeResponseWithTaskDetection warning:`, err);
+    }
+    return agentResponse;
   }
 }
