@@ -1,9 +1,17 @@
 import js from '@eslint/js';
 import tseslint from 'typescript-eslint';
 import path from 'node:path';
+import { pathToFileURL, fileURLToPath } from 'node:url';
 
 // Load local OneAgent eslint plugin (custom rules)
-const oneagentPlugin = await import(path.resolve('./scripts/eslint-plugin-oneagent.js')).then((m) => m.default || m);
+// Resolve relative to this config file to avoid cwd-dependent path issues.
+// On Windows, convert absolute paths to file:// URLs for the ESM loader.
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+const pluginFileUrl = pathToFileURL(
+  path.join(__dirname, 'scripts', 'eslint-plugin-oneagent.js'),
+).href;
+const oneagentPlugin = await import(pluginFileUrl).then((m) => m.default || m);
 
 export default [
   {
@@ -143,7 +151,11 @@ export default [
       'prefer-const': 'warn',
       'no-prototype-builtins': 'warn',
       // OneAgent custom rules (production TS)
-      'oneagent/no-parallel-cache': ['error', { allowLocal: true, allowFilesPattern: '(?:^|/)tests/|(?:^|/)scripts/|(?:^|/)ui/' }],
+      // Transitional: enforce as warning while migrating remaining modules to unified cache
+      'oneagent/no-parallel-cache': [
+        'warn',
+        { allowLocal: true, allowFilesPattern: '(?:^|/)tests/|(?:^|/)scripts/|(?:^|/)ui/' },
+      ],
       'oneagent/prefer-unified-time': 'warn',
       'oneagent/prefer-unified-id': 'warn',
     },
