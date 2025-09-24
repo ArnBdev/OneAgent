@@ -1,5 +1,9 @@
 import js from '@eslint/js';
 import tseslint from 'typescript-eslint';
+import path from 'node:path';
+
+// Load local OneAgent eslint plugin (custom rules)
+const oneagentPlugin = await import(path.resolve('./scripts/eslint-plugin-oneagent.js')).then((m) => m.default || m);
 
 export default [
   {
@@ -138,6 +142,13 @@ export default [
       'no-case-declarations': 'warn',
       'prefer-const': 'warn',
       'no-prototype-builtins': 'warn',
+      // OneAgent custom rules (production TS)
+      'oneagent/no-parallel-cache': ['error', { allowLocal: true, allowFilesPattern: '(?:^|/)tests/|(?:^|/)scripts/|(?:^|/)ui/' }],
+      'oneagent/prefer-unified-time': 'warn',
+      'oneagent/prefer-unified-id': 'warn',
+    },
+    plugins: {
+      oneagent: oneagentPlugin,
     },
   },
   // Loosen some rules in tests to reduce noise while we focus on canonical consolidation
@@ -150,6 +161,13 @@ export default [
       // Prevent tests from calling process.exit() which can kill CI runners
       // Warn on process.exit usage in tests; prevent CI hard failures until tests are updated
       'no-process-exit': 'warn',
+      // Relax OneAgent custom rules in tests
+      'oneagent/no-parallel-cache': 'off',
+      'oneagent/prefer-unified-time': 'off',
+      'oneagent/prefer-unified-id': 'off',
+    },
+    plugins: {
+      oneagent: oneagentPlugin,
     },
   },
   // Per-file override to suppress stale monorepo lint warnings on this extension utility file
