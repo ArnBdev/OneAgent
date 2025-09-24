@@ -118,6 +118,14 @@ Canonical caching policy:
 - Web findings caching (search + fetch) now writes through the unified cache with per-item TTL, with optional local in-memory maps used only as ephemeral indices. Set `ONEAGENT_WEBFINDINGS_DISABLE_LOCAL_CACHE=1` to disable the local map layer entirely and rely solely on the unified cache.
 - Web findings also employ a short negative cache for “no-result” queries to reduce repeated empty scans; tune via `ONEAGENT_WEBFINDINGS_NEG_TTL_MS`.
 
+Static enforcement (lint rules):
+
+- ESLint custom rules enforce our canonical systems in production TS code:
+  - `oneagent/no-parallel-cache` (transitional: warn in 4.2.2; will return to error post-migration) — disallows long‑lived `new Map()` caches; use `OneAgentUnifiedBackbone.getInstance().cache` with TTL.
+  - `oneagent/prefer-unified-time` (warn) — prefer `createUnifiedTimestamp()` over `Date.now()`.
+  - `oneagent/prefer-unified-id` (warn) — prefer `createUnifiedId()` over `Math.random()` for identifiers.
+- These rules are relaxed for tests, scripts, and UI to avoid noise and allow local measurements/examples.
+
 ## Environment Flags (selected)
 
 - `ONEAGENT_FAST_TEST_MODE=1` — speed up initialization for tests
