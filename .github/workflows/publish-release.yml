@@ -62,20 +62,33 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '22'
+          cache: 'npm'
 
       - name: Install deps
-        run: npm ci
+        timeout-minutes: 15
+        run: npm ci --ignore-scripts --no-audit --no-fund --omit=optional
 
       - name: Install UI deps (for ui:type-check)
+        timeout-minutes: 10
         shell: bash
         run: |
           if [ -f ui/package-lock.json ]; then
-            echo "Using ui/package-lock.json with npm ci"
-            npm --prefix ui ci
+            echo "Using ui/package-lock.json with npm ci (no scripts, no audit, omit optional)"
+            npm --prefix ui ci --ignore-scripts --no-audit --no-fund --omit=optional
           else
-            echo "No ui/package-lock.json found; running npm install"
-            npm --prefix ui install
+            echo "No ui/package-lock.json found; running npm install (no scripts, no audit)"
+            npm --prefix ui install --ignore-scripts --no-audit --no-fund
           fi
+
+      - name: Print npm debug logs if install failed
+        if: failure()
+        shell: bash
+        run: |
+          echo "Listing npm logs (if any):"
+          find "$HOME/.npm/_logs" -type f -name "*.log" -maxdepth 1 -print || true
+          echo "--- tail of latest npm log ---"
+          latest=$(ls -1t "$HOME/.npm/_logs"/*.log 2>/dev/null | head -n 1 || true)
+          if [ -n "$latest" ]; then tail -n 200 "$latest"; else echo "No npm logs found"; fi
 
       - name: Verify (type + lint)
         id: verify
