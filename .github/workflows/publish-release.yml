@@ -67,7 +67,27 @@ jobs:
         run: npm ci
 
       - name: Verify (type + lint)
-        run: npm run -s verify
+        id: verify
+        shell: bash
+        run: |
+          set -o pipefail
+          npm run -s verify 2>&1 | tee verify.log
+
+      - name: Print verify log tail (for debugging)
+        if: always()
+        shell: bash
+        run: |
+          echo "--- verify.log (tail) ---"
+          tail -n 400 verify.log || true
+          echo "--- end verify.log (tail) ---"
+
+      - name: Upload verify logs (artifact)
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: verify-logs-${{ env.TAG }}
+          path: verify.log
+          retention-days: 7
 
       - name: Sync README version from package.json
         run: |
