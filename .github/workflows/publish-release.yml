@@ -5,6 +5,9 @@ on:
   push:
     tags:
       - 'v*'
+  # Also react on tag creation (first time a tag is created)
+  # Note: 'create' does not support path filters; we guard in the job with an if-condition
+  create:
   # Manual trigger still supported (tag input optional)
   workflow_dispatch:
     inputs:
@@ -23,12 +26,21 @@ permissions:
 jobs:
   publish:
     runs-on: ubuntu-latest
+    # Only run on:
+    # - push to tags matching v*
+    # - create events where a tag starting with 'v' was created
+    # - manual dispatch
+    if: |
+      github.event_name == 'workflow_dispatch' ||
+      startsWith(github.ref, 'refs/tags/v') ||
+      (github.event_name == 'create' && github.event.ref_type == 'tag' && startsWith(github.event.ref, 'v'))
     concurrency:
-      group: publish-${{ github.ref }}
+      group: publish-${{ github.ref || github.event.ref || github.run_id }}
       cancel-in-progress: true
     env:
       # Prefer the provided input, otherwise use the ref name (works for push on tags)
-      TAG: ${{ github.event.inputs.tag != '' && github.event.inputs.tag || github.ref_name }}
+      # Fallback to event.ref for 'create' and to ref_name for push-tags; inputs for manual dispatch
+      TAG: ${{ github.event.inputs.tag || github.ref_name || github.event.ref }}
       PRERELEASE_INPUT: ${{ github.event.inputs.prerelease }}
     steps:
       - name: Checkout
@@ -36,6 +48,15 @@ jobs:
         with:
           fetch-depth: 0
           persist-credentials: true
+
+      - name: Debug tag/ref context
+        run: |
+          echo "event_name=$GITHUB_EVENT_NAME"
+          echo "github.ref=${{ github.ref }}"
+          echo "github.ref_name=${{ github.ref_name }}"
+          echo "event.ref=${{ github.event.ref }}"
+          echo "event.ref_type=${{ github.event.ref_type }}"
+          echo "derived TAG=${{ env.TAG }}"
 
       - name: Setup Node
         uses: actions/setup-node@v4
