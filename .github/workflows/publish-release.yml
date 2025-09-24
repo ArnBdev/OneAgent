@@ -1,16 +1,21 @@
 name: Publish Release from Tag
 
 on:
+  # Auto-publish when a version tag like v4.2.2 is pushed
+  push:
+    tags:
+      - 'v*'
+  # Manual trigger still supported (tag input optional)
   workflow_dispatch:
     inputs:
       tag:
-        description: Git tag to publish (e.g., v4.0.2)
-        required: true
-        default: v4.0.2
+        description: Git tag to publish (e.g., v4.2.2). Leave empty to use the event tag.
+        required: false
+        default: ''
       prerelease:
-        description: Mark as prerelease
-        required: true
-        default: 'false'
+        description: Mark as prerelease (leave empty to auto-detect based on tag name)
+        required: false
+        default: ''
 
 permissions:
   contents: write
@@ -18,6 +23,13 @@ permissions:
 jobs:
   publish:
     runs-on: ubuntu-latest
+    concurrency:
+      group: publish-${{ github.ref }}
+      cancel-in-progress: true
+    env:
+      # Prefer the provided input, otherwise use the ref name (works for push on tags)
+      TAG: ${{ github.event.inputs.tag != '' && github.event.inputs.tag || github.ref_name }}
+      PRERELEASE_INPUT: ${{ github.event.inputs.prerelease }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -32,6 +44,9 @@ jobs:
 
       - name: Install deps
         run: npm ci
+
+      - name: Verify (type + lint)
+        run: npm run -s verify
 
       - name: Sync README version from package.json
         run: |
@@ -49,24 +64,96 @@ jobs:
             echo "No README changes"
           fi
 
-      - name: Create Release
+      - name: Create or Update Release
         id: create_release
         uses: actions/github-script@v7
         env:
-          TAG: ${{ github.event.inputs.tag }}
-          PRERELEASE: ${{ github.event.inputs.prerelease }}
+          TAG: ${{ env.TAG }}
+          PRERELEASE_INPUT: ${{ env.PRERELEASE_INPUT }}
         with:
           script: |
-            const tag = process.env.TAG;
-            const prerelease = String(process.env.PRERELEASE).toLowerCase() === 'true';
-            const notesPath = `RELEASE_NOTES/${tag}.md`;
             const fs = require('fs');
+            const path = require('path');
+
+            const tag = process.env.TAG;
+            if (!tag || !/^v\d+\.\d+\.\d+/.test(tag)) {
+              core.setFailed(`Invalid or missing tag: "${tag}". Provide an input tag or run on a tag push.`);
+              return;
+            }
+
+            // Determine prerelease: explicit input takes precedence; otherwise infer from tag suffixes
+            const prereleaseInput = (process.env.PRERELEASE_INPUT || '').toLowerCase();
+            const inferredPrerelease = /-(alpha|beta|rc)\d*$/i.test(tag);
+            const prerelease = prereleaseInput === 'true' ? true : prereleaseInput === 'false' ? false : inferredPrerelease;
+
+            // Prefer release notes file; fallback to extracting section from CHANGELOG.md; else simple body
+            const notesPath = path.join(process.cwd(), 'RELEASE_NOTES', `${tag}.md`);
             let body = `Release ${tag}`;
             if (fs.existsSync(notesPath)) {
               body = fs.readFileSync(notesPath, 'utf8');
+            } else {
+              const changelogPath = path.join(process.cwd(), 'CHANGELOG.md');
+              if (fs.existsSync(changelogPath)) {
+                const text = fs.readFileSync(changelogPath, 'utf8');
+                const section = (function extractFromChangelog(markdown, tag) {
+                  const lines = markdown.split(/\r?\n/);
+                  const startPatterns = [
+                    new RegExp(`^##\\s+${tag}\\b`),
+                    new RegExp(`^##\\s+\\(${tag}\\)`),
+                    new RegExp(`^##\\s+v?${tag.replace(/^v/, '')}\\b`),
+                  ];
+                  let start = -1;
+                  for (let i = 0; i < lines.length; i++) {
+                    if (startPatterns.some((r) => r.test(lines[i]))) { start = i; break; }
+                  }
+                  if (start === -1) return '';
+                  let end = lines.length;
+                  for (let i = start + 1; i < lines.length; i++) {
+                    if (/^##\s+/.test(lines[i])) { end = i; break; }
+                  }
+                  return lines.slice(start, end).join('\n');
+                })(text, tag);
+                if (section && section.trim()) {
+                  body = section;
+                }
+              }
             }
-            async function run() {
+
+            async function createOrUpdateRelease() {
               try {
+                // Try to get an existing release by tag
+                let release;
+                try {
+                  const { data } = await github.rest.repos.getReleaseByTag({
+                    owner: context.repo.owner,
+                    repo: context.repo.repo,
+                    tag,
+                  });
+                  release = data;
+                } catch (e) {
+                  if (e.status !== 404) throw e;
+                }
+
+                const make_latest = prerelease ? false : true;
+
+                if (release) {
+                  // Update existing release
+                  const { data } = await github.rest.repos.updateRelease({
+                    owner: context.repo.owner,
+                    repo: context.repo.repo,
+                    release_id: release.id,
+                    tag_name: tag,
+                    name: tag,
+                    body,
+                    prerelease,
+                    make_latest,
+                  });
+                  core.notice(`Release updated: ${data.html_url}`);
+                  console.log(data.html_url);
+                  return;
+                }
+
+                // Create release if not exists
                 const { data } = await github.rest.repos.createRelease({
                   owner: context.repo.owner,
                   repo: context.repo.repo,
@@ -74,6 +161,7 @@ jobs:
                   name: tag,
                   body,
                   prerelease,
+                  make_latest,
                 });
                 core.notice(`Release created: ${data.html_url}`);
                 console.log(data.html_url);
@@ -81,4 +169,5 @@ jobs:
                 core.setFailed(err.message);
               }
             }
-            run();
+
+            await createOrUpdateRelease();
