@@ -208,7 +208,8 @@ jobs:
                   if (e.status !== 404) throw e;
                 }
 
-                const make_latest = prerelease ? false : true;
+                // GitHub API expects make_latest as a string: 'true' | 'false' | 'legacy'
+                const make_latest = prerelease ? 'false' : 'true';
 
                 if (release) {
                   // Update existing release
