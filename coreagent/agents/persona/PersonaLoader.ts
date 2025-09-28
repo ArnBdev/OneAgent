@@ -406,7 +406,7 @@ Please respond according to your persona configuration and quality standards.`;
         capabilities: persona.capabilities.primary,
         systemPrompt: template.systemPrompt,
       };
-      await this.memorySystem.addMemoryCanonical(content, metadata, 'oneagent_system');
+      await this.memorySystem.addMemory({ content, metadata });
     } catch (error) {
       console.error(`[PersonaLoader] Failed to store persona in memory:`, error);
     }

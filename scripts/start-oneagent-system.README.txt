@@ -2,10 +2,11 @@
 
 This is the canonical PowerShell script for starting the production OneAgent system and its memory backend (Minne).
 
-- Starts the memory backend (Minne) using:
-    uvicorn servers.oneagent_memory_server:app --host 127.0.0.1 --port 8010 --reload
-- Waits 5 seconds for memory to initialize.
-- Starts the unified OneAgent MCP server using:
-    node -r ts-node/register coreagent/server/unified-mcp-server.ts
+**Startup Order (Canonical):**
+1. Starts the unified OneAgent MCP server using:
+       node -r ts-node/register coreagent/server/unified-mcp-server.ts
+2. Waits for MCP server health/readiness (sequential, not a fixed delay).
+3. Starts the memory backend (Minne) using:
+       uvicorn servers.oneagent_memory_server:app --host 127.0.0.1 --port 8010 --reload
 
 This script replaces all legacy/dev/CLI/test entry points. Use ONLY this script for production or development startup.

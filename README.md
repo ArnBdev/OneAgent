@@ -8,17 +8,19 @@ OneAgent is a **professional-grade, memory-driven multiagent AI platform** featu
 
 ## ✨ **Key Features**
 
-### **🧠 Memory-Driven Intelligence (Phase 4 - COMPLETE)**
+### **🧠 Canonical, Pluggable Memory System (v4.2.3)**
 
-- **Cross-Conversation Learning**: Pattern recognition and knowledge transfer across sessions
-- **Emergent Intelligence Synthesis**: Breakthrough insight detection and cross-domain synthesis
-- **Memory-Driven Optimization**: Historical performance analysis and workflow optimization
-- **Institutional Memory Evolution**: Continuous knowledge growth and pattern evolution
+- **Pluggable Backends**: Select between `mem0`, `memgraph`, or future backends via config/env (`provider` or `ONEAGENT_MEMORY_PROVIDER`).
+- **Strict Interface**: All backends implement the `IMemoryClient` interface, ensuring consistent method signatures and error handling.
+- **Canonical Operations**: `addMemory`, `editMemory`, `deleteMemory`, `searchMemory`, `getHealthStatus`, `getCapabilities`, `subscribeEvents`, `unsubscribeEvents`.
+- **Event-Driven**: Supports event subscription for memory changes and health updates.
+- **No Parallel Systems**: All memory, cache, and ID/time operations use canonical services only.
+- **See**: [`docs/memory-system-architecture.md`](./docs/memory-system-architecture.md)
 
 ### **🔧 Core Architecture**
 
 - **Constitutional AI Integration**: Built-in safety and ethical validation
-- **Canonical Memory System**: OneAgentMemory with mem0 backend
+- **Canonical, Pluggable Memory System**: `OneAgentMemory` with strict `IMemoryClient` interface and provider selection
 - **Unified Mission Control (NEW v4.2.0)**: Real-time WebSocket protocol with JSON Schema validated outbound frames (mission lifecycle + stats streaming)
 - **Mission Registry (NEW v4.2.0)**: In‑memory O(1) lifecycle tracker powering `mission_stats` snapshots (active/completed/cancelled/errors/avgDurationMs)
 - **Strict TypeScript**: 70,000+ lines of error-free, professional-grade code

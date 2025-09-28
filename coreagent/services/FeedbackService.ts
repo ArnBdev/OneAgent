@@ -49,7 +49,7 @@ export class FeedbackService {
       feedback.correction ? `: ${feedback.correction}` : ''
     }`;
     const metadata = { ...meta, custom: { feedback } } as Record<string, unknown>;
-    await this.memory.addMemoryCanonical(summary, metadata, 'feedback');
+    await this.memory.addMemory({ content: summary, metadata });
   }
 }
 

@@ -14,9 +14,9 @@ describe('Task Delegation Persistence Restore', () => {
     for (let i = 0; i < 2; i++) {
       const action = `SyntheticAction${i}`;
       const id = createUnifiedId('operation', 'proactive_task_synth');
-      await memory.addMemoryCanonical(
-        `ProactiveDelegation:${action}`,
-        {
+      await memory.addMemory({
+        content: `ProactiveDelegation:${action}`,
+        metadata: {
           type: 'proactive_task',
           taskId: id,
           targetAgent: 'DevAgent',
@@ -24,9 +24,8 @@ describe('Task Delegation Persistence Restore', () => {
           createdAt: createUnifiedTimestamp().iso,
           sourceFinding: 'synthetic-restore-test',
           snapshotHash: 'restore-hash',
-        } as unknown as Record<string, unknown>,
-        'system-proactive',
-      );
+        },
+      });
     }
 
     // Force restore (idempotent)

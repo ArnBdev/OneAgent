@@ -40,7 +40,7 @@ class TestAgent extends BaseAgent {
     // Inject minimal memory client mock to avoid network
     // @ts-expect-error: partial mock for tests
     this.memoryClient = {
-      addMemoryCanonical: jest.fn().mockResolvedValue('mem-id'),
+      addMemory: jest.fn().mockResolvedValue('mem-id'),
     };
   }
   public async callAddMemory(userId: string, content: string, metadata?: Record<string, unknown>) {

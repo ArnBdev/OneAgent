@@ -55,15 +55,15 @@ export class TemplateAgent extends BaseAgent implements ISpecializedAgent {
       await super.initialize();
       // Record initialization using canonical BaseAgent memory helper (singleton memory system)
       try {
-        await this.addMemory(
-          'system',
-          `Template agent ${this.id} initialized. Constitutional AI + PromptEngine auto-enabled when provided via AgentFactory.`,
-          {
+        await this.addMemory({
+          content: `Template agent ${this.id} initialized. Constitutional AI + PromptEngine auto-enabled when provided via AgentFactory.`,
+          metadata: {
             type: 'system',
             timestamp: createUnifiedTimestamp().iso,
             agentId: this.id,
+            userId: 'system',
           },
-        );
+        });
       } catch (memoryError) {
         console.warn(`⚠️ Could not store initialization memory: ${memoryError}`);
       }
@@ -104,17 +104,17 @@ export class TemplateAgent extends BaseAgent implements ISpecializedAgent {
       const qualityScore = Math.max(constitutionalScore * 100, this.qualityThreshold); // simple heuristic placeholder
       // Memory logging for processing summary
       try {
-        await this.addMemory(
-          context.user.id,
-          `Template processing summary. Actions: ${suggestedActions.length}. ConstitutionalScore: ${constitutionalScore}.`,
-          {
+        await this.addMemory({
+          content: `Template processing summary. Actions: ${suggestedActions.length}. ConstitutionalScore: ${constitutionalScore}.`,
+          metadata: {
             type: 'template_processing',
             actionsCount: suggestedActions.length,
             constitutionalScore,
             processingTime: createUnifiedTimestamp().unix - startTime,
             timestamp: createUnifiedTimestamp().iso,
+            userId: context.user.id,
           },
-        );
+        });
       } catch (memErr) {
         console.warn(`⚠️ Could not store template processing summary: ${memErr}`);
       }
@@ -135,9 +135,13 @@ export class TemplateAgent extends BaseAgent implements ISpecializedAgent {
       this.errors.push(`Processing error: ${errorMessage}`);
       console.error('❌ TemplateAgent processing error:', error);
       try {
-        await this.addMemory(context.user.id, `Template processing error: ${errorMessage}`, {
-          type: 'processing_error',
-          timestamp: createUnifiedTimestamp().iso,
+        await this.addMemory({
+          content: `Template processing error: ${errorMessage}`,
+          metadata: {
+            type: 'processing_error',
+            timestamp: createUnifiedTimestamp().iso,
+            userId: context.user.id,
+          },
         });
       } catch {
         /* memory logging failure ignored */
@@ -417,16 +421,16 @@ Be [PERSONALITY TRAITS: professional, friendly, expert, etc.] in your responses.
       };
 
       // Store coordination attempt in memory for learning
-      await this.addMemory(
-        context.user.id,
-        `Attempted multi-agent coordination for: ${task}. Result: ${coordinationResult.reason}`,
-        {
+      await this.addMemory({
+        content: `Attempted multi-agent coordination for: ${task}. Result: ${coordinationResult.reason}`,
+        metadata: {
           coordinationType: 'multi_agent_task',
           task: task,
           timestamp: createUnifiedTimestamp().iso,
           sessionId: context.sessionId,
+          userId: context.user.id,
         },
-      );
+      });
 
       return {
         content: `Multi-agent coordination completed for: ${task}. Result: ${coordinationResult.reason}`,
@@ -514,19 +518,19 @@ Be [PERSONALITY TRAITS: professional, friendly, expert, etc.] in your responses.
 
     try {
       // Store error for learning and improvement
-      await this.addMemory(
-        context.user.id,
-        `Error in ${operation}: ${error.message}. Recovery protocols applied.`,
-        {
+      await this.addMemory({
+        content: `Error in ${operation}: ${error.message}. Recovery protocols applied.`,
+        metadata: {
           errorType: 'operational_error',
           operation: operation,
           errorMessage: error.message,
-          errorStack: error.stack?.substring(0, 500), // Truncated for memory efficiency
+          errorStack: error.stack?.substring(0, 500),
           recoveryTimestamp: timestamp.iso,
           sessionId: context.sessionId,
-          learningValue: 'high', // Mark for learning system
+          learningValue: 'high',
+          userId: context.user.id,
         },
-      );
+      });
 
       console.log(`📝 Error recorded for learning improvement in operation: ${operation}`);
     } catch (memoryError) {

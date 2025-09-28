@@ -37,10 +37,10 @@ import {
   SessionCoherence,
   EmergentInsight,
   NLACSMessage,
-  MemoryRecord,
   AgentCommunicationExtension,
   AgentCommunicationEvent,
 } from '../types/oneagent-backbone-types';
+import type { MemorySearchResult } from '../types/oneagent-memory-types';
 import { OneAgentMemory } from '../memory/OneAgentMemory';
 import { unifiedMonitoringService } from '../monitoring/UnifiedMonitoringService';
 import {
@@ -58,9 +58,9 @@ export class UnifiedAgentCommunicationService implements UnifiedAgentCommunicati
   private memory: OneAgentMemory;
   private eventHandlers: { [event: string]: ((payload: unknown) => void)[] } = {};
   // Fast test mode ephemeral registry (used when ONEAGENT_FAST_TEST_MODE=1 and memory searches are bypassed)
-  private fastTestAgents?: Map<string, A2AAgent>;
-  private fastTestSessions?: Map<string, A2AGroupSession>;
-  private fastTestMessages?: Map<string, A2AMessage[]>;
+  private fastTestAgents?: Record<string, A2AAgent>;
+  private fastTestSessions?: Record<string, A2AGroupSession>;
+  private fastTestMessages?: Record<string, A2AMessage[]>;
   private silentLogging: boolean = process.env.ONEAGENT_SILENCE_COMM_LOGS === '1';
   private logLevel: 'debug' | 'info' | 'warn' | 'error' = (():
     | 'debug'
@@ -77,9 +77,9 @@ export class UnifiedAgentCommunicationService implements UnifiedAgentCommunicati
   private consensusEngine: ConsensusEngine;
   private insightSynthesisEngine: InsightSynthesisEngine;
   // Rate limiting: agent-session windows
-  private messageWindows: Map<string, number[]> = new Map();
+  private messageWindows: Record<string, number[]> = {};
   // Simple per-session operation queue to serialize mutations (join/leave)
-  private sessionLocks: Map<string, Promise<unknown>> = new Map();
+  private sessionLocks: Record<string, Promise<unknown>> = {};
 
   // Configuration (future: externalize to unified config)
   private readonly RATE_LIMIT_MAX_MESSAGES = 30; // messages
@@ -109,10 +109,10 @@ export class UnifiedAgentCommunicationService implements UnifiedAgentCommunicati
     fn: () => Promise<T>,
     meta?: Record<string, unknown>,
   ): Promise<T> {
-    const start = globalThis.performance?.now?.() ?? Date.now();
+    const start = globalThis.performance?.now?.() ?? createUnifiedTimestamp().unix;
     try {
       const result = await fn();
-      const durationMs = (globalThis.performance?.now?.() ?? Date.now()) - start;
+      const durationMs = (globalThis.performance?.now?.() ?? createUnifiedTimestamp().unix) - start;
       unifiedMonitoringService.trackOperation(
         'UnifiedAgentCommunicationService',
         operation,
@@ -121,7 +121,7 @@ export class UnifiedAgentCommunicationService implements UnifiedAgentCommunicati
       );
       return result;
     } catch (error) {
-      const durationMs = (globalThis.performance?.now?.() ?? Date.now()) - start;
+      const durationMs = (globalThis.performance?.now?.() ?? createUnifiedTimestamp().unix) - start;
       unifiedMonitoringService.trackOperation(
         'UnifiedAgentCommunicationService',
         operation,
@@ -168,9 +168,9 @@ export class UnifiedAgentCommunicationService implements UnifiedAgentCommunicati
         );
     }
     if (process.env.ONEAGENT_FAST_TEST_MODE === '1') {
-      this.fastTestAgents = new Map();
-      this.fastTestSessions = new Map();
-      this.fastTestMessages = new Map();
+      this.fastTestAgents = {};
+      this.fastTestSessions = {};
+      this.fastTestMessages = {};
       if (!this.silentLogging)
         console.log('🧪 FAST_TEST_MODE active: using in-memory agent registry fallback');
     }
@@ -338,7 +338,7 @@ export class UnifiedAgentCommunicationService implements UnifiedAgentCommunicati
 
       // Fast test mode: store in ephemeral map for discovery without memory backend lookups
       if (this.fastTestAgents) {
-        this.fastTestAgents.set(agentId, agentRecord);
+        this.fastTestAgents[agentId] = agentRecord;
       }
 
       const content = `Agent Registration: ${agent.name}`;
@@ -360,7 +360,7 @@ export class UnifiedAgentCommunicationService implements UnifiedAgentCommunicati
         entityType: 'A2AAgent', // Critical for discovery
         agentData: agentRecord, // Store the full agent record
       };
-      const memoryId = await this.memory.addMemoryCanonical(content, metadata, 'system_registry');
+      const memoryId = await this.memory.addMemory({ content, metadata });
 
       if (!this.silentLogging)
         console.log(
@@ -386,7 +386,7 @@ export class UnifiedAgentCommunicationService implements UnifiedAgentCommunicati
     return this.runSafely('discoverAgents', async () => {
       // Fast test mode short-circuit: return from in-memory registry
       if (this.fastTestAgents) {
-        const candidates = Array.from(this.fastTestAgents.values()).filter((agent) => {
+        const candidates = Object.values(this.fastTestAgents).filter((agent) => {
           if (filter.status && agent.status !== filter.status) return false;
           if (filter.capabilities && filter.capabilities.length) {
             return filter.capabilities.every((c) => agent.capabilities.includes(c));
@@ -424,23 +424,21 @@ export class UnifiedAgentCommunicationService implements UnifiedAgentCommunicati
         // Cache read is best-effort; continue on failure
       }
 
-      const metadata_filter: Record<string, unknown> = { entityType: 'A2AAgent' };
-
+      const filters: Record<string, unknown> = { entityType: 'A2AAgent' };
       if (filter.status) {
-        metadata_filter['agentData.status'] = filter.status;
+        filters['agentData.status'] = filter.status;
       }
-
       const searchResults = await this.memory.searchMemory({
         query: filter.capabilities
           ? `agent with capabilities: ${filter.capabilities.join(', ')}`
           : 'discover all agents',
-        user_id: 'system_discovery',
+        userId: 'system_discovery',
         limit: filter.limit || 100,
-        metadata_filter: metadata_filter,
+        filters,
       });
-      const agents = (searchResults?.results || [])
+      const agents = (Array.isArray(searchResults) ? searchResults : [])
         .map(
-          (result: MemoryRecord) =>
+          (result: MemorySearchResult) =>
             (result.metadata as Record<string, unknown>)?.agentData as A2AAgent,
         )
         .filter((agent: A2AAgent): agent is A2AAgent => {
@@ -544,7 +542,7 @@ export class UnifiedAgentCommunicationService implements UnifiedAgentCommunicati
     return this.runSafely('createSession', async () => {
       if (this.fastTestSessions) {
         // In fast test mode reuse any active session with same name from in-memory map
-        for (const s of this.fastTestSessions.values()) {
+        for (const s of Object.values(this.fastTestSessions)) {
           if (s.name === sessionConfig.name && s.status === 'active') {
             console.log(
               `♻️ [FAST_TEST_MODE] Reusing existing active session ${s.id} for name ${sessionConfig.name}`,
@@ -556,19 +554,19 @@ export class UnifiedAgentCommunicationService implements UnifiedAgentCommunicati
         // Deduplicate active session with same name via memory search
         const existing = await this.memory.searchMemory({
           query: `session ${sessionConfig.name}`,
-          user_id: 'system_session_manager',
+          userId: 'system_session_manager',
           limit: 1,
-          metadata_filter: {
+          filters: {
             'sessionData.name': sessionConfig.name,
             entityType: 'A2ASession',
             'sessionData.status': 'active',
           },
         });
-        if (existing?.results?.length) {
+        if (Array.isArray(existing) && existing.length) {
           interface SessionMetadataWrapper {
             sessionData?: A2AGroupSession;
           }
-          const existingWrapper = existing.results[0].metadata as unknown as
+          const existingWrapper = existing[0]?.metadata as unknown as
             | SessionMetadataWrapper
             | undefined;
           const existingSession = existingWrapper?.sessionData;
@@ -622,14 +620,13 @@ export class UnifiedAgentCommunicationService implements UnifiedAgentCommunicati
         sessionData: sessionRecord,
       };
 
-      await this.memory.addMemoryCanonical(
-        `Session Created: ${sessionConfig.name} - Topic: ${sessionConfig.topic}`,
-        sessionMetadata,
-        'system_session_manager',
-      );
+      await this.memory.addMemory({
+        content: `Session Created: ${sessionConfig.name} - Topic: ${sessionConfig.topic}`,
+        metadata: sessionMetadata,
+      });
 
       if (this.fastTestSessions) {
-        this.fastTestSessions.set(sessionId, sessionRecord);
+        this.fastTestSessions[sessionId] = sessionRecord;
       }
 
       if (!this.silentLogging)
@@ -728,12 +725,12 @@ export class UnifiedAgentCommunicationService implements UnifiedAgentCommunicati
         messageData: messageRecord,
       };
 
-      await this.memory.addMemoryCanonical(message.content, messageMetadata, 'system_messaging');
+      await this.memory.addMemory({ content: message.content, metadata: messageMetadata });
 
       if (this.fastTestMessages) {
-        const arr = this.fastTestMessages.get(message.sessionId) || [];
+        const arr = this.fastTestMessages[message.sessionId] || [];
         arr.push(messageRecord);
-        this.fastTestMessages.set(message.sessionId, arr);
+        this.fastTestMessages[message.sessionId] = arr;
       }
 
       if (!this.silentLogging)
@@ -762,18 +759,18 @@ export class UnifiedAgentCommunicationService implements UnifiedAgentCommunicati
   async getMessageHistory(sessionId: SessionId, limit: number = 100): Promise<A2AMessage[]> {
     return this.runSafely('getMessageHistory', async () => {
       if (this.fastTestMessages) {
-        const msgs = this.fastTestMessages.get(sessionId) || [];
+        const msgs = this.fastTestMessages[sessionId] || [];
         return msgs.slice(-limit);
       }
       const searchResults = await this.memory.searchMemory({
         query: `message history for session ${sessionId}`,
-        user_id: 'system_history',
+        userId: 'system_history',
         limit,
-        metadata_filter: { 'messageData.sessionId': sessionId },
+        filters: { 'messageData.sessionId': sessionId },
       });
-      const messages = (searchResults?.results || [])
+      const messages = (Array.isArray(searchResults) ? searchResults : [])
         .map(
-          (result: MemoryRecord) =>
+          (result: MemorySearchResult) =>
             (result.metadata as Record<string, unknown>)?.messageData as A2AMessage,
         )
         .filter((message: A2AMessage): message is A2AMessage => Boolean(message))
@@ -791,16 +788,16 @@ export class UnifiedAgentCommunicationService implements UnifiedAgentCommunicati
   async getSessionInfo(sessionId: SessionId): Promise<SessionInfo | null> {
     return this.runSafely('getSessionInfo', async () => {
       if (this.fastTestSessions) {
-        const fast = this.fastTestSessions.get(sessionId) || null;
+        const fast = this.fastTestSessions[sessionId] || null;
         return fast as unknown as SessionInfo | null;
       }
       const searchResults = await this.memory.searchMemory({
         query: `info for session ${sessionId}`,
-        user_id: 'system_session_manager',
+        userId: 'system_session_manager',
         limit: 1,
-        metadata_filter: { 'sessionData.id': sessionId, entityType: 'A2ASession' },
+        filters: { 'sessionData.id': sessionId, entityType: 'A2ASession' },
       });
-      const record = searchResults?.results?.[0];
+      const record = Array.isArray(searchResults) ? searchResults[0] : undefined;
       interface SessionMetadataWrapper {
         sessionData?: SessionInfo;
       }
@@ -967,11 +964,10 @@ export class UnifiedAgentCommunicationService implements UnifiedAgentCommunicati
         },
       );
 
-      await this.memory.addMemoryCanonical(
-        `Enhanced Business Session Created: ${config.name} - Focus: ${config.discussionType} - Targets: ${config.insightTargets.join(', ')}`,
-        businessSessionMetadata,
-        'system_business_sessions',
-      );
+      await this.memory.addMemory({
+        content: `Enhanced Business Session Created: ${config.name} - Focus: ${config.discussionType} - Targets: ${config.insightTargets.join(', ')}`,
+        metadata: businessSessionMetadata,
+      });
 
       // Emit business session creation event
       this.emit('business_session_created', {
@@ -1020,11 +1016,10 @@ export class UnifiedAgentCommunicationService implements UnifiedAgentCommunicati
         },
       );
 
-      await this.memory.addMemoryCanonical(
-        `Discussion Facilitation Rules Applied: Session ${sessionId}`,
-        facilitationMetadata,
-        'system_facilitation',
-      );
+      await this.memory.addMemory({
+        content: `Discussion Facilitation Rules Applied: Session ${sessionId}`,
+        metadata: facilitationMetadata,
+      });
 
       // Emit facilitation start event
       this.emit('discussion_facilitation_started', { sessionId, rules: facilitationRules });
@@ -1119,11 +1114,10 @@ export class UnifiedAgentCommunicationService implements UnifiedAgentCommunicati
           business: { entityType: 'ConsensusResult', consensusData: consensusResult },
         },
       );
-      await this.memory.addMemoryCanonical(
-        `Consensus Result: ${proposal} -> ${consensusResult.agreed ? 'AGREED' : 'NOT AGREED'}`,
-        consensusMetadata,
-        'system_consensus',
-      );
+      await this.memory.addMemory({
+        content: `Consensus Result: ${proposal} -> ${consensusResult.agreed ? 'AGREED' : 'NOT AGREED'}`,
+        metadata: consensusMetadata,
+      });
       // removed direct monitoring increment
       // removed direct monitoring increment
       return consensusResult;
@@ -1244,11 +1238,10 @@ export class UnifiedAgentCommunicationService implements UnifiedAgentCommunicati
             business: { entityType: 'EmergentInsight', insightData: insight },
           },
         );
-        await this.memory.addMemoryCanonical(
-          `Emergent Insight: ${insight.type} – ${insight.content.substring(0, 120)}`,
-          insightMetadata,
-          'system_insights',
-        );
+        await this.memory.addMemory({
+          content: `Emergent Insight: ${insight.type} – ${insight.content.substring(0, 120)}`,
+          metadata: insightMetadata,
+        });
       }
       // removed direct monitoring increment
       // removed direct monitoring increment
@@ -1291,11 +1284,10 @@ export class UnifiedAgentCommunicationService implements UnifiedAgentCommunicati
         },
       );
 
-      await this.memory.addMemoryCanonical(
-        `Real-Time Mode Enabled: Session ${sessionId}`,
-        realtimeMetadata,
-        'system_realtime',
-      );
+      await this.memory.addMemory({
+        content: `Real-Time Mode Enabled: Session ${sessionId}`,
+        metadata: realtimeMetadata,
+      });
 
       this.emit('realtime_mode_enabled', { sessionId });
       // removed direct monitoring increment
@@ -1348,11 +1340,10 @@ export class UnifiedAgentCommunicationService implements UnifiedAgentCommunicati
         },
       );
 
-      await this.memory.addMemoryCanonical(
-        `Priority Message [${priority.level.toUpperCase()}]: ${message.content}`,
-        priorityMetadata,
-        'system_priority_routing',
-      );
+      await this.memory.addMemory({
+        content: `Priority Message [${priority.level.toUpperCase()}]: ${message.content}`,
+        metadata: priorityMetadata,
+      });
 
       // Emit priority routing events
       this.emit('priority_message_routed', { message: enhancedMessage, priority });
@@ -1440,11 +1431,10 @@ export class UnifiedAgentCommunicationService implements UnifiedAgentCommunicati
         },
       );
 
-      await this.memory.addMemoryCanonical(
-        `Session Coherence Analysis: Score ${coherenceScore.toFixed(2)}, Drift ${topicDrift.toFixed(2)}, Quality ${discussionQuality.toFixed(2)}`,
-        coherenceMetadata,
-        'system_coherence',
-      );
+      await this.memory.addMemory({
+        content: `Session Coherence Analysis: Score ${coherenceScore.toFixed(2)}, Drift ${topicDrift.toFixed(2)}, Quality ${discussionQuality.toFixed(2)}`,
+        metadata: coherenceMetadata,
+      });
 
       // Emit coherence monitoring events
       this.emit('coherence_monitored', { sessionId, coherence: coherenceResult });
@@ -1645,8 +1635,8 @@ export class UnifiedAgentCommunicationService implements UnifiedAgentCommunicati
   // =====================
   private enforceRateLimit(agentId: AgentId, sessionId: SessionId): void {
     const key = `${agentId}::${sessionId}`;
-    const now = Date.now();
-    const window = this.messageWindows.get(key) || [];
+    const now = createUnifiedTimestamp().unix;
+    const window = this.messageWindows[key] || [];
     const filtered = window.filter((ts) => now - ts < this.RATE_LIMIT_WINDOW_MS);
     if (filtered.length >= this.RATE_LIMIT_MAX_MESSAGES) {
       throw this.error(
@@ -1655,23 +1645,20 @@ export class UnifiedAgentCommunicationService implements UnifiedAgentCommunicati
       );
     }
     filtered.push(now);
-    this.messageWindows.set(key, filtered);
+    this.messageWindows[key] = filtered;
   }
 
   private async serializeSessionOp<T>(sessionId: SessionId, fn: () => Promise<T>): Promise<T> {
-    const prev = this.sessionLocks.get(sessionId) || Promise.resolve();
+    const prev = this.sessionLocks[sessionId] || Promise.resolve();
     let release: (v: unknown) => void;
     const p = new Promise((res) => (release = res));
-    this.sessionLocks.set(
-      sessionId,
-      prev.then(() => p),
-    );
+    this.sessionLocks[sessionId] = prev.then(() => p);
     try {
       const result = await fn();
       release!(null);
       return result;
     } finally {
-      if (this.sessionLocks.get(sessionId) === p) this.sessionLocks.delete(sessionId);
+      if (this.sessionLocks[sessionId] === p) delete this.sessionLocks[sessionId];
     }
   }
 
@@ -1699,11 +1686,10 @@ export class UnifiedAgentCommunicationService implements UnifiedAgentCommunicati
         business: { entityType: 'A2ASessionUpdate', sessionData: session, activity, updatedAt: ts },
       },
     );
-    await this.memory.addMemoryCanonical(
-      `Session Update: ${activity}`,
+    await this.memory.addMemory({
+      content: `Session Update: ${activity}`,
       metadata,
-      'system_session_manager',
-    );
+    });
   }
 }
 

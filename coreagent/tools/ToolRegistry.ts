@@ -1,13 +1,27 @@
 /**
- * Unified MCP Tool Registry
- * Central registry for all unified MCP tools with categorized organization
- * NLACS Integration: Modern agent coordination via NLACS orchestrator
+ * Unified MCP Tool Registry (Canonical)
+ * ------------------------------------------------------------
+ * Central registry for all unified MCP tools with strict canonicalization:
+ *   - Category-based organization (ToolCategory)
+ *   - Capability flags (exposeToMCP, internalOnly, experimental)
+ *   - Full metadata and performance tracking
+ *   - NLACS integration for agent coordination
+ *   - MCP protocol compliance (JSON-RPC 2.0)
+ *   - Async, cache-backed registry (OneAgentUnifiedBackbone.cache)
  *
  * Constitutional AI Implementation:
- * - Accuracy: Canonical tool registration and execution patterns
- * - Transparency: Clear tool categorization and performance metrics
- * - Helpfulness: Unified tool discovery and validation
- * - Safety: Comprehensive error handling and quality validation
+ *   - Accuracy: Canonical tool registration and execution patterns
+ *   - Transparency: Clear tool categorization, metadata, and performance metrics
+ *   - Helpfulness: Unified tool discovery, validation, and analytics
+ *   - Safety: Comprehensive error handling, quality validation, and auditability
+ *
+ * Usage:
+ *   - All tool registration, lookup, and execution must go through this registry
+ *   - No parallel/legacy/adhoc tool systems permitted
+ *   - All cache access is async and type-safe
+ *   - All errors routed through canonical error handler
+ *
+ * See AGENTS.md for architectural authority and anti-parallel protocol.
  */
 
 import { UnifiedMCPTool, ToolExecutionResult } from './UnifiedMCPTool';
@@ -46,6 +60,11 @@ export interface ToolMetadata {
   constitutionalLevel: 'basic' | 'enhanced' | 'critical';
   dependencies?: string[];
   priority: number; // 1-10, higher = more important
+  exposeToMCP?: boolean; // Only surfaced if true
+  internalOnly?: boolean; // Not surfaced externally
+  experimental?: boolean; // For future/unstable tools
+  version?: string;
+  description?: string;
 }
 
 export interface ToolRegistration {
@@ -84,12 +103,19 @@ export interface ToolExecutionContext {
 }
 
 export class ToolRegistry {
-  private tools: Map<string, ToolRegistration> = new Map();
-  private categories: Map<ToolCategory, string[]> = new Map();
-  private performanceMetrics: Map<string, ToolPerformanceMetrics> = new Map();
+  private cache = OneAgentUnifiedBackbone.getInstance().cache;
+  private toolsKey = 'toolRegistry.tools';
+  private categoriesKey = 'toolRegistry.categories';
+  private metricsKey = 'toolRegistry.performanceMetrics';
   private initialized = false;
   private memorySystem: OneAgentMemory | null = null;
 
+  /**
+   * Construct the canonical ToolRegistry singleton.
+   * Note: Async initialization is not supported in constructors; use an init() method if needed.
+   * Registers all non-memory tools and initializes categories in the unified cache.
+   * Logging is handled in registerTool and logCategoryStatus.
+   */
   constructor() {
     this.initializeCategories();
     this.registerNonMemoryTools();
@@ -97,7 +123,8 @@ export class ToolRegistry {
   }
 
   /**
-   * Set the shared memory system and initialize memory tools
+   * Set the shared memory system and (re)register memory tools.
+   * @param memorySystem The canonical OneAgentMemory instance.
    */
   setMemorySystem(memorySystem: OneAgentMemory): void {
     this.memorySystem = memorySystem;
@@ -105,16 +132,21 @@ export class ToolRegistry {
   }
 
   /**
-   * Initialize tool categories
+   * Initialize tool categories in the unified cache.
+   * Ensures all ToolCategory values are present as keys.
    */
-  private initializeCategories(): void {
+  private async initializeCategories(): Promise<void> {
+    const categories: Record<string, string[]> = {};
     for (const category of Object.values(ToolCategory)) {
-      this.categories.set(category as ToolCategory, []);
+      categories[category as ToolCategory] = [];
     }
+    await this.cache.set(this.categoriesKey, categories);
   }
 
   /**
-   * Register non-memory tools first (before memory system is available)
+   * Register all non-memory tools (idempotent).
+   * Called at construction and when memory system is set.
+   * Only canonical, MCP-compliant tools are registered here.
    */
   private registerNonMemoryTools(): void {
     // Web Research Tools
@@ -122,29 +154,34 @@ export class ToolRegistry {
       category: ToolCategory.WEB_RESEARCH,
       constitutionalLevel: 'enhanced',
       priority: 7,
+      exposeToMCP: true,
     });
 
     this.registerTool(new UnifiedWebSearchTool(), {
       category: ToolCategory.WEB_RESEARCH,
       constitutionalLevel: 'enhanced',
       priority: 8,
+      exposeToMCP: true,
     });
     this.registerTool(new UnifiedWebFetchTool(), {
       category: ToolCategory.WEB_RESEARCH,
       constitutionalLevel: 'enhanced',
       priority: 7,
+      exposeToMCP: true,
     });
 
     this.registerTool(new ConversationRetrievalTool(), {
       category: ToolCategory.AGENT_COMMUNICATION,
       constitutionalLevel: 'enhanced',
       priority: 7,
+      exposeToMCP: true,
     });
 
     this.registerTool(new ConversationSearchTool(), {
       category: ToolCategory.AGENT_COMMUNICATION,
       constitutionalLevel: 'enhanced',
       priority: 7,
+      exposeToMCP: true,
     });
 
     // System Health and Monitoring
@@ -152,6 +189,7 @@ export class ToolRegistry {
       category: ToolCategory.CORE_SYSTEM,
       constitutionalLevel: 'basic',
       priority: 6,
+      exposeToMCP: true,
     });
 
     // Context7 documentation tools (now with real integration)
@@ -171,6 +209,7 @@ export class ToolRegistry {
       category: ToolCategory.DEVELOPMENT,
       constitutionalLevel: 'enhanced',
       priority: 8,
+      exposeToMCP: true,
     });
 
     // Canonical OneAgent memory tools (the only standard, best-practice memory tools)
@@ -182,21 +221,25 @@ export class ToolRegistry {
       category: ToolCategory.MEMORY_CONTEXT,
       constitutionalLevel: 'critical',
       priority: 10,
+      exposeToMCP: true,
     });
     this.registerTool(new OneAgentMemoryAddTool(canonicalMemoryClient), {
       category: ToolCategory.MEMORY_CONTEXT,
       constitutionalLevel: 'critical',
       priority: 10,
+      exposeToMCP: true,
     });
     this.registerTool(new OneAgentMemoryEditTool(canonicalMemoryClient), {
       category: ToolCategory.MEMORY_CONTEXT,
       constitutionalLevel: 'critical',
       priority: 10,
+      exposeToMCP: true,
     });
     this.registerTool(new OneAgentMemoryDeleteTool(canonicalMemoryClient), {
       category: ToolCategory.MEMORY_CONTEXT,
       constitutionalLevel: 'critical',
       priority: 10,
+      exposeToMCP: true,
     });
 
     // NOTE: EnhancedAIAssistantTool REMOVED to maintain clear separation of concerns
@@ -204,19 +247,27 @@ export class ToolRegistry {
     // AI assistance should be separate from memory management for clarity
 
     if (!(process.env.ONEAGENT_FAST_TEST_MODE === '1' || process.env.NODE_ENV === 'test')) {
-      console.log(
-        `[ToolRegistry] Registered ${this.tools.size} unified tools across ${this.categories.size} categories`,
-      );
       this.logCategoryStatus();
     }
   }
 
   /**
-   * Register a new tool with metadata (idempotent)
+   * Register a new tool with metadata (idempotent, async, canonical).
+   * - Loads tools and categories from unified cache.
+   * - Skips registration if tool already present.
+   * - Updates both tool and category registries.
+   * - All metadata is normalized and capability-flagged.
+   * @param tool The UnifiedMCPTool instance to register.
+   * @param metadata Optional partial ToolMetadata (merged with tool defaults).
    */
-  public registerTool(tool: UnifiedMCPTool, metadata?: Partial<ToolMetadata>): void {
+  public async registerTool(tool: UnifiedMCPTool, metadata?: Partial<ToolMetadata>): Promise<void> {
+    // Load tools and categories from cache
+    const tools = ((await this.cache.get(this.toolsKey)) as Record<string, ToolRegistration>) || {};
+    const categories =
+      ((await this.cache.get(this.categoriesKey)) as Record<string, string[]>) || {};
+
     // Check if tool is already registered
-    if (this.tools.has(tool.name)) {
+    if (tools[tool.name]) {
       // Silent skip - tool already registered
       return;
     }
@@ -226,6 +277,11 @@ export class ToolRegistry {
       constitutionalLevel: metadata?.constitutionalLevel || tool.constitutionalLevel,
       dependencies: metadata?.dependencies || [],
       priority: metadata?.priority || 5,
+      exposeToMCP: metadata?.exposeToMCP !== false, // default true
+      internalOnly: metadata?.internalOnly || false,
+      experimental: metadata?.experimental || false,
+      version: metadata?.version || '1.0.0',
+      description: metadata?.description || tool.description || '',
     };
 
     const registration: ToolRegistration = {
@@ -235,12 +291,16 @@ export class ToolRegistry {
       usageCount: 0,
     };
 
-    this.tools.set(tool.name, registration);
+    tools[tool.name] = registration;
 
     // Add to category
-    const categoryTools = this.categories.get(fullMetadata.category) || [];
-    categoryTools.push(tool.name);
-    this.categories.set(fullMetadata.category, categoryTools);
+    if (!categories[fullMetadata.category]) categories[fullMetadata.category] = [];
+    categories[fullMetadata.category].push(tool.name);
+
+    // Save back to cache
+    await this.cache.set(this.toolsKey, tools);
+    await this.cache.set(this.categoriesKey, categories);
+
     if (!(process.env.ONEAGENT_FAST_TEST_MODE === '1' || process.env.NODE_ENV === 'test')) {
       console.log(
         `[ToolRegistry] Registered ${tool.name} in ${fullMetadata.category} (priority: ${fullMetadata.priority})`,
@@ -249,70 +309,108 @@ export class ToolRegistry {
   }
 
   /**
-   * Get a tool by name
+   * Get a tool instance by name.
+   * @param name The tool's canonical name.
+   * @returns The UnifiedMCPTool instance, or undefined if not found.
    */
-  public getTool(name: string): UnifiedMCPTool | undefined {
-    const registration = this.tools.get(name);
+  public async getTool(name: string): Promise<UnifiedMCPTool | undefined> {
+    const tools = ((await this.cache.get(this.toolsKey)) as Record<string, ToolRegistration>) || {};
+    const registration = tools[name];
     return registration?.tool;
   }
 
   /**
-   * Get tool registration (includes metadata)
+   * Get tool registration (includes full metadata and usage info).
+   * @param name The tool's canonical name.
+   * @returns ToolRegistration object, or undefined if not found.
    */
-  public getToolRegistration(name: string): ToolRegistration | undefined {
-    return this.tools.get(name);
+  public async getToolRegistration(name: string): Promise<ToolRegistration | undefined> {
+    const tools = ((await this.cache.get(this.toolsKey)) as Record<string, ToolRegistration>) || {};
+    return tools[name];
   }
 
   /**
-   * Check if a tool is registered
+   * Check if a tool is registered by name.
+   * @param name The tool's canonical name.
+   * @returns True if registered, false otherwise.
    */
-  public hasTool(name: string): boolean {
-    return this.tools.has(name);
+  public async hasTool(name: string): Promise<boolean> {
+    const tools = ((await this.cache.get(this.toolsKey)) as Record<string, ToolRegistration>) || {};
+    return !!tools[name];
   }
 
   /**
-   * Get all registered tool names
+   * Get all registered tool names (canonical).
+   * @returns Array of tool names.
    */
-  public getToolNames(): string[] {
-    return Array.from(this.tools.keys());
+  public async getToolNames(): Promise<string[]> {
+    const tools = ((await this.cache.get(this.toolsKey)) as Record<string, ToolRegistration>) || {};
+    return Object.keys(tools);
   }
 
   /**
-   * Get tools by category
+   * Get all tools in a given category.
+   * @param category The ToolCategory enum value.
+   * @returns Array of UnifiedMCPTool instances in the category.
    */
-  public getToolsByCategory(category: ToolCategory): UnifiedMCPTool[] {
-    const toolNames = this.categories.get(category) || [];
-    return toolNames.map((name) => this.getTool(name)).filter(Boolean) as UnifiedMCPTool[];
+  public async getToolsByCategory(category: ToolCategory): Promise<UnifiedMCPTool[]> {
+    const categories =
+      ((await this.cache.get(this.categoriesKey)) as Record<string, string[]>) || {};
+    const toolNames: string[] = categories[category] || [];
+    const tools = ((await this.cache.get(this.toolsKey)) as Record<string, ToolRegistration>) || {};
+    return toolNames.map((name: string) => tools[name]?.tool).filter(Boolean) as UnifiedMCPTool[];
   }
 
   /**
-   * Get tool schema for MCP registration
+   * Get tool schemas for MCP registration (JSON-RPC 2.0 compliant).
+   * Only tools with exposeToMCP=true and internalOnly=false are included.
+   * @returns Array of tool schema objects (name, description, inputSchema, etc).
    */
-  public getToolSchemas(): Array<{
-    name: string;
-    description: string;
-    inputSchema: Record<string, unknown>;
-  }> {
-    return Array.from(this.tools.values()).map((registration) => ({
-      name: registration.tool.name,
-      description: registration.tool.description,
-      inputSchema: registration.tool.schema.properties || {},
-    }));
+  public async getToolSchemas(): Promise<
+    Array<{
+      name: string;
+      description: string;
+      inputSchema: Record<string, unknown>;
+      version?: string;
+      experimental?: boolean;
+    }>
+  > {
+    const tools = ((await this.cache.get(this.toolsKey)) as Record<string, ToolRegistration>) || {};
+    return Object.values(tools)
+      .filter(
+        (registration) => registration.metadata.exposeToMCP && !registration.metadata.internalOnly,
+      )
+      .map((registration) => ({
+        name: registration.tool.name,
+        description: registration.metadata.description || registration.tool.description,
+        inputSchema: registration.tool.schema.properties || {},
+        version: registration.metadata.version,
+        experimental: registration.metadata.experimental,
+      }));
   }
 
   /**
-   * Execute a tool by name with usage tracking and Constitutional AI compliance
+   * Execute a tool by name with usage tracking and Constitutional AI compliance.
+   * - Tracks usage, updates metrics, and routes errors through canonical handler.
+   * - All execution is monitored for quality and performance.
+   * @param name The tool's canonical name.
+   * @param args Arguments to pass to the tool's execute method.
+   * @returns ToolExecutionResult (success, data, error, etc).
    */
   public async executeTool(name: string, args: unknown): Promise<ToolExecutionResult> {
-    const registration = this.tools.get(name);
+    const tools = ((await this.cache.get(this.toolsKey)) as Record<string, ToolRegistration>) || {};
+    const registration = tools[name];
     if (!registration) {
       const error = new Error(`Tool not found: ${name}`);
       const backbone = OneAgentUnifiedBackbone.getInstance();
       const errorSystem = backbone.getServices().errorHandler;
-      await errorSystem.handleError(error, { toolName: name, available: this.getToolNames() });
+      await errorSystem.handleError(error, {
+        toolName: name,
+        available: await this.getToolNames(),
+      });
       return {
         success: false,
-        data: { error: error.message, available: this.getToolNames() },
+        data: { error: error.message, available: await this.getToolNames() },
       };
     }
 
@@ -332,6 +430,10 @@ export class ToolRegistry {
       registration.usageCount++;
       registration.lastUsed = new Date();
 
+      // Save updated usage to cache
+      tools[name] = registration;
+      await this.cache.set(this.toolsKey, tools);
+
       if (!(process.env.ONEAGENT_FAST_TEST_MODE === '1' || process.env.NODE_ENV === 'test')) {
         console.log(
           `[ToolRegistry] Executing ${name} (category: ${registration.metadata.category}, usage: ${registration.usageCount})`,
@@ -343,14 +445,14 @@ export class ToolRegistry {
       const executionTime = performance.now() - startTime;
 
       // Update performance metrics
-      this.updatePerformanceMetrics(name, true, executionTime, result.qualityScore || 0);
+      await this.updatePerformanceMetrics(name, true, executionTime, result.qualityScore || 0);
 
       return result;
     } catch (error) {
       const executionTime = performance.now() - startTime;
 
       // Update performance metrics for failure
-      this.updatePerformanceMetrics(name, false, executionTime, 0);
+      await this.updatePerformanceMetrics(name, false, executionTime, 0);
 
       // Use canonical error handling
       const backbone = OneAgentUnifiedBackbone.getInstance();
@@ -368,18 +470,26 @@ export class ToolRegistry {
   }
 
   /**
-   * Update tool performance metrics with Constitutional AI quality tracking
+   * Update tool performance metrics with Constitutional AI quality tracking.
+   * - Updates rolling averages, success rates, and quality scores.
+   * - All metrics are stored in the unified cache.
+   * @param toolName The tool's canonical name.
+   * @param success Whether the execution was successful.
+   * @param executionTime Execution duration in ms.
+   * @param qualityScore Quality score (0-100).
    */
-  private updatePerformanceMetrics(
+  private async updatePerformanceMetrics(
     toolName: string,
     success: boolean,
     executionTime: number,
     qualityScore: number,
-  ): void {
-    let metrics = this.performanceMetrics.get(toolName);
+  ): Promise<void> {
+    const metrics =
+      ((await this.cache.get(this.metricsKey)) as Record<string, ToolPerformanceMetrics>) || {};
+    let toolMetrics = metrics[toolName];
 
-    if (!metrics) {
-      metrics = {
+    if (!toolMetrics) {
+      toolMetrics = {
         toolName,
         totalExecutions: 0,
         successfulExecutions: 0,
@@ -389,44 +499,56 @@ export class ToolRegistry {
         successRate: 0,
         qualityScore: 0,
       };
-      this.performanceMetrics.set(toolName, metrics);
     }
 
     // Update metrics
-    metrics.totalExecutions++;
-    metrics.lastExecutionTime = executionTime;
+    toolMetrics.totalExecutions++;
+    toolMetrics.lastExecutionTime = executionTime;
 
     if (success) {
-      metrics.successfulExecutions++;
+      toolMetrics.successfulExecutions++;
       // Update rolling average for quality score
-      metrics.qualityScore = (metrics.qualityScore + qualityScore) / 2;
+      toolMetrics.qualityScore = (toolMetrics.qualityScore + qualityScore) / 2;
     } else {
-      metrics.failedExecutions++;
+      toolMetrics.failedExecutions++;
     }
 
     // Update success rate and average execution time
-    metrics.successRate = (metrics.successfulExecutions / metrics.totalExecutions) * 100;
-    metrics.averageExecutionTime = (metrics.averageExecutionTime + executionTime) / 2;
+    toolMetrics.successRate =
+      (toolMetrics.successfulExecutions / toolMetrics.totalExecutions) * 100;
+    toolMetrics.averageExecutionTime = (toolMetrics.averageExecutionTime + executionTime) / 2;
+
+    metrics[toolName] = toolMetrics;
+    await this.cache.set(this.metricsKey, metrics);
   }
 
   /**
-   * Get tool performance metrics
+   * Get tool performance metrics by tool name.
+   * @param toolName The tool's canonical name.
+   * @returns ToolPerformanceMetrics object, or undefined if not found.
    */
-  public getToolMetrics(toolName: string): ToolPerformanceMetrics | undefined {
-    return this.performanceMetrics.get(toolName);
+  public async getToolMetrics(toolName: string): Promise<ToolPerformanceMetrics | undefined> {
+    const metrics =
+      ((await this.cache.get(this.metricsKey)) as Record<string, ToolPerformanceMetrics>) || {};
+    return metrics[toolName];
   }
 
   /**
-   * Get all tool performance metrics
+   * Get all tool performance metrics (all registered tools).
+   * @returns Array of ToolPerformanceMetrics objects.
    */
-  public getAllMetrics(): ToolPerformanceMetrics[] {
-    return Array.from(this.performanceMetrics.values());
+  public async getAllMetrics(): Promise<ToolPerformanceMetrics[]> {
+    const metrics =
+      ((await this.cache.get(this.metricsKey)) as Record<string, ToolPerformanceMetrics>) || {};
+    return Object.values(metrics);
   }
 
   /**
-   * Get comprehensive tool status and analytics
+   * Get comprehensive tool status and analytics (for MCP/monitoring).
+   * Includes total count, category stats, usage analytics, and compliance flags.
+   * @returns Object with tool counts, categories, analytics, and compliance info.
    */
-  public getStatus(): {
+  public async getStatus(): Promise<{
     totalTools: number;
     toolNames: string[];
     categories: Record<string, number>;
@@ -437,13 +559,14 @@ export class ToolRegistry {
       byCategory: Record<string, string[]>;
       priorityDistribution: Record<number, number>;
     };
-  } {
+  }> {
+    const tools = ((await this.cache.get(this.toolsKey)) as Record<string, ToolRegistration>) || {};
     const categoryStats: Record<string, number> = {};
     const priorityDistribution: Record<number, number> = {};
     const usageStats: Array<{ name: string; count: number }> = [];
     const categoryTools: Record<string, string[]> = {};
 
-    for (const [name, registration] of Array.from(this.tools)) {
+    for (const [name, registration] of Object.entries(tools)) {
       const category = registration.metadata.category;
       const priority = registration.metadata.priority;
 
@@ -461,8 +584,8 @@ export class ToolRegistry {
       .map((item) => item.name);
 
     return {
-      totalTools: this.tools.size,
-      toolNames: this.getToolNames(),
+      totalTools: Object.keys(tools).length,
+      toolNames: Object.keys(tools),
       categories: categoryStats,
       framework: 'unified_mcp_v1.0',
       constitutionalCompliant: true,
@@ -475,14 +598,12 @@ export class ToolRegistry {
   }
 
   /**
-   * Log category status for debugging
+   * Log category status for debugging (stub).
+   * (Category distribution logging removed; see AGENTS.md for canonical logging guidance.)
    */
-  private logCategoryStatus(): void {
+  private async logCategoryStatus(): Promise<void> {
     if (!(process.env.ONEAGENT_FAST_TEST_MODE === '1' || process.env.NODE_ENV === 'test')) {
-      console.log(`[ToolRegistry] Category distribution:`);
-      for (const [category, tools] of Array.from(this.categories)) {
-        console.log(`  ${category}: ${tools.length} tools`);
-      }
+      // Category distribution logging removed (see AGENTS.md for canonical logging guidance)
     }
   }
 }

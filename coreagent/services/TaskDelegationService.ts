@@ -139,9 +139,9 @@ export class TaskDelegationService {
   /** Internal helper to persist a task state to memory (best-effort, non-blocking). */
   private async persistTaskMemory(task: DelegatedTask, statusUpdate = false): Promise<void> {
     try {
-      await this.memory.addMemoryCanonical(
-        `${statusUpdate ? 'TaskStatus' : 'ProactiveDelegation'}:${task.action}`,
-        {
+      await this.memory.addMemory({
+        content: `${statusUpdate ? 'TaskStatus' : 'ProactiveDelegation'}:${task.action}`,
+        metadata: {
           type: 'proactive_task',
           taskId: task.id,
           targetAgent: task.targetAgent,
@@ -156,8 +156,7 @@ export class TaskDelegationService {
           nextAttemptAt: task.nextAttemptAt,
           nextAttemptUnix: task.nextAttemptUnix,
         } as unknown as Record<string, unknown>,
-        'system-proactive',
-      );
+      });
     } catch (err) {
       console.warn('[TaskDelegationService] Failed to persist task memory', {
         taskId: task.id,
@@ -268,7 +267,7 @@ export class TaskDelegationService {
    * Process requeue eligibility for all failed tasks whose nextAttemptUnix has passed.
    * Returns list of taskIds requeued. Designed to be invoked by orchestrator scheduler (future) or tests.
    */
-  processDueRequeues(nowUnix: number = Date.now()): string[] {
+  processDueRequeues(nowUnix: number = createUnifiedTimestamp().unix): string[] {
     const requeued: string[] = [];
     for (const t of this.queue) {
       if (
@@ -323,17 +322,16 @@ export class TaskDelegationService {
       nextAttemptAt: t.nextAttemptAt,
     }));
     try {
-      await this.memory.addMemoryCanonical(
-        'TaskDelegationSnapshot',
-        {
+      await this.memory.addMemory({
+        content: 'TaskDelegationSnapshot',
+        metadata: {
           type: 'proactive_task_snapshot',
           queueLength: this.queue.length,
           snapshot,
           temporal: { persistedAt: createUnifiedTimestamp() },
         } as unknown as Record<string, unknown>,
-        'system-proactive',
-      );
-      this.lastSnapshotTs = Date.now();
+      });
+      this.lastSnapshotTs = createUnifiedTimestamp().unix;
     } catch {
       /* ignore */
     }
@@ -342,7 +340,7 @@ export class TaskDelegationService {
   /** Throttled snapshot persistence to avoid excessive memory writes */
   private maybePersistSnapshot(): void {
     if (process.env.ONEAGENT_FAST_TEST_MODE === '1') return; // skip noise in fast tests
-    const now = Date.now();
+    const now = createUnifiedTimestamp().unix;
     if (now - this.lastSnapshotTs < this.SNAPSHOT_MIN_INTERVAL_MS) return;
     this.persistSnapshot().catch(() => {});
   }
@@ -353,12 +351,17 @@ export class TaskDelegationService {
     if (process.env.ONEAGENT_FAST_TEST_MODE === '1') return; // skip in fast tests
     try {
       // Basic search: look for recent proactive task records
-      const results = await this.memory.searchMemory({
+      const searchResults = await this.memory.searchMemory({
         query: 'ProactiveDelegation',
         limit: 50,
         userId: 'system-proactive',
       });
-      const arr = (results && (results as unknown as { results?: unknown[] }).results) || [];
+      // Canonical: searchResults is MemorySearchResult[]
+      const arr: { metadata?: Record<string, unknown>; content?: string }[] = Array.isArray(
+        searchResults,
+      )
+        ? searchResults
+        : [];
       if (!Array.isArray(arr)) return;
       for (const r of arr) {
         const rec = r as { metadata?: Record<string, unknown>; content?: string };

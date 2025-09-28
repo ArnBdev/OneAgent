@@ -1,4 +1,8 @@
-import { OneAgentUnifiedBackbone, UnifiedBackboneService } from '../utils/UnifiedBackboneService';
+import {
+  OneAgentUnifiedBackbone,
+  UnifiedBackboneService,
+  createUnifiedTimestamp,
+} from '../utils/UnifiedBackboneService';
 import { OneAgentMemory } from '../memory/OneAgentMemory';
 import { memgraphService } from './MemgraphService';
 import type { MemoryRecord } from '../types/oneagent-backbone-types';
@@ -44,7 +48,7 @@ export class HybridMemorySearchService {
    * Execute a hybrid search. Never throws; surfaces errors via error handler and returns partials.
    */
   public async getContext(params: HybridSearchParams): Promise<HybridSearchResult> {
-    const start = Date.now();
+    const startTs = createUnifiedTimestamp();
     const services = OneAgentUnifiedBackbone.getInstance().getServices();
     const cfg = UnifiedBackboneService.getResolvedConfig();
     const limit = params.limit || cfg.hybridSearch?.limit || 10;
@@ -64,7 +68,75 @@ export class HybridMemorySearchService {
           userId: params.userId,
           limit,
         });
-        vectorResults = res?.results || [];
+        // Canonical: res is MemorySearchResult[]; map to MemoryRecord if needed
+        vectorResults = Array.isArray(res)
+          ? res.map((r) => ({
+              id: r.id,
+              content: r.content,
+              metadata:
+                r.metadata &&
+                typeof r.metadata === 'object' &&
+                'id' in r.metadata &&
+                'type' in r.metadata &&
+                'version' in r.metadata &&
+                'temporal' in r.metadata &&
+                'system' in r.metadata &&
+                'quality' in r.metadata &&
+                'content' in r.metadata &&
+                'relationships' in r.metadata &&
+                'analytics' in r.metadata
+                  ? (r.metadata as import('../types/oneagent-backbone-types').UnifiedMetadata)
+                  : {
+                      id: r.id,
+                      type: 'memory',
+                      version: '1.0.0',
+                      temporal: {
+                        created: createUnifiedTimestamp(),
+                        updated: createUnifiedTimestamp(),
+                        contextSnapshot: {
+                          timeOfDay: 'unknown',
+                          dayOfWeek: 'unknown',
+                          businessContext: false,
+                          energyContext: 'unknown',
+                        },
+                      },
+                      system: {
+                        source: 'HybridMemorySearchService',
+                        component: 'vector-search',
+                      },
+                      quality: {
+                        score: 0,
+                        constitutionalCompliant: true,
+                        validationLevel: 'basic',
+                        confidence: 0.5,
+                      },
+                      content: {
+                        category: 'memory',
+                        tags: [],
+                        sensitivity: 'internal',
+                        relevanceScore: 0,
+                        contextDependency: 'session',
+                      },
+                      relationships: {
+                        parent: undefined,
+                        children: [],
+                        related: [],
+                        dependencies: [],
+                      },
+                      analytics: {
+                        accessCount: 0,
+                        lastAccessPattern: 'search',
+                        usageContext: [],
+                      },
+                    },
+              relatedMemories: [],
+              accessCount: 0,
+              lastAccessed: new Date(),
+              qualityScore: 0,
+              constitutionalStatus: 'compliant',
+              lastValidation: new Date(),
+            }))
+          : [];
       } catch (err) {
         services.errorHandler.handleError(err as Error, {
           component: 'HybridMemorySearchService',
@@ -194,7 +266,7 @@ export class HybridMemorySearchService {
     return {
       results: merged,
       sources: { vector: vectorResults.length, graph: graphResults.length },
-      tookMs: Math.max(0, Date.now() - start),
+      tookMs: Math.max(0, createUnifiedTimestamp().unix - startTs.unix),
       query: params.query,
     };
   }

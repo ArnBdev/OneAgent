@@ -513,11 +513,10 @@ export class InsightSynthesisEngine {
         }
         (metadata as InsightMetadataExtension).entityType = 'BreakthroughInsight';
         (metadata as InsightMetadataExtension).insightData = insight;
-        await this.memory.addMemoryCanonical(
-          `Breakthrough Insight: ${insight.content}`,
+        await this.memory.addMemoryCanonical({
+          content: `Breakthrough Insight: ${insight.content}`,
           metadata,
-          'system_insights',
-        );
+        });
       } catch (err) {
         console.warn('InsightSynthesisEngine memory store failed:', err);
       }

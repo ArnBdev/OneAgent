@@ -10,7 +10,7 @@ This document outlines the consolidation of parallel agent communication systems
 
 1. **MemoryDrivenAgentCommunication** (KEEP - Canonical)
    - ✅ Memory-based communication (user vision)
-   - ✅ Canonical OneAgentMemory integration
+   - ✅ Canonical, pluggable, MCP/JSON-RPC-compliant OneAgentMemory integration (strict IMemoryClient interface)
    - ✅ Constitutional AI validation
    - ✅ Auditable through memory system
 

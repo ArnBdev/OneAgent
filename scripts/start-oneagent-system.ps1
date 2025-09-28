@@ -43,9 +43,6 @@ if (-not $NoBanner) {
 $memPort = if ($env:ONEAGENT_MEMORY_PORT) { [int]$env:ONEAGENT_MEMORY_PORT } else { 8010 }
 $mcpPort = if ($env:ONEAGENT_MCP_PORT) { [int]$env:ONEAGENT_MCP_PORT } else { 8083 }
 
-# Start Memory Server (Python/FastAPI/Uvicorn)
-$memoryServerCmd = "uvicorn servers.oneagent_memory_server:app --host 127.0.0.1 --port $memPort --reload"
-Start-ProcessWithBanner -Name "Memory Server (mem0)" -Command $memoryServerCmd -WorkingDirectory "$PSScriptRoot/.."
 
 # Start MCP Server (Node/TypeScript via ts-node/register; no npx/tsx dependency)
 $tsNodeRegister = node -e "try{console.log(require.resolve('ts-node/register'))}catch{process.exit(1)}"
@@ -55,6 +52,22 @@ if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace($tsNodeRegister)) {
 }
 $mcpServerCmd = "node -r `"$tsNodeRegister`" coreagent/server/unified-mcp-server.ts"
 Start-ProcessWithBanner -Name "MCP Server (Node/TypeScript)" -Command $mcpServerCmd -WorkingDirectory "$PSScriptRoot/.."
+
+# Wait for MCP health endpoint before starting memory server
+$mcpProbeUrl = "http://127.0.0.1:$mcpPort/health"
+Write-Host "[OneAgent] Waiting for MCP server to become healthy before starting memory server..." -ForegroundColor Yellow
+$mcpReady = Wait-HttpReady -Url $mcpProbeUrl -TimeoutSec 60
+if ($mcpReady) {
+    Write-Host "[Probe] MCP server READY ($mcpProbeUrl)" -ForegroundColor Green
+} else {
+    Write-Host "[Probe] MCP server TIMEOUT ($mcpProbeUrl)" -ForegroundColor Yellow
+    Write-Host "[OneAgent] MCP server did not become healthy in time. Exiting." -ForegroundColor Red
+    exit 1
+}
+
+# Start Memory Server (Python/FastAPI/Uvicorn)
+$memoryServerCmd = "uvicorn servers.oneagent_memory_server:app --host 127.0.0.1 --port $memPort --reload"
+Start-ProcessWithBanner -Name "Memory Server (mem0)" -Command $memoryServerCmd -WorkingDirectory "$PSScriptRoot/.."
 
 function Wait-HttpReady {
     param(
@@ -75,20 +88,16 @@ function Wait-HttpReady {
     return $false
 }
 
-# Optional readiness checks (prefer explicit health endpoints where available)
+
+# Optional readiness check for memory server
 $memProbeUrl = "http://127.0.0.1:$memPort/health"  # memory server exposes /health
-$mcpProbeUrl = "http://127.0.0.1:$mcpPort/health"
-
 $memReady = Wait-HttpReady -Url $memProbeUrl -TimeoutSec 45
-$mcpReady = Wait-HttpReady -Url $mcpProbeUrl -TimeoutSec 60
-
 if ($memReady) { Write-Host "[Probe] Memory server READY ($memProbeUrl)" -ForegroundColor Green } else { Write-Host "[Probe] Memory server TIMEOUT ($memProbeUrl)" -ForegroundColor Yellow }
-if ($mcpReady) { Write-Host "[Probe] MCP server READY ($mcpProbeUrl)" -ForegroundColor Green } else { Write-Host "[Probe] MCP server TIMEOUT ($mcpProbeUrl)" -ForegroundColor Yellow }
 
-if ($memReady -and $mcpReady) {
+if ($memReady) {
     Write-Host "[OneAgent] Both servers are UP and responding." -ForegroundColor Green
 } else {
-    Write-Host "[OneAgent] One or more services not ready within timeout window (memory=$memReady mcp=$mcpReady). Check individual windows; they may still finish starting." -ForegroundColor Yellow
+    Write-Host "[OneAgent] Memory server not ready within timeout window. Check its window; it may still finish starting." -ForegroundColor Yellow
 }
 
 Write-Host "[OneAgent] Both servers launched. Check their windows for output." -ForegroundColor Green

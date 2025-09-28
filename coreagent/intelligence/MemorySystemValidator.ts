@@ -422,7 +422,7 @@ export class MemorySystemValidator implements IIntelligenceProvider {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           content: 'Mock detection test',
-          user_id: 'mock_test',
+          userId: 'mock_test',
         }),
       });
       if (testAdd.ok) {

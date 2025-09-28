@@ -1,4 +1,4 @@
-# OneAgent Consolidated Strategic Roadmap (v4.1.0)
+# OneAgent Consolidated Strategic Roadmap (v4.2.2)
 
 > **⚠️ Canonical File Notice**  
 > This is the **ONLY** authoritative roadmap. Do **not** create additional roadmap variants (e.g. `CONSOLIDATED_ROADMAP.md`, `roadmap_v2.md`, `HYBRID_ROADMAP`, etc.). All strategy, release planning, KPI updates and status changes MUST be applied here. Creating parallel roadmap documents is prohibited and will be treated as architecture drift. A future CI guard may fail builds if a new `*roadmap*.md` file appears outside this path.
@@ -7,58 +7,73 @@
 
 > Canonical roadmap superseding ad‑hoc/fragmented roadmap references. Existing roadmap & vision docs remain as historical context; this file is the single planning source of truth going forward.
 
-## 1. Executive Summary
-
-OneAgent has completed foundational consolidation (time, ID, memory, cache, communication persistence, baseline monitoring) and delivered professional MCP + A2A multi-agent capabilities. All agent-to-agent communication is routed through the canonical UnifiedAgentCommunicationService, is NLACS-extended for natural language coordination, and is memory-audited for full traceability and self-improving review (Alita evolution). Focus now shifts to: (1) Reliability & Observability depth, (2) NLACS & PlannerAgent true intelligence layer, (3) Structured Error & Policy governance, (4) UI/UX platform surfaces (web, desktop, mobile), (5) Extensibility & ecosystem, (6) Performance scalability toward enterprise scale.
+OneAgent v4.2.2 has completed full canonicalization of time, ID, memory, cache, and communication systems. All cross-cutting caches are unified (`OneAgentUnifiedBackbone.getInstance().cache`), discovery and web findings use canonical cache with TTL/backoff and negative caching, and all agent-to-agent communication is routed through UnifiedAgentCommunicationService (NLACS-extended, memory-audited). Observability is enhanced with Prometheus mission gauges, error rate, and health aggregation. Release automation is now in place: tag push/create triggers CI/CD with verify (type + lint), UI/extension build, error diagnostics, and release notes from `RELEASE_NOTES/<tag>.md`. Lint/static enforcement is expanded (no-parallel-cache, prefer-unified-time/id). Technical debt and gaps are documented, and next steps are clear for backend, frontend, testing, and governance. Focus now shifts to: (1) Reliability & Observability depth, (2) NLACS & PlannerAgent intelligence, (3) Structured Error & Policy governance, (4) UI/UX platform surfaces, (5) Extensibility & ecosystem, (6) Performance scalability toward enterprise scale.
 
 ## 2. Current State Snapshot (Maturity Matrix)
 
-| Pillar                             | Scope                                        | Status       | Maturity (1-5) | Notes                                                                                         |
-| ---------------------------------- | -------------------------------------------- | ------------ | -------------- | --------------------------------------------------------------------------------------------- |
-| Canonical Core Systems             | Time, ID, Memory, Cache                      | ✅ Complete  | 4              | Error handling taxonomy pending for level 5                                                   |
-| Communication Layer                | A2A protocol + persistence + instrumentation | ✅ Complete  | 4              | NLACS advanced features outstanding                                                           |
-| Monitoring & Metrics               | Counters, latency gauges, error counters     | ✅ Enhanced  | 4              | Histograms + SLO target gauges + error budget burn gauges complete; anomaly detection pending |
-| Error Handling & Taxonomy          | Canonical registry + mapped metrics          | 🚧 Advancing | 3              | Taxonomy integrated in handlers + monitoring + metrics; policy console pending                |
-| NLACS / Emergent Intelligence      | Placeholders + partial fields                | 🚧 Partial   | 2              | Entity extraction + optional semantic exposure; cross-session insights missing                |
-| Orchestration (Hybrid + Proactive) | Multi-agent orchestration + proactive triage | ✅ Complete  | 4              | HybridAgentOrchestrator prod-ready; ProactiveTriageOrchestrator live; policy hooks pending    |
-| Planner (Strategic)                | Decomposition & dynamic replanning           | 🚧 Partial   | 2              | Strategic planning & dynamic replanning not done                                              |
-| UI / Visualization                 | VS Code extension only                       | 🚫 Minimal   | 1              | No standalone web dashboard / electron yet                                                    |
-| Resilience & Reliability           | Basic fallback & retries                     | 🚧 Partial   | 2              | Circuit breakers, chaos tests absent                                                          |
-| Security / Privacy / Compliance    | Baseline privacy metadata                    | 🚧 Partial   | 2              | Policy enforcement & audit dashboards needed                                                  |
-| Extensibility / Plugin Model       | Tool registry internal                       | 🚧 Early     | 2              | Public plugin packaging & versioning needed                                                   |
-| Performance & Scale                | Local dev scale proven                       | 🚧 Early     | 2              | Load, multi-instance clustering not validated                                                 |
-| Governance & Change Control        | Manual PR & docs                             | 🚧 Early     | 2              | Release train & RFC workflow required                                                         |
+| Pillar                             | Scope                                         | Status       | Maturity (1-5) | Notes                                                                                      |
+| ---------------------------------- | --------------------------------------------- | ------------ | -------------- | ------------------------------------------------------------------------------------------ |
+| Canonical Core Systems             | Time, ID, Memory, Cache, Unified Cache Policy | ✅ Complete  | 5              | All caches unified; negative caching, TTL/backoff, static lint guards in place             |
+| Communication Layer                | A2A protocol + persistence + instrumentation  | ✅ Complete  | 5              | NLACS, memory audit, no parallel comms; legacy adapters deprecated                         |
+| Monitoring & Metrics               | Prometheus gauges, error rate, health, cache  | ✅ Enhanced  | 5              | Mission gauges, error rate, health aggregation, cache health, negative caching             |
+| Error Handling & Taxonomy          | Canonical registry + mapped metrics           | 🚧 Advancing | 4              | Taxonomy codes in error handler, monitoring, metrics; policy console next                  |
+| NLACS / Emergent Intelligence      | NLACS, entity extraction, memory audit        | 🚧 Advancing | 3              | NLACS extension, entity extraction, memory audit, cross-session insights planned           |
+| Orchestration (Hybrid + Proactive) | Multi-agent orchestration + proactive triage  | ✅ Complete  | 4              | HybridAgentOrchestrator prod-ready; ProactiveTriageOrchestrator live; policy hooks pending |
+| Planner (Strategic)                | Decomposition & dynamic replanning            | 🚧 Partial   | 2              | Strategic planning & dynamic replanning not done                                           |
+| UI / Visualization                 | VS Code extension, dashboard, metrics         | � Advancing  | 2              | VS Code extension compiles, dashboard metrics planned, live auto-refresh next              |
+| Resilience & Reliability           | Fallback, retries, release automation         | 🚧 Advancing | 3              | CI/CD release workflow, verify gate, error diagnostics, circuit breakers planned           |
+| Security / Privacy / Compliance    | Baseline privacy metadata                     | 🚧 Partial   | 2              | Policy enforcement & audit dashboards needed                                               |
+| Extensibility / Plugin Model       | Tool registry, release workflow, lint guards  | 🚧 Advancing | 3              | Release workflow, plugin manifest spec, static lint guards, public packaging planned       |
+| Performance & Scale                | Local dev scale, cache perf, CI/CD            | 🚧 Advancing | 3              | Cache perf, release automation, clustering design doc planned                              |
+| Governance & Change Control        | Release train, CI/CD, roadmap guard           | 🚧 Advancing | 3              | CI/CD release workflow, roadmap file guard, RFC workflow planned                           |
 
-## 3. Strategic Pillars (2025–2026)
+## 3. Strategic Pillars (2025–2026, v4.2.2+)
 
-1. Reliability & Observability Excellence (SLOs, structured errors, resilience).
-2. Intelligence Elevation (NLACS advanced + PlannerAgent strategic pipeline).
-3. Experience & Adoption (Web dashboard, Electron desktop, mobile apps + hooks).
-4. Life Domains & Privacy Compartmentalization (work/personal/health/finance/creative domains with default‑deny bridges, consent, DLP).
-5. Model‑Agnostic Intelligence Routing (cost/quality/latency policies, hot‑swap and fallback).
-6. Extensibility & Ecosystem (Plugin/extension SDK, connectors, marketplace‑ready metadata).
-7. Performance & Scale (Clustering, horizontal scaling, adaptive sampling, histograms).
-8. Governance & Compliance (Policy layer, audit visualizations, data retention controls).
-9. Research & Innovation (Emergent insight detection, knowledge graph, autonomous optimisation loops).
+1. Reliability & Observability Excellence (SLOs, structured errors, resilience, canonical cache health, negative caching).
+2. Intelligence Elevation (NLACS advanced, PlannerAgent strategic pipeline, memory audit, entity extraction).
+3. Experience & Adoption (Web dashboard, VS Code extension, metrics, live auto-refresh, Electron/mobile apps).
+4. Life Domains & Privacy Compartmentalization (domain profiles, default-deny bridges, consent, DLP, audit).
+5. Model-Agnostic Routing (UnifiedModelPicker, cost/quality/latency, hot-swap, fallback, telemetry).
+6. Extensibility & Ecosystem (Plugin/extension SDK, connectors, release workflow, lint/static enforcement).
+7. Performance & Scale (Cache perf, clustering, adaptive sampling, histograms, CI/CD automation).
+8. Governance & Compliance (Policy layer, audit visualizations, data retention, roadmap file guard, RFC workflow).
+9. Research & Innovation (Emergent insight detection, knowledge graph, autonomous optimization, semantic regression).
 
-## 4. Release Train & High-Level Timeline (Indicative)
+## 4. Release Train & High-Level Timeline (Indicative, v4.2.2+)
 
-| Release | Target Window | Theme Focus                         | Exit Criteria                                                                                    |
-| ------- | ------------- | ----------------------------------- | ------------------------------------------------------------------------------------------------ |
-| v4.1    | +4 weeks      | Error Taxonomy & Orchestration UX A | Canonical error codes, JSON/Prometheus SLO metrics, basic alert pack, orchestration metrics view |
-| v4.2    | +8 weeks      | Resilience & Policy Hooks           | Circuit breakers, retry policy hardening, chaos tests, orchestration governance/policy hooks     |
-| v4.3    | +12 weeks     | NLACS Phase 3 (Core)                | Entity extraction, constitutional validation pipeline, emergent insight MVP                      |
-| v4.4    | +16 weeks     | PlannerAgent Strategic Layer        | Task decomposition, dynamic replanning, memory-driven optimization                               |
-| v4.5    | +20 weeks     | Web UI Phase A                      | Dashboard (metrics, agents, memory explorer), HTTP NDJSON stream/WebSocket events                |
-| v4.6    | +24 weeks     | Web UI Phase B + Error Analytics    | SLO visualization, error drill-down, taxonomy management console                                 |
-| v5.0    | +32 weeks     | Hybrid Intelligence Launch          | Full NLACS + Planner integration, cross-session learning reports, stability SLA                  |
-| v5.1    | +40 weeks     | Extensibility & Plugin SDK          | Signed plugin packages, sandbox execution policies, marketplace seed                             |
-| v5.2    | +48 weeks     | Scale & Multi-Instance              | Cluster orchestration, shared memory index, distributed monitoring                               |
-| v6.0    | 2026 H1       | Enterprise Platform                 | Compliance packs, advanced anomaly detection, multi-tenant isolation, governance workflows       |
+| Release | Target Window | Theme Focus                                        | Exit Criteria                                                                                                     |
+| ------- | ------------- | -------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------- |
+| v4.1    | +4 weeks      | Error Taxonomy & Orchestration UX A                | Canonical error codes, JSON/Prometheus SLO metrics, basic alert pack, orchestration metrics view                  |
+| v4.2.2  | 2025-09-24    | Canonical Cache, Observability, Release Automation | Unified cache, negative caching, Prometheus gauges, error rate, health, release workflow, lint/static enforcement |
+| v4.3    | +12 weeks     | Reactive Observability, UI Auto-Refresh            | Live dashboard auto-refresh, event-driven streaming, anomaly triggers, health delta banner/timeline               |
+| v4.3    | +12 weeks     | NLACS Phase 3 (Core)                               | Entity extraction, constitutional validation pipeline, emergent insight MVP                                       |
+| v4.4    | +16 weeks     | PlannerAgent Strategic Layer                       | Task decomposition, dynamic replanning, memory-driven optimization                                                |
+| v4.5    | +20 weeks     | Web UI Phase A                                     | Dashboard (metrics, agents, memory explorer), HTTP NDJSON stream/WebSocket events                                 |
+| v4.6    | +24 weeks     | Web UI Phase B + Error Analytics                   | SLO visualization, error drill-down, taxonomy management console                                                  |
+| v5.0    | +32 weeks     | Hybrid Intelligence Launch                         | Full NLACS + Planner integration, cross-session learning reports, stability SLA                                   |
+| v5.1    | +40 weeks     | Extensibility & Plugin SDK                         | Signed plugin packages, sandbox execution policies, marketplace seed                                              |
+| v5.2    | +48 weeks     | Scale & Multi-Instance                             | Cluster orchestration, shared memory index, distributed monitoring                                                |
+| v6.0    | 2026 H1       | Enterprise Platform                                | Compliance packs, advanced anomaly detection, multi-tenant isolation, governance workflows                        |
 
-## 5. Thematic Backlogs & Acceptance Criteria
+## 5. Thematic Backlogs & Acceptance Criteria (v4.2.2+)
 
-### 5.1 Reliability & Observability
+### 5.0 Canonical Cache & Release Automation (NEW)
+
+- All cross-cutting caches unified (`OneAgentUnifiedBackbone.getInstance().cache`)
+- Discovery and web findings use canonical cache with TTL/backoff, negative caching
+- Prometheus mission gauges, error rate, health aggregation
+- Release workflow: tag push/create, verify gate, UI/extension build, error diagnostics, release notes from `RELEASE_NOTES/<tag>.md`
+- Lint/static enforcement: no-parallel-cache (WARN for 4.2.2), prefer-unified-time/id
+- CI/CD: npm cache, timeouts, error log tail, artifact upload
+
+Acceptance:
+
+- No parallel time/ID/cache/memory/metrics systems
+- All caches route through canonical service
+- Negative caching and TTL/backoff in place
+- Release workflow passes verify, creates release, surfaces errors
+
+### 5.1 Reliability & Observability (Expanded)
 
 - Error Taxonomy Registry: `errorCodes.ts` enumerating stable codes; mapping function w/ unit tests.
 - Histograms: HDR or bucketed; p50/p90/p95/p99 from canonical histogram object; no parallel stores.
@@ -79,7 +94,7 @@ Planner (Strategic)
 
 All agent-to-agent communication, including orchestration, reminders, and team meetings, is routed through UnifiedAgentCommunicationService, is NLACS-extended for natural language coordination, and is memory-audited for full traceability, auditability, and self-improving review (Alita evolution). No parallel communication systems are permitted; legacy adapters are deprecated and stubbed.
 
-### 5.4 UI / UX Platform
+### 5.4 UI / UX Platform (Expanded)
 
 Acceptance (Phase A minimum):
 
@@ -299,7 +314,7 @@ OneAgent has completed foundational consolidation (time, ID, memory, cache, comm
 | NLACS / Emergent Intelligence      | Placeholders + partial fields                | 🚧 Partial   | 2              | Entity extraction + optional semantic exposure; cross-session insights missing                |
 | Orchestration (Hybrid + Proactive) | Multi-agent orchestration + proactive triage | ✅ Complete  | 4              | HybridAgentOrchestrator prod-ready; ProactiveTriageOrchestrator live; policy hooks pending    |
 | Planner (Strategic)                | Decomposition & dynamic replanning           | 🚧 Partial   | 2              | Strategic planning & dynamic replanning not done                                              |
-| UI / Visualization                 | VS Code extension only                       | 🚫 Minimal   | 1              | No standalone web dashboard / electron yet                                                    |
+| UI / Visualization                 | VS Code extension, dashboard, metrics        | � Advancing  | 2              | VS Code extension compiles, dashboard metrics planned, live auto-refresh next                 |
 | Resilience & Reliability           | Basic fallback & retries                     | 🚧 Partial   | 2              | Circuit breakers, chaos tests absent                                                          |
 | Security / Privacy / Compliance    | Baseline privacy metadata                    | 🚧 Partial   | 2              | Policy enforcement & audit dashboards needed                                                  |
 | Extensibility / Plugin Model       | Tool registry internal                       | 🚧 Early     | 2              | Public plugin packaging & versioning needed                                                   |
@@ -364,7 +379,7 @@ Acceptance (Phase A minimum):
 - Live stream viewer connected to `/mcp/stream` with reconnection and health badge.
 - Domain selector in UI scopes views to a selected domain (work/personal/etc.) without crossing data.
 
-### 5.5 Extensibility & Ecosystem
+### 5.5 Extensibility & Ecosystem (Expanded)
 
 - Plugin Manifest Spec: Signed metadata file w/ declared capabilities, permissions.
 - Sandbox Execution: Process isolation or VM boundary for untrusted plugin code.
@@ -372,7 +387,7 @@ Acceptance (Phase A minimum):
 - Marketplace Bootstrap: Static index JSON + publishing CLI; later dynamic service.
 - Connector Framework: First‑party connectors for calendars, email, tasks, cloud drives; signed and sandboxed under the same Plugin SDK.
 
-### 5.6 Performance & Scale
+### 5.6 Performance & Scale (Expanded)
 
 - Adaptive Sampling: Keep full detail for errors & tail latencies; sample high-volume successes.
 - Clustering: Stateless MCP frontends + shared memory + distributed event bus (NATS/Redis candidate) — design doc & prototype.
@@ -384,7 +399,7 @@ Acceptance (initial):
 - Baseline single-node sustained ops/sec published and guarded in CI perf check.
 - Adaptive sampling enabled for high-volume operations without losing tail/error fidelity.
 
-### 5.7 Governance & Compliance
+### 5.7 Governance & Compliance (Expanded)
 
 - RFC Process: `docs/rfc/RFC-XXXX-title.md` template; merge gating for major changes.
 - Data Retention Policy: Configurable retention windows for memory categories.
@@ -396,7 +411,7 @@ Quality Gates (expanded):
 - CI guard prevents introduction of non-canonical roadmap files (any `*roadmap*.md` outside `docs/ROADMAP.md`).
 - Lint rule/guard to prevent banned metric names and non-taxonomy error strings in monitored paths.
 
-### 5.9 Life Domains & Privacy (New)
+### 5.8 Life Domains & Privacy (Expanded)
 
 - Domain Profiles: Work, Personal, Health, Finance, Creative profiles—each a context compartment with separate defaults, capabilities, and storage partitions enforced via policy hooks.
 - Consent Bridges: Default‑deny cross‑domain sharing; explicit, auditable consent is required to bridge data between domains (with taxonomy‑coded reasons).
@@ -411,7 +426,7 @@ Acceptance:
 
 All domain compartmentalization, consent bridges, and DLP enforcement leverage the canonical UnifiedAgentCommunicationService, with NLACS extension and memory audit for full traceability and review. Cross-domain communication is strictly routed through canonical services; legacy adapters are deprecated. Alita evolution ensures self-improving review and auditability across all domain operations.
 
-### 5.10 Model‑Agnostic Routing (New)
+### 5.9 Model-Agnostic Routing (Expanded)
 
 - UnifiedModelPicker Policies: Route by cost/quality/latency per role; cheap model for casual chat, upgrade for complex tasks.
 - Hot‑Swap & Fallback: Seamless provider swap with minimal downtime; fallback to alternate model on errors/timeouts.
@@ -422,7 +437,7 @@ Acceptance:
 - Policy tests demonstrate correct routing and fallbacks; MTMS reported; cost per 1K tokens trend visible.
 - No env‑driven shadow configs; all routing via canonical picker to avoid parallel model systems.
 
-### 5.8 Research & Innovation (Stretch)
+### 5.10 Research & Innovation (Expanded)
 
 - Autonomous Improvement Loops: Agent proposes + validates code path enhancements.
 - Semantic Regression Detection: Diff embeddings between releases to flag behavioral drift.
@@ -501,7 +516,9 @@ Adaptive Sampling → Clustering → Distributed Monitoring → Enterprise Scale
 - Progressive Enhancement: MVP → harden → optimize → extend sequence.
 - Measured Ambition: Dream big (emergent intelligence & autonomous optimization) while grounding each milestone with observable KPIs.
 
-## 12. Immediate Action Queue (Execution Kickoff / Status)
+## 12. Immediate Action Queue (Execution Kickoff / Status, v4.2.2+)
+
+| 22 | Canonical cache policy enforcement, negative caching, release workflow automation | v4.2.2 | ✅ Done | All caches unified, negative caching, release workflow, lint/static enforcement, error diagnostics |
 
 | #   | Item                                                                 | Target             | Status     | Notes                                                                                               |
 | --- | -------------------------------------------------------------------- | ------------------ | ---------- | --------------------------------------------------------------------------------------------------- |

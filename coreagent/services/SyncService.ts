@@ -60,11 +60,32 @@ export function splitIntoRules(markdown: string): string[] {
   return Array.from(new Set(raw));
 }
 
+import { OneAgentUnifiedBackbone } from '../utils/UnifiedBackboneService';
+
 export class SyncService {
   private specsDir: string;
   private memory: OneAgentMemory;
   private gemini: GeminiClient;
   private embeddingModel: 'gemini-embedding-001';
+  // Canonical: Use unified cache for persistent/cross-agent state
+  private cache = OneAgentUnifiedBackbone.getInstance().cache;
+  // Example: persistent task state (futureproof pattern, async cache access)
+  async getActiveTasks(): Promise<Map<string, unknown>> {
+    let tasks = await this.cache.get('activeTasks');
+    if (!tasks) {
+      tasks = new Map<string, unknown>();
+      await this.cache.set('activeTasks', tasks);
+    }
+    return tasks as Map<string, unknown>;
+  }
+  async getTaskContexts(): Promise<Map<string, string[]>> {
+    let ctx = await this.cache.get('taskContexts');
+    if (!ctx) {
+      ctx = new Map<string, string[]>();
+      await this.cache.set('taskContexts', ctx);
+    }
+    return ctx as Map<string, string[]>;
+  }
   private existingRuleIds: Set<string> = new Set();
   // Removed local embedding cache in favor of shared EmbeddingCacheService
 
@@ -102,8 +123,11 @@ export class SyncService {
         userId: 'system',
         limit: 500,
       });
-      const results: MemoryPreloadResult[] = (preload?.results as MemoryPreloadResult[]) || [];
-      for (const r of results) {
+      // Canonical: preload is MemorySearchResult[] (flat array)
+      const items: MemoryPreloadResult[] = Array.isArray(preload)
+        ? (preload as MemoryPreloadResult[])
+        : [];
+      for (const r of items) {
         const meta = r.metadata;
         if (meta && typeof meta === 'object' && !(typeof meta === 'string')) {
           const tags = meta.content?.tags || [];
@@ -218,7 +242,7 @@ export class SyncService {
             },
             custom: rule,
           });
-          await this.memory.addMemoryCanonical(ruleText, metadata, 'system');
+          await this.memory.addMemory({ content: ruleText, metadata });
           this.existingRuleIds.add(ruleId);
         } catch (e) {
           // Add rich context to help diagnose faulty rule entries without leaking sensitive data

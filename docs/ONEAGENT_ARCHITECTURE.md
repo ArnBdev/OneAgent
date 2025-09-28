@@ -18,12 +18,15 @@
 - Unified agent actions and endpoints via consolidated communication service
 - Structured task completion emissions: `BaseAgent` detects `TASK_ID` tokens in inbound instructions and emits a canonical `AgentExecutionResult` on completion/failure (idempotent). Specialized agents should call `finalizeResponseWithTaskDetection()` before returning to ensure emissions.
 
-## Memory System
+## Memory System (v4.2.3)
 
-- Persistent, high-performance memory via RESTful API
-- Canonical memory tools: add, search, edit, delete
-- Memory-driven agent communication for context and learning (no legacy helpers)
-- Proactive delegation + audit entries for queue operations
+- Canonical, pluggable, MCP/JSON-RPC-compliant memory system
+- All memory operations route through `OneAgentMemory` singleton, which delegates to a backend-specific `IMemoryClient` implementation (`Mem0MemoryClient`, `MemgraphMemoryClient`)
+- Strict interface contract enforced via `coreagent/memory/clients/IMemoryClient.ts`
+- Provider selection via config/env (`provider` or `ONEAGENT_MEMORY_PROVIDER`)
+- Canonical memory tools: add, search, edit, delete, health, capabilities, event subscription
+- No parallel/legacy code remains; all logic is routed through the canonical interface
+- See [docs/memory-system-architecture.md](./memory-system-architecture.md) for details
 
 ## Mission Control (v4.2.x)
 

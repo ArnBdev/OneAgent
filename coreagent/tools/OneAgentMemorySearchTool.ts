@@ -40,11 +40,11 @@ export class OneAgentMemorySearchTool extends UnifiedMCPTool {
     try {
       const { query, userId, limit } = args;
       const result = await this.memoryClient.searchMemory({ query, userId, limit });
-      // Structured, typed output
+      // Canonical: result is MemorySearchResult[]
       return {
         success: true,
         data: {
-          results: result?.results || [],
+          results: Array.isArray(result) ? result : [],
           query,
           userId: userId || null,
           limit: limit || 5,

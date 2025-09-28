@@ -15,12 +15,12 @@ OneAgent is a professional multi-agent AI platform with canonical systems for ti
 - Time: `createUnifiedTimestamp()`
 - IDs: `createUnifiedId('operation','context')`
 - Cache: `OneAgentUnifiedBackbone.getInstance().cache`
-- Memory: `OneAgentMemory.getInstance()`
+- Memory: `OneAgentMemory.getInstance()` (pluggable, MCP/JSON-RPC-compliant; see `IMemoryClient` and [docs/memory-system-architecture.md](./docs/memory-system-architecture.md))
 - Communication: `UnifiedAgentCommunicationService` only (A2A + NLACS + memory audit)
 - Error handling: `UnifiedBackboneService.errorHandler` with taxonomy codes
 - Monitoring: PerformanceMonitor histograms, gauges, JSON + Prometheus exposition
 
-Forbidden (parallel systems): direct `Date.now()`, custom ID/caches/memory, ad-hoc comms, shadow metrics stores.
+Forbidden (parallel systems): direct `Date.now()`, custom ID/caches/memory, ad-hoc comms, shadow metrics stores. All memory operations must use the canonical `OneAgentMemory` singleton and strict `IMemoryClient` interface.
 
 Unified cache policy and env notes
 

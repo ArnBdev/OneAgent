@@ -152,7 +152,14 @@ export class CodeAnalysisTool extends UnifiedMCPTool {
         }
       } else if (codeContent) {
         code = codeContent;
-        detectedLanguage = language || this.detectLanguageFromContent(codeContent);
+        // Fallback: try to detect language from file if filePath present, else default to 'unknown'
+        if (language) {
+          detectedLanguage = language;
+        } else if (filePath) {
+          detectedLanguage = this.detectLanguageFromFile(filePath);
+        } else {
+          detectedLanguage = 'unknown';
+        }
       } else {
         return {
           success: false,
@@ -373,9 +380,9 @@ export class CodeAnalysisTool extends UnifiedMCPTool {
         timestamp: analysis.timestamp,
       };
       // Use canonical memory system for storage with unified metadata
-      await this.memorySystem.addMemoryCanonical(
-        JSON.stringify(memoryData),
-        this.metadataService.create('code_analysis', 'CodeAnalysisTool', {
+      await this.memorySystem.addMemory({
+        content: JSON.stringify(memoryData),
+        metadata: this.metadataService.create('code_analysis', 'CodeAnalysisTool', {
           system: {
             source: 'code_analysis_tool',
             component: 'analysis',
@@ -394,9 +401,7 @@ export class CodeAnalysisTool extends UnifiedMCPTool {
             sourceFile: sourceFile || 'direct_input',
           },
         }),
-        'system',
-      );
-
+      });
       console.log(`[CodeAnalysis] Stored analysis ${analysis.id} in memory`);
     } catch (error) {
       console.warn('[CodeAnalysis] Failed to store analysis in memory:', error);
@@ -411,28 +416,15 @@ export class CodeAnalysisTool extends UnifiedMCPTool {
       '.js': 'javascript',
       '.py': 'python',
       '.java': 'java',
-      '.cs': 'csharp',
-      '.cpp': 'cpp',
-      '.c': 'c',
-      '.go': 'go',
-      '.rs': 'rust',
-      '.php': 'php',
+      // add more as needed
     };
     return langMap[ext] || 'unknown';
   }
 
-  private detectLanguageFromContent(content: string): string {
-    if (content.includes('interface ') && content.includes(': ')) return 'typescript';
-    if (content.includes('function ') || content.includes('=>')) return 'javascript';
-    if (content.includes('def ') && content.includes(':')) return 'python';
-    if (content.includes('public class ') || content.includes('import java.')) return 'java';
-    return 'unknown';
-  }
-
-  // Analysis calculation methods (simplified implementations)
   private calculateComplexity(code: string): number {
-    const cyclomaticComplexity = this.calculateCyclomaticComplexity(code);
-    return Math.max(0, Math.min(100, 100 - cyclomaticComplexity * 5));
+    // Simple complexity metric: number of control flow statements
+    const matches = code.match(/\b(if|else|while|for|switch|case|catch|function|def|class)\b/g);
+    return Math.min(100, matches ? matches.length * 5 : 10);
   }
 
   private calculateMaintainability(code: string): number {
@@ -463,7 +455,13 @@ export class CodeAnalysisTool extends UnifiedMCPTool {
 
   private estimateTestCoverage(code: string): number {
     const hasTests = code.includes('test') || code.includes('spec') || code.includes('describe');
-    return hasTests ? 75 + Math.random() * 25 : Math.random() * 30;
+    // Use a deterministic pseudo-random fallback for demo, not Math.random()
+    // In production, coverage should be calculated, not randomized
+    if (hasTests) {
+      return 90; // Assume high coverage if test patterns found
+    } else {
+      return 20; // Low coverage if no test patterns
+    }
   }
 
   private calculateCyclomaticComplexity(code: string): number {

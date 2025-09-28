@@ -29,7 +29,11 @@ import type {
 import { ConstitutionalAI } from './agents/base/ConstitutionalAI';
 import { BMADElicitationEngine } from './agents/base/BMADElicitationEngine';
 import { OneAgentMemory, OneAgentMemoryConfig } from './memory/OneAgentMemory';
-import { createUnifiedTimestamp } from './utils/UnifiedBackboneService';
+import {
+  createUnifiedTimestamp,
+  createUnifiedId,
+  OneAgentUnifiedBackbone,
+} from './utils/UnifiedBackboneService';
 
 // Import unified tools
 import { toolRegistry } from './tools/ToolRegistry';
@@ -105,9 +109,10 @@ export class OneAgentEngine extends EventEmitter {
   private config: typeof UnifiedBackboneService.config;
   private initialized = false;
   private mode: OneAgentMode = 'mcp-http';
-  private dynamicTools: Map<string, ToolDescriptor> = new Map();
-  private dynamicResources: Map<string, ResourceDescriptor> = new Map();
-  private dynamicPrompts: Map<string, PromptDescriptor> = new Map();
+  private cache = OneAgentUnifiedBackbone.getInstance().cache;
+  private dynamicToolsKey = 'dynamicTools';
+  private dynamicResourcesKey = 'dynamicResources';
+  private dynamicPromptsKey = 'dynamicPrompts';
   private constitutionalAI!: ConstitutionalAI;
   private bmadEngine!: BMADElicitationEngine;
   private constitutionValidator: ConstitutionValidator = new ConstitutionValidator({
@@ -194,11 +199,11 @@ export class OneAgentEngine extends EventEmitter {
           `http://127.0.0.1:${process.env.ONEAGENT_MEMORY_PORT || '8010'}`;
         const readyUrl = `${memUrl.replace(/\/$/, '')}/readyz`;
         const authKey = process.env.MEM0_API_KEY || process.env.MEM0_API_TOKEN || '';
-        const startWait = Date.now();
+        const startWait = createUnifiedTimestamp().unix;
         const timeoutMs = 15000; // 15s max wait
         let ready = false;
         for (let attempt = 0; attempt < 30; attempt++) {
-          if (Date.now() - startWait > timeoutMs) break;
+          if (createUnifiedTimestamp().unix - startWait > timeoutMs) break;
           try {
             const controller = new AbortController();
             const t = setTimeout(() => controller.abort(), 2500);
@@ -353,56 +358,89 @@ export class OneAgentEngine extends EventEmitter {
    * Dynamically register a tool and emit toolsChanged event
    */
   registerTool(tool: ToolDescriptor): void {
-    this.dynamicTools.set(tool.name, tool);
-    this.emit('toolsChanged', { tools: this.getAvailableTools() });
+    (async () => {
+      const tools =
+        ((await this.cache.get(this.dynamicToolsKey)) as Record<string, ToolDescriptor>) || {};
+      tools[tool.name] = tool;
+      await this.cache.set(this.dynamicToolsKey, tools);
+      this.emit('toolsChanged', { tools: await this.getAvailableTools() });
+    })();
   }
 
   /**
    * Dynamically remove a tool and emit toolsChanged event
    */
   removeTool(toolName: string): void {
-    this.dynamicTools.delete(toolName);
-    this.emit('toolsChanged', { tools: this.getAvailableTools() });
+    (async () => {
+      const tools =
+        ((await this.cache.get(this.dynamicToolsKey)) as Record<string, ToolDescriptor>) || {};
+      delete tools[toolName];
+      await this.cache.set(this.dynamicToolsKey, tools);
+      this.emit('toolsChanged', { tools: await this.getAvailableTools() });
+    })();
   }
 
   /**
    * Dynamically add a resource and emit resourcesChanged event
    */
   addResource(resource: ResourceDefinition): void {
-    this.dynamicResources.set(resource.uri, resource as ResourceDescriptor);
-    this.emit('resourcesChanged', { resources: this.getAvailableResources() });
+    (async () => {
+      const resources =
+        ((await this.cache.get(this.dynamicResourcesKey)) as Record<string, ResourceDescriptor>) ||
+        {};
+      resources[resource.uri] = resource as ResourceDescriptor;
+      await this.cache.set(this.dynamicResourcesKey, resources);
+      this.emit('resourcesChanged', { resources: await this.getAvailableResources() });
+    })();
   }
 
   /**
    * Dynamically remove a resource and emit resourcesChanged event
    */
   removeResource(resourceUri: string): void {
-    this.dynamicResources.delete(resourceUri);
-    this.emit('resourcesChanged', { resources: this.getAvailableResources() });
+    (async () => {
+      const resources =
+        ((await this.cache.get(this.dynamicResourcesKey)) as Record<string, ResourceDescriptor>) ||
+        {};
+      delete resources[resourceUri];
+      await this.cache.set(this.dynamicResourcesKey, resources);
+      this.emit('resourcesChanged', { resources: await this.getAvailableResources() });
+    })();
   }
 
   /**
    * Dynamically add a prompt and emit promptsChanged event
    */
   addPrompt(prompt: PromptDefinition): void {
-    this.dynamicPrompts.set(prompt.name, prompt as PromptDescriptor);
-    this.emit('promptsChanged', { prompts: this.getAvailablePrompts() });
+    (async () => {
+      const prompts =
+        ((await this.cache.get(this.dynamicPromptsKey)) as Record<string, PromptDescriptor>) || {};
+      prompts[prompt.name] = prompt as PromptDescriptor;
+      await this.cache.set(this.dynamicPromptsKey, prompts);
+      this.emit('promptsChanged', { prompts: await this.getAvailablePrompts() });
+    })();
   }
 
   /**
    * Dynamically remove a prompt and emit promptsChanged event
    */
   removePrompt(promptName: string): void {
-    this.dynamicPrompts.delete(promptName);
-    this.emit('promptsChanged', { prompts: this.getAvailablePrompts() });
+    (async () => {
+      const prompts =
+        ((await this.cache.get(this.dynamicPromptsKey)) as Record<string, PromptDescriptor>) || {};
+      delete prompts[promptName];
+      await this.cache.set(this.dynamicPromptsKey, prompts);
+      this.emit('promptsChanged', { prompts: await this.getAvailablePrompts() });
+    })();
   }
 
   /**
    * Get available tools for MCP server
    */
-  getAvailableTools(): ToolDescriptor[] {
-    const tools = toolRegistry.getToolSchemas();
-    const dynamic = Array.from(this.dynamicTools.values());
+  async getAvailableTools(): Promise<ToolDescriptor[]> {
+    const tools = await toolRegistry.getToolSchemas();
+    const dynamicObj = (await this.cache.get(this.dynamicToolsKey)) || {};
+    const dynamic = Object.values(dynamicObj) as ToolDescriptor[];
     // OneAgent meta-tools (listing only; execution handled via registry if present)
     const oneAgentTools: ToolDescriptor[] = [
       {
@@ -454,11 +492,23 @@ export class OneAgentEngine extends EventEmitter {
   }
 
   getAvailableResources(): ResourceDescriptor[] {
-    return Array.from(this.dynamicResources.values());
+    // This method must be async now
+    throw new Error('getAvailableResources must be called as getAvailableResourcesAsync');
   }
 
   getAvailablePrompts(): PromptDescriptor[] {
-    return Array.from(this.dynamicPrompts.values());
+    // This method must be async now
+    throw new Error('getAvailablePrompts must be called as getAvailablePromptsAsync');
+  }
+
+  async getAvailableResourcesAsync(): Promise<ResourceDescriptor[]> {
+    const resourcesObj = (await this.cache.get(this.dynamicResourcesKey)) || {};
+    return Object.values(resourcesObj) as ResourceDescriptor[];
+  }
+
+  async getAvailablePromptsAsync(): Promise<PromptDescriptor[]> {
+    const promptsObj = (await this.cache.get(this.dynamicPromptsKey)) || {};
+    return Object.values(promptsObj) as PromptDescriptor[];
   }
 
   private async initializeCoreSystems(): Promise<void> {
@@ -511,7 +561,7 @@ export class OneAgentEngine extends EventEmitter {
       const ids = Array.isArray((request.params as unknown as { setIds?: unknown }).setIds)
         ? ((request.params as unknown as { setIds: unknown[] }).setIds as string[])
         : [];
-      const status = this.setActiveToolSetIds(ids);
+      const status = await this.setActiveToolSetIds(ids);
       return {
         success: true,
         data: status,
@@ -560,7 +610,7 @@ export class OneAgentEngine extends EventEmitter {
       }
     }
     // Standard tool call logic
-    const tool = toolRegistry.getTool(request.method);
+    const tool = await toolRegistry.getTool(request.method);
     if (!tool || !tool.execute) {
       throw new Error(`Tool not found or not executable: ${request.method}`);
     }
@@ -575,22 +625,23 @@ export class OneAgentEngine extends EventEmitter {
     return Array.from(this.activeToolSetIds);
   }
 
-  public setActiveToolSetIds(ids: string[]): {
+  public async setActiveToolSetIds(ids: string[]): Promise<{
     active: string[];
     appliedCount: number;
     totalToolCount: number;
-  } {
+  }> {
     const valid = ids.filter((id) => Object.prototype.hasOwnProperty.call(TOOL_SETS, id));
     // Fallback: ensure at least one set stays active
     const next = new Set(valid.length ? valid : ['system-management']);
     this.activeToolSetIds = next;
     const allowed = this.getAllowedToolNames();
     // Notify listeners that tools list may have changed
-    this.emit('toolsChanged', { tools: this.getAvailableTools() });
+    this.emit('toolsChanged', { tools: await this.getAvailableTools() });
+    const totalToolCount = (await toolRegistry.getToolSchemas()).length;
     return {
       active: Array.from(this.activeToolSetIds),
       appliedCount: allowed.size,
-      totalToolCount: toolRegistry.getToolSchemas().length,
+      totalToolCount,
     };
   }
 
@@ -729,7 +780,15 @@ export class OneAgentEngine extends EventEmitter {
   // =========================================================================
   private startTaskDispatchLoop(): void {
     const schedule = () => {
-      const jitter = Math.random() * 2000; // up to 2s jitter
+      // Canonical jitter: use a hash of a unified ID for deterministic pseudo-randomness
+      const baseId = createUnifiedId('task', createUnifiedTimestamp().iso);
+      // Simple hash function for demo (replace with a better one if needed)
+      let hash = 0;
+      for (let i = 0; i < baseId.length; i++) {
+        hash = (hash << 5) - hash + baseId.charCodeAt(i);
+        hash |= 0;
+      }
+      const jitter = Math.abs(hash % 2000); // up to 2s jitter, deterministic per call
       const delay = this.TASK_DISPATCH_BASE_INTERVAL + jitter;
       this.taskDispatchTimer = setTimeout(async () => {
         try {

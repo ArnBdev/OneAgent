@@ -6,6 +6,7 @@
 import { GeminiClient } from './geminiClient';
 import { OneAgentMemory } from '../memory/OneAgentMemory';
 import { EmbeddingResult, EmbeddingTaskType } from '../types/gemini';
+
 import { globalProfiler } from '../performance/profiler';
 import {
   createUnifiedTimestamp,
@@ -58,19 +59,6 @@ export interface EmbeddingAnalytics {
   processingTime: number;
 }
 
-interface MemoryLike {
-  id: string;
-  type?: string;
-  content: string;
-  agentId?: string;
-  similarity?: number;
-  relevanceScore?: number;
-  timestamp?: string | number | Date;
-  metadata?: Record<string, unknown>;
-  summary?: string;
-  embeddingResult?: EmbeddingResult;
-}
-
 export class MultimodalEmbeddingService {
   /**
    * Multimodal bildeanalyse med tekstprompt via kapabilitetsbasert modellvalg
@@ -100,35 +88,44 @@ export class MultimodalEmbeddingService {
     try {
       globalProfiler.startOperation(opId, 'semantic-search');
       const searchResults = await this.memorySystem.searchMemory({
-        type: 'conversations',
         query,
-        topK: options?.topK || 10,
-        similarityThreshold: options?.similarityThreshold || 0.1,
-        embeddingModel: options?.model || 'gemini-embedding-001',
-        semanticSearch: true,
+        limit: options?.topK || 10,
       });
-      const results: SemanticSearchResult[] = (searchResults?.results || []).map((r) => {
-        const item = r as unknown as MemoryLike;
-        return {
-          memory: {
-            id: String(item.id || ''),
-            type: String(item.type || 'conversation'),
-            content: String(item.content || ''),
-            agentId: String(item.agentId || 'default'),
-            relevanceScore: Number(item.similarity || item.relevanceScore || 0),
-            timestamp: item.timestamp ? new Date(item.timestamp) : new Date(),
-            metadata: (item.metadata as Record<string, unknown>) || {},
-            summary: (item.summary as string) || undefined,
-          },
-          similarity: Number(item.similarity || item.relevanceScore || 0),
-          embeddingResult: item.embeddingResult,
-        };
-      });
+      // Canonical: searchMemory returns MemorySearchResult[]
+      const memoryResults = Array.isArray(searchResults) ? searchResults : [];
+      const results: SemanticSearchResult[] = memoryResults
+        .filter(
+          (item): item is import('../types/oneagent-backbone-types').MemoryRecord =>
+            !!item &&
+            typeof item === 'object' &&
+            'id' in item &&
+            'content' in item &&
+            'metadata' in item,
+        )
+        .map((item: import('../types/oneagent-backbone-types').MemoryRecord) => {
+          const meta = (item.metadata || {}) as Record<string, unknown>;
+          return {
+            memory: {
+              id: String(item.id || ''),
+              type: String(meta.type || 'conversation'),
+              content: String(item.content || ''),
+              agentId: String(meta.agentId || 'default'),
+              relevanceScore: typeof meta.relevanceScore === 'number' ? meta.relevanceScore : 0,
+              timestamp: meta.timestamp
+                ? new Date(meta.timestamp as string | number | Date)
+                : new Date(),
+              metadata: meta,
+              summary: typeof meta.summary === 'string' ? meta.summary : undefined,
+            },
+            similarity: typeof meta.similarity === 'number' ? meta.similarity : 0,
+            embeddingResult: meta.embeddingResult as EmbeddingResult | undefined,
+          };
+        });
       const analytics: EmbeddingAnalytics = {
-        totalMemories: searchResults?.totalFound || searchResults?.totalResults || results.length,
-        searchResults: results.length,
-        averageSimilarity: results.length
-          ? results.reduce((s, r) => s + r.similarity, 0) / results.length
+        totalMemories: memoryResults.length,
+        searchResults: memoryResults.length,
+        averageSimilarity: memoryResults.length
+          ? results.reduce((s, r) => s + r.similarity, 0) / memoryResults.length
           : 0,
         topSimilarity: results[0]?.similarity || 0,
         processingTime: createUnifiedTimestamp().unix - start,
@@ -176,7 +173,10 @@ export class MultimodalEmbeddingService {
         },
         custom: { agentId, ...(metadata || {}) },
       });
-      const memoryId = await this.memorySystem.addMemoryCanonical(content, unified, userId);
+      const memoryId = await this.memorySystem.addMemory({
+        content,
+        metadata: unified,
+      });
       globalProfiler.endOperation(opId, true);
       return { memoryId };
     } catch (error) {

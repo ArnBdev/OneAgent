@@ -361,7 +361,7 @@ export class DevAgentLearningEngine {
       // Query for all DevAgent learning patterns globally, not user-specific
       const memoryResult = await this.memoryBridge.searchMemory({
         query: 'learned pattern solution best practice devagent',
-        user_id: 'global',
+        userId: 'global',
         limit: 100,
         semanticSearch: true,
         type: 'learned-patterns',
@@ -776,12 +776,12 @@ export class DevAgentLearningEngine {
       const searchQuery = `${language} ${category || ''} ${problem}`.trim();
       const memoryResult = await this.memoryBridge.searchMemory({
         query: searchQuery,
-        user_id: this.agentId,
+        userId: this.agentId,
         limit: maxResults,
         semanticSearch: true,
         type: 'learned-patterns',
       });
-      const list = memoryResult?.results || [];
+      const list = Array.isArray(memoryResult) ? memoryResult : [];
       const patterns: LearnedPattern[] = list
         .slice(0, maxResults)
         .map((mem) => {
@@ -889,7 +889,7 @@ export class DevAgentLearningEngine {
       lastApplied: createUnifiedTimestamp().iso,
       updated: true,
     };
-    await this.memoryBridge.addMemoryCanonical(JSON.stringify(pattern), meta, 'dev_agent');
+    await this.memoryBridge.addMemory({ content: JSON.stringify(pattern), metadata: meta });
   }
 
   private async removePattern(patternId: string): Promise<void> {

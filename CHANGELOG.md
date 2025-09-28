@@ -1,6 +1,24 @@
 # 📝 OneAgent v4.2.2 Professional - Changelog
 
-## v4.2.3 (Unreleased) — Structured Task Emissions & Latency Instrumentation
+## v4.2.3 (Unreleased) — Canonical Pluggable Memory System, MCP/JSON-RPC Compliance
+
+### 🧠 Memory System Refactor
+
+- Canonical memory system is now fully pluggable and MCP/JSON-RPC-compliant.
+- All memory operations route through `OneAgentMemory` singleton, which delegates to a backend-specific `IMemoryClient` implementation (`Mem0MemoryClient`, `MemgraphMemoryClient`).
+- No parallel/legacy code remains; all logic is routed through the canonical interface.
+- Strict interface contract enforced via `coreagent/memory/clients/IMemoryClient.ts`.
+- Provider selection via config/env (`provider` or `ONEAGENT_MEMORY_PROVIDER`).
+- Event-driven updates and health monitoring supported.
+- See new documentation: `docs/memory-system-architecture.md`.
+
+### 🔒 Integrity
+
+- No parallel time/ID/cache/memory systems introduced. All memory, cache, and ID/time operations use canonical services only.
+
+### 📖 Documentation
+
+- Added `docs/memory-system-architecture.md` for canonical memory system design, usage, and migration guidance.
 
 ### ✨ Features
 

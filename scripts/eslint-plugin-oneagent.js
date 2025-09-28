@@ -8,11 +8,13 @@ const noParallelCacheRule = {
   meta: {
     type: 'problem',
     docs: {
-      description: 'Disallow long-lived Map()-based caches; use OneAgentUnifiedBackbone.getInstance().cache',
+      description:
+        'Disallow long-lived Map()-based caches; use OneAgentUnifiedBackbone.getInstance().cache',
       recommended: true,
     },
     messages: {
-      noParallelCache: 'Avoid long-lived Map() caches. Use unified cache: OneAgentUnifiedBackbone.getInstance().cache.',
+      noParallelCache:
+        'Avoid long-lived Map() caches. Use unified cache: OneAgentUnifiedBackbone.getInstance().cache.',
     },
     schema: [
       {
@@ -36,7 +38,12 @@ const noParallelCacheRule = {
       // Consider const foo = new Map() declared within a function block as local
       let parent = node.parent;
       while (parent) {
-        if (parent.type === 'FunctionDeclaration' || parent.type === 'FunctionExpression' || parent.type === 'ArrowFunctionExpression' || parent.type === 'MethodDefinition') {
+        if (
+          parent.type === 'FunctionDeclaration' ||
+          parent.type === 'FunctionExpression' ||
+          parent.type === 'ArrowFunctionExpression' ||
+          parent.type === 'MethodDefinition'
+        ) {
           return true;
         }
         if (parent.type === 'Program' || parent.type === 'ClassBody') return false;
@@ -47,9 +54,7 @@ const noParallelCacheRule = {
 
     return {
       NewExpression(node) {
-        if (
-          node.callee && node.callee.type === 'Identifier' && node.callee.name === 'Map'
-        ) {
+        if (node.callee && node.callee.type === 'Identifier' && node.callee.name === 'Map') {
           const filename = context.getFilename().replace(/\\/g, '/');
           if (allowFilesPattern.test(filename)) return; // allow in tests/scripts/ui
 
@@ -59,7 +64,11 @@ const noParallelCacheRule = {
           // If part of a class or module-level variable, flag it
           let p = node.parent;
           while (p && p.type !== 'Program') {
-            if (p.type === 'ClassProperty' || p.type === 'PropertyDefinition' || p.type === 'VariableDeclarator') {
+            if (
+              p.type === 'ClassProperty' ||
+              p.type === 'PropertyDefinition' ||
+              p.type === 'VariableDeclarator'
+            ) {
               context.report({ node, messageId: 'noParallelCache' });
               return;
             }
@@ -79,9 +88,13 @@ const noParallelCacheRule = {
 const preferUnifiedTimeRule = {
   meta: {
     type: 'suggestion',
-    docs: { description: 'Use createUnifiedTimestamp() instead of Date.now() in production TS', recommended: true },
+    docs: {
+      description: 'Use createUnifiedTimestamp() instead of Date.now() in production TS',
+      recommended: true,
+    },
     messages: {
-      useUnifiedTime: 'Use createUnifiedTimestamp() from UnifiedBackboneService instead of Date.now().',
+      useUnifiedTime:
+        'Use createUnifiedTimestamp() from UnifiedBackboneService instead of Date.now().',
     },
     schema: [],
   },
@@ -95,8 +108,12 @@ const preferUnifiedTimeRule = {
           const obj = node.callee.object;
           const prop = node.callee.property;
           if (
-            obj && prop && obj.type === 'Identifier' && obj.name === 'Date' &&
-            ((prop.type === 'Identifier' && prop.name === 'now') || (prop.type === 'Literal' && prop.value === 'now'))
+            obj &&
+            prop &&
+            obj.type === 'Identifier' &&
+            obj.name === 'Date' &&
+            ((prop.type === 'Identifier' && prop.name === 'now') ||
+              (prop.type === 'Literal' && prop.value === 'now'))
           ) {
             context.report({ node, messageId: 'useUnifiedTime' });
           }
@@ -110,9 +127,13 @@ const preferUnifiedTimeRule = {
 const preferUnifiedIdRule = {
   meta: {
     type: 'suggestion',
-    docs: { description: 'Use createUnifiedId() instead of Math.random() for IDs in production TS', recommended: true },
+    docs: {
+      description: 'Use createUnifiedId() instead of Math.random() for IDs in production TS',
+      recommended: true,
+    },
     messages: {
-      useUnifiedId: 'Use createUnifiedId() from UnifiedBackboneService instead of Math.random() for identifiers.',
+      useUnifiedId:
+        'Use createUnifiedId() from UnifiedBackboneService instead of Math.random() for identifiers.',
     },
     schema: [],
   },
@@ -126,8 +147,12 @@ const preferUnifiedIdRule = {
           const obj = node.callee.object;
           const prop = node.callee.property;
           if (
-            obj && prop && obj.type === 'Identifier' && obj.name === 'Math' &&
-            ((prop.type === 'Identifier' && prop.name === 'random') || (prop.type === 'Literal' && prop.value === 'random'))
+            obj &&
+            prop &&
+            obj.type === 'Identifier' &&
+            obj.name === 'Math' &&
+            ((prop.type === 'Identifier' && prop.name === 'random') ||
+              (prop.type === 'Literal' && prop.value === 'random'))
           ) {
             context.report({ node, messageId: 'useUnifiedId' });
           }

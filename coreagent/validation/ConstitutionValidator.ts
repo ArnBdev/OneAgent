@@ -38,12 +38,16 @@ export class ConstitutionValidator {
     }
 
     // Fetch up to 50 constitutional rules from memory (by tag/category text search)
-    const search = await this.memory.searchMemory({
+    const search: unknown = await this.memory.searchMemory({
       query: 'constitutional_rule',
       userId: 'system',
       limit: 50,
     });
-    const rules = (search?.results || []).map((r) => String(r.content)).filter(Boolean);
+    // Canonical: searchMemory returns MemorySearchResult[] (flat array)
+    const items = Array.isArray(search)
+      ? (search as import('../types/oneagent-memory-types').MemorySearchResult[])
+      : [];
+    const rules = items.map((r) => String(r.content)).filter(Boolean);
     if (rules.length === 0) {
       return { allowed: true, score: 0, topMatches: [], reason: 'no_rules_found' };
     }
@@ -83,7 +87,7 @@ export class ConstitutionValidator {
       // Batch cached rule embeddings
       const ruleMap = await embeddingCacheService.getOrComputeBatch(embedClient, rules, 'rule');
 
-      const batch = rules.map((r) => ({ embedding: ruleMap.get(r)! }));
+      const batch = rules.map((r: string) => ({ embedding: ruleMap.get(r)! }));
       const queryNorm = embeddingCacheService.getNorm('query', actionDescription) || undefined;
 
       interface EmbeddingBatchItem {

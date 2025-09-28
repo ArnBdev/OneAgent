@@ -50,7 +50,14 @@ export class OneAgentMemoryAddTool extends UnifiedMCPTool {
 
       let memoryId: string | undefined;
       if (useBatch) {
-        await this.memoryClient.addMemoryBatch({ content, userId, metadata });
+        // Canonical: add memories one by one using addMemory
+        if (Array.isArray(content)) {
+          for (const c of content) {
+            await this.memoryClient.addMemory({ content: c, metadata: metadata || {} });
+          }
+        } else {
+          await this.memoryClient.addMemory({ content, metadata: metadata || {} });
+        }
       } else {
         // Always prefer canonical path; build minimal partial unified metadata if caller passed simple object
         const meta =
@@ -64,7 +71,7 @@ export class OneAgentMemoryAddTool extends UnifiedMCPTool {
               contextDependency: 'session',
             },
           } as Partial<UnifiedMetadata>);
-        memoryId = await this.memoryClient.addMemoryCanonical(content, meta, userId);
+        memoryId = await this.memoryClient.addMemory({ content, metadata: meta });
       }
 
       // Structured, typed output

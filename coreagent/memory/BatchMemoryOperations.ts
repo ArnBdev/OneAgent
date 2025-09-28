@@ -4,7 +4,7 @@
  */
 
 import { OneAgentMemory } from './OneAgentMemory';
-import { createUnifiedTimestamp, unifiedMetadataService } from '../utils/UnifiedBackboneService';
+import { createUnifiedTimestamp } from '../utils/UnifiedBackboneService';
 
 export interface BatchOperation {
   type: 'add' | 'search' | 'edit' | 'delete';
@@ -179,17 +179,17 @@ export class BatchMemoryOperations {
         const userId =
           typeof data.userId === 'string'
             ? data.userId
-            : typeof (data as Record<string, unknown>).user_id === 'string'
-              ? String((data as Record<string, unknown>).user_id)
+            : typeof (data as Record<string, unknown>).userId === 'string'
+              ? String((data as Record<string, unknown>).userId)
               : 'default-user';
         const rawMeta = (data.metadata as Record<string, unknown>) || {};
         const type = (rawMeta.type as string) || 'batch_memory';
 
-        // Build partial UnifiedMetadata (let addMemoryCanonical finalize timestamps/system)
+        // Build canonical metadata for addMemory
         const metadata = {
+          userId,
           type,
           system: {
-            userId,
             source: 'BatchMemoryOperations',
             component: 'batch-processor',
           },
@@ -205,9 +205,12 @@ export class BatchMemoryOperations {
             batchId: op.id,
             queuedAt: createUnifiedTimestamp().iso,
           },
-        } as unknown as ReturnType<typeof unifiedMetadataService.create>; // treated as Partial<UnifiedMetadata>
+        };
 
-        const newId = await this.memory.addMemoryCanonical(content, metadata, userId);
+        const newId = await this.memory.addMemory({
+          content,
+          metadata,
+        });
         results.push({ type: 'add', result: { id: newId }, id: op.id });
       } catch (error) {
         errors.push({
@@ -229,7 +232,10 @@ export class BatchMemoryOperations {
   ): Promise<void> {
     for (const op of operations) {
       try {
-        const result = await this.memory.searchMemory(op.data);
+        // Ensure op.data is a valid MemoryQuery
+        const query = op.data as unknown as import('../types/oneagent-memory-types').MemoryQuery;
+        if (!query.query) throw new Error('Batch search operation missing query string');
+        const result = await this.memory.searchMemory(query);
         results.push({ type: 'search', result, id: op.id });
       } catch (error) {
         errors.push({
@@ -274,8 +280,9 @@ export class BatchMemoryOperations {
   ): Promise<void> {
     for (const op of operations) {
       try {
-        const data = op.data as Record<string, unknown>;
-        const result = await this.memory.deleteMemory(String(data.memoryId), String(data.userId));
+        const data = op.data as { id?: string };
+        if (!data.id) throw new Error('Batch delete operation missing id');
+        const result = await this.memory.deleteMemory({ id: String(data.id) });
         results.push({ type: 'delete', result, id: op.id });
       } catch (error) {
         errors.push({

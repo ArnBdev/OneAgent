@@ -607,7 +607,17 @@ class OneAgentMemorySystem:
 
 # FastAPI app
 
-app = FastAPI(title="OneAgent Memory Server", version=ONEAGENT_VERSION)
+
+from contextlib import asynccontextmanager
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Canonical startup logic
+    await startup_tasks()
+    yield
+    # (Optional) Add shutdown logic here if needed
+
+app = FastAPI(title="OneAgent Memory Server", version=ONEAGENT_VERSION, lifespan=lifespan)
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_credentials=True, allow_methods=["*"], allow_headers=["*"],)
 
 memory_system = OneAgentMemorySystem()
@@ -701,10 +711,6 @@ async def livez():
 async def readyz():
     return _minimal_health()
 
-# Ensure startup tasks run in all server start modes
-@app.on_event("startup")
-async def _on_startup():
-    await startup_tasks()
 
 if __name__ == "__main__":
     uvicorn.run(app, host=a_config.host, port=a_config.port, log_level="info")

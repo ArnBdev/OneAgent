@@ -323,18 +323,17 @@ export class ProactiveTriageOrchestrator {
       });
       if (this.config.memoryPersistence) {
         try {
-          await this.memory.addMemoryCanonical(
-            `ProactiveAnalysis: ${result.summary}`,
-            {
+          await this.memory.addMemory({
+            content: `ProactiveAnalysis: ${result.summary}`,
+            metadata: {
               type: 'proactive_analysis',
               triageReasons: triage.reasons,
               anomaly: triage.anomalySuspected,
               summary: result.summary,
               actions: result.recommendedActions,
               findings: result.supportingFindings,
-            } as Record<string, unknown>,
-            'system-proactive',
-          );
+            },
+          });
         } catch {
           /* ignore */
         }

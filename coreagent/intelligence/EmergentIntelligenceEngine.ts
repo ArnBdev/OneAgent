@@ -380,16 +380,18 @@ export class EmergentIntelligenceEngine {
       userId: 'system',
       limit: 20,
     });
-
-    return (searchResults?.results || []).map((memory) => ({
-      id: memory.id as string,
-      type: 'domain_insight',
-      domain: domain,
-      content: memory.content as string,
-      confidence: 0.8,
-      timestamp: new Date(),
-      metadata: memory.metadata as Record<string, unknown>,
-    })) as Insight[];
+    // Canonical: searchResults is MemorySearchResult[]
+    return Array.isArray(searchResults)
+      ? (searchResults.map((memory) => ({
+          id: memory.id as string,
+          type: 'domain_insight',
+          domain: domain,
+          content: memory.content as string,
+          confidence: 0.8,
+          timestamp: new Date(),
+          metadata: memory.metadata as Record<string, unknown>,
+        })) as Insight[])
+      : [];
   }
 
   private async findCrossDomainInsights(domain: string): Promise<Insight[]> {
@@ -398,16 +400,18 @@ export class EmergentIntelligenceEngine {
       userId: 'system',
       limit: 15,
     });
-
-    return (searchResults?.results || []).map((memory) => ({
-      id: memory.id as string,
-      type: 'cross_domain_insight',
-      domain: 'cross-domain',
-      content: memory.content as string,
-      confidence: 0.7,
-      timestamp: new Date(),
-      metadata: memory.metadata as Record<string, unknown>,
-    })) as Insight[];
+    // Canonical: searchResults is MemorySearchResult[]
+    return Array.isArray(searchResults)
+      ? (searchResults.map((memory) => ({
+          id: memory.id as string,
+          type: 'cross_domain_insight',
+          domain: 'cross-domain',
+          content: memory.content as string,
+          confidence: 0.7,
+          timestamp: new Date(),
+          metadata: memory.metadata as Record<string, unknown>,
+        })) as Insight[])
+      : [];
   }
 
   private createBasicSynthesis(request: { domain: string }): {
@@ -518,25 +522,27 @@ export class EmergentIntelligenceEngine {
     },
     request: { domain: string },
   ): Promise<void> {
-    await this.memory.addMemoryCanonical(
-      `Intelligence Synthesis: ${result.synthesisType} - ${result.synthesizedIntelligence}`,
-      this.metadataService.create('intelligence_synthesis', 'EmergentIntelligenceEngine', {
-        system: { source: 'emergent_intelligence', component: 'synthesis', userId: 'system' },
-        content: {
-          category: 'phase4_intelligence',
-          tags: ['intelligence', 'synthesis', result.synthesisType],
-          sensitivity: 'internal',
-          relevanceScore: 0.9,
-          contextDependency: 'global',
-        },
-        contextual: {
-          domain: request.domain,
-          qualityScore: result.qualityScore,
-          confidence: result.confidence,
-        },
-      }),
-      'system',
-    );
+    await this.memory.addMemory({
+      content: `Intelligence Synthesis: ${result.synthesisType} - ${result.synthesizedIntelligence}`,
+      metadata: {
+        ...this.metadataService.create('intelligence_synthesis', 'EmergentIntelligenceEngine', {
+          system: { source: 'emergent_intelligence', component: 'synthesis', userId: 'system' },
+          content: {
+            category: 'phase4_intelligence',
+            tags: ['intelligence', 'synthesis', result.synthesisType],
+            sensitivity: 'internal',
+            relevanceScore: 0.9,
+            contextDependency: 'global',
+          },
+          contextual: {
+            domain: request.domain,
+            qualityScore: result.qualityScore,
+            confidence: result.confidence,
+          },
+        }),
+        userId: 'system',
+      },
+    });
   }
 
   // Helper methods for evolveLearningPatterns
@@ -640,25 +646,27 @@ export class EmergentIntelligenceEngine {
     qualityImprovement: number;
     confidence: number;
   }): Promise<void> {
-    await this.memory.addMemoryCanonical(
-      `Learning Pattern Evolution: ${result.evolutionType} - ${result.learningTrajectory}`,
-      this.metadataService.create('learning_evolution', 'EmergentIntelligenceEngine', {
-        system: { source: 'emergent_intelligence', component: 'evolution', userId: 'system' },
-        content: {
-          category: 'phase4_intelligence',
-          tags: ['learning', 'evolution', result.evolutionType],
-          sensitivity: 'internal',
-          relevanceScore: 0.85,
-          contextDependency: 'global',
-        },
-        contextual: {
-          evolutionType: result.evolutionType,
-          qualityImprovement: result.qualityImprovement,
-          confidence: result.confidence,
-        },
-      }),
-      'system',
-    );
+    await this.memory.addMemory({
+      content: `Learning Pattern Evolution: ${result.evolutionType} - ${result.learningTrajectory}`,
+      metadata: {
+        ...this.metadataService.create('learning_evolution', 'EmergentIntelligenceEngine', {
+          system: { source: 'emergent_intelligence', component: 'evolution', userId: 'system' },
+          content: {
+            category: 'phase4_intelligence',
+            tags: ['learning', 'evolution', result.evolutionType],
+            sensitivity: 'internal',
+            relevanceScore: 0.85,
+            contextDependency: 'global',
+          },
+          contextual: {
+            evolutionType: result.evolutionType,
+            qualityImprovement: result.qualityImprovement,
+            confidence: result.confidence,
+          },
+        }),
+        userId: 'system',
+      },
+    });
   }
 
   private analyzeDomainDistribution(conversationHistory: Array<{ domain: string }>): {
@@ -710,25 +718,27 @@ export class EmergentIntelligenceEngine {
   }
 
   private async storeBreakthroughInsight(insight: BreakthroughInsight): Promise<void> {
-    await this.memory.addMemoryCanonical(
-      `Breakthrough Insight: ${insight.content}`,
-      this.metadataService.create('breakthrough_insight', 'EmergentIntelligenceEngine', {
-        system: { source: 'emergent_intelligence', component: 'breakthrough', userId: 'system' },
-        content: {
-          category: 'phase4_intelligence',
-          tags: ['breakthrough', 'insight', insight.domain],
-          sensitivity: 'internal',
-          relevanceScore: 0.92,
-          contextDependency: 'global',
-        },
-        contextual: {
-          domain: insight.domain,
-          impact: insight.impact,
-          confidence: insight.confidence,
-        },
-      }),
-      'system',
-    );
+    await this.memory.addMemory({
+      content: `Breakthrough Insight: ${insight.content}`,
+      metadata: {
+        ...this.metadataService.create('breakthrough_insight', 'EmergentIntelligenceEngine', {
+          system: { source: 'emergent_intelligence', component: 'breakthrough', userId: 'system' },
+          content: {
+            category: 'phase4_intelligence',
+            tags: ['breakthrough', 'insight', insight.domain],
+            sensitivity: 'internal',
+            relevanceScore: 0.92,
+            contextDependency: 'global',
+          },
+          contextual: {
+            domain: insight.domain,
+            impact: insight.impact,
+            confidence: insight.confidence,
+          },
+        }),
+        userId: 'system',
+      },
+    });
   }
 
   // Helper methods for synthesizeInsights
@@ -844,21 +854,23 @@ export class EmergentIntelligenceEngine {
   }
 
   private async storeSynthesis(synthesis: SynthesizedIntelligence): Promise<void> {
-    await this.memory.addMemoryCanonical(
-      `Synthesis: ${synthesis.content}`,
-      this.metadataService.create('synthesis', 'EmergentIntelligenceEngine', {
-        system: { source: 'emergent_intelligence', component: 'cross-domain', userId: 'system' },
-        content: {
-          category: 'phase4_intelligence',
-          tags: ['synthesis', 'cross-domain'],
-          sensitivity: 'internal',
-          relevanceScore: 0.88,
-          contextDependency: 'global',
-        },
-        contextual: { synthesisId: synthesis.id, confidence: synthesis.confidence },
-      }),
-      'system',
-    );
+    await this.memory.addMemory({
+      content: `Synthesis: ${synthesis.content}`,
+      metadata: {
+        ...this.metadataService.create('synthesis', 'EmergentIntelligenceEngine', {
+          system: { source: 'emergent_intelligence', component: 'cross-domain', userId: 'system' },
+          content: {
+            category: 'phase4_intelligence',
+            tags: ['synthesis', 'cross-domain'],
+            sensitivity: 'internal',
+            relevanceScore: 0.88,
+            contextDependency: 'global',
+          },
+          contextual: { synthesisId: synthesis.id, confidence: synthesis.confidence },
+        }),
+        userId: 'system',
+      },
+    });
   }
 
   // Helper methods for evolveInstitutionalMemory
@@ -890,48 +902,52 @@ export class EmergentIntelligenceEngine {
     evolution: MemoryEvolution,
     updatedKnowledge: InstitutionalMemory,
   ): Promise<void> {
-    await this.memory.addMemoryCanonical(
-      `Memory Evolution: ${evolution.description}`,
-      this.metadataService.create('memory_evolution', 'EmergentIntelligenceEngine', {
-        system: {
-          source: 'emergent_intelligence',
-          component: 'memory-evolution',
-          userId: 'system',
-        },
-        content: {
-          category: 'phase4_intelligence',
-          tags: ['memory', 'evolution', evolution.changeType],
-          sensitivity: 'internal',
-          relevanceScore: 0.8,
-          contextDependency: 'global',
-        },
-        contextual: {
-          evolutionId: createUnifiedId('intelligence', 'evolution'),
-          changeType: evolution.changeType,
-          evolutionTimestampUnix: createUnifiedTimestamp().unix,
-        },
-      }),
-      'system',
-    );
+    await this.memory.addMemory({
+      content: `Memory Evolution: ${evolution.description}`,
+      metadata: {
+        ...this.metadataService.create('memory_evolution', 'EmergentIntelligenceEngine', {
+          system: {
+            source: 'emergent_intelligence',
+            component: 'memory-evolution',
+            userId: 'system',
+          },
+          content: {
+            category: 'phase4_intelligence',
+            tags: ['memory', 'evolution', evolution.changeType],
+            sensitivity: 'internal',
+            relevanceScore: 0.8,
+            contextDependency: 'global',
+          },
+          contextual: {
+            evolutionId: createUnifiedId('intelligence', 'evolution'),
+            changeType: evolution.changeType,
+            evolutionTimestampUnix: createUnifiedTimestamp().unix,
+          },
+        }),
+        userId: 'system',
+      },
+    });
 
-    await this.memory.addMemoryCanonical(
-      `Updated Knowledge: ${updatedKnowledge.content}`,
-      this.metadataService.create('institutional_memory', 'EmergentIntelligenceEngine', {
-        system: {
-          source: 'emergent_intelligence',
-          component: 'institutional-memory',
-          userId: 'system',
-        },
-        content: {
-          category: 'phase4_intelligence',
-          tags: ['knowledge', 'update', updatedKnowledge.domain],
-          sensitivity: 'internal',
-          relevanceScore: 0.75,
-          contextDependency: 'global',
-        },
-        contextual: { knowledgeId: updatedKnowledge.id, domain: updatedKnowledge.domain },
-      }),
-      'system',
-    );
+    await this.memory.addMemory({
+      content: `Updated Knowledge: ${updatedKnowledge.content}`,
+      metadata: {
+        ...this.metadataService.create('institutional_memory', 'EmergentIntelligenceEngine', {
+          system: {
+            source: 'emergent_intelligence',
+            component: 'institutional-memory',
+            userId: 'system',
+          },
+          content: {
+            category: 'phase4_intelligence',
+            tags: ['knowledge', 'update', updatedKnowledge.domain],
+            sensitivity: 'internal',
+            relevanceScore: 0.75,
+            contextDependency: 'global',
+          },
+          contextual: { knowledgeId: updatedKnowledge.id, domain: updatedKnowledge.domain },
+        }),
+        userId: 'system',
+      },
+    });
   }
 }

@@ -735,7 +735,7 @@ export class PersonalityEngine {
         response,
         this.personalityProfiles.get(agentId)!,
       ).length;
-      await this.memorySystem.addMemoryCanonical(response, metadata, agentId);
+      await this.memorySystem.addMemory({ content: response, metadata });
     } catch (error) {
       console.error('Failed to store personality evolution data:', error);
     }
@@ -794,11 +794,10 @@ export class PersonalityEngine {
         updates?: Partial<PersonalityProfile>;
       }
       (metadata as PersonalityProfileUpdateExtension).updates = updates;
-      await this.memorySystem.addMemoryCanonical(
-        `Personality profile update for ${agentId}`,
+      await this.memorySystem.addMemory({
+        content: `Personality profile update for ${agentId}`,
         metadata,
-        agentId,
-      );
+      });
     } catch (error) {
       console.error('Failed to store personality profile update:', error);
     }
@@ -817,7 +816,7 @@ export class PersonalityEngine {
         query: agentId,
         limit: 100,
       });
-      const evolutionData = evolutionResult?.results || [];
+      const evolutionData = Array.isArray(evolutionResult) ? evolutionResult : [];
       if (evolutionData.length === 0) {
         return { averageScore: 0, totalInteractions: 0, improvementTrend: 0 };
       }

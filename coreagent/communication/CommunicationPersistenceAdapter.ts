@@ -70,11 +70,13 @@ export class CommunicationPersistenceAdapter {
         },
       },
     });
-    return this.memory.addMemoryCanonical(
-      `Agent Message: ${params.fromAgent} -> ${params.toAgent}\n${params.content}`,
-      metadata,
-      'system_messaging',
-    );
+    return this.memory.addMemory({
+      content: `Agent Message: ${params.fromAgent} -> ${params.toAgent}\n${params.content}`,
+      metadata: {
+        ...metadata,
+        type: 'system_messaging',
+      },
+    });
   }
 
   async persistDiscussion(payload: {
@@ -107,11 +109,13 @@ export class CommunicationPersistenceAdapter {
         },
       },
     });
-    return this.memory.addMemoryCanonical(
-      `Agent Discussion: ${payload.topic} (${payload.discussionId})`,
-      metadata,
-      'system_discussion',
-    );
+    return this.memory.addMemory({
+      content: `Agent Discussion: ${payload.topic} (${payload.discussionId})`,
+      metadata: {
+        ...metadata,
+        type: 'system_discussion',
+      },
+    });
   }
 
   async persistDiscussionContribution(payload: {
@@ -148,11 +152,13 @@ export class CommunicationPersistenceAdapter {
         },
       },
     );
-    return this.memory.addMemoryCanonical(
-      `Discussion Contribution: ${payload.contributor} -> ${payload.contributionType}\n${payload.content}`,
-      metadata,
-      'system_discussion',
-    );
+    return this.memory.addMemory({
+      content: `Discussion Contribution: ${payload.contributor} -> ${payload.contributionType}\n${payload.content}`,
+      metadata: {
+        ...metadata,
+        type: 'system_discussion',
+      },
+    });
   }
 
   async persistInsight(payload: {
@@ -185,11 +191,13 @@ export class CommunicationPersistenceAdapter {
         },
       },
     });
-    return this.memory.addMemoryCanonical(
-      `Agent Insight: ${payload.type} (${payload.insightId})`,
-      metadata,
-      'system_insight',
-    );
+    return this.memory.addMemory({
+      content: `Agent Insight: ${payload.type} (${payload.insightId})`,
+      metadata: {
+        ...metadata,
+        type: 'system_insight',
+      },
+    });
   }
 
   async persistKnowledge(payload: {
@@ -227,11 +235,13 @@ export class CommunicationPersistenceAdapter {
         },
       },
     );
-    return this.memory.addMemoryCanonical(
-      `Synthesized Knowledge: ${payload.knowledgeId}`,
-      metadata,
-      'system_knowledge',
-    );
+    return this.memory.addMemory({
+      content: `Synthesized Knowledge: ${payload.knowledgeId}`,
+      metadata: {
+        ...metadata,
+        type: 'system_knowledge',
+      },
+    });
   }
 
   async persistAgentStatus(payload: { agentId: string; status: string }): Promise<string> {
@@ -257,11 +267,13 @@ export class CommunicationPersistenceAdapter {
         },
       },
     });
-    return this.memory.addMemoryCanonical(
-      `Agent Status: ${payload.agentId} -> ${payload.status}`,
-      metadata,
-      'system_status',
-    );
+    return this.memory.addMemory({
+      content: `Agent Status: ${payload.agentId} -> ${payload.status}`,
+      metadata: {
+        ...metadata,
+        type: 'system_status',
+      },
+    });
   }
 
   /**
@@ -297,7 +309,13 @@ export class CommunicationPersistenceAdapter {
         },
       },
     });
-    return this.memory.addMemoryCanonical(`A2A Task: ${payload.taskId}`, metadata, 'system_task');
+    return this.memory.addMemory({
+      content: `A2A Task: ${payload.taskId}`,
+      metadata: {
+        ...metadata,
+        type: 'system_task',
+      },
+    });
   }
 
   /**
@@ -345,11 +363,13 @@ export class CommunicationPersistenceAdapter {
         },
       },
     });
-    return this.memory.addMemoryCanonical(
-      JSON.stringify(payload.discussion),
-      metadata,
-      'system_discussion',
-    );
+    return this.memory.addMemory({
+      content: JSON.stringify(payload.discussion),
+      metadata: {
+        ...metadata,
+        type: 'system_discussion',
+      },
+    });
   }
 
   async storeRecord(
@@ -378,6 +398,12 @@ export class CommunicationPersistenceAdapter {
         },
       },
     });
-    return this.memory.addMemoryCanonical(content, metadata, 'system_comm');
+    return this.memory.addMemory({
+      content,
+      metadata: {
+        ...metadata,
+        type: 'system_comm',
+      },
+    });
   }
 }

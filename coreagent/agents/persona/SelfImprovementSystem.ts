@@ -333,9 +333,9 @@ export class SelfImprovementSystem extends EventEmitter {
           `[SelfImprovementSystem] Auto-applied improvement for ${agentId}: ${suggestion.description}`,
         );
         // Record the improvement
-        await this.memorySystem.addMemoryCanonical(
-          `Auto-applied improvement: ${suggestion.description}`,
-          {
+        await this.memorySystem.addMemory({
+          content: `Auto-applied improvement: ${suggestion.description}`,
+          metadata: {
             type: 'auto_improvement',
             system: { userId: 'system', source: 'self_improvement', component: 'auto-apply' },
             content: {
@@ -348,8 +348,7 @@ export class SelfImprovementSystem extends EventEmitter {
             contextual: { agentId, priority: suggestion.priority, category: suggestion.category },
             quality: { score: 1.0 },
           } as unknown as Partial<import('../../types/oneagent-backbone-types').UnifiedMetadata>,
-          'system',
-        );
+        });
       } catch (error) {
         console.error(`[SelfImprovementSystem] Failed to apply improvement for ${agentId}:`, error);
       }
@@ -569,7 +568,7 @@ export class SelfImprovementSystem extends EventEmitter {
         query: 'performance_metrics',
         limit: 1000,
       });
-      const loadedMemories = loadedResult?.results || [];
+      const loadedMemories = Array.isArray(loadedResult) ? loadedResult : [];
       for (const memory of loadedMemories) {
         if (memory.metadata?.type === 'performance_metrics' && memory.metadata?.metrics) {
           const metrics = memory.metadata.metrics as PerformanceMetrics;

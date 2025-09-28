@@ -24,7 +24,12 @@ const QUIET_MODE = process.env.ONEAGENT_MCP_QUIET === '1';
 
 // Avoid logging secrets in output
 
-import { OneAgentEngine, OneAgentRequest, OneAgentResponse } from '../OneAgentEngine';
+import {
+  OneAgentEngine,
+  OneAgentRequest,
+  OneAgentResponse,
+  ToolDescriptor,
+} from '../OneAgentEngine';
 import {
   createUnifiedTimestamp,
   UnifiedBackboneService,
@@ -421,14 +426,13 @@ function handleInitialize(mcpRequest: MCPRequest): MCPResponse {
   };
 }
 
-function handleToolsList(mcpRequest: MCPRequest): MCPResponse {
-  const tools = oneAgent.getAvailableTools();
-
+async function handleToolsList(mcpRequest: MCPRequest): Promise<MCPResponse> {
+  const toolsArr = await oneAgent.getAvailableTools();
   return {
     jsonrpc: '2.0',
     id: mcpRequest.id,
     result: {
-      tools: tools.map((tool) => ({
+      tools: toolsArr.map((tool: ToolDescriptor) => ({
         name: tool.name,
         description: tool.description,
         inputSchema: tool.inputSchema,
@@ -1323,12 +1327,10 @@ async function startServer(): Promise<void> {
         const channels = regLike?.list ? regLike.list() : [];
         res.json({ channels, protocolVersion: 1 });
       } catch (e) {
-        res
-          .status(500)
-          .json({
-            error: 'channel_discovery_failed',
-            detail: e instanceof Error ? e.message : String(e),
-          });
+        res.status(500).json({
+          error: 'channel_discovery_failed',
+          detail: e instanceof Error ? e.message : String(e),
+        });
       }
     });
 
@@ -1436,10 +1438,10 @@ function handleToolSets(mcpRequest: MCPRequest): MCPResponse {
   };
 }
 
-function handleToolSetsActivate(mcpRequest: MCPRequest): MCPResponse {
+async function handleToolSetsActivate(mcpRequest: MCPRequest): Promise<MCPResponse> {
   const params = (mcpRequest.params || {}) as { setIds?: string[] };
   const setIds = Array.isArray(params.setIds) ? params.setIds : [];
-  const status = oneAgent.setActiveToolSetIds(setIds);
+  const status = await oneAgent.setActiveToolSetIds(setIds);
   return {
     jsonrpc: '2.0',
     id: mcpRequest.id,

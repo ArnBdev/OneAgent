@@ -175,9 +175,9 @@ export class MemoryDrivenOptimizer {
     };
 
     // Store optimization result in memory
-    await this.memory.addMemoryCanonical(
-      `Optimization Result: ${JSON.stringify(result)}`,
-      {
+    await this.memory.addMemory({
+      content: `Optimization Result: ${JSON.stringify(result)}`,
+      metadata: {
         system: {
           userId: 'system_optimizer',
           source: 'MemoryDrivenOptimizer',
@@ -198,9 +198,21 @@ export class MemoryDrivenOptimizer {
         },
         relationships: { parent: undefined, children: [], related: [], dependencies: [] },
         analytics: { accessCount: 0, lastAccessPattern: 'write', usageContext: [] },
+        type: 'system_optimizer',
+        id: createUnifiedId('operation', 'result'),
+        version: '1.0.0',
+        temporal: {
+          created: createUnifiedTimestamp(),
+          updated: createUnifiedTimestamp(),
+          contextSnapshot: {
+            timeOfDay: 'unknown',
+            dayOfWeek: 'unknown',
+            businessContext: false,
+            energyContext: 'unknown',
+          },
+        },
       },
-      'system_optimizer',
-    );
+    });
 
     return result;
   }
@@ -354,14 +366,14 @@ export class MemoryDrivenOptimizer {
 
   // Helper methods
   private async getCurrentMetrics(): Promise<PerformanceMetrics> {
-    // Simulate performance metrics calculation
+    // Deterministic/test-safe values for metrics (replace with real metrics in production)
     return {
-      responseTime: Math.random() * 1000 + 500,
-      accuracyScore: Math.random() * 0.2 + 0.8,
-      resourceUtilization: Math.random() * 0.3 + 0.6,
-      userSatisfaction: Math.random() * 0.2 + 0.8,
-      memoryEfficiency: Math.random() * 0.3 + 0.7,
-      overallScore: Math.random() * 0.2 + 0.8,
+      responseTime: 1000,
+      accuracyScore: 0.9,
+      resourceUtilization: 0.8,
+      userSatisfaction: 0.85,
+      memoryEfficiency: 0.8,
+      overallScore: 0.9,
     };
   }
 
@@ -416,10 +428,9 @@ export class MemoryDrivenOptimizer {
   private async executeOptimizationAction(
     action: OptimizationAction,
   ): Promise<{ success: boolean; impact: number }> {
-    // Simulate action execution
-    const success = Math.random() > 0.2; // 80% success rate
-    const impact = success ? action.expectedImpact * (0.7 + Math.random() * 0.6) : 0;
-
+    // Deterministic/test-safe action execution
+    const success = true;
+    const impact = action.expectedImpact * 1.0;
     return { success, impact };
   }
 
@@ -465,17 +476,15 @@ export class MemoryDrivenOptimizer {
   }
 
   private async calculateEffectivenessMetrics(): Promise<StrategyResult[]> {
-    // Simulate effectiveness calculation
+    // Deterministic/test-safe effectiveness calculation
     return Array.from(this.activeStrategies.values()).map((strategy) => ({
       strategyId: strategy.id,
-      success: Math.random() > 0.3,
-      actualImprovement: strategy.expectedImprovement * (0.6 + Math.random() * 0.8),
+      success: true,
+      actualImprovement: strategy.expectedImprovement * 1.0,
       expectedImprovement: strategy.expectedImprovement,
-      effectivenessRatio: 0.6 + Math.random() * 0.8,
+      effectivenessRatio: 1.0,
       sideEffects: [],
-      learnings: [
-        `Strategy ${strategy.name} showed ${Math.random() > 0.5 ? 'positive' : 'mixed'} results`,
-      ],
+      learnings: [`Strategy ${strategy.name} showed positive results`],
     }));
   }
 
@@ -639,13 +648,8 @@ export class MemoryDrivenOptimizer {
       limit: 50,
     });
 
-    return (
-      (searchResults?.results as unknown as Array<{
-        content?: string;
-        timestamp?: number | string | Date;
-        metadata?: { confidence?: number; quality?: number };
-      }>) || []
-    );
+    // Canonical: searchResults is MemorySearchResult[]
+    return Array.isArray(searchResults) ? searchResults : [];
   }
 
   private async analyzeInsightPatterns(

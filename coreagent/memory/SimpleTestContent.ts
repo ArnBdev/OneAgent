@@ -176,11 +176,9 @@ export class QuotaOptimizedTesting {
     if (typeof memory.flushBatch === 'function') {
       try {
         const batchResult = await memory.flushBatch();
-        console.log(
-          '[QuotaOptimizedTesting] ✅ Batch flush successful:',
-          (batchResult?.results || []).length,
-          'operations',
-        );
+        // Canonical: batchResult is MemorySearchResult[]
+        const opCount = Array.isArray(batchResult) ? batchResult.length : 0;
+        console.log('[QuotaOptimizedTesting] ✅ Batch flush successful:', opCount, 'operations');
       } catch (error) {
         console.log(
           '[QuotaOptimizedTesting] ❌ Batch flush failed:',

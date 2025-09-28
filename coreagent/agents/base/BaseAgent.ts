@@ -1,4 +1,16 @@
 /**
+ * IMPORTANT: Canonical Memory Usage Enforcement (AGENTS.md)
+ *
+ * All agent memory operations MUST use the OneAgentMemory singleton ONLY:
+ *   - Never instantiate or import memory clients directly (Mem0MemoryClient, MemgraphMemoryClient, etc.)
+ *   - Never create parallel memory systems, custom caches, or ad-hoc memory logic
+ *   - All memory access must go through OneAgentMemory.getInstance() as per AGENTS.md
+ *
+ * This file is protected by architectural policy. See AGENTS.md for canonical patterns and enforcement.
+ *
+ * Violations will be rejected in code review and CI. For questions, see AGENTS.md or contact the architecture lead.
+ */
+/**
  * BaseAgent - Core Agent Implementation for OneAgent
  *
  * Enhanced with Advanced Prompt Engineering System:
@@ -43,6 +55,7 @@ import {
   MessageId,
   UnifiedAgentContext,
 } from '../../types/oneagent-backbone-types';
+import type { MemorySearchResult } from '../../types/oneagent-memory-types';
 import { unifiedAgentCommunicationService } from '../../utils/UnifiedAgentCommunicationService';
 import { PromptEngine, PromptConfig, AgentPersona } from './PromptEngine';
 import { ConstitutionalAI } from './ConstitutionalAI';
@@ -125,8 +138,11 @@ export abstract class BaseAgent {
   private emittedTaskCompletions: Set<string> = new Set();
   // Regex used to detect delegated task identifiers embedded in orchestrator instructions.
   private static readonly TASK_ID_REGEX = /TASK_ID[:=]\s*([a-zA-Z0-9_-]+)/i;
-  // Map of taskId to sessionId for accurate emission context
-  private taskSessionMap: Map<string, string> = new Map();
+  // Canonical: Use unified cache for taskId to sessionId mapping
+  // All long-lived agent state must use OneAgentUnifiedBackbone.getInstance().cache
+  private get taskSessionCache() {
+    return this.unifiedBackbone.cache;
+  }
 
   // Canonical agent communication handled via UnifiedBackboneService only.
   protected currentSessions: Set<string> = new Set();
@@ -408,16 +424,15 @@ export abstract class BaseAgent {
 
     // Store in OneAgent memory with canonical metadata
     this.memoryClient
-      ?.addMemoryCanonical(
-        `NLACS capabilities enabled: ${capabilityStrings.join(', ')}`,
-        this.buildCanonicalAgentMetadata('nlacs_initialization', this.config.id, {
+      ?.addMemory({
+        content: `NLACS capabilities enabled: ${capabilityStrings.join(', ')}`,
+        metadata: this.buildCanonicalAgentMetadata('nlacs_initialization', this.config.id, {
           agentId: this.config.id,
           capabilities: capabilityStrings,
           originalType: 'nlacs_initialization',
         }),
-        this.config.id,
-      )
-      .catch((error) => {
+      })
+      .catch((error: unknown) => {
         console.error('Failed to store NLACS initialization in memory:', error);
       });
   }
@@ -444,17 +459,16 @@ export abstract class BaseAgent {
       );
 
       // Store participation in OneAgent memory with canonical structure
-      await this.memoryClient?.addMemoryCanonical(
-        `Joined NLACS discussion: ${discussionId}`,
-        this.buildCanonicalAgentMetadata('nlacs_participation', this.config.id, {
+      await this.memoryClient?.addMemory({
+        content: `Joined NLACS discussion: ${discussionId}`,
+        metadata: this.buildCanonicalAgentMetadata('nlacs_participation', this.config.id, {
           discussionId,
           agentId: this.config.id,
           joinedAt: joinTimestamp,
           context: context || 'standard_participation',
           capabilities: this.nlacsCapabilities,
         }),
-        this.config.id,
-      );
+      });
 
       return true;
     } catch (error) {
@@ -526,9 +540,9 @@ export abstract class BaseAgent {
       };
 
       // Store contribution in OneAgent memory with canonical structure
-      await this.memoryClient?.addMemoryCanonical(
-        `NLACS Discussion Contribution: ${content}`,
-        this.buildCanonicalAgentMetadata('nlacs_contribution', this.config.id, {
+      await this.memoryClient?.addMemory({
+        content: `NLACS Discussion Contribution: ${content}`,
+        metadata: this.buildCanonicalAgentMetadata('nlacs_contribution', this.config.id, {
           discussionId,
           messageId: message.id,
           messageType,
@@ -537,8 +551,7 @@ export abstract class BaseAgent {
           contentLength: content.length,
           context: context || 'standard_contribution',
         }),
-        this.config.id,
-      );
+      });
 
       console.log(
         `💬 ${this.config.id} contributed to discussion ${discussionId}: ${messageType} at ${contributionTimestamp}`,
@@ -613,9 +626,9 @@ export abstract class BaseAgent {
 
       // Store insights in OneAgent memory with canonical backbone structure
       for (const insight of insights) {
-        await this.memoryClient?.addMemoryCanonical(
-          `Emergent Insight: ${insight.content}`,
-          this.buildCanonicalAgentMetadata('emergent_insight', this.config.id, {
+        await this.memoryClient?.addMemory({
+          content: `Emergent Insight: ${insight.content}`,
+          metadata: this.buildCanonicalAgentMetadata('emergent_insight', this.config.id, {
             insightId: insight.id,
             insightType: insight.type,
             confidence: insight.confidence,
@@ -623,8 +636,7 @@ export abstract class BaseAgent {
             contributingAgents: insight.contributors,
             sourceMessageIds: insight.sources,
           }),
-          this.config.id,
-        );
+        });
       }
 
       console.log(
@@ -699,9 +711,9 @@ export abstract class BaseAgent {
             `Cross-conversation synthesis based on ${allInsights.length} insights from ${conversationThreads.length} threads`;
 
       // Store synthesis in OneAgent memory with canonical backbone structure
-      await this.memoryClient?.addMemoryCanonical(
-        `Knowledge Synthesis: ${synthesis}`,
-        this.buildCanonicalAgentMetadata('knowledge_synthesis', this.config.id, {
+      await this.memoryClient?.addMemory({
+        content: `Knowledge Synthesis: ${synthesis}`,
+        metadata: this.buildCanonicalAgentMetadata('knowledge_synthesis', this.config.id, {
           synthesisId: generateUnifiedId('knowledge', this.config.id),
           synthesisQuestion,
           sourceThreadIds: conversationThreads.map((t) => t.id),
@@ -711,8 +723,7 @@ export abstract class BaseAgent {
           synthesisLength: synthesis.length,
           questionCategory: this.categorizeSynthesisQuestion(synthesisQuestion),
         }),
-        this.config.id,
-      );
+      });
 
       console.log(
         `🔄 ${this.config.id} synthesized knowledge from ${conversationThreads.length} conversations at ${synthesisTimestamp}`,
@@ -778,20 +789,18 @@ export abstract class BaseAgent {
       });
 
       // Extract patterns from historical NLACS participation
-      if (nlacsMemories?.results && nlacsMemories.results.length > 0) {
-        patterns.push(
-          `Historical participation: ${nlacsMemories.results.length} previous discussions`,
-        );
+      if (nlacsMemories && Array.isArray(nlacsMemories) && nlacsMemories.length > 0) {
+        patterns.push(`Historical participation: ${nlacsMemories.length} previous discussions`);
 
         // Extract common themes using canonical metadata
         const themes = new Set<string>();
         const contexts = new Set<string>();
 
-        nlacsMemories.results.forEach((memory: MemoryRecord) => {
-          if (memory.content?.includes('messageType')) {
+        (nlacsMemories as MemorySearchResult[]).forEach((memory) => {
+          if (typeof memory.content === 'string' && memory.content.includes('messageType')) {
             themes.add('communication_pattern');
           }
-          if (memory.content?.includes('context')) {
+          if (typeof memory.content === 'string' && memory.content.includes('context')) {
             contexts.add('conversation_context');
           }
         });
@@ -806,9 +815,9 @@ export abstract class BaseAgent {
       }
 
       // Store pattern analysis in OneAgent memory with canonical structure
-      await this.memoryClient?.addMemoryCanonical(
-        `Conversation Pattern Analysis: ${patterns.length} patterns, ${insights.length} insights`,
-        this.buildCanonicalAgentMetadata('pattern_analysis', this.config.id, {
+      await this.memoryClient?.addMemory({
+        content: `Conversation Pattern Analysis: ${patterns.length} patterns, ${insights.length} insights`,
+        metadata: this.buildCanonicalAgentMetadata('pattern_analysis', this.config.id, {
           analysisId: generateUnifiedId('analysis', this.config.id),
           patternCount: patterns.length,
           insightCount: insights.length,
@@ -816,8 +825,7 @@ export abstract class BaseAgent {
           participantCount: participants.size,
           conversationDuration: timeSpan,
         }),
-        this.config.id,
-      );
+      });
 
       console.log(
         `📊 ${this.config.id} extracted ${patterns.length} conversation patterns and ${insights.length} insights at ${analysisTimestamp}`,
@@ -899,24 +907,25 @@ export abstract class BaseAgent {
   /**
    * Add memory to the agent's memory system
    */
-  protected async addMemory(
-    userId: string,
-    content: string,
-    metadata?: Record<string, unknown>,
-  ): Promise<void> {
+  protected async addMemory(req: {
+    content: string;
+    metadata?: Record<string, unknown>;
+  }): Promise<void> {
     if (!this.memoryClient) {
       console.warn('Memory client not initialized');
       return;
     }
+    // Always add canonical metadata
     const ts = createUnifiedTimestamp();
-    const unified = this.buildCanonicalAgentMetadata('agent_event', userId, metadata, ts);
-    await this.memoryClient.addMemoryCanonical(content, unified, userId);
+    const userId = String(req.metadata?.userId || this.config.id);
+    const unified = this.buildCanonicalAgentMetadata('agent_event', userId, req.metadata, ts);
+    await this.memoryClient.addMemory({ content: req.content, metadata: unified });
     // Fire-and-forget knowledge enrichment into graph if enabled
     try {
       const cfg = UnifiedBackboneService.getResolvedConfig();
       if (cfg.features?.enableGraphEnrichment && memgraphService.isEnabled()) {
         // Do not await; run in background
-        void this.extractAndPersistKnowledge(userId, content);
+        void this.extractAndPersistKnowledge(userId, req.content);
       }
     } catch (bgErr) {
       // Guardrail: never throw from background trigger
@@ -936,7 +945,8 @@ export abstract class BaseAgent {
     userId: string,
     extra?: Record<string, unknown>,
     timestamp: ReturnType<typeof createUnifiedTimestamp> = createUnifiedTimestamp(),
-  ): Partial<UnifiedMetadata> {
+  ): Record<string, unknown> {
+    // Canonical: always return a plain object for OneAgentMemory
     return unifiedMetadataService.create(type, 'BaseAgent', {
       system: {
         userId,
@@ -963,7 +973,7 @@ export abstract class BaseAgent {
         },
       },
       ...(extra || {}),
-    } as unknown as Partial<UnifiedMetadata>);
+    }) as Record<string, unknown>;
   }
 
   /**
@@ -1047,7 +1057,12 @@ export abstract class BaseAgent {
     const t0 = services.timeService.now();
     const results = await this.memoryClient.searchMemory({ query, userId, limit });
     const t1 = services.timeService.now();
-    const items = results?.results || [];
+    let items: MemoryRecord[] = [];
+    if (Array.isArray(results)) {
+      items = results as MemoryRecord[];
+    } else if (results && Array.isArray((results as { results: MemoryRecord[] }).results)) {
+      items = (results as { results: MemoryRecord[] }).results;
+    }
     const took = Math.max(0, t1.unix - t0.unix);
     // Emit metrics
     void metricsService.logMemorySearch({
@@ -1327,8 +1342,11 @@ export abstract class BaseAgent {
     this.validateContext(context);
     // Capture mapping of taskId->sessionId if present in inbound message
     const earlyTaskId = this.detectTaskId(message);
-    if (earlyTaskId && !this.taskSessionMap.has(earlyTaskId)) {
-      this.taskSessionMap.set(earlyTaskId, context.sessionId);
+    if (earlyTaskId) {
+      const existing = await this.taskSessionCache.get(earlyTaskId);
+      if (!existing) {
+        await this.taskSessionCache.set(earlyTaskId, context.sessionId);
+      }
     }
     // Enhanced path: use prompt engine + constitutional loop if configured
     if (this.promptEngine && this.constitutionalAI) {
@@ -1339,7 +1357,10 @@ export abstract class BaseAgent {
     const search = await this.searchMemories(context.user.id, message);
     const memories = search.result.results;
     const response = await this.generateResponse(message, memories);
-    await this.addMemory(context.user.id, `User: ${message}\nAgent: ${response}`);
+    await this.addMemory({
+      content: `User: ${message}\nAgent: ${response}`,
+      metadata: { userId: context.user.id },
+    });
     const baseResp = this.createResponse(response, [], memories);
     return await this.finalizeResponseWithTaskDetection(message, baseResp);
   }
@@ -1379,16 +1400,16 @@ export abstract class BaseAgent {
       });
       finalContent = second.refinedResponse || finalContent;
     }
-    await this.addMemory(
-      userId,
-      `ConstitutionalInteraction:\nUser: ${message}\nResponse: ${finalContent}\nScore: ${validation.score}`,
-      {
+    await this.addMemory({
+      content: `ConstitutionalInteraction:\nUser: ${message}\nResponse: ${finalContent}\nScore: ${validation.score}`,
+      metadata: {
         type: 'constitutional_interaction',
         qualityScore: validation.score,
         violations: validation.violations.map((v) => v.principleId),
         refined: validation.refinedResponse !== raw,
+        userId,
       },
-    );
+    });
     return {
       content: finalContent,
       actions: [],
@@ -1470,9 +1491,10 @@ export abstract class BaseAgent {
         ...(details?.errorMessage ? { errorMessage: details.errorMessage } : {}),
         ...(details?.meta ? { meta: details.meta } : {}),
       };
-      const sessionId = this.taskSessionMap.get(taskId) || 'plan-session';
+      let sessionId = await this.taskSessionCache.get(taskId);
+      if (!sessionId) sessionId = 'plan-session';
       await this.comm.sendMessage({
-        sessionId,
+        sessionId: String(sessionId),
         fromAgent: this.config.id as AgentId,
         toAgent: 'orchestrator',
         content: JSON.stringify(payload),

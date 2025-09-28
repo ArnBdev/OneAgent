@@ -466,14 +466,17 @@ export class EvolutionEngine extends EventEmitter {
     try {
       // Store as a learning in the canonical memory system
       // Canonical memory usage: single object argument
-      await this.memorySystem.addMemoryCanonical(JSON.stringify(record), {
-        type: 'evolution_record',
-        content: {
-          category: 'evolution',
-          tags: ['profile_evolution'],
-          sensitivity: 'internal',
-          relevanceScore: 1.0,
-          contextDependency: 'user',
+      await this.memorySystem.addMemory({
+        content: JSON.stringify(record),
+        metadata: {
+          type: 'evolution_record',
+          content: {
+            category: 'evolution',
+            tags: ['profile_evolution'],
+            sensitivity: 'internal',
+            relevanceScore: 1.0,
+            contextDependency: 'user',
+          },
         },
       });
       console.log('Evolution record stored:', record);

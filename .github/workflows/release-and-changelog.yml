@@ -17,6 +17,14 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: Ensure roadmap updated for release
+        run: |
+          if ! git diff --name-only HEAD~1 HEAD | grep -q "docs/ROADMAP.md"; then
+            echo "ERROR: docs/ROADMAP.md was not updated for this release. Please update the canonical roadmap before releasing."
+            exit 1
+          fi
+        shell: bash
+
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
