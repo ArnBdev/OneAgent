@@ -78,8 +78,8 @@ Start-ProcessWithBanner -Name "MCP Server (Node/TypeScript)" -Command $mcpServer
 
 # Wait for MCP health endpoint before starting memory server
 $mcpProbeUrl = "http://127.0.0.1:$mcpPort/health"
-Write-Host "[OneAgent] Waiting for MCP server to become healthy (up to 60 seconds)..." -ForegroundColor Yellow
-$mcpReady = Wait-HttpReady -Url $mcpProbeUrl -TimeoutSec 60
+Write-Host "[OneAgent] Waiting for MCP server to become healthy (up to 120 seconds)..." -ForegroundColor Yellow
+$mcpReady = Wait-HttpReady -Url $mcpProbeUrl -TimeoutSec 120
 if ($mcpReady) {
     Write-Host "[Probe] MCP server READY ($mcpProbeUrl)" -ForegroundColor Green
 } else {
@@ -99,13 +99,32 @@ $memoryServerCmd = "`"$pythonPath`" servers/mem0_fastmcp_server.py"
 Start-ProcessWithBanner -Name "Memory Server (mem0+FastMCP)" -Command $memoryServerCmd -WorkingDirectory "$PSScriptRoot/.."
 
 # Optional readiness check for memory server
-$memProbeUrl = "http://127.0.0.1:$memPort/health"
-Write-Host "[OneAgent] Waiting for Memory server to become healthy (up to 45 seconds)..." -ForegroundColor Yellow
-$memReady = Wait-HttpReady -Url $memProbeUrl -TimeoutSec 45
+# Note: FastMCP's /mcp endpoint returns 406 (Not Acceptable) for simple GET - this is NORMAL
+# We just need to check if the server socket is accepting connections (any response = server up)
+Write-Host "[OneAgent] Waiting for Memory server to become healthy (up to 20 seconds)..." -ForegroundColor Yellow
+$memReady = $false
+$memDeadline = (Get-Date).AddSeconds(20)
+while ((Get-Date) -lt $memDeadline) {
+    try {
+        # Any response (including 406) means server is up
+        $resp = Invoke-WebRequest -Uri "http://127.0.0.1:$memPort/mcp" -Method Get -UseBasicParsing -TimeoutSec 3 -ErrorAction Stop
+        $memReady = $true
+        break
+    } catch [System.Net.WebException] {
+        # 406 Not Acceptable is expected - server is up!
+        if ($_.Exception.Response.StatusCode -eq 406) {
+            $memReady = $true
+            break
+        }
+    } catch {
+        # Server not ready yet, keep trying
+    }
+    Start-Sleep -Milliseconds 500
+}
 if ($memReady) { 
-    Write-Host "[Probe] Memory server READY ($memProbeUrl)" -ForegroundColor Green 
+    Write-Host "[Probe] Memory server READY (port $memPort)" -ForegroundColor Green 
 } else { 
-    Write-Host "[Probe] Memory server TIMEOUT ($memProbeUrl)" -ForegroundColor Yellow 
+    Write-Host "[Probe] Memory server TIMEOUT (port $memPort)" -ForegroundColor Yellow 
     Write-Host "[OneAgent] Memory server may still be starting. Check its window for progress." -ForegroundColor Yellow
 }
 

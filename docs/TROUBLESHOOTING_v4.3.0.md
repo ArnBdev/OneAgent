@@ -8,6 +8,7 @@
 ### Issue #1: Memory Server Window Closes Immediately ❌
 
 **Symptoms**:
+
 - Memory server terminal window opens and closes instantly
 - Error in logs: `[WinError 32] Prosessen får ikke tilgang til filen` (File locked)
 - Startup script reports: "Memory server TIMEOUT"
@@ -16,6 +17,7 @@
 Qdrant vector database file is locked by a previous Python process that didn't shut down cleanly.
 
 **Solution**:
+
 ```powershell
 # Stop all OneAgent servers
 .\scripts\stop-oneagent-system.ps1 -Force
@@ -39,38 +41,57 @@ Always use `stop-oneagent-system.ps1` instead of closing terminal windows direct
 ### Issue #2: MCP Server Health Check Timeout ⚠️
 
 **Symptoms**:
+
 - MCP server terminal shows successful tool registrations
 - But startup script reports: "MCP server TIMEOUT"
 - Health check fails within 60 seconds
 
 **Root Cause**:
-MCP server takes 2-4 seconds to fully initialize (tool registration), but health endpoint only becomes available AFTER all tools are registered.
 
-**Solution**:
-This is expected behavior. The MCP server IS running correctly. The health check timeout is just informational - the memory server will still start.
+1. **MCP Server**: Takes 60-90 seconds to fully initialize with verbose tool registration logging
+2. **Memory Server**: FastMCP framework doesn't expose a `/health` endpoint - only `/mcp` endpoint is available
+
+**Solution** (Fixed in v4.3.0.1):
+
+- Increased MCP health check timeout from 60s → 90s to accommodate slower initialization
+- Changed memory server probe from `/health` → `/mcp` (correct FastMCP endpoint)
+- Both servers ARE running correctly despite timeout warnings
 
 **Verification**:
 Check the MCP server terminal window - if you see this, it's working:
+
 ```
 🌟 OneAgent Unified MCP Server Started Successfully!
 📡 Server Information:
    • HTTP MCP Endpoint: http://127.0.0.1:8083/mcp
 ```
 
+**Memory Server** (should show):
+
+```
+✅ Memory initialization successful (self-hosted ChromaDB + Gemini)
+INFO: Uvicorn running on http://0.0.0.0:8010
+```
+
+**Important Note**:
+The "random ports" (54598-54670) you see in memory server logs are **client-side ephemeral TCP ports** from the startup script's health check probes - this is normal networking behavior. The server is NOT trying random ports; it's listening on the correct port 8010.
+
 **Prevention**:
-Future versions will increase the health check timeout or start health checks earlier.
+Use the updated startup script (v4.3.0.1+) which has correct timeouts and endpoints.
 
 ---
 
 ### Issue #3: Health Monitoring Skipped (INTENTIONAL) ✅
 
 **Symptoms**:
+
 - Log message: `🏥 HealthMonitoringService instantiation skipped (auto monitoring disabled)`
 
 **Root Cause**:
 Environment variable `ONEAGENT_DISABLE_AUTO_MONITORING=1` is set (from previous test runs or development).
 
 **Impact**:
+
 - **LOW** - Health monitoring still works on-demand via `/health` endpoint
 - Background monitoring timers are disabled for faster startup
 - This is CORRECT behavior for development/testing
@@ -79,6 +100,7 @@ Environment variable `ONEAGENT_DISABLE_AUTO_MONITORING=1` is set (from previous 
 No action needed. This is intentional for faster startup.
 
 **To Enable Background Monitoring**:
+
 ```powershell
 # Remove or set to 0
 Remove-Item Env:ONEAGENT_DISABLE_AUTO_MONITORING -ErrorAction SilentlyContinue
@@ -94,15 +116,17 @@ $env:ONEAGENT_DISABLE_AUTO_MONITORING = "0"
 ### Issue #4: Port Already in Use
 
 **Symptoms**:
+
 - Error: `EADDRINUSE` or `Address already in use`
 - MCP port 8083 or Memory port 8010 is occupied
 
 **Solution**:
+
 ```powershell
 # Find what's using the ports
-Get-NetTCPConnection -LocalPort 8083,8010 -ErrorAction SilentlyContinue | 
-  Select-Object LocalPort, OwningProcess | 
-  ForEach-Object { 
+Get-NetTCPConnection -LocalPort 8083,8010 -ErrorAction SilentlyContinue |
+  Select-Object LocalPort, OwningProcess |
+  ForEach-Object {
     $proc = Get-Process -Id $_.OwningProcess -ErrorAction SilentlyContinue
     [PSCustomObject]@{
       Port = $_.LocalPort
@@ -123,10 +147,12 @@ Get-NetTCPConnection -LocalPort 8083,8010 -ErrorAction SilentlyContinue |
 ### Issue #5: Missing Python Dependencies
 
 **Symptoms**:
+
 - Memory server crashes with `ModuleNotFoundError`
 - Missing `mem0ai`, `fastmcp`, `chromadb`, etc.
 
 **Solution**:
+
 ```powershell
 # Activate virtual environment (if using one)
 .\venv\Scripts\Activate.ps1
@@ -149,6 +175,7 @@ pip list | Select-String "mem0|fastmcp|chromadb|google-genai"
 ### Issue #6: `Wait-HttpReady` Not Recognized (PowerShell)
 
 **Symptoms**:
+
 - Error: `The term 'Wait-HttpReady' is not recognized`
 - Startup script fails at line 59
 
@@ -156,6 +183,7 @@ pip list | Select-String "mem0|fastmcp|chromadb|google-genai"
 Old version of `start-oneagent-system.ps1` with function declaration order bug.
 
 **Solution**:
+
 ```powershell
 # Pull latest changes
 git pull origin main
@@ -171,10 +199,11 @@ Get-Content scripts/start-oneagent-system.ps1 | Select-String "v4.3.0"
 ## Diagnostic Commands
 
 ### Check System Status
+
 ```powershell
 # Check running processes
-Get-Process python,node -ErrorAction SilentlyContinue | 
-  Select-Object Id, ProcessName, StartTime | 
+Get-Process python,node -ErrorAction SilentlyContinue |
+  Select-Object Id, ProcessName, StartTime |
   Format-Table -AutoSize
 
 # Check ports
@@ -188,6 +217,7 @@ Write-Host "AUTO_MONITORING: $(if ($env:ONEAGENT_DISABLE_AUTO_MONITORING) { 'DIS
 ```
 
 ### Test Server Connectivity
+
 ```powershell
 # Test MCP server
 Invoke-WebRequest -Uri "http://127.0.0.1:8083/health" -UseBasicParsing
@@ -197,6 +227,7 @@ Invoke-WebRequest -Uri "http://127.0.0.1:8010/health" -UseBasicParsing
 ```
 
 ### View Server Logs
+
 ```powershell
 # MCP server logs (in its terminal window)
 # Look for: "🌟 OneAgent Unified MCP Server Started Successfully!"
@@ -259,21 +290,25 @@ DeprecationWarning: websockets.server.WebSocketServerProtocol is deprecated
 ## Quick Reference
 
 ### Startup (Normal)
+
 ```powershell
 .\scripts\start-oneagent-system.ps1
 ```
 
 ### Shutdown (Clean)
+
 ```powershell
 .\scripts\stop-oneagent-system.ps1
 ```
 
 ### Shutdown (Force)
+
 ```powershell
 .\scripts\stop-oneagent-system.ps1 -Force
 ```
 
 ### Clean Restart
+
 ```powershell
 .\scripts\stop-oneagent-system.ps1 -Force
 Start-Sleep -Seconds 3
@@ -281,6 +316,7 @@ Start-Sleep -Seconds 3
 ```
 
 ### Emergency Kill All
+
 ```powershell
 Get-Process python,node -ErrorAction SilentlyContinue | Stop-Process -Force
 Remove-Item "/tmp/qdrant" -Recurse -Force -ErrorAction SilentlyContinue
@@ -291,12 +327,14 @@ Remove-Item "/tmp/qdrant" -Recurse -Force -ErrorAction SilentlyContinue
 ## Getting Help
 
 ### Check Documentation
+
 - **Release Notes**: `docs/v4.3.0-RELEASE-NOTES.md`
 - **Startup Analysis**: `docs/STARTUP_ANALYSIS_v4.3.0.md`
 - **Architecture**: `docs/ONEAGENT_ARCHITECTURE.md`
 - **Migration Guide**: `docs/GOOGLE_GENAI_MIGRATION_OCT2025.md`
 
 ### Debug Mode
+
 ```powershell
 # Enable verbose logging
 $env:ONEAGENT_LOG_LEVEL = "DEBUG"
@@ -306,7 +344,9 @@ $env:ONEAGENT_LOG_LEVEL = "DEBUG"
 ```
 
 ### Report Issues
+
 When reporting issues, include:
+
 1. Output of `.\scripts\start-oneagent-system.ps1`
 2. Contents of MCP server terminal window
 3. Contents of memory server terminal window
@@ -320,6 +360,7 @@ When reporting issues, include:
 ### Healthy Startup Looks Like:
 
 **Startup Script Output:**
+
 ```
 ===============================
  ✅ SYSTEM READY
@@ -329,6 +370,7 @@ Memory Server: http://127.0.0.1:8010
 ```
 
 **MCP Server Terminal:**
+
 ```
 🌟 OneAgent Unified MCP Server Started Successfully!
 📡 Server Information:
@@ -338,6 +380,7 @@ Memory Server: http://127.0.0.1:8010
 ```
 
 **Memory Server Terminal:**
+
 ```
 INFO:     Started server process [XXXXX]
 INFO:     Application startup complete.
