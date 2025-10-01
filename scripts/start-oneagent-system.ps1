@@ -78,14 +78,14 @@ Start-ProcessWithBanner -Name "MCP Server (Node/TypeScript)" -Command $mcpServer
 
 # Wait for MCP health endpoint before starting memory server
 $mcpProbeUrl = "http://127.0.0.1:$mcpPort/health"
-Write-Host "[OneAgent] Waiting for MCP server to become healthy (up to 120 seconds)..." -ForegroundColor Yellow
-$mcpReady = Wait-HttpReady -Url $mcpProbeUrl -TimeoutSec 120
+Write-Host "[OneAgent] Waiting for MCP server HTTP to start (up to 30 seconds)..." -ForegroundColor Yellow
+$mcpReady = Wait-HttpReady -Url $mcpProbeUrl -TimeoutSec 30
 if ($mcpReady) {
-    Write-Host "[Probe] MCP server READY ($mcpProbeUrl)" -ForegroundColor Green
+    Write-Host "[Probe] ✅ MCP HTTP server READY (tools initializing in background)" -ForegroundColor Green
 } else {
-    Write-Host "[Probe] MCP server TIMEOUT ($mcpProbeUrl)" -ForegroundColor Yellow
-    Write-Host "[OneAgent] MCP server did not become healthy in time." -ForegroundColor Yellow
-    Write-Host "[OneAgent] Check the MCP server window for errors. Memory server will start anyway." -ForegroundColor Yellow
+    Write-Host "[Probe] ⏱️  MCP HTTP server not responding" -ForegroundColor Yellow
+    Write-Host "[OneAgent] Check the MCP server window for errors." -ForegroundColor Cyan
+    Write-Host "[OneAgent] Memory server will start anyway - both servers work independently." -ForegroundColor Cyan
 }
 
 # Start Memory Server (Python/FastAPI/Uvicorn)
@@ -122,10 +122,10 @@ while ((Get-Date) -lt $memDeadline) {
     Start-Sleep -Milliseconds 500
 }
 if ($memReady) { 
-    Write-Host "[Probe] Memory server READY (port $memPort)" -ForegroundColor Green 
+    Write-Host "[Probe] ✅ Memory server READY (port $memPort)" -ForegroundColor Green 
 } else { 
-    Write-Host "[Probe] Memory server TIMEOUT (port $memPort)" -ForegroundColor Yellow 
-    Write-Host "[OneAgent] Memory server may still be starting. Check its window for progress." -ForegroundColor Yellow
+    Write-Host "[Probe] ⏱️  Memory server still initializing" -ForegroundColor Yellow 
+    Write-Host "[OneAgent] Check the memory server window - should show 'Uvicorn running' when ready." -ForegroundColor Cyan
 }
 
 # Final status report
@@ -136,12 +136,10 @@ if ($mcpReady -and $memReady) {
     Write-Host "===============================" -ForegroundColor Green
     Write-Host "MCP Server:    http://127.0.0.1:$mcpPort" -ForegroundColor Cyan
     Write-Host "Memory Server: http://127.0.0.1:$memPort" -ForegroundColor Cyan
-} elseif ($mcpReady) {
-    Write-Host "[OneAgent] ⚠️  MCP server is UP, but memory server needs more time." -ForegroundColor Yellow
-    Write-Host "[OneAgent] MCP will work, but memory operations may fail until memory server is ready." -ForegroundColor Yellow
 } else {
-    Write-Host "[OneAgent] ⚠️  Servers launched but health checks timed out." -ForegroundColor Yellow
-    Write-Host "[OneAgent] Check the terminal windows for detailed startup logs." -ForegroundColor Yellow
+    Write-Host "[OneAgent] ℹ️  Servers are starting in background windows" -ForegroundColor Cyan
+    Write-Host "[OneAgent] Check the server windows for detailed progress logs." -ForegroundColor Cyan
+    Write-Host "[OneAgent] Both servers work independently - MCP tools will function even if memory is still starting." -ForegroundColor Cyan
 }
 Write-Host ""
 Write-Host "[OneAgent] To stop servers: Close their terminal windows or use Task Manager." -ForegroundColor DarkGray

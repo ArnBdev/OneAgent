@@ -1243,11 +1243,10 @@ app.get('/.well-known/agent.json', async (_req: Request, res: Response) => {
  */
 async function startServer(): Promise<void> {
   try {
-    await initializeServer();
-
     const port = UnifiedBackboneService.config.mcpPort;
     const host = UnifiedBackboneService.config.host;
 
+    // Start HTTP server FIRST - makes /health endpoint available immediately
     const server = app.listen(port, host, () => {
       // Canonical startup banner
       if (!QUIET_MODE) {
@@ -1255,30 +1254,45 @@ async function startServer(): Promise<void> {
         console.log(`${SERVER_NAME} v${SERVER_VERSION}`);
         console.log(`Protocol: HTTP MCP ${MCP_PROTOCOL_VERSION}`);
         console.log('==============================================');
-        console.log('🌟 OneAgent Unified MCP Server Started Successfully!');
+        console.log('🌟 OneAgent HTTP Server Started!');
         console.log('');
         console.log('📡 Server Information:');
         const base = environmentConfig.endpoints.mcp.url.replace(/\/mcp$/, '');
         console.log(`   • HTTP MCP Endpoint: ${base}/mcp`);
-        console.log(`   • Health Check: ${base}/health`);
+        console.log(`   • Health Check: ${base}/health (available now)`);
         console.log(`   • Server Info: ${base}/info`);
         console.log(
           `   • Mission Control WS: ${base.replace(/\/$/, '')}${MISSION_CONTROL_WS_PATH}`,
         );
         console.log('');
-        console.log('🎯 Features:');
-        console.log('   • Constitutional AI Validation ✅');
-        console.log('   • BMAD Framework Analysis ✅');
-        console.log('   • Unified Tool Management ✅');
-        console.log('   • Multi-Agent Communication ✅');
-        console.log('   • Quality-First Development ✅');
-        console.log('');
-        console.log('🔗 VS Code Integration:');
-        console.log('   Add to .vscode/mcp.json for Copilot Chat');
-        console.log('');
-        console.log('🎪 Ready for VS Code Copilot Chat! 🎪');
+        console.log('⏳ Initializing OneAgent Engine (tools, AI, memory)...');
       }
     });
+
+    // Initialize OneAgent in background (tools registration takes ~90-120s)
+    // HTTP endpoints work immediately, tool operations queue until ready
+    initializeServer()
+      .then(() => {
+        if (!QUIET_MODE) {
+          console.log('');
+          console.log('✅ OneAgent Engine Fully Initialized!');
+          console.log('🎯 Features:');
+          console.log('   • Constitutional AI Validation ✅');
+          console.log('   • BMAD Framework Analysis ✅');
+          console.log('   • Unified Tool Management ✅');
+          console.log('   • Multi-Agent Communication ✅');
+          console.log('   • Quality-First Development ✅');
+          console.log('');
+          console.log('🔗 VS Code Integration:');
+          console.log('   Add to .vscode/mcp.json for Copilot Chat');
+          console.log('');
+          console.log('🎪 Ready for VS Code Copilot Chat! 🎪');
+        }
+      })
+      .catch((error) => {
+        console.error('❌ OneAgent Engine initialization failed:', error);
+        console.error('   Server will continue with limited functionality');
+      });
 
     // Use new modular Mission Control WebSocket server with health delta streaming
     const missionControlWSS = createMissionControlWSS(
