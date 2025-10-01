@@ -4,6 +4,8 @@
  *
  * Format: `${prefix}_${unix}_${suffix}` where prefix = type or `${type}_${context}`
  */
+import { createUnifiedTimestamp } from './UnifiedBackboneService';
+
 export function secureRandomSuffix(unixFallback?: number): string {
   try {
     const anyCrypto = (globalThis as unknown as { crypto?: { randomUUID?: () => string } }).crypto;
@@ -28,12 +30,14 @@ export function secureRandomSuffix(unixFallback?: number): string {
   } catch {
     // ignore
   }
-  const ts = typeof unixFallback === 'number' ? unixFallback : Math.floor(Date.now() / 1000);
+  // Canonical time: Use createUnifiedTimestamp() instead of Date.now()
+  const ts = typeof unixFallback === 'number' ? unixFallback : createUnifiedTimestamp().unix;
   return ts.toString(36);
 }
 
 export function createCanonicalId(type: string, context?: string, unix?: number): string {
-  const ts = typeof unix === 'number' ? unix : Math.floor(Date.now() / 1000);
+  // Canonical time: Use createUnifiedTimestamp() instead of Date.now()
+  const ts = typeof unix === 'number' ? unix : createUnifiedTimestamp().unix;
   const prefix = context ? `${type}_${context}` : type;
   const suffix = secureRandomSuffix(ts);
   return `${prefix}_${ts}_${suffix}`;

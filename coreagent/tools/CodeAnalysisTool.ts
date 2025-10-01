@@ -6,10 +6,12 @@
  */
 
 import { UnifiedMCPTool, ToolExecutionResult, InputSchema } from './UnifiedMCPTool';
-import { OneAgentMemory, OneAgentMemoryConfig } from '../memory/OneAgentMemory';
+import { OneAgentMemory } from '../memory/OneAgentMemory';
 import {
   createUnifiedTimestamp,
   createUnifiedId,
+  unifiedMetadataService,
+  getOneAgentMemory,
   OneAgentUnifiedMetadataService,
 } from '../utils/UnifiedBackboneService';
 import * as fs from 'fs/promises';
@@ -109,12 +111,8 @@ export class CodeAnalysisTool extends UnifiedMCPTool {
       'enhanced',
     );
     // Initialize canonical memory system
-    const memoryConfig: OneAgentMemoryConfig = {
-      apiKey: process.env.MEM0_API_KEY || 'demo-key',
-      apiUrl: process.env.MEM0_API_URL,
-    };
-    this.memorySystem = OneAgentMemory.getInstance(memoryConfig);
-    this.metadataService = OneAgentUnifiedMetadataService.getInstance();
+    this.memorySystem = getOneAgentMemory();
+    this.metadataService = unifiedMetadataService;
   }
 
   /**
@@ -382,7 +380,7 @@ export class CodeAnalysisTool extends UnifiedMCPTool {
       // Use canonical memory system for storage with unified metadata
       await this.memorySystem.addMemory({
         content: JSON.stringify(memoryData),
-        metadata: this.metadataService.create('code_analysis', 'CodeAnalysisTool', {
+        metadata: await this.metadataService.create('code_analysis', 'CodeAnalysisTool', {
           system: {
             source: 'code_analysis_tool',
             component: 'analysis',

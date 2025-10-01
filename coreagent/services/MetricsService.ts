@@ -5,7 +5,8 @@ import {
   OneAgentUnifiedBackbone,
   generateUnifiedId,
 } from '../utils/UnifiedBackboneService';
-import { OneAgentMemory } from '../memory/OneAgentMemory';
+// import { OneAgentMemory } from '../memory/OneAgentMemory';
+import { getOneAgentMemory } from '../utils/UnifiedBackboneService';
 
 export interface MetricLog {
   taskId: string;
@@ -77,7 +78,7 @@ export class MetricsService {
     // Optional: persist to memory (best-effort; disabled in tests unless explicitly enabled)
     if (process.env.ONEAGENT_METRICS_TO_MEMORY === 'true') {
       try {
-        const memory = OneAgentMemory.getInstance();
+        const memory = getOneAgentMemory();
         const summary = `Metrics: memory_search -> ${log.vectorResultsCount}+${log.graphResultsCount} results in ${log.latencyMs}ms`;
         const metadata = unifiedMetadataService.create('metrics_log', 'MetricsService', {
           system: {
@@ -95,7 +96,10 @@ export class MetricsService {
           },
           custom: { metricLog: log },
         });
-        await memory.addMemoryCanonical(summary, metadata, log.userId);
+        await memory.addMemory({
+          content: summary,
+          metadata: { ...metadata, userId: log.userId },
+        });
       } catch (err) {
         // Swallow persistence errors; monitoring event is the canonical record
         OneAgentUnifiedBackbone.getInstance()

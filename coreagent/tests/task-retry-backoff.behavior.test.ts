@@ -18,7 +18,8 @@ describe('Task Delegation Retry Backoff', () => {
       /* ignore */
     }
     await taskDelegationService.harvestAndQueue();
-    const engine = OneAgentEngine.getInstance();
+    // Canonical: Use direct instantiation for OneAgentEngine
+    const engine = new OneAgentEngine();
     const queued = taskDelegationService.getQueuedTasks();
     if (!queued.length) return; // skip if no tasks produced
     // Force dispatch failure to trigger retry path

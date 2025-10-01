@@ -3,6 +3,7 @@
  * Centralized helper ensuring consistent metadata + canonical memory writes
  * for all agent communication artifacts.
  */
+import { getOneAgentMemory } from '../utils/UnifiedBackboneService';
 import { OneAgentMemory } from '../memory/OneAgentMemory';
 import { unifiedMetadataService, createUnifiedTimestamp } from '../utils/UnifiedBackboneService';
 import { COMM_METADATA_KEYS } from '../types/communication-constants';
@@ -19,25 +20,15 @@ export interface PersistAgentMessageParams {
 }
 
 export class CommunicationPersistenceAdapter {
-  private static instance: CommunicationPersistenceAdapter;
   private memory: OneAgentMemory;
 
-  private constructor(memory: OneAgentMemory) {
-    this.memory = memory;
-  }
-
-  public static getInstance(): CommunicationPersistenceAdapter {
-    if (!CommunicationPersistenceAdapter.instance) {
-      CommunicationPersistenceAdapter.instance = new CommunicationPersistenceAdapter(
-        OneAgentMemory.getInstance(),
-      );
-    }
-    return CommunicationPersistenceAdapter.instance;
+  constructor(memory?: OneAgentMemory) {
+    this.memory = memory || getOneAgentMemory();
   }
 
   async persistAgentMessage(params: PersistAgentMessageParams): Promise<string> {
     const ts = createUnifiedTimestamp();
-    const metadata = unifiedMetadataService.create('agent_message', 'communication_adapter', {
+    const metadata = await unifiedMetadataService.create('agent_message', 'communication_adapter', {
       system: {
         source: 'communication_adapter',
         component: 'agent_message',
@@ -88,27 +79,31 @@ export class CommunicationPersistenceAdapter {
     extra?: Record<string, unknown>;
   }): Promise<string> {
     const ts = createUnifiedTimestamp();
-    const metadata = unifiedMetadataService.create('agent_discussion', 'communication_adapter', {
-      system: { source: 'communication_adapter', component: 'discussion_manager' },
-      content: {
-        category: 'agent_coordination',
-        tags: ['discussion', ...payload.participants.map((p) => `agent:${p}`)],
-        sensitivity: 'internal',
-        relevanceScore: 0.9,
-        contextDependency: 'session',
-      },
-      extra: { ...payload, participants: payload.participants.join(','), ...payload.extra },
-      temporal: {
-        created: ts,
-        updated: ts,
-        contextSnapshot: {
-          timeOfDay: ts.contextual?.timeOfDay || 'unknown',
-          dayOfWeek: new Date(ts.utc).toLocaleDateString('en-US', { weekday: 'long' }),
-          businessContext: true,
-          energyContext: 'standard',
+    const metadata = await unifiedMetadataService.create(
+      'agent_discussion',
+      'communication_adapter',
+      {
+        system: { source: 'communication_adapter', component: 'discussion_manager' },
+        content: {
+          category: 'agent_coordination',
+          tags: ['discussion', ...payload.participants.map((p) => `agent:${p}`)],
+          sensitivity: 'internal',
+          relevanceScore: 0.9,
+          contextDependency: 'session',
+        },
+        extra: { ...payload, participants: payload.participants.join(','), ...payload.extra },
+        temporal: {
+          created: ts,
+          updated: ts,
+          contextSnapshot: {
+            timeOfDay: ts.contextual?.timeOfDay || 'unknown',
+            dayOfWeek: new Date(ts.utc).toLocaleDateString('en-US', { weekday: 'long' }),
+            businessContext: true,
+            energyContext: 'standard',
+          },
         },
       },
-    });
+    );
     return this.memory.addMemory({
       content: `Agent Discussion: ${payload.topic} (${payload.discussionId})`,
       metadata: {
@@ -127,7 +122,7 @@ export class CommunicationPersistenceAdapter {
     extra?: Record<string, unknown>;
   }): Promise<string> {
     const ts = createUnifiedTimestamp();
-    const metadata = unifiedMetadataService.create(
+    const metadata = await unifiedMetadataService.create(
       'agent_discussion_contribution',
       'communication_adapter',
       {
@@ -170,7 +165,7 @@ export class CommunicationPersistenceAdapter {
     extra?: Record<string, unknown>;
   }): Promise<string> {
     const ts = createUnifiedTimestamp();
-    const metadata = unifiedMetadataService.create('agent_insight', 'communication_adapter', {
+    const metadata = await unifiedMetadataService.create('agent_insight', 'communication_adapter', {
       system: { source: 'communication_adapter', component: 'insight' },
       content: {
         category: 'agent_insight',
@@ -210,7 +205,7 @@ export class CommunicationPersistenceAdapter {
     extra?: Record<string, unknown>;
   }): Promise<string> {
     const ts = createUnifiedTimestamp();
-    const metadata = unifiedMetadataService.create(
+    const metadata = await unifiedMetadataService.create(
       'synthesized_knowledge',
       'communication_adapter',
       {
@@ -246,7 +241,7 @@ export class CommunicationPersistenceAdapter {
 
   async persistAgentStatus(payload: { agentId: string; status: string }): Promise<string> {
     const ts = createUnifiedTimestamp();
-    const metadata = unifiedMetadataService.create('agent_status', 'communication_adapter', {
+    const metadata = await unifiedMetadataService.create('agent_status', 'communication_adapter', {
       system: { source: 'communication_adapter', component: 'status' },
       content: {
         category: 'agent_lifecycle',
@@ -288,7 +283,7 @@ export class CommunicationPersistenceAdapter {
     extra?: Record<string, unknown>;
   }): Promise<string> {
     const ts = createUnifiedTimestamp();
-    const metadata = unifiedMetadataService.create('a2a_task', 'communication_adapter', {
+    const metadata = await unifiedMetadataService.create('a2a_task', 'communication_adapter', {
       system: { source: 'communication_adapter', component: 'task' },
       content: {
         category: 'agent_task',
@@ -333,36 +328,40 @@ export class CommunicationPersistenceAdapter {
     extra?: Record<string, unknown>;
   }): Promise<string> {
     const ts = createUnifiedTimestamp();
-    const metadata = unifiedMetadataService.create('agent_discussion', 'communication_adapter', {
-      system: { source: 'communication_adapter', component: 'discussion_update' },
-      content: {
-        category: 'agent_coordination',
-        tags: ['discussion', 'update', ...payload.participants.map((p) => `agent:${p}`)],
-        sensitivity: 'internal',
-        relevanceScore: 0.85,
-        contextDependency: 'session',
-      },
-      extra: {
-        discussionId: payload.discussionId,
-        topic: payload.topic,
-        participants: payload.participants.join(','),
-        status: payload.status,
-        messageCount: payload.messageCount,
-        lastContributor: payload.lastContributor,
-        updatedBy: payload.updatedBy,
-        ...payload.extra,
-      },
-      temporal: {
-        created: ts,
-        updated: ts,
-        contextSnapshot: {
-          timeOfDay: ts.contextual?.timeOfDay || 'unknown',
-          dayOfWeek: new Date(ts.utc).toLocaleDateString('en-US', { weekday: 'long' }),
-          businessContext: true,
-          energyContext: 'standard',
+    const metadata = await unifiedMetadataService.create(
+      'agent_discussion',
+      'communication_adapter',
+      {
+        system: { source: 'communication_adapter', component: 'discussion_update' },
+        content: {
+          category: 'agent_coordination',
+          tags: ['discussion', 'update', ...payload.participants.map((p) => `agent:${p}`)],
+          sensitivity: 'internal',
+          relevanceScore: 0.85,
+          contextDependency: 'session',
+        },
+        extra: {
+          discussionId: payload.discussionId,
+          topic: payload.topic,
+          participants: payload.participants.join(','),
+          status: payload.status,
+          messageCount: payload.messageCount,
+          lastContributor: payload.lastContributor,
+          updatedBy: payload.updatedBy,
+          ...payload.extra,
+        },
+        temporal: {
+          created: ts,
+          updated: ts,
+          contextSnapshot: {
+            timeOfDay: ts.contextual?.timeOfDay || 'unknown',
+            dayOfWeek: new Date(ts.utc).toLocaleDateString('en-US', { weekday: 'long' }),
+            businessContext: true,
+            energyContext: 'standard',
+          },
         },
       },
-    });
+    );
     return this.memory.addMemory({
       content: JSON.stringify(payload.discussion),
       metadata: {
@@ -378,7 +377,7 @@ export class CommunicationPersistenceAdapter {
     extra: Record<string, unknown>,
   ): Promise<string> {
     const ts = createUnifiedTimestamp();
-    const metadata = unifiedMetadataService.create(type, 'communication_adapter', {
+    const metadata = await unifiedMetadataService.create(type, 'communication_adapter', {
       content: {
         category: 'agent_comm',
         tags: [type],

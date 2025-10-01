@@ -1,5 +1,5 @@
 import { hybridMemorySearchService } from '../../services/HybridMemorySearchService';
-import { OneAgentMemory } from '../../memory/OneAgentMemory';
+import { getOneAgentMemory } from '../../utils/UnifiedBackboneService';
 import { memgraphService } from '../../services/MemgraphService';
 import { UnifiedBackboneService } from '../../utils/UnifiedBackboneService';
 
@@ -27,7 +27,7 @@ describe('HybridMemorySearchService', () => {
 
   it('returns vector-only results when graph disabled', async () => {
     (memgraphService.isEnabled as jest.Mock).mockReturnValue(false);
-    (OneAgentMemory.getInstance as unknown as jest.Mock).mockReturnValue({
+    (getOneAgentMemory as unknown as jest.Mock).mockReturnValue({
       searchMemory: jest.fn(async () => ({
         results: [
           {
@@ -94,7 +94,7 @@ describe('HybridMemorySearchService', () => {
     });
 
     const res = await hybridMemorySearchService.getContext({ userId, query, limit: 5 });
-    expect(res.results.length).toBe(1);
+    expect(Array.isArray(res.results) ? res.results.length : 0).toBe(1);
     expect(res.sources.vector).toBe(1);
     expect(res.sources.graph).toBe(0);
   });
@@ -164,7 +164,7 @@ describe('HybridMemorySearchService', () => {
         },
       },
     ]);
-    (OneAgentMemory.getInstance as unknown as jest.Mock).mockReturnValue({
+    (getOneAgentMemory as unknown as jest.Mock).mockReturnValue({
       searchMemory: jest.fn(async () => ({
         results: [
           {
@@ -231,7 +231,7 @@ describe('HybridMemorySearchService', () => {
     });
 
     const res = await hybridMemorySearchService.getContext({ userId, query, limit: 1 });
-    expect(res.results.length).toBe(1);
+    expect(Array.isArray(res.results) ? res.results.length : 0).toBe(1);
     expect(res.sources.vector + res.sources.graph).toBeGreaterThan(0);
   });
 });

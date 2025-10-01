@@ -1,18 +1,14 @@
 import { HybridAgentOrchestrator } from '../../agents/orchestration/HybridAgentOrchestrator';
-import { feedbackService } from '../../services/FeedbackService';
+import { FeedbackService } from '../../services/FeedbackService';
 
-jest.mock('../../services/FeedbackService', () => {
-  return {
-    feedbackService: { save: jest.fn().mockResolvedValue(undefined) },
-  };
-});
+jest.spyOn(FeedbackService.prototype, 'save').mockResolvedValue(undefined);
 
 describe('HybridAgentOrchestrator.recordFeedback', () => {
   it('delegates to FeedbackService.save with proper payload', async () => {
     const orch = new HybridAgentOrchestrator();
     await orch.recordFeedback('task_abc', 'bad', 'Needs correction');
 
-    expect(feedbackService.save).toHaveBeenCalledWith(
+    expect(FeedbackService.prototype.save).toHaveBeenCalledWith(
       expect.objectContaining({
         taskId: 'task_abc',
         userRating: 'bad',

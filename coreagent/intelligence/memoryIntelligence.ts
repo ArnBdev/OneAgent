@@ -1,5 +1,6 @@
 // Canonical imports for OneAgent memory intelligence
 import { OneAgentMemory } from '../memory/OneAgentMemory';
+import { getOneAgentMemory } from '../utils/UnifiedBackboneService';
 import { OneAgentUnifiedBackbone } from '../utils/UnifiedBackboneService';
 import { createUnifiedTimestamp, createUnifiedId } from '../utils/UnifiedBackboneService';
 import { ConstitutionalAI } from '../agents/base/ConstitutionalAI';
@@ -77,13 +78,19 @@ export interface MemoryIntelligenceOptions {
 }
 
 export class MemoryIntelligence {
+  /**
+   * Canonical getter for OneAgentMemory instance (for use by managers)
+   */
+  public getMemorySystem(): OneAgentMemory {
+    return this.memorySystem;
+  }
   private memorySystem: OneAgentMemory;
   private options: MemoryIntelligenceOptions;
   private unifiedBackbone: OneAgentUnifiedBackbone;
   private constitutionalAI: ConstitutionalAI;
 
   constructor(memorySystem?: OneAgentMemory, options: MemoryIntelligenceOptions = {}) {
-    this.memorySystem = memorySystem || OneAgentMemory.getInstance({});
+    this.memorySystem = memorySystem || getOneAgentMemory();
     this.unifiedBackbone = OneAgentUnifiedBackbone.getInstance();
     this.options = {
       enableSemanticSearch: true,

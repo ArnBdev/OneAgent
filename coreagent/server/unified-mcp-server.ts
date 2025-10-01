@@ -36,8 +36,8 @@ import {
   getUnifiedErrorHandler,
   getAppVersion,
   getAppName,
-  OneAgentUnifiedMetadataService,
-  OneAgentUnifiedTimeService,
+  unifiedTimeService,
+  unifiedMetadataService,
 } from '../utils/UnifiedBackboneService';
 import { createAgentCard } from '../types/AgentCard';
 import { SimpleAuditLogger } from '../audit/auditLogger';
@@ -80,66 +80,8 @@ app.use((req: Request, res: Response, next: NextFunction) => {
   }
 });
 
-// Initialize OneAgent Engine
-const oneAgent = OneAgentEngine.getInstance({
-  constitutional: {
-    enabled: true,
-    qualityThreshold: 80,
-    principles: [
-      {
-        id: 'accuracy',
-        name: 'Accuracy',
-        description: 'Provide accurate information or acknowledge uncertainty',
-        category: 'accuracy' as const,
-        weight: 1.0,
-        isViolated: false,
-        confidence: 0.95,
-        validationRule: 'prefer_uncertainty_over_speculation',
-        severityLevel: 'high' as const,
-      },
-      {
-        id: 'transparency',
-        name: 'Transparency',
-        description: 'Explain reasoning and acknowledge limitations',
-        category: 'transparency' as const,
-        weight: 0.8,
-        isViolated: false,
-        confidence: 0.9,
-        validationRule: 'explain_reasoning_and_limitations',
-        severityLevel: 'medium' as const,
-      },
-      {
-        id: 'helpfulness',
-        name: 'Helpfulness',
-        description: 'Provide actionable, relevant guidance',
-        category: 'helpfulness' as const,
-        weight: 0.9,
-        isViolated: false,
-        confidence: 0.85,
-        validationRule: 'actionable_relevant_guidance',
-        severityLevel: 'medium' as const,
-      },
-      {
-        id: 'safety',
-        name: 'Safety',
-        description: 'Avoid harmful or misleading recommendations',
-        category: 'safety' as const,
-        weight: 1.0,
-        isViolated: false,
-        confidence: 0.95,
-        validationRule: 'avoid_harmful_misleading_content',
-        severityLevel: 'critical' as const,
-      },
-    ],
-  },
-  memory: {
-    enabled: true,
-    provider: 'mem0',
-    config: {
-      retentionDays: 30,
-    },
-  },
-});
+// Initialize OneAgent Engine (canonical: use explicit instantiation)
+const oneAgent = new OneAgentEngine();
 
 // Canonical server identifiers (resolved via backbone/package.json)
 const SERVER_NAME = `${getAppName()} - Unified MCP Server`;
@@ -1192,16 +1134,17 @@ app.get('/api/v1/tasks/delegation', (_req: Request, res: Response) => {
  * - Legacy alias: /.well-known/agent.json (A2A <= 0.2.x)
  * Returns a minimal AgentCard constructed via canonical backbone services.
  */
-function getAgentCardPayload() {
-  const timeService = OneAgentUnifiedTimeService.getInstance();
-  const metadataService = OneAgentUnifiedMetadataService.getInstance();
+async function getAgentCardPayload() {
+  // Canonical: use exported singleton instances
+  const timeService = unifiedTimeService;
+  const metadataService = unifiedMetadataService;
   // Minimal, static identity derived from package/app data
   const cfg = UnifiedBackboneService.getResolvedConfig();
   const name = getAppName();
   const agentId = `oneagent-mcp-${cfg.mcpPort}`;
   const description = `${name} unified MCP/A2A endpoint`;
 
-  const card = createAgentCard(
+  const card = await createAgentCard(
     {
       name,
       agentId,
@@ -1236,9 +1179,9 @@ function getAgentCardPayload() {
   };
 }
 
-app.get('/.well-known/agent-card.json', (_req: Request, res: Response) => {
+app.get('/.well-known/agent-card.json', async (_req: Request, res: Response) => {
   try {
-    const payload = getAgentCardPayload();
+    const payload = await getAgentCardPayload();
     res.setHeader('Content-Type', 'application/json');
     res.status(200).json(payload);
   } catch {
@@ -1246,9 +1189,9 @@ app.get('/.well-known/agent-card.json', (_req: Request, res: Response) => {
   }
 });
 
-app.get('/.well-known/agent.json', (_req: Request, res: Response) => {
+app.get('/.well-known/agent.json', async (_req: Request, res: Response) => {
   try {
-    const payload = getAgentCardPayload();
+    const payload = await getAgentCardPayload();
     res.setHeader('Content-Type', 'application/json');
     res.status(200).json(payload);
   } catch {

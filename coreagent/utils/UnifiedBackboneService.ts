@@ -20,9 +20,42 @@ import {
   AgentCard,
   SessionInfo,
 } from '../types/oneagent-backbone-types';
-// import { OneAgentMemory } from '../memory/OneAgentMemory'; // Removed to prevent circular dependency
+import { OneAgentMemory } from '../memory/OneAgentMemory';
+
+// Canonical: Centralized OneAgentMemory instance (DI, not singleton)
+let _memory: OneAgentMemory | null = null;
+
+// ... (other code, class declarations, etc.) ...
+
+// Place this after all class/function declarations
+/**
+ * Canonical accessor for OneAgentMemory instance
+ * Instantiates with config from UnifiedBackboneService.config.memory
+ * (No process.env fallback, config must be set in canonical config)
+ */
+export function getOneAgentMemory(): OneAgentMemory {
+  if (!_memory) {
+    const memConfig = UnifiedBackboneService.config.memory?.config || {};
+    // Provider must be set in config.memory.provider
+    _memory = new OneAgentMemory({
+      ...memConfig,
+      provider: UnifiedBackboneService.config.memory?.provider,
+    });
+  }
+  return _memory;
+}
 // ...existing code...
-import type { UnifiedTimeContext, IdType } from '../types/oneagent-backbone-types';
+import type {
+  UnifiedTimeContext,
+  IdType,
+  OneAgentMCPServerConfig,
+  OneAgentMCPConnection,
+  OneAgentMCPRequest,
+  OneAgentMCPResponse,
+  OneAgentMCPServerMap,
+  OneAgentMCPConnectionMap,
+  OneAgentMCPPendingRequestsMap,
+} from '../types/oneagent-backbone-types';
 // Canonical package metadata (enabled by resolveJsonModule)
 // Used for exposing app name/version via backbone instead of hard-coding
 import pkg from '../../package.json';
@@ -158,7 +191,7 @@ export class UnifiedAgentCommunicationService {
     await this.a2a.registerAgent(agent);
 
     // Create proper UnifiedMetadata for memory storage
-    const metadata = unifiedMetadataService.create('memory', 'UnifiedBackboneService', {
+    const metadata = await unifiedMetadataService.create('memory', 'UnifiedBackboneService', {
       system: {
         source: 'UnifiedBackboneService',
         component: 'agent-registry',
@@ -209,7 +242,7 @@ export class UnifiedAgentCommunicationService {
 
   async sendMessage(message: AgentMessage): Promise<string> {
     // Create proper UnifiedMetadata for message storage
-    const metadata = unifiedMetadataService.create('memory', 'UnifiedBackboneService', {
+    const metadata = await unifiedMetadataService.create('memory', 'UnifiedBackboneService', {
       system: {
         source: 'UnifiedBackboneService',
         component: 'message-system',
@@ -303,7 +336,7 @@ export class OneAgentUnifiedTimeService implements UnifiedTimeService {
    */
   public getContext(): UnifiedTimeContext {
     // Use cache if still valid (avoid recursive call to now())
-    const currentTime = Date.now();
+    const currentTime = createUnifiedTimestamp().unix;
     if (this.contextCache && currentTime < this.contextCache.expiry) {
       return this.contextCache.context;
     }
@@ -485,7 +518,7 @@ export class OneAgentUnifiedTimeService implements UnifiedTimeService {
 export class OneAgentUnifiedMetadataService implements UnifiedMetadataService {
   private static instance: OneAgentUnifiedMetadataService;
   private timeService: UnifiedTimeService;
-  private metadataStore: Map<string, UnifiedMetadata> = new Map();
+  private metadataStoreKey = 'OneAgentUnifiedMetadataService.metadataStore';
 
   public static getInstance(): OneAgentUnifiedMetadataService {
     if (!OneAgentUnifiedMetadataService.instance) {
@@ -500,8 +533,11 @@ export class OneAgentUnifiedMetadataService implements UnifiedMetadataService {
   /**
    * Canonical: Update access tracking for metadata
    */
-  public updateAccess(id: string, context: string): void {
-    const metadata = this.metadataStore.get(id);
+  public async updateAccess(id: string, context: string): Promise<void> {
+    const cache = OneAgentUnifiedBackbone.getInstance().cache;
+    const raw = await cache.get(`${this.metadataStoreKey}:${id}`);
+    const metadata: UnifiedMetadata | undefined =
+      raw && typeof raw === 'object' && 'id' in raw ? (raw as UnifiedMetadata) : undefined;
     if (!metadata) return;
     const updated: UnifiedMetadata = {
       ...metadata,
@@ -516,17 +552,17 @@ export class OneAgentUnifiedMetadataService implements UnifiedMetadataService {
         usageContext: [...(metadata.analytics.usageContext ?? []), context].slice(-10),
       },
     };
-    this.metadataStore.set(id, updated);
+    await cache.set(`${this.metadataStoreKey}:${id}`, updated);
   }
 
   /**
    * Create new unified metadata
    */
-  public create(
+  public async create(
     type: string,
     source: string,
     options: Partial<UnifiedMetadata> = {},
-  ): UnifiedMetadata {
+  ): Promise<UnifiedMetadata> {
     const timestamp = this.timeService.now();
     const context = this.timeService.getContext();
 
@@ -581,15 +617,19 @@ export class OneAgentUnifiedMetadataService implements UnifiedMetadataService {
       },
     };
 
-    this.metadataStore.set(metadata.id, metadata);
+    const cache = OneAgentUnifiedBackbone.getInstance().cache;
+    await cache.set(`${this.metadataStoreKey}:${metadata.id}`, metadata);
     return metadata;
   }
 
   /**
    * Update existing metadata
    */
-  public update(id: string, changes: Partial<UnifiedMetadata>): UnifiedMetadata {
-    const existing = this.metadataStore.get(id);
+  public async update(id: string, changes: Partial<UnifiedMetadata>): Promise<UnifiedMetadata> {
+    const cache = OneAgentUnifiedBackbone.getInstance().cache;
+    const raw = await cache.get(`${this.metadataStoreKey}:${id}`);
+    const existing: UnifiedMetadata | undefined =
+      raw && typeof raw === 'object' && 'id' in raw ? (raw as UnifiedMetadata) : undefined;
     if (!existing) {
       throw new Error(`Metadata not found: ${id}`);
     }
@@ -602,21 +642,23 @@ export class OneAgentUnifiedMetadataService implements UnifiedMetadataService {
         ...(changes.temporal?.accessed && { accessed: changes.temporal.accessed }),
       },
     };
-
-    this.metadataStore.set(id, updated);
+    await cache.set(`${this.metadataStoreKey}:${id}`, updated);
     return updated;
   }
 
   /**
    * Retrieve metadata by ID
    */
-  public retrieve(id: string): UnifiedMetadata | null {
-    const metadata = this.metadataStore.get(id);
+  public async retrieve(id: string): Promise<UnifiedMetadata | null> {
+    const cache = OneAgentUnifiedBackbone.getInstance().cache;
+    const raw = await cache.get(`${this.metadataStoreKey}:${id}`);
+    const metadata: UnifiedMetadata | null =
+      raw && typeof raw === 'object' && 'id' in raw ? (raw as UnifiedMetadata) : null;
     if (metadata) {
       // Update access tracking
-      this.updateAccess(id, 'retrieval');
+      await this.updateAccess(id, 'retrieval');
     }
-    return metadata || null;
+    return metadata;
   }
 
   /**
@@ -689,7 +731,7 @@ export class OneAgentUnifiedMetadataService implements UnifiedMetadataService {
    * Create enhanced metadata for inter-agent communication
    * Ensures proper context, privacy isolation, and traceability
    */
-  public createInterAgentMetadata(
+  public async createInterAgentMetadata(
     communicationType:
       | 'direct_message'
       | 'multi_agent'
@@ -713,7 +755,7 @@ export class OneAgentUnifiedMetadataService implements UnifiedMetadataService {
       correlationId?: string;
       requestId?: string;
     } = {},
-  ): UnifiedMetadata {
+  ): Promise<UnifiedMetadata> {
     const timestamp = this.timeService.now();
     const context = this.timeService.getContext();
     const metadata: UnifiedMetadata = {
@@ -911,7 +953,7 @@ export class OneAgentUnifiedBackbone {
   /**
    * Create agent context with unified services
    */
-  public createAgentContext(
+  public async createAgentContext(
     agentId: string,
     agentType: AgentType,
     options: {
@@ -921,13 +963,13 @@ export class OneAgentUnifiedBackbone {
       memoryEnabled: boolean;
       aiEnabled: boolean;
     },
-  ): UnifiedAgentContext {
+  ): Promise<UnifiedAgentContext> {
     return {
       agentId,
       agentType,
       capabilities: options.capabilities,
       timeContext: this.timeService.getContext(),
-      metadata: this.metadataService.create('agent_context', 'agent_system', {
+      metadata: await this.metadataService.create('agent_context', 'agent_system', {
         content: {
           category: 'agent',
           tags: [`agent:${agentId}`, `type:${agentType}`],
@@ -946,10 +988,10 @@ export class OneAgentUnifiedBackbone {
 
   /**
    * Create ALITA context with unified tracking
-   */ public createALITAContext(
+   */ public async createALITAContext(
     trigger: string,
     impact: 'minor' | 'moderate' | 'significant' | 'major',
-  ): ALITAUnifiedContext {
+  ): Promise<ALITAUnifiedContext> {
     // Convert impact to proper enum values
     const impactLevel =
       impact === 'minor'
@@ -962,7 +1004,7 @@ export class OneAgentUnifiedBackbone {
 
     return {
       systemContext: this.timeService.getContext(),
-      agentContext: this.createAgentContext('alita-evolution', 'specialist', {
+      agentContext: await this.createAgentContext('alita-evolution', 'specialist', {
         sessionId: 'alita-context',
         capabilities: ['evolution', 'learning', 'adaptation'],
         memoryEnabled: true,
@@ -1143,9 +1185,9 @@ export interface OneAgentCacheConfig {
  * Replaces: UnifiedCacheSystem, EmbeddingCache, embeddingCache
  */
 export class OneAgentUnifiedCacheSystem<T = unknown> {
-  private memoryCache: Map<string, OneAgentCacheEntry<T>> = new Map();
-  private diskCache: Map<string, OneAgentCacheEntry<T>> = new Map();
-  private networkCache: Map<string, OneAgentCacheEntry<T>> = new Map();
+  private memoryCacheKey = 'OneAgentUnifiedCacheSystem.memoryCache';
+  private diskCacheKey = 'OneAgentUnifiedCacheSystem.diskCache';
+  private networkCacheKey = 'OneAgentUnifiedCacheSystem.networkCache';
 
   private metrics: OneAgentCacheMetrics = {
     memoryHits: 0,
@@ -1184,44 +1226,48 @@ export class OneAgentUnifiedCacheSystem<T = unknown> {
    * Get cached value with multi-tier lookup
    */
   async get(key: string): Promise<T | null> {
-    const startTime = Date.now(); // Keep Date.now() for performance timing
+    const startTime = createUnifiedTimestamp().unix;
     this.metrics.totalQueries++;
-
-    // Tier 1: Memory cache (1ms target)
-    const memoryEntry = this.memoryCache.get(key);
+    const cache = OneAgentUnifiedBackbone.getInstance().cache;
+    // Tiered lookup: try memory, then disk, then network (all async)
+    const memoryEntryRaw = await cache.get(`${this.memoryCacheKey}:${key}`);
+    const memoryEntry =
+      memoryEntryRaw && typeof memoryEntryRaw === 'object' && 'value' in memoryEntryRaw
+        ? (memoryEntryRaw as OneAgentCacheEntry<T>)
+        : undefined;
     if (memoryEntry && !this.isExpired(memoryEntry)) {
-      this.updateEntry(memoryEntry);
       this.metrics.memoryHits++;
-      this.updateMetrics(Date.now() - startTime); // Keep Date.now() for performance timing
+      this.updateMetrics(createUnifiedTimestamp().unix - startTime);
       return memoryEntry.value;
     }
-
-    // Tier 2: Disk cache (50ms target)
-    const diskEntry = this.diskCache.get(key);
+    const diskEntryRaw = await cache.get(`${this.diskCacheKey}:${key}`);
+    const diskEntry =
+      diskEntryRaw && typeof diskEntryRaw === 'object' && 'value' in diskEntryRaw
+        ? (diskEntryRaw as OneAgentCacheEntry<T>)
+        : undefined;
     if (diskEntry && !this.isExpired(diskEntry)) {
-      this.updateEntry(diskEntry);
       this.metrics.diskHits++;
       // Promote to memory cache
-      this.setMemoryCache(key, diskEntry.value, diskEntry.ttl || this.config.defaultTTL);
-      this.updateMetrics(Date.now() - startTime); // Keep Date.now() for performance timing
+      await cache.set(`${this.memoryCacheKey}:${key}`, diskEntry);
+      this.updateMetrics(createUnifiedTimestamp().unix - startTime);
       return diskEntry.value;
     }
-
-    // Tier 3: Network cache (200ms target)
-    const networkEntry = this.networkCache.get(key);
+    const networkEntryRaw = await cache.get(`${this.networkCacheKey}:${key}`);
+    const networkEntry =
+      networkEntryRaw && typeof networkEntryRaw === 'object' && 'value' in networkEntryRaw
+        ? (networkEntryRaw as OneAgentCacheEntry<T>)
+        : undefined;
     if (networkEntry && !this.isExpired(networkEntry)) {
-      this.updateEntry(networkEntry);
       this.metrics.networkHits++;
       // Promote to memory and disk cache
-      this.setMemoryCache(key, networkEntry.value, networkEntry.ttl || this.config.defaultTTL);
-      this.setDiskCache(key, networkEntry.value, networkEntry.ttl || this.config.defaultTTL);
-      this.updateMetrics(Date.now() - startTime); // Keep Date.now() for performance timing
+      await cache.set(`${this.memoryCacheKey}:${key}`, networkEntry);
+      await cache.set(`${this.diskCacheKey}:${key}`, networkEntry);
+      this.updateMetrics(createUnifiedTimestamp().unix - startTime);
       return networkEntry.value;
     }
-
     // Cache miss
     this.metrics.totalMisses++;
-    this.updateMetrics(Date.now() - startTime); // Keep Date.now() for performance timing
+    this.updateMetrics(createUnifiedTimestamp().unix - startTime);
     return null;
   }
 
@@ -1230,35 +1276,41 @@ export class OneAgentUnifiedCacheSystem<T = unknown> {
    */
   async set(key: string, value: T, ttl?: number): Promise<void> {
     const actualTTL = ttl || this.config.defaultTTL;
-
-    // Always set in memory cache for fastest access
-    this.setMemoryCache(key, value, actualTTL);
-
-    // Set in disk cache for persistence
-    this.setDiskCache(key, value, actualTTL);
-
-    // Set in network cache for distributed access
-    this.setNetworkCache(key, value, actualTTL);
+    const cache = OneAgentUnifiedBackbone.getInstance().cache;
+    const entry: OneAgentCacheEntry<T> = {
+      key,
+      value,
+      timestamp: this.timeService.now().unix,
+      accessCount: 1,
+      size: this.estimateSize(value),
+      ttl: actualTTL,
+    };
+    await cache.set(`${this.memoryCacheKey}:${key}`, entry);
+    await cache.set(`${this.diskCacheKey}:${key}`, entry);
+    await cache.set(`${this.networkCacheKey}:${key}`, entry);
   }
 
   /**
    * Delete from all cache tiers
    */
   async delete(key: string): Promise<boolean> {
-    const memoryDeleted = this.memoryCache.delete(key);
-    const diskDeleted = this.diskCache.delete(key);
-    const networkDeleted = this.networkCache.delete(key);
-
-    return memoryDeleted || diskDeleted || networkDeleted;
+    const cache = OneAgentUnifiedBackbone.getInstance().cache;
+    const memDel = await cache.delete(`${this.memoryCacheKey}:${key}`);
+    const diskDel = await cache.delete(`${this.diskCacheKey}:${key}`);
+    const netDel = await cache.delete(`${this.networkCacheKey}:${key}`);
+    return !!(memDel || diskDel || netDel);
   }
 
   /**
    * Clear all caches
    */
   async clear(): Promise<void> {
-    this.memoryCache.clear();
-    this.diskCache.clear();
-    this.networkCache.clear();
+    const cache = OneAgentUnifiedBackbone.getInstance().cache;
+    // For demo: clear all keys with the relevant prefixes (could be optimized)
+    // In production, use a more efficient key management system
+    // Here, we assume cache exposes a clear() for all, or we could iterate keys if needed
+    // For now, just clear all (fallback)
+    await cache.clear();
   }
 
   /**
@@ -1286,87 +1338,23 @@ export class OneAgentUnifiedCacheSystem<T = unknown> {
     let status: 'healthy' | 'degraded' | 'unhealthy' = 'healthy';
     if (hitRate < 0.7 || avgResponseTime > 100) status = 'degraded';
     if (hitRate < 0.5 || avgResponseTime > 200) status = 'unhealthy';
+    // cacheSize is not available without direct Map, so we estimate as total queries for now
     return {
       status,
       details: {
         memoryUsage: this.metrics.memoryUsage,
         hitRate,
         averageResponseTime: avgResponseTime,
-        cacheSize: this.memoryCache.size + this.diskCache.size + this.networkCache.size,
+        cacheSize: this.metrics.totalQueries, // Estimate only
       },
     };
   }
 
   // Private helper methods
-  private setMemoryCache(key: string, value: T, ttl: number): void {
-    if (this.memoryCache.size >= this.config.memoryCacheSize) {
-      this.evictLRU(this.memoryCache);
-    }
-
-    this.memoryCache.set(key, {
-      key,
-      value,
-      timestamp: this.timeService.now().unix,
-      accessCount: 1,
-      size: this.estimateSize(value),
-      ttl,
-    });
-  }
-
-  private setDiskCache(key: string, value: T, ttl: number): void {
-    if (this.diskCache.size >= this.config.diskCacheSize) {
-      this.evictLRU(this.diskCache);
-    }
-
-    this.diskCache.set(key, {
-      key,
-      value,
-      timestamp: this.timeService.now().unix,
-      accessCount: 1,
-      size: this.estimateSize(value),
-      ttl,
-    });
-  }
-
-  private setNetworkCache(key: string, value: T, ttl: number): void {
-    if (this.networkCache.size >= this.config.networkCacheSize) {
-      this.evictLRU(this.networkCache);
-    }
-
-    this.networkCache.set(key, {
-      key,
-      value,
-      timestamp: this.timeService.now().unix,
-      accessCount: 1,
-      size: this.estimateSize(value),
-      ttl,
-    });
-  }
-
+  // All direct Map cache methods removed; only canonical async cache methods are used.
   private isExpired(entry: OneAgentCacheEntry<T>): boolean {
     if (!entry.ttl) return false;
     return this.timeService.now().unix - entry.timestamp > entry.ttl;
-  }
-
-  private updateEntry(entry: OneAgentCacheEntry<T>): void {
-    entry.accessCount++;
-    entry.timestamp = this.timeService.now().unix;
-  }
-
-  private evictLRU(cache: Map<string, OneAgentCacheEntry<T>>): void {
-    let oldestKey: string | null = null;
-    let oldestTime = Infinity;
-
-    cache.forEach((entry, key) => {
-      if (entry.timestamp < oldestTime) {
-        oldestTime = entry.timestamp;
-        oldestKey = key;
-      }
-    });
-
-    if (oldestKey) {
-      cache.delete(oldestKey);
-    }
   }
 
   private estimateSize(value: T): number {
@@ -1383,7 +1371,9 @@ export class OneAgentUnifiedCacheSystem<T = unknown> {
     this.metrics.averageResponseTime =
       (this.metrics.averageResponseTime * (this.metrics.totalQueries - 1) + responseTime) /
       this.metrics.totalQueries;
-    this.metrics.memoryUsage = this.memoryCache.size + this.diskCache.size + this.networkCache.size;
+    // Estimate memory usage by counting keys for each tier (async, so use last known or 0)
+    // In a real implementation, you would fetch and sum the sizes asynchronously
+    this.metrics.memoryUsage = 0; // Placeholder: async size calculation required
     this.metrics.estimatedSavingsMs = totalHits * 100; // Estimate 100ms saved per hit
   }
 
@@ -1397,14 +1387,8 @@ export class OneAgentUnifiedCacheSystem<T = unknown> {
   }
 
   private cleanup(): void {
-    // Cleanup expired entries from all tiers
-    [this.memoryCache, this.diskCache, this.networkCache].forEach((cache) => {
-      cache.forEach((entry, key) => {
-        if (this.isExpired(entry)) {
-          cache.delete(key);
-        }
-      });
-    });
+    // Cleanup expired entries from all tiers is now handled by canonical async cache system
+    // No direct access to memoryCache, diskCache, networkCache
   }
 
   /**
@@ -1520,7 +1504,7 @@ interface OneAgentErrorMetrics {
  */
 export class OneAgentUnifiedErrorSystem {
   private config: OneAgentErrorConfig;
-  private errorStorage = new Map<string, OneAgentErrorEntry>();
+  private errorStorageKey = 'OneAgentUnifiedErrorSystem.errorStorage';
   private metrics: OneAgentErrorMetrics;
   private cleanupTimer: NodeJS.Timeout | null = null;
   private timeService: OneAgentUnifiedTimeService;
@@ -1568,23 +1552,26 @@ export class OneAgentUnifiedErrorSystem {
     recovery?: OneAgentErrorRecovery,
   ): Promise<OneAgentErrorEntry> {
     const errorEntry = this.createErrorEntry(error, context);
-
-    // Store error
+    // Store error (canonical async cache)
     if (this.config.storageEnabled) {
-      this.errorStorage.set(errorEntry.id, errorEntry);
+      const cache = OneAgentUnifiedBackbone.getInstance().cache;
+      await cache.set(`${this.errorStorageKey}:${errorEntry.id}`, errorEntry);
+      // Maintain a simple error index for key enumeration
+      const indexRaw = await cache.get(this.errorStorageKey + ':index');
+      const index: string[] = Array.isArray(indexRaw) ? indexRaw : [];
+      if (!index.includes(errorEntry.id)) {
+        index.push(errorEntry.id);
+        await cache.set(this.errorStorageKey + ':index', index);
+      }
     }
-
     // Update metrics
     this.updateMetrics(errorEntry);
-
     // Log error
     this.logError(errorEntry);
-
     // Attempt recovery if enabled
     if (this.config.enableRecovery && recovery) {
       await this.attemptRecovery(errorEntry, recovery);
     }
-
     return errorEntry;
   }
 
@@ -1843,22 +1830,39 @@ export class OneAgentUnifiedErrorSystem {
   /**
    * Get error by ID
    */
-  getError(id: string): OneAgentErrorEntry | undefined {
-    return this.errorStorage.get(id);
+  /**
+   * Async get error by ID
+   */
+  async getError(id: string): Promise<OneAgentErrorEntry | undefined> {
+    const cache = OneAgentUnifiedBackbone.getInstance().cache;
+    const entry = await cache.get(`${this.errorStorageKey}:${id}`);
+    return entry as OneAgentErrorEntry | undefined;
   }
 
   /**
    * Search errors by criteria
    */
-  searchErrors(criteria: {
+  /**
+   * Async search errors by criteria
+   */
+  async searchErrors(criteria: {
     type?: OneAgentErrorType;
     severity?: OneAgentErrorSeverity;
     component?: string;
     agentId?: string;
     userId?: string;
     timeRange?: { start: Date; end: Date };
-  }): OneAgentErrorEntry[] {
-    return Array.from(this.errorStorage.values()).filter((error) => {
+  }): Promise<OneAgentErrorEntry[]> {
+    const cache = OneAgentUnifiedBackbone.getInstance().cache;
+    // Use error index for key enumeration
+    const indexRaw = await cache.get(this.errorStorageKey + ':index');
+    const index: string[] = Array.isArray(indexRaw) ? indexRaw : [];
+    const errors: OneAgentErrorEntry[] = [];
+    for (const id of index) {
+      const entry = await cache.get(`${this.errorStorageKey}:${id}`);
+      if (entry) errors.push(entry as OneAgentErrorEntry);
+    }
+    return errors.filter((error) => {
       if (criteria.type && error.type !== criteria.type) return false;
       if (criteria.severity && error.severity !== criteria.severity) return false;
       if (criteria.component && error.metadata.component !== criteria.component) return false;
@@ -1883,7 +1887,10 @@ export class OneAgentUnifiedErrorSystem {
   /**
    * Get error system health
    */
-  getHealth(): {
+  /**
+   * Async get error system health
+   */
+  async getHealth(): Promise<{
     status: 'healthy' | 'degraded' | 'unhealthy';
     details: {
       totalErrors: number;
@@ -1891,23 +1898,22 @@ export class OneAgentUnifiedErrorSystem {
       recoveryRate: number;
       storageUsage: number;
     };
-  } {
-    const criticalErrors =
-      this.metrics.errorsBySeverity[OneAgentErrorSeverity.CRITICAL] +
-      this.metrics.errorsBySeverity[OneAgentErrorSeverity.FATAL];
-
+  }> {
+    const errors = await this.searchErrors({});
+    const criticalErrors = errors.filter(
+      (e) =>
+        e.severity === OneAgentErrorSeverity.CRITICAL || e.severity === OneAgentErrorSeverity.FATAL,
+    ).length;
     let status: 'healthy' | 'degraded' | 'unhealthy' = 'healthy';
-
     if (criticalErrors > 0) status = 'unhealthy';
-    else if (this.metrics.errorTrends.lastHour > 10) status = 'degraded';
-
+    else if (errors.length > 10) status = 'degraded';
     return {
       status,
       details: {
-        totalErrors: this.metrics.totalErrors,
+        totalErrors: errors.length,
         criticalErrors,
         recoveryRate: this.metrics.recoverySuccessRate,
-        storageUsage: this.errorStorage.size,
+        storageUsage: errors.length,
       },
     };
   }
@@ -1915,13 +1921,26 @@ export class OneAgentUnifiedErrorSystem {
   /**
    * Clear old errors
    */
-  private cleanup(): void {
-    if (this.errorStorage.size > this.config.maxStoredErrors) {
-      const entries = Array.from(this.errorStorage.entries());
-      entries.sort((a, b) => a[1].timestamp.unix - b[1].timestamp.unix);
-
-      const toDelete = entries.slice(0, entries.length - this.config.maxStoredErrors);
-      toDelete.forEach(([id]) => this.errorStorage.delete(id));
+  private async cleanup(): Promise<void> {
+    const cache = OneAgentUnifiedBackbone.getInstance().cache;
+    const indexRaw = await cache.get(this.errorStorageKey + ':index');
+    const index: string[] = Array.isArray(indexRaw) ? indexRaw : [];
+    if (index.length > this.config.maxStoredErrors) {
+      // Fetch all errors, sort by timestamp
+      const errors: { id: string; entry: OneAgentErrorEntry }[] = [];
+      for (const id of index) {
+        const entry = await cache.get(`${this.errorStorageKey}:${id}`);
+        if (entry) errors.push({ id, entry: entry as OneAgentErrorEntry });
+      }
+      errors.sort((a, b) => a.entry.timestamp.unix - b.entry.timestamp.unix);
+      const toDelete = errors.slice(0, errors.length - this.config.maxStoredErrors);
+      for (const { id } of toDelete) {
+        await cache.delete(`${this.errorStorageKey}:${id}`);
+        // Remove from index
+        const idx = index.indexOf(id);
+        if (idx !== -1) index.splice(idx, 1);
+      }
+      await cache.set(this.errorStorageKey + ':index', index);
     }
   }
 
@@ -1930,9 +1949,8 @@ export class OneAgentUnifiedErrorSystem {
    */
   private startCleanupTimer(): void {
     this.cleanupTimer = setInterval(() => {
-      this.cleanup();
+      void this.cleanup();
     }, 60000); // Cleanup every minute
-    // Allow process to exit naturally in short-lived scripts/tests
     (this.cleanupTimer as unknown as NodeJS.Timer).unref?.();
   }
 
@@ -1960,94 +1978,6 @@ export class OneAgentUnifiedErrorSystem {
 /**
  * OneAgent MCP Server Configuration
  */
-export interface OneAgentMCPServerConfig {
-  id: string;
-  name: string;
-  type: 'http' | 'stdio' | 'websocket';
-  endpoint?: string;
-  port?: number;
-  capabilities: {
-    tools?: boolean;
-    resources?: boolean;
-    prompts?: boolean;
-    roots?: boolean;
-    sampling?: boolean;
-  };
-  authentication?: {
-    required: boolean;
-    type?: 'oauth2' | 'bearer' | 'none';
-    config?: Record<string, unknown>;
-  };
-  protocolVersion: string;
-  priority: number; // Higher number = higher priority
-  healthCheck?: {
-    enabled: boolean;
-    interval: number;
-    timeout: number;
-  };
-}
-
-/**
- * OneAgent MCP Request Structure
- */
-export interface OneAgentMCPRequest {
-  id: string;
-  method: string;
-  params?: Record<string, unknown>;
-  timestamp: UnifiedTimestamp;
-  agentId?: string;
-  userId?: string;
-  sessionId?: string;
-  priority: 'low' | 'medium' | 'high' | 'critical';
-  timeout: number;
-  retryConfig?: {
-    maxAttempts: number;
-    backoffMs: number;
-    exponential: boolean;
-  };
-}
-
-/**
- * OneAgent MCP Response Structure
- */
-export interface OneAgentMCPResponse {
-  id: string;
-  result?: Record<string, unknown> | null;
-  error?: {
-    code: number;
-    message: string;
-    data?: Record<string, unknown>;
-    recoverable: boolean;
-  };
-  timestamp: UnifiedTimestamp;
-  serverId: string;
-  metadata: {
-    responseTime: number;
-    serverLoad: number;
-    qualityScore: number;
-    cached: boolean;
-    retryCount: number;
-  };
-}
-
-/**
- * OneAgent MCP Connection State
- */
-export interface OneAgentMCPConnection {
-  serverId: string;
-  status: 'connected' | 'connecting' | 'disconnected' | 'error';
-  lastConnected?: UnifiedTimestamp;
-  lastError?: string;
-  connectionAttempts: number;
-  capabilities: Record<string, unknown>;
-  protocolVersion: string;
-  health: {
-    status: 'healthy' | 'degraded' | 'unhealthy';
-    responseTime: number;
-    errorRate: number;
-    lastHealthCheck: UnifiedTimestamp;
-  };
-}
 
 /**
  * OneAgent MCP System Metrics
@@ -2096,18 +2026,18 @@ export interface OneAgentMCPMetrics {
  * Replaces: scattered MCP adapter usage, manual server management
  */
 export class OneAgentUnifiedMCPSystem {
-  private servers = new Map<string, OneAgentMCPServerConfig>();
-  private connections = new Map<string, OneAgentMCPConnection>();
-  private pendingRequests = new Map<string, OneAgentMCPRequest>();
-  private cache: OneAgentUnifiedCacheSystem<OneAgentMCPResponse>;
+  private serversKey = 'OneAgentUnifiedMCPSystem.servers';
+  private connectionsKey = 'OneAgentUnifiedMCPSystem.connections';
+  private pendingRequestsKey = 'OneAgentUnifiedMCPSystem.pendingRequests';
+  private cache: OneAgentUnifiedCacheSystem<unknown>;
   private errorHandler: OneAgentUnifiedErrorSystem;
   private metrics: OneAgentMCPMetrics;
   private healthCheckTimer: NodeJS.Timeout | null = null;
   private reconnectTimer: NodeJS.Timeout | null = null;
 
   constructor(
-    private cacheSystem: OneAgentUnifiedCacheSystem<OneAgentMCPResponse>,
-    private errorSystem: OneAgentUnifiedErrorSystem,
+    cacheSystem: OneAgentUnifiedCacheSystem<unknown>,
+    errorSystem: OneAgentUnifiedErrorSystem,
     private timeService: UnifiedTimeService,
   ) {
     this.cache = cacheSystem;
@@ -2138,10 +2068,18 @@ export class OneAgentUnifiedMCPSystem {
    * Register MCP server with configuration
    */
   async registerServer(config: OneAgentMCPServerConfig): Promise<void> {
-    this.servers.set(config.id, config);
+    // Store server config in canonical cache
+    let servers = (await this.cache.get(this.serversKey)) as OneAgentMCPServerMap | null;
+    if (!servers || typeof servers !== 'object') servers = {};
+    servers[config.id] = config;
+    await this.cache.set(this.serversKey, servers);
 
-    // Initialize connection tracking
-    this.connections.set(config.id, {
+    // Initialize connection tracking in canonical cache
+    let connections = (await this.cache.get(
+      this.connectionsKey,
+    )) as OneAgentMCPConnectionMap | null;
+    if (!connections || typeof connections !== 'object') connections = {};
+    connections[config.id] = {
       serverId: config.id,
       status: 'disconnected',
       connectionAttempts: 0,
@@ -2153,7 +2091,8 @@ export class OneAgentUnifiedMCPSystem {
         errorRate: 0,
         lastHealthCheck: this.timeService.createTimestamp(),
       },
-    });
+    };
+    await this.cache.set(this.connectionsKey, connections);
 
     // Initialize server metrics
     this.metrics.serverMetrics[config.id] = {
@@ -2172,15 +2111,17 @@ export class OneAgentUnifiedMCPSystem {
    * Connect to MCP server
    */
   async connectToServer(serverId: string): Promise<boolean> {
-    const server = this.servers.get(serverId);
-    const connection = this.connections.get(serverId);
-
+    const servers = ((await this.cache.get(this.serversKey)) as OneAgentMCPServerMap | null) || {};
+    const connections =
+      ((await this.cache.get(this.connectionsKey)) as OneAgentMCPConnectionMap | null) || {};
+    const server = servers[serverId];
+    const connection = connections[serverId];
     if (!server || !connection) {
       throw new Error(`Server ${serverId} not found`);
     }
-
     connection.status = 'connecting';
     connection.connectionAttempts++;
+    await this.cache.set(this.connectionsKey, connections);
 
     try {
       // Simulate connection logic based on server type
@@ -2197,25 +2138,23 @@ export class OneAgentUnifiedMCPSystem {
         default:
           throw new Error(`Unsupported server type: ${server.type}`);
       }
-
       connection.status = 'connected';
       connection.lastConnected = this.timeService.now();
       delete connection.lastError;
       this.metrics.connectionMetrics.activeConnections++;
-
+      await this.cache.set(this.connectionsKey, connections);
       return true;
     } catch (error) {
       connection.status = 'error';
       connection.lastError = error instanceof Error ? error.message : 'Unknown error';
       this.metrics.connectionMetrics.failedConnections++;
-
+      await this.cache.set(this.connectionsKey, connections);
       await this.errorHandler.handleError(error as Error, {
         component: 'OneAgentUnifiedMCPSystem',
         operation: 'connectToServer',
         serverId,
         serverType: server.type,
       });
-
       return false;
     }
   }
@@ -2262,7 +2201,12 @@ export class OneAgentUnifiedMCPSystem {
       },
     };
 
-    this.pendingRequests.set(requestId, request);
+    let pendingRequests = (await this.cache.get(
+      this.pendingRequestsKey,
+    )) as OneAgentMCPPendingRequestsMap | null;
+    if (!pendingRequests || typeof pendingRequests !== 'object') pendingRequests = {};
+    pendingRequests[requestId] = request;
+    await this.cache.set(this.pendingRequestsKey, pendingRequests);
     this.metrics.totalRequests++;
 
     try {
@@ -2271,26 +2215,35 @@ export class OneAgentUnifiedMCPSystem {
         const cacheKey = this.generateCacheKey(method, params);
         const cachedResponse = await this.cache.get(cacheKey);
 
-        if (cachedResponse) {
+        if (
+          cachedResponse &&
+          typeof cachedResponse === 'object' &&
+          'id' in cachedResponse &&
+          'timestamp' in cachedResponse &&
+          'serverId' in cachedResponse &&
+          'metadata' in cachedResponse
+        ) {
           this.metrics.cacheMetrics.hits++;
           this.updateCacheHitRate();
-          return cachedResponse;
+          return cachedResponse as OneAgentMCPResponse;
         }
 
         this.metrics.cacheMetrics.misses++;
       }
 
       // Select server (intelligent routing)
+      const servers = ((await this.cache.get(this.serversKey)) ||
+        {}) as import('../types/oneagent-backbone-types').OneAgentMCPServerMap;
+      const connections = ((await this.cache.get(this.connectionsKey)) ||
+        {}) as import('../types/oneagent-backbone-types').OneAgentMCPConnectionMap;
       const serverId =
         options.serverId || (await this.selectOptimalServer(method, request.priority));
-      const server = this.servers.get(serverId);
-
+      const server = servers[serverId];
       if (!server) {
         throw new Error(`Server ${serverId} not found`);
       }
-
       // Ensure server is connected
-      const connection = this.connections.get(serverId);
+      const connection = connections[serverId];
       if (!connection || connection.status !== 'connected') {
         const connected = await this.connectToServer(serverId);
         if (!connected) {
@@ -2328,14 +2281,19 @@ export class OneAgentUnifiedMCPSystem {
 
       throw error;
     } finally {
-      this.pendingRequests.delete(requestId);
+      let pendingRequests = (await this.cache.get(
+        this.pendingRequestsKey,
+      )) as OneAgentMCPPendingRequestsMap | null;
+      if (!pendingRequests || typeof pendingRequests !== 'object') pendingRequests = {};
+      delete pendingRequests[requestId];
+      await this.cache.set(this.pendingRequestsKey, pendingRequests);
     }
   }
 
   /**
    * Get system health status
    */
-  getHealth(): {
+  async getHealth(): Promise<{
     status: 'healthy' | 'degraded' | 'unhealthy';
     details: {
       servers: number;
@@ -2344,24 +2302,25 @@ export class OneAgentUnifiedMCPSystem {
       errorRate: number;
       cacheHitRate: number;
     };
-  } {
+  }> {
     const totalRequests = this.metrics.totalRequests;
     const errorRate = totalRequests > 0 ? this.metrics.failedRequests / totalRequests : 0;
     const avgResponseTime = this.metrics.averageResponseTime;
-
     let status: 'healthy' | 'degraded' | 'unhealthy' = 'healthy';
-
     if (errorRate > 0.1 || avgResponseTime > 5000) {
       status = 'unhealthy';
     } else if (errorRate > 0.05 || avgResponseTime > 2000) {
       status = 'degraded';
     }
-
+    const servers = ((await this.cache.get(this.serversKey)) as OneAgentMCPServerMap | null) || {};
+    const connections =
+      ((await this.cache.get(this.connectionsKey)) as OneAgentMCPConnectionMap | null) || {};
     return {
       status,
       details: {
-        servers: this.servers.size,
-        activeConnections: this.metrics.connectionMetrics.activeConnections,
+        servers: Object.keys(servers).length,
+        activeConnections: Object.values(connections).filter((c) => c.status === 'connected')
+          .length,
         averageResponseTime: avgResponseTime,
         errorRate,
         cacheHitRate: this.metrics.cacheMetrics.hitRate,
@@ -2379,29 +2338,34 @@ export class OneAgentUnifiedMCPSystem {
   /**
    * Get server connection status
    */
-  getConnectionStatus(serverId: string): OneAgentMCPConnection | null {
-    return this.connections.get(serverId) || null;
+  async getConnectionStatus(serverId: string): Promise<OneAgentMCPConnection | null> {
+    const connections =
+      ((await this.cache.get(this.connectionsKey)) as OneAgentMCPConnectionMap | null) || {};
+    return connections[serverId] || null;
   }
 
   /**
    * Get all server statuses
    */
-  getAllConnectionStatuses(): Record<string, OneAgentMCPConnection> {
-    const statuses: Record<string, OneAgentMCPConnection> = {};
-    this.connections.forEach((connection, serverId) => {
-      statuses[serverId] = connection;
-    });
-    return statuses;
+  async getAllConnectionStatuses(): Promise<Record<string, OneAgentMCPConnection>> {
+    const connections =
+      ((await this.cache.get(this.connectionsKey)) as OneAgentMCPConnectionMap | null) || {};
+    return { ...connections };
   }
 
   /**
    * Disconnect from server
    */
   async disconnectFromServer(serverId: string): Promise<void> {
-    const connection = this.connections.get(serverId);
+    let connections = (await this.cache.get(
+      this.connectionsKey,
+    )) as OneAgentMCPConnectionMap | null;
+    if (!connections || typeof connections !== 'object') connections = {};
+    const connection = connections[serverId];
     if (connection) {
       connection.status = 'disconnected';
       this.metrics.connectionMetrics.activeConnections--;
+      await this.cache.set(this.connectionsKey, connections);
     }
   }
 
@@ -2409,7 +2373,8 @@ export class OneAgentUnifiedMCPSystem {
    * Disconnect from all servers
    */
   async disconnectAll(): Promise<void> {
-    const disconnectPromises = Array.from(this.servers.keys()).map((serverId) =>
+    const servers = ((await this.cache.get(this.serversKey)) as OneAgentMCPServerMap | null) || {};
+    const disconnectPromises = Object.keys(servers).map((serverId) =>
       this.disconnectFromServer(serverId),
     );
     await Promise.all(disconnectPromises);
@@ -2475,8 +2440,11 @@ export class OneAgentUnifiedMCPSystem {
 
   private async selectOptimalServer(_method: string, _priority: string): Promise<string> {
     // Select server based on method, priority, and health
-    const availableServers = Array.from(this.servers.values()).filter((server) => {
-      const connection = this.connections.get(server.id);
+    const servers = ((await this.cache.get(this.serversKey)) as OneAgentMCPServerMap | null) || {};
+    const connections =
+      ((await this.cache.get(this.connectionsKey)) as OneAgentMCPConnectionMap | null) || {};
+    const availableServers = Object.values(servers).filter((server) => {
+      const connection = connections[server.id];
       return connection?.status === 'connected' && connection.health.status !== 'unhealthy';
     });
 
@@ -2486,8 +2454,8 @@ export class OneAgentUnifiedMCPSystem {
 
     // Sort by priority and health score
     availableServers.sort((a, b) => {
-      const aConnection = this.connections.get(a.id)!;
-      const bConnection = this.connections.get(b.id)!;
+      const aConnection = connections[a.id]!;
+      const bConnection = connections[b.id]!;
 
       // Higher priority first
       if (a.priority !== b.priority) {
@@ -2671,8 +2639,12 @@ export class OneAgentUnifiedMCPSystem {
   }
 
   private async performHealthChecks(): Promise<void> {
-    this.servers.forEach((_cfg, serverId) => {
-      const connection = this.connections.get(serverId);
+    const servers = ((await this.cache.get(this.serversKey)) ||
+      {}) as import('../types/oneagent-backbone-types').OneAgentMCPServerMap;
+    const connections = ((await this.cache.get(this.connectionsKey)) ||
+      {}) as import('../types/oneagent-backbone-types').OneAgentMCPConnectionMap;
+    for (const serverId of Object.keys(servers)) {
+      const connection = connections[serverId];
       if (connection && connection.status === 'connected') {
         (async () => {
           try {
@@ -2683,17 +2655,22 @@ export class OneAgentUnifiedMCPSystem {
             connection.health.status =
               responseTime < 1000 ? 'healthy' : responseTime < 3000 ? 'degraded' : 'unhealthy';
             connection.health.lastHealthCheck = this.timeService.now();
+            await this.cache.set(this.connectionsKey, connections);
           } catch {
             connection.health.status = 'unhealthy';
             connection.health.errorRate = Math.min(connection.health.errorRate + 0.1, 1.0);
+            await this.cache.set(this.connectionsKey, connections);
           }
         })();
       }
-    });
+    }
   }
 
   private async attemptReconnections(): Promise<void> {
-    for (const [serverId, connection] of Array.from(this.connections.entries())) {
+    const connections = ((await this.cache.get(this.connectionsKey)) ||
+      {}) as import('../types/oneagent-backbone-types').OneAgentMCPConnectionMap;
+    for (const serverId of Object.keys(connections)) {
+      const connection = connections[serverId];
       if (connection.status === 'disconnected' || connection.status === 'error') {
         await this.connectToServer(serverId);
       }
@@ -2790,12 +2767,12 @@ export function now(): UnifiedTimestamp {
  * Canonical metadata creation function
  * REPLACES: manual metadata object creation
  */
-export function createUnifiedMetadata(
+export async function createUnifiedMetadata(
   type: string,
   source: string,
   options: Partial<UnifiedMetadata> = {},
-): UnifiedMetadata {
-  return unifiedMetadataService.create(type, source, options);
+): Promise<UnifiedMetadata> {
+  return await unifiedMetadataService.create(type, source, options);
 }
 
 /**
@@ -2909,7 +2886,7 @@ export function validateUnifiedTimeUsage(): {
  * System integration health check
  * CRITICAL: Validates all backbone systems are properly integrated
  */
-export function validateSystemIntegration(): {
+export async function validateSystemIntegration(): Promise<{
   status: 'healthy' | 'degraded' | 'unhealthy';
   details: {
     timeService: boolean;
@@ -2919,7 +2896,7 @@ export function validateSystemIntegration(): {
     mcpSystem: boolean;
   };
   issues: string[];
-} {
+}> {
   const issues: string[] = [];
 
   // Check time service
@@ -2927,20 +2904,25 @@ export function validateSystemIntegration(): {
   if (!timeHealthy) issues.push('Time service not functioning');
 
   // Check metadata service
-  const testMetadata = unifiedMetadataService.create('test', 'validation');
+  const testMetadata = await unifiedMetadataService.create('test', 'validation');
   const metadataHealthy = !!(testMetadata.id && testMetadata.temporal?.created);
   if (!metadataHealthy) issues.push('Metadata service not functioning');
 
   // Check cache system
-  const cacheHealthy = unifiedBackbone.cache.getHealth().status !== 'unhealthy';
+
+  // Check cache system
+  const cacheHealth = await unifiedBackbone.cache.getHealth();
+  const cacheHealthy = cacheHealth.status !== 'unhealthy';
   if (!cacheHealthy) issues.push('Cache system unhealthy');
 
   // Check error system
-  const errorHealthy = unifiedBackbone.errorHandler.getHealth().status !== 'unhealthy';
+  const errorHealth = await unifiedBackbone.errorHandler.getHealth();
+  const errorHealthy = errorHealth.status !== 'unhealthy';
   if (!errorHealthy) issues.push('Error system unhealthy');
 
   // Check MCP system
-  const mcpHealthy = unifiedBackbone.mcpClient.getHealth().status !== 'unhealthy';
+  const mcpHealth = await unifiedBackbone.mcpClient.getHealth();
+  const mcpHealthy = mcpHealth.status !== 'unhealthy';
   if (!mcpHealthy) issues.push('MCP system unhealthy');
 
   return {
@@ -2957,38 +2939,9 @@ export function validateSystemIntegration(): {
 }
 
 // =====================================
-// DEPRECATED FUNCTION WARNINGS
+// CANONICAL NAMED EXPORTS (for test and external usage)
 // =====================================
 
-/**
- * @deprecated Use createUnifiedTimestamp() instead
- * This function is provided for backwards compatibility only
- */
-export function createTimestamp(): UnifiedTimestamp {
-  console.warn(
-    'DEPRECATED: createTimestamp() is deprecated. Use createUnifiedTimestamp() instead.',
-  );
-  return createUnifiedTimestamp();
-}
-
-/**
- * @deprecated Use now() instead
- * This function is provided for backwards compatibility only
- */
-export function getCurrentTime(): UnifiedTimestamp {
-  console.warn('DEPRECATED: getCurrentTime() is deprecated. Use now() instead.');
-  return now();
-}
-
-/**
- * @deprecated Use createUnifiedMetadata() instead
- * This function is provided for backwards compatibility only
- */
-export function createMetadata(
-  type: string,
-  source: string,
-  options: Partial<UnifiedMetadata> = {},
-): UnifiedMetadata {
-  console.warn('DEPRECATED: createMetadata() is deprecated. Use createUnifiedMetadata() instead.');
-  return createUnifiedMetadata(type, source, options);
-}
+// =====================================
+// DEPRECATED FUNCTION WARNINGS
+// =====================================

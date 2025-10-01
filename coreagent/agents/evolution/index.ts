@@ -5,11 +5,6 @@
  * Provides easy access to all evolution functionality.
  */
 
-export { AgentProfile, EvolutionContext, EvolutionRecord, EvolutionChange } from './AgentProfile';
-export { ProfileManager } from './ProfileManager';
-export { EvolutionEngine, EvolutionOptions, EvolutionAnalysis } from './EvolutionEngine';
-export { InstructionsConverter } from './InstructionsConverter';
-
 import { ProfileManager } from './ProfileManager';
 import { EvolutionEngine } from './EvolutionEngine';
 import { InstructionsConverter } from './InstructionsConverter';
@@ -18,24 +13,21 @@ import type { EvolutionRecord } from './AgentProfile';
 /**
  * ALITA System - Main interface for agent evolution
  */
+
 export class ALITASystem {
-  private static instance: ALITASystem;
   private profileManager: ProfileManager;
   private evolutionEngine: EvolutionEngine;
   private converter: InstructionsConverter;
   private initialized: boolean = false;
 
-  private constructor() {
-    this.profileManager = ProfileManager.getInstance();
-    this.evolutionEngine = EvolutionEngine.getInstance();
-    this.converter = InstructionsConverter.getInstance();
-  }
-
-  public static getInstance(): ALITASystem {
-    if (!ALITASystem.instance) {
-      ALITASystem.instance = new ALITASystem();
-    }
-    return ALITASystem.instance;
+  constructor(
+    profileManager: ProfileManager,
+    evolutionEngine: EvolutionEngine,
+    converter: InstructionsConverter,
+  ) {
+    this.profileManager = profileManager;
+    this.evolutionEngine = evolutionEngine;
+    this.converter = converter;
   }
 
   /**
@@ -197,7 +189,6 @@ export class ALITASystem {
   }
 }
 
-/**
- * Global ALITA instance for easy access
- */
-export const ALITA = ALITASystem.getInstance();
+// Canonical usage: instantiate ALITASystem with explicit dependencies
+// Example:
+// const alitaSystem = new ALITASystem(new ProfileManager(), new EvolutionEngine(new ProfileManager(), getOneAgentMemory()), new InstructionsConverter(new ProfileManager()));

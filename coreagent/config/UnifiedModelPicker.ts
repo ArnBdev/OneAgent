@@ -37,6 +37,11 @@ export type ModelCapability =
 export type ModelClient = SmartOpenAIClient | SmartGeminiClient;
 
 // Simple in-memory client cache to prevent repeated instantiation noise
+/**
+ * ARCHITECTURAL EXCEPTION: This Map is used for ephemeral client caching to prevent
+ * repeated instantiation. It is NOT persistent business state. Allowed for performance optimization.
+ */
+// eslint-disable-next-line oneagent/no-parallel-cache
 const clientCache = new Map<string, ModelClient>();
 
 // Canonical embedding model selector (single source of truth)

@@ -1,3 +1,94 @@
+// MCP SYSTEM STATE MAP TYPES (CANONICAL)
+// Import required MCP types from their canonical source
+
+// ========================================
+// MCP SYSTEM STATE MAP TYPES (CANONICAL)
+// ========================================
+
+// MCP SYSTEM STATE TYPES (CANONICAL)
+export interface OneAgentMCPServerConfig {
+  id: string;
+  name: string;
+  type: 'http' | 'stdio' | 'websocket';
+  endpoint?: string;
+  port?: number;
+  capabilities: {
+    tools?: boolean;
+    resources?: boolean;
+    prompts?: boolean;
+    roots?: boolean;
+    sampling?: boolean;
+  };
+  authentication?: {
+    required: boolean;
+    type?: 'oauth2' | 'bearer' | 'none';
+    config?: Record<string, unknown>;
+  };
+  protocolVersion: string;
+  priority: number; // Higher number = higher priority
+  healthCheck?: {
+    enabled: boolean;
+    interval: number;
+    timeout: number;
+  };
+}
+
+export interface OneAgentMCPRequest {
+  id: string;
+  method: string;
+  params?: Record<string, unknown>;
+  timestamp: UnifiedTimestamp;
+  agentId?: string;
+  userId?: string;
+  sessionId?: string;
+  priority: 'low' | 'medium' | 'high' | 'critical';
+  timeout: number;
+  retryConfig?: {
+    maxAttempts: number;
+    backoffMs: number;
+    exponential: boolean;
+  };
+}
+
+export interface OneAgentMCPResponse {
+  id: string;
+  result?: Record<string, unknown> | null;
+  error?: {
+    code: number;
+    message: string;
+    data?: Record<string, unknown>;
+    recoverable: boolean;
+  };
+  timestamp: UnifiedTimestamp;
+  serverId: string;
+  metadata: {
+    responseTime: number;
+    serverLoad: number;
+    qualityScore: number;
+    cached: boolean;
+    retryCount: number;
+  };
+}
+
+export interface OneAgentMCPConnection {
+  serverId: string;
+  status: 'connected' | 'connecting' | 'disconnected' | 'error';
+  lastConnected?: UnifiedTimestamp;
+  lastError?: string;
+  connectionAttempts: number;
+  capabilities: Record<string, unknown>;
+  protocolVersion: string;
+  health: {
+    status: 'healthy' | 'degraded' | 'unhealthy';
+    responseTime: number;
+    errorRate: number;
+    lastHealthCheck: UnifiedTimestamp;
+  };
+}
+
+export type OneAgentMCPServerMap = { [id: string]: OneAgentMCPServerConfig };
+export type OneAgentMCPConnectionMap = { [id: string]: OneAgentMCPConnection };
+export type OneAgentMCPPendingRequestsMap = { [id: string]: OneAgentMCPRequest };
 /**
  * OneAgent Backbone Production Types
  *
@@ -150,9 +241,13 @@ export interface UnifiedMetadata {
 }
 
 export interface UnifiedMetadataService {
-  create(type: string, source: string, options?: Partial<UnifiedMetadata>): UnifiedMetadata;
-  update(id: string, changes: Partial<UnifiedMetadata>): UnifiedMetadata;
-  retrieve(id: string): UnifiedMetadata | null;
+  create(
+    type: string,
+    source: string,
+    options?: Partial<UnifiedMetadata>,
+  ): Promise<UnifiedMetadata>;
+  update(id: string, changes: Partial<UnifiedMetadata>): Promise<UnifiedMetadata>;
+  retrieve(id: string): Promise<UnifiedMetadata | null>;
   validateQuality(metadata: UnifiedMetadata): { valid: boolean; score: number; issues: string[] };
   createInterAgentMetadata(
     communicationType:
@@ -165,7 +260,7 @@ export interface UnifiedMetadataService {
     userId: string,
     sessionId: string,
     options?: Record<string, unknown>,
-  ): UnifiedMetadata; // Updated to match actual implementation
+  ): Promise<UnifiedMetadata>;
 }
 
 // ========================================

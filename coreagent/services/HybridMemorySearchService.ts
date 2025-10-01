@@ -3,7 +3,8 @@ import {
   UnifiedBackboneService,
   createUnifiedTimestamp,
 } from '../utils/UnifiedBackboneService';
-import { OneAgentMemory } from '../memory/OneAgentMemory';
+// import { OneAgentMemory } from '../memory/OneAgentMemory';
+import { getOneAgentMemory } from '../utils/UnifiedBackboneService';
 import { memgraphService } from './MemgraphService';
 import type { MemoryRecord } from '../types/oneagent-backbone-types';
 
@@ -28,25 +29,13 @@ export interface HybridSearchResult {
  * - Safe no-op when backends disabled; returns best-effort results
  */
 export class HybridMemorySearchService {
-  private static instance: HybridMemorySearchService;
-
-  private constructor() {}
-
-  public static getInstance(): HybridMemorySearchService {
-    if (!HybridMemorySearchService.instance) {
-      HybridMemorySearchService.instance = new HybridMemorySearchService();
-    }
-    return HybridMemorySearchService.instance;
-  }
+  constructor() {}
 
   public isEnabled(): boolean {
     const cfg = UnifiedBackboneService.getResolvedConfig();
     return Boolean(cfg.features?.enableHybridSearch && cfg.hybridSearch?.enabled !== false);
   }
 
-  /**
-   * Execute a hybrid search. Never throws; surfaces errors via error handler and returns partials.
-   */
   public async getContext(params: HybridSearchParams): Promise<HybridSearchResult> {
     const startTs = createUnifiedTimestamp();
     const services = OneAgentUnifiedBackbone.getInstance().getServices();
@@ -62,7 +51,7 @@ export class HybridMemorySearchService {
     // Vector path (mem0)
     if (useVector) {
       try {
-        const memory = OneAgentMemory.getInstance();
+        const memory = getOneAgentMemory();
         const res = await memory.searchMemory({
           query: params.query,
           userId: params.userId,
@@ -246,21 +235,21 @@ export class HybridMemorySearchService {
         (m && m.metadata && (m.metadata as { content?: { relevanceScore?: number } }).content
           ? (m.metadata as { content?: { relevanceScore?: number } }).content!.relevanceScore
           : undefined) ?? 0;
-      const base = 0.5 + 0.5 * norm(rel);
-      const score = weights.vector * base;
-      byId.set(m.id, { rec: m, score, source: 'vector' });
+      const baseVec = 0.5 + 0.5 * norm(rel);
+      const scoreVec = weights.vector * baseVec;
+      byId.set(m.id, { rec: m, score: scoreVec, source: 'vector' });
     }
     for (const g of graphResults) {
-      const base = 0.5; // MVP fixed baseline for graph hits
-      const score = weights.graph * base;
-      const entry = byId.get(g.id);
-      if (!entry) byId.set(g.id, { rec: g, score, source: 'graph' });
-      else entry.score += score;
+      const baseGraph = 0.5; // MVP fixed baseline for graph hits
+      const scoreGraph = weights.graph * baseGraph;
+      const entry = byId.get(g.id as string);
+      if (!entry) byId.set(g.id as string, { rec: g, score: scoreGraph, source: 'graph' });
+      else entry.score += scoreGraph;
     }
 
     const merged = Array.from(byId.values())
       .sort((a, b) => b.score - a.score)
-      .slice(0, limit)
+      .slice(0, Number(limit))
       .map((e) => e.rec);
 
     return {
@@ -272,4 +261,4 @@ export class HybridMemorySearchService {
   }
 }
 
-export const hybridMemorySearchService = HybridMemorySearchService.getInstance();
+export const hybridMemorySearchService = new HybridMemorySearchService();

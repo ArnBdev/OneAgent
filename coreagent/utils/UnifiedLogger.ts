@@ -53,8 +53,10 @@ function safeGenerateId(prefix: string, context?: string): string {
   } catch {
     /* ignore */
   }
-  // Fallback: retain a low-collision suffix using time only if crypto is unavailable
-  const ts = Date.now().toString(36);
+  // Fallback: retain a low-collision suffix using canonical time only if crypto is unavailable
+  const ts = loaded?.createUnifiedTimestamp
+    ? loaded.createUnifiedTimestamp().iso
+    : new Date().toISOString();
   return context ? `${prefix}_${context}_${ts}` : `${prefix}_${ts}`;
 }
 export type LogLevel = 'error' | 'warn' | 'info' | 'debug';
@@ -213,11 +215,31 @@ export class UnifiedLogger extends EventEmitter implements ILogger {
       operationId: opId,
       context: options?.context,
     });
-    const started = Date.now();
+    const started = (() => {
+      const loaded = backboneCache;
+      try {
+        if (loaded?.createUnifiedTimestamp) return loaded.createUnifiedTimestamp().iso;
+      } catch {
+        /* ignore */
+      }
+      return new Date().toISOString();
+    })();
     child.debug('🔄 Operation started', { operationName: options?.operationName || 'generic' });
     // Attach lightweight end helper
     (child as unknown as { endOperation?: () => void }).endOperation = () => {
-      const duration = Date.now() - started;
+      const now = (() => {
+        const loaded = backboneCache;
+        try {
+          if (loaded?.createUnifiedTimestamp) return loaded.createUnifiedTimestamp().iso;
+        } catch {
+          /* ignore */
+        }
+        return new Date().toISOString();
+      })();
+      const duration =
+        typeof started === 'string' || typeof now === 'string'
+          ? 'N/A' // String timestamps can't calculate duration easily
+          : now - started;
       child.info('✅ Operation completed', {
         operationName: options?.operationName || 'generic',
         durationMs: duration,

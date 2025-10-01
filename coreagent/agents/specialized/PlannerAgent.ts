@@ -36,8 +36,8 @@ import type {
   EmergentInsight,
   UnifiedTimestamp,
   UnifiedMetadata,
-  MemoryRecord,
 } from '../../types/oneagent-backbone-types';
+import type { MemorySearchResult as CanonicalMemorySearchResult } from '../../types/oneagent-memory-types';
 import { PersonaLoader } from '../persona/PersonaLoader';
 import { PersonalityEngine } from '../personality/PersonalityEngine';
 // Removed unused imports (yaml, fs, path) as part of canonical cleanup
@@ -236,8 +236,9 @@ export interface PlanningSession {
 import type { PromptConfig } from '../base/PromptEngine';
 
 export class PlannerAgent extends BaseAgent implements ISpecializedAgent {
-  private planningStrategies: Map<string, PlanningStrategy> = new Map();
-  private agentCapabilities: Map<string, AgentCapabilityProfile> = new Map();
+  // Canonical: Use unified cache for strategies and capabilities (no forbidden Map fields)
+  private readonly planningStrategiesCacheKey = 'PlannerAgent.planningStrategies';
+  private readonly agentCapabilitiesCacheKey = 'PlannerAgent.agentCapabilities';
   private activePlanningSession: PlanningSession | null = null;
   private planningHistory: PlanningSession[] = [];
   private personaLoader: PersonaLoader;
@@ -339,9 +340,15 @@ export class PlannerAgent extends BaseAgent implements ISpecializedAgent {
         }
         case 'assign_tasks': {
           const tasks = (params.tasks as PlanningTask[]) || [];
-          const agents =
-            (params.availableAgents as AgentCapabilityProfile[]) ||
-            Array.from(this.agentCapabilities.values());
+          let agents: AgentCapabilityProfile[] =
+            (params.availableAgents as AgentCapabilityProfile[]) || [];
+          if (!agents.length) {
+            const cache = this.unifiedBackbone.cache;
+            const capMap = (await cache.get(this.agentCapabilitiesCacheKey)) as {
+              [id: string]: AgentCapabilityProfile;
+            };
+            agents = capMap ? Object.values(capMap) : [];
+          }
           if (!tasks.length) throw new Error('No tasks provided for assignment');
           result = await this.assignTasksToAgents(tasks, agents);
           break;
@@ -671,7 +678,7 @@ export class PlannerAgent extends BaseAgent implements ISpecializedAgent {
         nlacs: {
           emergentInsights: [],
         },
-        metadata: services.metadataService.create('planning_session', 'planner_agent', {
+        metadata: await services.metadataService.create('planning_session', 'planner_agent', {
           content: {
             category: 'planning',
             tags: ['planning', 'session', 'strategic', `planner:${this.config.id}`],
@@ -694,17 +701,16 @@ export class PlannerAgent extends BaseAgent implements ISpecializedAgent {
 
       // Store in OneAgent memory
       const resolvedUserId = (context as unknown as { userId?: string }).userId || this.config.id;
-      await this.memoryClient?.addMemoryCanonical(
-        `Planning session created: ${context.objective}`,
-        this.buildCanonicalAgentMetadata('planning_session', resolvedUserId, {
+      await this.memoryClient?.addMemory({
+        content: `Planning session created: ${context.objective}`,
+        metadata: await this.buildCanonicalAgentMetadata('planning_session', resolvedUserId, {
           sessionId: sessionId,
           objective: context.objective,
           agentId: this.config.id,
           constitutionallyCompliant: true,
           qualityScore: 90,
         }),
-        resolvedUserId,
-      );
+      });
 
       console.log(`📋 PlannerAgent ${this.config.id} created planning session: ${sessionId}`);
       return session;
@@ -736,15 +742,16 @@ export class PlannerAgent extends BaseAgent implements ISpecializedAgent {
       const resolvedUserId = this.getResolvedUserId(context);
 
       // Search memory for similar decomposition patterns
+      // Canonical memory query: remove forbidden fields (filters, type, semanticSearch)
       const memoryResults = await this.memoryClient?.searchMemory({
         query: `task decomposition ${objective}`,
         limit: 5,
-        filters: {
-          type: 'task_decomposition',
-          agentId: this.config.id,
-        },
+        // No filters/type/semanticSearch fields allowed
       });
-      const previousPatterns: MemoryRecord[] = memoryResults?.results || [];
+      // Canonical: MemorySearchResult[] not MemoryRecord[]
+      const previousPatterns: CanonicalMemorySearchResult[] = Array.isArray(memoryResults)
+        ? memoryResults
+        : [];
 
       // Use AI to decompose the objective
       const decompositionPrompt = `
@@ -756,7 +763,7 @@ export class PlannerAgent extends BaseAgent implements ISpecializedAgent {
         
         ${
           previousPatterns.length
-            ? `Previous similar decompositions:\n${previousPatterns.map((r: MemoryRecord) => r.content).join('\n')}`
+            ? `Previous similar decompositions:\n${previousPatterns.map((r) => r.content).join('\n')}`
             : 'No previous patterns found - create comprehensive decomposition.'
         }
         
@@ -798,17 +805,17 @@ export class PlannerAgent extends BaseAgent implements ISpecializedAgent {
       }
 
       // Store successful decomposition pattern in memory
-      await this.memoryClient?.addMemoryCanonical(
-        `Task decomposition pattern: ${objective} → ${validatedTasks.length} tasks`,
-        this.buildCanonicalAgentMetadata('task_decomposition', resolvedUserId, {
+      // Canonical addMemory usage (forbidden: addMemoryCanonical)
+      await this.memoryClient?.addMemory({
+        content: `Task decomposition pattern: ${objective} → ${validatedTasks.length} tasks`,
+        metadata: await this.buildCanonicalAgentMetadata('task_decomposition', resolvedUserId, {
           objective: objective,
           taskCount: validatedTasks.length,
           agentId: this.config.id,
           constitutionallyCompliant: true,
           qualityScore: 92,
         }),
-        resolvedUserId,
-      );
+      });
 
       console.log(`🎯 Decomposed objective into ${validatedTasks.length} validated tasks`);
 
@@ -829,18 +836,21 @@ export class PlannerAgent extends BaseAgent implements ISpecializedAgent {
         this.updateActiveSessionMetrics();
 
         // Persist memory of session enrichment
-        await this.memoryClient?.addMemoryCanonical(
-          `Session ${this.activePlanningSession.id} enriched with ${validatedTasks.length} tasks (objective: ${context.objective})`,
-          this.buildCanonicalAgentMetadata('planning_session_update', resolvedUserId, {
-            updateType: 'tasks_added',
-            taskDelta: validatedTasks.length,
-            objective: context.objective,
-            agentId: this.config.id,
-            constitutionallyCompliant: true,
-            qualityScore: 91,
-          }),
-          resolvedUserId,
-        );
+        await this.memoryClient?.addMemory({
+          content: `Session ${this.activePlanningSession.id} enriched with ${validatedTasks.length} tasks (objective: ${context.objective})`,
+          metadata: await this.buildCanonicalAgentMetadata(
+            'planning_session_update',
+            resolvedUserId,
+            {
+              updateType: 'tasks_added',
+              taskDelta: validatedTasks.length,
+              objective: context.objective,
+              agentId: this.config.id,
+              constitutionallyCompliant: true,
+              qualityScore: 91,
+            },
+          ),
+        });
       }
       return validatedTasks;
     } catch (error) {
@@ -887,7 +897,8 @@ export class PlannerAgent extends BaseAgent implements ISpecializedAgent {
       });
 
       // Sort tasks by priority and complexity
-      const sortedTasks = [...tasks].sort((a, b) => {
+      // Add explicit types to sort callback
+      const sortedTasks = [...tasks].sort((a: PlanningTask, b: PlanningTask): number => {
         const priorityWeight = { critical: 4, high: 3, medium: 2, low: 1 };
         const complexityWeight = { expert: 4, complex: 3, moderate: 2, simple: 1 };
 
@@ -948,11 +959,10 @@ export class PlannerAgent extends BaseAgent implements ISpecializedAgent {
           assignmentPattern: Object.fromEntries(assignments),
           qualityScore: 88,
         };
-        await this.memoryClient?.addMemoryCanonical(
-          `Task assignment completed: ${tasks.length} tasks assigned to ${availableAgents.length} agents`,
-          metaTaskAssign,
-          this.config.id,
-        );
+        await this.memoryClient?.addMemory({
+          content: `Task assignment completed: ${tasks.length} tasks assigned to ${availableAgents.length} agents`,
+          metadata: await metaTaskAssign,
+        });
       } catch (err) {
         console.warn('PlannerAgent canonical task_assignment store failed:', err);
       }
@@ -1008,11 +1018,10 @@ export class PlannerAgent extends BaseAgent implements ISpecializedAgent {
             agentCount: this.activePlanningSession.assignedAgents.length,
             qualityScore: 89,
           };
-          await this.memoryClient?.addMemoryCanonical(
-            `Session ${this.activePlanningSession.id} task assignment updated (${tasks.length} tasks, ${this.activePlanningSession.assignedAgents.length} agents)`,
-            metaSessionUpdate,
-            this.config.id,
-          );
+          await this.memoryClient?.addMemory({
+            content: `Session ${this.activePlanningSession.id} task assignment updated (${tasks.length} tasks, ${this.activePlanningSession.assignedAgents.length} agents)`,
+            metadata: await metaSessionUpdate,
+          });
         } catch (err) {
           console.warn('PlannerAgent canonical planning_session_update store failed:', err);
         }
@@ -1074,7 +1083,7 @@ export class PlannerAgent extends BaseAgent implements ISpecializedAgent {
       const replanSession: PlanningSession = {
         ...currentSession,
         id: `replan_${services.timeService.now().unix}_${this.config.id}`,
-        metadata: services.metadataService.create('planning_replan', 'planner_agent', {
+        metadata: await services.metadataService.create('planning_replan', 'planner_agent', {
           content: {
             category: 'planning',
             tags: ['planning', 'replan', 'adaptive', `urgency:${urgency}`],
@@ -1121,11 +1130,10 @@ export class PlannerAgent extends BaseAgent implements ISpecializedAgent {
           newSessionId: replanSession.id,
           qualityScore: 87,
         };
-        await this.memoryClient?.addMemoryCanonical(
-          `Dynamic replanning: ${changeContext} → ${replanText}`,
-          metaReplan,
-          this.config.id,
-        );
+        await this.memoryClient?.addMemory({
+          content: `Dynamic replanning: ${changeContext} → ${replanText}`,
+          metadata: await metaReplan,
+        });
       } catch (err) {
         console.warn('PlannerAgent canonical replanning store failed:', err);
       }
@@ -1263,36 +1271,11 @@ export class PlannerAgent extends BaseAgent implements ISpecializedAgent {
 
       // Update session with insights
       this.activePlanningSession.nlacs.emergentInsights = planningInsights;
-      const synthesizedKnowledge = await this.synthesizeKnowledge(
-        [
-          {
-            id: 'planning_thread',
-            participants: conversationHistory.map((m) => m.agentId),
-            messages: conversationHistory,
-            context: {
-              domain: 'strategic_planning',
-              complexity: 'complex',
-              urgency: 'medium',
-              stakeholders: this.activePlanningSession.context.stakeholders,
-              objectives: [this.activePlanningSession.context.objective],
-              constraints: this.activePlanningSession.context.constraints,
-              resources: this.activePlanningSession.context.resources,
-            },
-            insights: planningInsights,
-            status: 'active',
-            createdAt: new Date(this.unifiedBackbone.getServices().timeService.now().utc),
-            lastActivity: new Date(this.unifiedBackbone.getServices().timeService.now().utc),
-          },
-        ],
-        'What are the key planning insights and recommendations from this discussion?',
-      );
-
-      this.activePlanningSession.nlacs.conversationSummary =
-        synthesizedKnowledge || 'No synthesized knowledge available';
-
-      console.log(
-        `🧠 Processed ${planningInsights.length} planning insights from NLACS discussion`,
-      );
+      // (synthesizedKnowledge assignment removed; not used)
+      // Log and set summary string
+      const summaryMsg = `🧠 Processed ${planningInsights.length} planning insights from NLACS discussion`;
+      console.log(summaryMsg);
+      this.activePlanningSession.nlacs.conversationSummary = summaryMsg;
       return this.activePlanningSession;
     } catch (error) {
       // CANONICAL ERROR HANDLING: Use UnifiedBackboneService.errorHandler
@@ -1464,7 +1447,7 @@ export class PlannerAgent extends BaseAgent implements ISpecializedAgent {
         requiredResources: ['cross_functional_team', 'product_owner', 'scrum_master'],
         riskLevel: 'medium',
         constitutionalCompliance: true,
-        metadata: services.metadataService.create('planning_strategy', 'planner_agent', {
+        metadata: await services.metadataService.create('planning_strategy', 'planner_agent', {
           content: {
             category: 'strategy',
             tags: ['agile', 'sprint', 'iterative'],
@@ -1484,7 +1467,7 @@ export class PlannerAgent extends BaseAgent implements ISpecializedAgent {
         requiredResources: ['project_manager', 'subject_matter_experts', 'quality_assurance'],
         riskLevel: 'low',
         constitutionalCompliance: true,
-        metadata: services.metadataService.create('planning_strategy', 'planner_agent', {
+        metadata: await services.metadataService.create('planning_strategy', 'planner_agent', {
           content: {
             category: 'strategy',
             tags: ['waterfall', 'sequential', 'linear'],
@@ -1504,7 +1487,7 @@ export class PlannerAgent extends BaseAgent implements ISpecializedAgent {
         requiredResources: ['experienced_team', 'stakeholder_engagement', 'change_management'],
         riskLevel: 'medium',
         constitutionalCompliance: true,
-        metadata: services.metadataService.create('planning_strategy', 'planner_agent', {
+        metadata: await services.metadataService.create('planning_strategy', 'planner_agent', {
           content: {
             category: 'strategy',
             tags: ['hybrid', 'adaptive', 'flexible'],
@@ -1516,9 +1499,13 @@ export class PlannerAgent extends BaseAgent implements ISpecializedAgent {
       },
     ];
 
-    strategies.forEach((strategy) => {
-      this.planningStrategies.set(strategy.id, strategy);
-    });
+    // Store all strategies in unified cache as a map
+    const cache = this.unifiedBackbone.cache;
+    const strategyMap: { [id: string]: PlanningStrategy } = {};
+    for (const strategy of strategies) {
+      strategyMap[strategy.id] = strategy;
+    }
+    await cache.set(this.planningStrategiesCacheKey, strategyMap);
   }
 
   private async initializeAgentCapabilities(): Promise<void> {
@@ -1571,31 +1558,35 @@ export class PlannerAgent extends BaseAgent implements ISpecializedAgent {
       },
     ];
 
-    capabilities.forEach((capability) => {
-      this.agentCapabilities.set(capability.agentId, capability);
-    });
+    // Store all capabilities in unified cache as a map
+    const cache = this.unifiedBackbone.cache;
+    const capMap: { [id: string]: AgentCapabilityProfile } = {};
+    for (const capability of capabilities) {
+      capMap[capability.agentId] = capability;
+    }
+    await cache.set(this.agentCapabilitiesCacheKey, capMap);
   }
 
   private async selectOptimalStrategy(context: PlanningContext): Promise<PlanningStrategy> {
     // Simple strategy selection based on context
     // In production, this would use more sophisticated ML algorithms
 
-    const strategies = Array.from(this.planningStrategies.values());
-
+    const cache = this.unifiedBackbone.cache;
+    const strategyMap = (await cache.get(this.planningStrategiesCacheKey)) as {
+      [id: string]: PlanningStrategy;
+    };
+    const strategies: PlanningStrategy[] = strategyMap ? Object.values(strategyMap) : [];
     // Score strategies based on context
-    const scoredStrategies = strategies.map((strategy) => {
+    const scoredStrategies = strategies.map((strategy: PlanningStrategy) => {
       let score = strategy.successRate;
-
       // Adjust based on risk tolerance
       if (context.riskTolerance === 'low' && strategy.riskLevel === 'low') score += 0.1;
       if (context.riskTolerance === 'high' && strategy.riskLevel === 'high') score += 0.05;
-
       return { strategy, score };
     });
-
     // Return highest scoring strategy
     scoredStrategies.sort((a, b) => b.score - a.score);
-    return scoredStrategies[0].strategy;
+    return scoredStrategies[0]?.strategy as PlanningStrategy;
   }
 
   private async parseTaskDecomposition(

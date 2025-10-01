@@ -23,6 +23,7 @@ import { createUnifiedTimestamp, generateUnifiedId } from '../../utils/UnifiedBa
 import type { FeedbackRecord } from '../../types/oneagent-backbone-types';
 import type { MetricLog } from '../../services/MetricsService';
 import { OneAgentMemory } from '../../memory/OneAgentMemory';
+import { getOneAgentMemory } from '../../utils/UnifiedBackboneService';
 import { getModelFor } from '../../config/UnifiedModelPicker';
 import { simpleGit } from 'simple-git';
 import * as fs from 'fs/promises';
@@ -41,7 +42,12 @@ export type ExperienceEntry = {
 };
 
 export class AlitaAgent extends BaseAgent implements ISpecializedAgent {
-  constructor(config?: Partial<AgentConfig>, promptConfig?: PromptConfig) {
+  private memory: OneAgentMemory;
+  constructor(
+    config?: Partial<AgentConfig>,
+    promptConfig?: PromptConfig,
+    opts: { memory?: OneAgentMemory } = {},
+  ) {
     super(
       {
         id: config?.id || 'AlitaAgent',
@@ -56,6 +62,7 @@ export class AlitaAgent extends BaseAgent implements ISpecializedAgent {
       },
       promptConfig,
     );
+    this.memory = opts.memory || getOneAgentMemory();
   }
 
   get id(): string {
@@ -85,12 +92,14 @@ export class AlitaAgent extends BaseAgent implements ISpecializedAgent {
     if (type === 'trigger_reflection') {
       const limit = Number((params?.limit as number) ?? 50);
       const { taskId, prompt } = await this.execute(limit);
-      // Store that a reflection was prepared
-      await this.addMemory(
-        (context?.user as { id?: string } | undefined)?.id || 'system',
-        `ALITA reflection initiated. taskId=${taskId} promptChars=${prompt.length}`,
-        { type: 'alita_reflection_prepared' },
-      );
+      // Store that a reflection was prepared (canonical signature)
+      await this.memory.addMemory({
+        content: `ALITA reflection initiated. taskId=${taskId} promptChars=${prompt.length}`,
+        metadata: {
+          type: 'alita_reflection_prepared',
+          userId: (context?.user as { id?: string } | undefined)?.id || 'system',
+        },
+      });
       return this.createResponse(
         'Reflection cycle prepared (prompt ready for LLM analysis).',
         [],
@@ -126,9 +135,10 @@ export class AlitaAgent extends BaseAgent implements ISpecializedAgent {
       const text = typeof resp === 'string' ? resp : resp.response || '';
       proposal = this.parseStrictJson(text);
     } catch (err) {
-      // Store failure breadcrumb and return prompt only
-      await this.addMemory(this.config.id, `ALITA LLM analysis failed: ${String(err)}`, {
-        type: 'alita_llm_error',
+      // Store failure breadcrumb and return prompt only (canonical signature)
+      await this.memory.addMemory({
+        content: `ALITA LLM analysis failed: ${String(err)}`,
+        metadata: { type: 'alita_llm_error', userId: this.config.id },
       });
       return { taskId, prompt };
     }
@@ -138,16 +148,24 @@ export class AlitaAgent extends BaseAgent implements ISpecializedAgent {
     try {
       await this.applyChangeToFile(proposal.targetFile, proposal.suggestedChange, taskId);
       prUrl = await this.createPullRequest({ taskId, ...proposal });
-      await this.addMemory(this.config.id, `ALITA opened PR: ${prUrl} for ${proposal.targetFile}`, {
-        type: 'alita_pr_created',
-        taskId,
-        targetFile: proposal.targetFile,
+      await this.memory.addMemory({
+        content: `ALITA opened PR: ${prUrl} for ${proposal.targetFile}`,
+        metadata: {
+          type: 'alita_pr_created',
+          taskId,
+          targetFile: proposal.targetFile,
+          userId: this.config.id,
+        },
       });
     } catch (err) {
-      await this.addMemory(this.config.id, `ALITA PR creation failed: ${String(err)}`, {
-        type: 'alita_pr_error',
-        taskId,
-        targetFile: proposal.targetFile,
+      await this.memory.addMemory({
+        content: `ALITA PR creation failed: ${String(err)}`,
+        metadata: {
+          type: 'alita_pr_error',
+          taskId,
+          targetFile: proposal.targetFile,
+          userId: this.config.id,
+        },
       });
     }
 
@@ -160,8 +178,8 @@ export class AlitaAgent extends BaseAgent implements ISpecializedAgent {
    */
   private async getRecentExperienceEntries(limit: number): Promise<ExperienceEntry[]> {
     // Query canonical memory for feedback + metrics persisted by services
-    const memory = OneAgentMemory.getInstance();
-    const [feedbackRes, metricsRes] = await Promise.all([
+    const memory = this.memory;
+    const [feedbacksRaw, metricsRaw] = await Promise.all([
       memory.searchMemory({ query: 'feedback_record', userId: 'feedback', limit }),
       memory.searchMemory({ query: 'metrics_log', userId: 'default-user', limit: limit * 2 }),
     ]);
@@ -171,11 +189,11 @@ export class AlitaAgent extends BaseAgent implements ISpecializedAgent {
       metadata?: { custom?: Record<string, unknown> } & Record<string, unknown>;
     };
 
-    const feedbacks = (feedbackRes?.results || [])
-      .map((r: AnyRec) => (r?.metadata?.custom?.feedback as FeedbackRecord) || null)
+    const feedbacks = (feedbacksRaw as AnyRec[])
+      .map((r) => (r?.metadata?.custom?.feedback as FeedbackRecord) || null)
       .filter(Boolean) as FeedbackRecord[];
-    const metrics = (metricsRes?.results || [])
-      .map((r: AnyRec) => (r?.metadata?.custom?.metricLog as MetricLog) || null)
+    const metrics = (metricsRaw as AnyRec[])
+      .map((r) => (r?.metadata?.custom?.metricLog as MetricLog) || null)
       .filter(Boolean) as MetricLog[];
 
     const metricsByTask = new Map<string, MetricLog>();
@@ -420,11 +438,10 @@ OUTPUT: Return ONLY strict JSON with keys: analysis, targetFile, suggestedChange
     if (message.toLowerCase().includes('reflect') || message.toLowerCase().includes('alita')) {
       const { prompt } = await this.execute(50);
       // Store prompt snapshot to memory for traceability
-      await this.addMemory(
-        context.user.id,
-        `ALITA reflection prepared at ${createUnifiedTimestamp().iso}. Prompt length=${prompt.length}`,
-        { type: 'alita_reflection_prep' },
-      );
+      await this.memory.addMemory({
+        content: `ALITA reflection prepared at ${createUnifiedTimestamp().iso}. Prompt length=${prompt.length}`,
+        metadata: { type: 'alita_reflection_prep', userId: context.user.id },
+      });
       const base = this.createResponse('ALITA reflection prompt is ready.', [], []);
       return await this.finalizeResponseWithTaskDetection(message, base);
     }

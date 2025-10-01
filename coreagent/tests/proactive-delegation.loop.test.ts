@@ -10,7 +10,8 @@ import { OneAgentEngine } from '../OneAgentEngine';
 describe('Proactive Delegation Loop', () => {
   it('queues tasks after deep analysis and supports dispatch marking', async () => {
     // Guard: orchestrator may not yet have produced deep analysis; simulate by invoking private cycle if available
-    OneAgentEngine.getInstance(); // ensure engine singleton initialized
+    // Canonical: Use direct instantiation for OneAgentEngine
+    new OneAgentEngine(); // ensure engine initialized
     const envObj = process.env as Record<string, string | undefined>;
     if (!envObj.ONEAGENT_PROACTIVE_AUTO_DELEGATE) {
       envObj.ONEAGENT_PROACTIVE_AUTO_DELEGATE = '1';

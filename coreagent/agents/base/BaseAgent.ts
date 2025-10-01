@@ -24,6 +24,7 @@
  */
 
 import { OneAgentMemory } from '../../memory/OneAgentMemory';
+import { getOneAgentMemory } from '../../utils/UnifiedBackboneService';
 // import { UnifiedBackboneService } from '../../utils/UnifiedBackboneService';
 import {
   OneAgentUnifiedBackbone,
@@ -162,12 +163,16 @@ export abstract class BaseAgent {
   /**
    * Constructor for BaseAgent
    */
-  constructor(config: AgentConfig, promptConfig?: PromptConfig) {
+  constructor(config: AgentConfig, promptConfig?: PromptConfig, memoryClient?: OneAgentMemory) {
     this.config = config;
     // Use canonical singleton to avoid parallel backbone instances
     this.unifiedBackbone = OneAgentUnifiedBackbone.getInstance
       ? OneAgentUnifiedBackbone.getInstance()
       : (canonicalUnifiedBackbone as OneAgentUnifiedBackbone);
+    // Dependency injection for memoryClient, fallback to canonical getOneAgentMemory
+    if (config.memoryEnabled) {
+      this.memoryClient = memoryClient || getOneAgentMemory();
+    }
     // Initialize enhanced prompt engine if config provided
     if (promptConfig) {
       this.promptEngine = new PromptEngine(promptConfig);
@@ -248,9 +253,10 @@ export abstract class BaseAgent {
 
     try {
       // Initialize memory client if enabled
-      if (this.config.memoryEnabled) {
-        // Use canonical singleton to prevent parallel memory systems
-        this.memoryClient = OneAgentMemory.getInstance({ userId: 'default-user' });
+      if (this.config.memoryEnabled && !this.memoryClient) {
+        this.memoryClient = getOneAgentMemory();
+        this.memoryIntelligence = new MemoryIntelligence();
+      } else if (this.config.memoryEnabled) {
         this.memoryIntelligence = new MemoryIntelligence();
       }
 
@@ -408,7 +414,7 @@ export abstract class BaseAgent {
    * Enable NLACS capabilities for this agent
    * Uses canonical backbone temporal and metadata systems
    */
-  protected enableNLACS(capabilities: NLACSCapability[]): void {
+  protected async enableNLACS(capabilities: NLACSCapability[]): Promise<void> {
     this.nlacsCapabilities = capabilities;
     this.nlacsEnabled = true;
 
@@ -423,18 +429,18 @@ export abstract class BaseAgent {
     );
 
     // Store in OneAgent memory with canonical metadata
-    this.memoryClient
-      ?.addMemory({
+    try {
+      await this.memoryClient?.addMemory({
         content: `NLACS capabilities enabled: ${capabilityStrings.join(', ')}`,
-        metadata: this.buildCanonicalAgentMetadata('nlacs_initialization', this.config.id, {
+        metadata: await this.buildCanonicalAgentMetadata('nlacs_initialization', this.config.id, {
           agentId: this.config.id,
           capabilities: capabilityStrings,
           originalType: 'nlacs_initialization',
         }),
-      })
-      .catch((error: unknown) => {
-        console.error('Failed to store NLACS initialization in memory:', error);
       });
+    } catch (error: unknown) {
+      console.error('Failed to store NLACS initialization in memory:', error);
+    }
   }
 
   /**
@@ -461,7 +467,7 @@ export abstract class BaseAgent {
       // Store participation in OneAgent memory with canonical structure
       await this.memoryClient?.addMemory({
         content: `Joined NLACS discussion: ${discussionId}`,
-        metadata: this.buildCanonicalAgentMetadata('nlacs_participation', this.config.id, {
+        metadata: await this.buildCanonicalAgentMetadata('nlacs_participation', this.config.id, {
           discussionId,
           agentId: this.config.id,
           joinedAt: joinTimestamp,
@@ -542,7 +548,7 @@ export abstract class BaseAgent {
       // Store contribution in OneAgent memory with canonical structure
       await this.memoryClient?.addMemory({
         content: `NLACS Discussion Contribution: ${content}`,
-        metadata: this.buildCanonicalAgentMetadata('nlacs_contribution', this.config.id, {
+        metadata: await this.buildCanonicalAgentMetadata('nlacs_contribution', this.config.id, {
           discussionId,
           messageId: message.id,
           messageType,
@@ -628,7 +634,7 @@ export abstract class BaseAgent {
       for (const insight of insights) {
         await this.memoryClient?.addMemory({
           content: `Emergent Insight: ${insight.content}`,
-          metadata: this.buildCanonicalAgentMetadata('emergent_insight', this.config.id, {
+          metadata: await this.buildCanonicalAgentMetadata('emergent_insight', this.config.id, {
             insightId: insight.id,
             insightType: insight.type,
             confidence: insight.confidence,
@@ -713,7 +719,7 @@ export abstract class BaseAgent {
       // Store synthesis in OneAgent memory with canonical backbone structure
       await this.memoryClient?.addMemory({
         content: `Knowledge Synthesis: ${synthesis}`,
-        metadata: this.buildCanonicalAgentMetadata('knowledge_synthesis', this.config.id, {
+        metadata: await this.buildCanonicalAgentMetadata('knowledge_synthesis', this.config.id, {
           synthesisId: generateUnifiedId('knowledge', this.config.id),
           synthesisQuestion,
           sourceThreadIds: conversationThreads.map((t) => t.id),
@@ -817,7 +823,7 @@ export abstract class BaseAgent {
       // Store pattern analysis in OneAgent memory with canonical structure
       await this.memoryClient?.addMemory({
         content: `Conversation Pattern Analysis: ${patterns.length} patterns, ${insights.length} insights`,
-        metadata: this.buildCanonicalAgentMetadata('pattern_analysis', this.config.id, {
+        metadata: await this.buildCanonicalAgentMetadata('pattern_analysis', this.config.id, {
           analysisId: generateUnifiedId('analysis', this.config.id),
           patternCount: patterns.length,
           insightCount: insights.length,
@@ -863,16 +869,16 @@ export abstract class BaseAgent {
    * Get NLACS status and capabilities
    * Uses canonical backbone metadata
    */
-  protected getNLACSStatus(): {
+  protected async getNLACSStatus(): Promise<{
     enabled: boolean;
     capabilities: NLACSCapability[];
     metadata: UnifiedMetadata;
-  } {
+  }> {
     const services = this.unifiedBackbone.getServices();
     return {
       enabled: this.nlacsEnabled,
       capabilities: this.nlacsCapabilities,
-      metadata: services.metadataService.create('nlacs_status', 'agent_system', {
+      metadata: await services.metadataService.create('nlacs_status', 'agent_system', {
         content: {
           category: 'system',
           tags: ['nlacs', 'status', `agent:${this.config.id}`],
@@ -918,7 +924,7 @@ export abstract class BaseAgent {
     // Always add canonical metadata
     const ts = createUnifiedTimestamp();
     const userId = String(req.metadata?.userId || this.config.id);
-    const unified = this.buildCanonicalAgentMetadata('agent_event', userId, req.metadata, ts);
+    const unified = await this.buildCanonicalAgentMetadata('agent_event', userId, req.metadata, ts);
     await this.memoryClient.addMemory({ content: req.content, metadata: unified });
     // Fire-and-forget knowledge enrichment into graph if enabled
     try {
@@ -940,14 +946,14 @@ export abstract class BaseAgent {
   /**
    * Build canonical agent metadata with consistent structure
    */
-  protected buildCanonicalAgentMetadata(
+  protected async buildCanonicalAgentMetadata(
     type: string,
     userId: string,
     extra?: Record<string, unknown>,
     timestamp: ReturnType<typeof createUnifiedTimestamp> = createUnifiedTimestamp(),
-  ): Record<string, unknown> {
+  ): Promise<Record<string, unknown>> {
     // Canonical: always return a plain object for OneAgentMemory
-    return unifiedMetadataService.create(type, 'BaseAgent', {
+    return (await unifiedMetadataService.create(type, 'BaseAgent', {
       system: {
         userId,
         component: this.config.id,
@@ -973,7 +979,7 @@ export abstract class BaseAgent {
         },
       },
       ...(extra || {}),
-    }) as Record<string, unknown>;
+    })) as Record<string, unknown>;
   }
 
   /**
@@ -1031,13 +1037,13 @@ export abstract class BaseAgent {
           latencyMs: ctx.tookMs,
           vectorResultsCount: ctx.sources.vector,
           graphResultsCount: ctx.sources.graph,
-          finalContextSize: ctx.results.length,
+          finalContextSize: Array.isArray(ctx.results) ? ctx.results.length : 0,
         });
         return {
           taskId: effectiveTaskId,
           result: {
-            results: ctx.results,
-            totalFound: ctx.results.length,
+            results: Array.isArray(ctx.results) ? ctx.results : [],
+            totalFound: Array.isArray(ctx.results) ? ctx.results.length : 0,
             searchTime: ctx.tookMs,
             query: ctx.query,
           },
@@ -1061,7 +1067,10 @@ export abstract class BaseAgent {
     if (Array.isArray(results)) {
       items = results as MemoryRecord[];
     } else if (results && Array.isArray((results as { results: MemoryRecord[] }).results)) {
-      items = (results as { results: MemoryRecord[] }).results;
+      // Legacy/compat: flatten .results if present, but prefer canonical array
+      items = Array.isArray((results as { results: MemoryRecord[] }).results)
+        ? (results as { results: MemoryRecord[] }).results
+        : [];
     }
     const took = Math.max(0, t1.unix - t0.unix);
     // Emit metrics
@@ -1355,7 +1364,11 @@ export abstract class BaseAgent {
     }
     // Fallback legacy path
     const search = await this.searchMemories(context.user.id, message);
-    const memories = search.result.results;
+    const memories = Array.isArray(search.result)
+      ? search.result
+      : search.result && Array.isArray((search.result as { results: MemoryRecord[] }).results)
+        ? (search.result as { results: MemoryRecord[] }).results
+        : [];
     const response = await this.generateResponse(message, memories);
     await this.addMemory({
       content: `User: ${message}\nAgent: ${response}`,
@@ -1381,7 +1394,11 @@ export abstract class BaseAgent {
   ): Promise<AgentResponse> {
     const userId = context.user.id;
     const search = await this.searchMemories(userId, message);
-    const memories = search.result.results;
+    const memories = Array.isArray(search.result)
+      ? search.result
+      : search.result && Array.isArray((search.result as { results: MemoryRecord[] }).results)
+        ? (search.result as { results: MemoryRecord[] }).results
+        : [];
     const enhancedPrompt = await this.promptEngine!.buildEnhancedPrompt(
       message,
       memories,

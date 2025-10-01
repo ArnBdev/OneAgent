@@ -264,62 +264,12 @@ let oneAgent: OneAgentEngine | null = null;
 
 async function initOnce() {
   if (!initialized) {
-    // Lazy-create engine to ensure console redirection and env flags are active first
+    // Canonical: Use DI/config pattern for OneAgentEngine (no getInstance)
     const mod = await import('../OneAgentEngine');
     const Engine = mod.OneAgentEngine;
-    oneAgent = Engine.getInstance({
-      constitutional: {
-        enabled: true,
-        qualityThreshold: 80,
-        principles: [
-          {
-            id: 'accuracy',
-            name: 'Accuracy',
-            description: 'Provide accurate information or acknowledge uncertainty',
-            category: 'accuracy',
-            weight: 1.0,
-            isViolated: false,
-            confidence: 0.95,
-            validationRule: 'prefer_uncertainty_over_speculation',
-            severityLevel: 'high',
-          },
-          {
-            id: 'transparency',
-            name: 'Transparency',
-            description: 'Explain reasoning and acknowledge limitations',
-            category: 'transparency',
-            weight: 0.8,
-            isViolated: false,
-            confidence: 0.9,
-            validationRule: 'explain_reasoning_and_limitations',
-            severityLevel: 'medium',
-          },
-          {
-            id: 'helpfulness',
-            name: 'Helpfulness',
-            description: 'Provide actionable, relevant guidance',
-            category: 'helpfulness',
-            weight: 0.9,
-            isViolated: false,
-            confidence: 0.85,
-            validationRule: 'actionable_relevant_guidance',
-            severityLevel: 'medium',
-          },
-          {
-            id: 'safety',
-            name: 'Safety',
-            description: 'Avoid harmful or misleading recommendations',
-            category: 'safety',
-            weight: 1.0,
-            isViolated: false,
-            confidence: 0.95,
-            validationRule: 'avoid_harmful_misleading_content',
-            severityLevel: 'critical',
-          },
-        ],
-      },
-      memory: { enabled: true, provider: 'mem0', config: { retentionDays: 30 } },
-    });
+    // Canonical: Only pass memorySystem via opts, config is loaded from UnifiedBackboneService
+    const { getOneAgentMemory } = await import('../utils/UnifiedBackboneService');
+    oneAgent = new Engine({ memorySystem: getOneAgentMemory() });
     await oneAgent.initialize('mcp-stdio');
     initialized = true;
   }
@@ -386,9 +336,9 @@ async function handleRequest(req: MCPRequest): Promise<MCPResponse> {
   // Tools
   if (req.method === 'tools/list') {
     await initOnce();
-    const tools = oneAgent!.getAvailableTools();
+    const tools = await oneAgent!.getAvailableTools();
     return ok(req.id, {
-      tools: tools.map((t) => ({
+      tools: tools.map((t: import('../OneAgentEngine').ToolDescriptor) => ({
         name: t.name,
         description: t.description,
         inputSchema: t.inputSchema,

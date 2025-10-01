@@ -72,7 +72,9 @@ export class CrossConversationLearningEngine {
 
   constructor(memory: OneAgentMemory) {
     this.memory = memory;
+    // Justified: ephemeral, algorithm-local Map for per-instance, short-lived algorithmic state (not a persistent cache)
     this.patterns = new Map();
+    // Justified: ephemeral, algorithm-local Map for per-instance, short-lived algorithmic state (not a persistent cache)
     this.workflows = new Map();
   }
 
@@ -541,11 +543,13 @@ export class CrossConversationLearningEngine {
         timestamp: createUnifiedTimestamp().iso,
         category: 'phase4_learning',
       };
-      await this.memory.addMemoryCanonical(
-        `Conversation Pattern: ${pattern.type} - ${pattern.pattern}`,
-        meta,
-        'oneagent_system',
-      );
+      await this.memory.addMemory({
+        content: `Conversation Pattern: ${pattern.type} - ${pattern.pattern}`,
+        metadata: {
+          ...meta,
+          userId: 'oneagent_system',
+        },
+      });
     } catch (err) {
       console.warn('[CrossConversationLearning] Failed to store pattern canonically:', err);
     }
@@ -582,11 +586,13 @@ export class CrossConversationLearningEngine {
         timestamp: createUnifiedTimestamp().iso,
         category: 'phase4_learning',
       };
-      await this.memory.addMemoryCanonical(
-        `Workflow Pattern: ${workflow.name} - ${workflow.steps.join(', ')}`,
-        meta,
-        'oneagent_system',
-      );
+      await this.memory.addMemory({
+        content: `Workflow Pattern: ${workflow.name} - ${workflow.steps.join(', ')}`,
+        metadata: {
+          ...meta,
+          userId: 'oneagent_system',
+        },
+      });
     } catch (err) {
       console.warn('[CrossConversationLearning] Failed to store workflow canonically:', err);
     }

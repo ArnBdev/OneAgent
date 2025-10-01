@@ -9,7 +9,9 @@ import { EventEmitter } from 'events';
 import { AgentProfile, EvolutionContext, EvolutionRecord, EvolutionChange } from './AgentProfile';
 import { ProfileManager } from './ProfileManager';
 // Canonical memory bridge for all memory operations
-import { OneAgentMemory, OneAgentMemoryConfig } from '../../memory/OneAgentMemory';
+// import { OneAgentMemoryConfig } from '../../memory/OneAgentMemory';
+import { getOneAgentMemory } from '../../utils/UnifiedBackboneService';
+import type { OneAgentMemory } from '../../memory/OneAgentMemory';
 // Canonical time + error systems
 import { createUnifiedTimestamp, getUnifiedErrorHandler } from '../../utils/UnifiedBackboneService';
 
@@ -46,7 +48,6 @@ export interface EvolutionOptions {
 }
 
 export class EvolutionEngine extends EventEmitter {
-  private static instance: EvolutionEngine;
   private profileManager: ProfileManager;
   private isEvolving: boolean = false;
   // Canonical memory bridge instance
@@ -54,21 +55,10 @@ export class EvolutionEngine extends EventEmitter {
   // Canonical error handler
   private readonly errorHandler = getUnifiedErrorHandler();
 
-  private constructor() {
+  constructor(profileManager?: ProfileManager, memorySystem?: OneAgentMemory) {
     super();
-    this.profileManager = ProfileManager.getInstance();
-    const memoryConfig: OneAgentMemoryConfig = {
-      apiKey: process.env.MEM0_API_KEY || 'demo-key',
-      apiUrl: process.env.MEM0_API_URL,
-    };
-    this.memorySystem = OneAgentMemory.getInstance(memoryConfig);
-  }
-
-  public static getInstance(): EvolutionEngine {
-    if (!EvolutionEngine.instance) {
-      EvolutionEngine.instance = new EvolutionEngine();
-    }
-    return EvolutionEngine.instance;
+    this.profileManager = profileManager || ProfileManager.getInstance();
+    this.memorySystem = memorySystem || getOneAgentMemory();
   }
 
   /**
@@ -386,7 +376,7 @@ export class EvolutionEngine extends EventEmitter {
     try {
       // Use canonical memory bridge to fetch recent conversations (limit 10)
       const res = await this.memorySystem.searchMemory({ query: userId, limit: 10 });
-      return Array.isArray(res?.results) ? (res?.results as unknown[]) : [];
+      return Array.isArray(res) ? (res as unknown[]) : [];
     } catch (error) {
       await this.errorHandler.handleError(error instanceof Error ? error : String(error), {
         operation: 'getRecentConversations',

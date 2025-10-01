@@ -31,6 +31,7 @@ import {
   OneAgentUnifiedBackbone,
 } from '../utils/UnifiedBackboneService';
 import { OneAgentMemory } from '../memory/OneAgentMemory';
+import { getOneAgentMemory } from '../utils/UnifiedBackboneService';
 
 import { EnhancedSearchTool } from './EnhancedSearchTool';
 import { SystemHealthTool } from './SystemHealthTool';
@@ -116,9 +117,14 @@ export class ToolRegistry {
    * Registers all non-memory tools and initializes categories in the unified cache.
    * Logging is handled in registerTool and logCategoryStatus.
    */
-  constructor() {
+  /**
+   * @param opts.memorySystem Optionally inject a canonical OneAgentMemory instance (DI preferred)
+   */
+  constructor(opts: { memorySystem?: OneAgentMemory } = {}) {
+    this.memorySystem = opts.memorySystem || null;
     this.initializeCategories();
     this.registerNonMemoryTools();
+    this.registerMemoryTools();
     this.initialized = true;
   }
 
@@ -128,7 +134,7 @@ export class ToolRegistry {
    */
   setMemorySystem(memorySystem: OneAgentMemory): void {
     this.memorySystem = memorySystem;
-    this.registerNonMemoryTools();
+    this.registerMemoryTools();
   }
 
   /**
@@ -212,44 +218,44 @@ export class ToolRegistry {
       exposeToMCP: true,
     });
 
-    // Canonical OneAgent memory tools (the only standard, best-practice memory tools)
-    const canonicalMemoryClient = OneAgentMemory.getInstance({
-      requestTimeout: 15000, // Increased timeout for MCP operations
-      enableCaching: true,
-    });
-    this.registerTool(new OneAgentMemorySearchTool(canonicalMemoryClient), {
-      category: ToolCategory.MEMORY_CONTEXT,
-      constitutionalLevel: 'critical',
-      priority: 10,
-      exposeToMCP: true,
-    });
-    this.registerTool(new OneAgentMemoryAddTool(canonicalMemoryClient), {
-      category: ToolCategory.MEMORY_CONTEXT,
-      constitutionalLevel: 'critical',
-      priority: 10,
-      exposeToMCP: true,
-    });
-    this.registerTool(new OneAgentMemoryEditTool(canonicalMemoryClient), {
-      category: ToolCategory.MEMORY_CONTEXT,
-      constitutionalLevel: 'critical',
-      priority: 10,
-      exposeToMCP: true,
-    });
-    this.registerTool(new OneAgentMemoryDeleteTool(canonicalMemoryClient), {
-      category: ToolCategory.MEMORY_CONTEXT,
-      constitutionalLevel: 'critical',
-      priority: 10,
-      exposeToMCP: true,
-    });
-
-    // NOTE: EnhancedAIAssistantTool REMOVED to maintain clear separation of concerns
-    // Memory operations are handled by dedicated MemoryCreateTool and MemorySearchTool
-    // AI assistance should be separate from memory management for clarity
-
-    if (!(process.env.ONEAGENT_FAST_TEST_MODE === '1' || process.env.NODE_ENV === 'test')) {
-      this.logCategoryStatus();
-    }
+    // Memory tools are registered in registerMemoryTools()
   }
+
+  /**
+   * Register canonical OneAgent memory tools using the injected or canonical memory system.
+   */
+  private registerMemoryTools(): void {
+    const memoryClient = this.memorySystem || getOneAgentMemory();
+    this.registerTool(new OneAgentMemorySearchTool(memoryClient), {
+      category: ToolCategory.MEMORY_CONTEXT,
+      constitutionalLevel: 'critical',
+      priority: 10,
+      exposeToMCP: true,
+    });
+    this.registerTool(new OneAgentMemoryAddTool(memoryClient), {
+      category: ToolCategory.MEMORY_CONTEXT,
+      constitutionalLevel: 'critical',
+      priority: 10,
+      exposeToMCP: true,
+    });
+    this.registerTool(new OneAgentMemoryEditTool(memoryClient), {
+      category: ToolCategory.MEMORY_CONTEXT,
+      constitutionalLevel: 'critical',
+      priority: 10,
+      exposeToMCP: true,
+    });
+    this.registerTool(new OneAgentMemoryDeleteTool(memoryClient), {
+      category: ToolCategory.MEMORY_CONTEXT,
+      constitutionalLevel: 'critical',
+      priority: 10,
+      exposeToMCP: true,
+    });
+  }
+  // NOTE: EnhancedAIAssistantTool REMOVED to maintain clear separation of concerns
+  // Memory operations are handled by dedicated MemoryCreateTool and MemorySearchTool
+  // AI assistance should be separate from memory management for clarity
+
+  // Category status logging is now handled in logCategoryStatus()
 
   /**
    * Register a new tool with metadata (idempotent, async, canonical).
@@ -287,7 +293,7 @@ export class ToolRegistry {
     const registration: ToolRegistration = {
       tool,
       metadata: fullMetadata,
-      registeredAt: new Date(),
+      registeredAt: new Date(createUnifiedTimestamp().iso),
       usageCount: 0,
     };
 
@@ -428,7 +434,7 @@ export class ToolRegistry {
     try {
       // Update usage tracking
       registration.usageCount++;
-      registration.lastUsed = new Date();
+      registration.lastUsed = new Date(createUnifiedTimestamp().iso);
 
       // Save updated usage to cache
       tools[name] = registration;

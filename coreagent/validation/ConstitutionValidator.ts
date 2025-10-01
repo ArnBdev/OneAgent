@@ -1,4 +1,4 @@
-import { OneAgentMemory } from '../memory/OneAgentMemory';
+import { getOneAgentMemory } from '../utils/UnifiedBackboneService';
 import { getModelFor } from '../config/UnifiedModelPicker';
 import { embeddingCacheService } from '../services/EmbeddingCacheService';
 
@@ -23,7 +23,7 @@ export interface ComplianceResult {
  * - If a high-similarity rule contains a prohibitive pattern, block execution
  */
 export class ConstitutionValidator {
-  private memory = OneAgentMemory.getInstance();
+  private memory = getOneAgentMemory();
   private gemini = getModelFor('embedding_text');
 
   constructor(private opts: { topK?: number; threshold?: number } = {}) {}

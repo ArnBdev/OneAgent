@@ -3,7 +3,7 @@
  */
 import SyncService, { splitIntoRules, inferDomainFromFilename } from '../../services/SyncService';
 import { OneAgentMemory } from '../../memory/OneAgentMemory';
-import type { UnifiedMetadata } from '../../types/oneagent-backbone-types';
+// Removed unused UnifiedMetadata import
 import { promises as fs } from 'fs';
 
 jest.mock('fs', () => {
@@ -99,9 +99,7 @@ describe('SyncService.syncConstitution', () => {
     jest.spyOn(geminiModule.GeminiClient.prototype, 'generateEmbedding').mockResolvedValue(mockEmb);
 
     // Spy on memory
-    const addSpy = jest
-      .spyOn(OneAgentMemory.prototype, 'addMemoryCanonical')
-      .mockResolvedValue('mem_1');
+    const addSpy = jest.spyOn(OneAgentMemory.prototype, 'addMemory').mockResolvedValue('mem_1');
 
     const svc = new SyncService('specs');
     await svc.syncConstitution();
@@ -111,18 +109,28 @@ describe('SyncService.syncConstitution', () => {
     expect(calls.length).toBeGreaterThanOrEqual(3);
 
     // Validate a call's metadata shape
-    const [content, metadata, userId] = calls[0] as [
-      string,
-      Partial<UnifiedMetadata> & {
-        content?: { category?: string; tags?: unknown };
-        embedding?: unknown;
-      },
-      string,
-    ];
-    expect(typeof content).toBe('string');
-    expect(userId).toBe('system');
-    expect(metadata.content && metadata.content.category).toBe('constitutional_rule');
-    const tagsField = (metadata.content as { tags?: unknown } | undefined)?.tags;
-    expect(Array.isArray(tagsField)).toBe(true);
+    const [req] = calls[0] as [{ content: string; metadata: Record<string, unknown> }];
+    // Validate a call's MemoryAddRequest shape
+    expect(typeof req.content).toBe('string');
+    expect(req.metadata.userId).toBe('system');
+    if (
+      req.metadata.content &&
+      typeof req.metadata.content === 'object' &&
+      'category' in req.metadata.content
+    ) {
+      expect((req.metadata.content as { category: string }).category).toBe('constitutional_rule');
+    } else {
+      throw new Error('metadata.content.category missing');
+    }
+    if (
+      req.metadata.content &&
+      typeof req.metadata.content === 'object' &&
+      'tags' in req.metadata.content
+    ) {
+      const tags = (req.metadata.content as { tags: unknown }).tags;
+      expect(Array.isArray(tags)).toBe(true);
+    } else {
+      throw new Error('metadata.content.tags missing');
+    }
   });
 });

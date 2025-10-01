@@ -356,7 +356,7 @@ export class HealthMonitoringService extends EventEmitter {
       // Include unified cache health from canonical backbone
       try {
         const backbone = await import('../utils/UnifiedBackboneService');
-        const cacheHealth = backbone.OneAgentUnifiedBackbone.getInstance().cache.getHealth();
+        const cacheHealth = await backbone.OneAgentUnifiedBackbone.getInstance().cache.getHealth();
         details.unifiedCache = cacheHealth;
       } catch (e) {
         details.unifiedCache = { error: String(e) };

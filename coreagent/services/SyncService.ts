@@ -3,6 +3,7 @@ import { join } from 'path';
 import { createHash } from 'crypto';
 
 import { OneAgentMemory } from '../memory/OneAgentMemory';
+import { getOneAgentMemory } from '../utils/UnifiedBackboneService';
 import { GeminiClient } from '../tools/geminiClient';
 import { getModelFor, getEmbeddingModel } from '../config/UnifiedModelPicker';
 import { unifiedMetadataService, createUnifiedTimestamp } from '../utils/UnifiedBackboneService';
@@ -70,28 +71,28 @@ export class SyncService {
   // Canonical: Use unified cache for persistent/cross-agent state
   private cache = OneAgentUnifiedBackbone.getInstance().cache;
   // Example: persistent task state (futureproof pattern, async cache access)
-  async getActiveTasks(): Promise<Map<string, unknown>> {
+  async getActiveTasks(): Promise<Record<string, unknown>> {
     let tasks = await this.cache.get('activeTasks');
     if (!tasks) {
-      tasks = new Map<string, unknown>();
+      tasks = {};
       await this.cache.set('activeTasks', tasks);
     }
-    return tasks as Map<string, unknown>;
+    return tasks as Record<string, unknown>;
   }
-  async getTaskContexts(): Promise<Map<string, string[]>> {
+  async getTaskContexts(): Promise<Record<string, string[]>> {
     let ctx = await this.cache.get('taskContexts');
     if (!ctx) {
-      ctx = new Map<string, string[]>();
+      ctx = {};
       await this.cache.set('taskContexts', ctx);
     }
-    return ctx as Map<string, string[]>;
+    return ctx as Record<string, string[]>;
   }
   private existingRuleIds: Set<string> = new Set();
   // Removed local embedding cache in favor of shared EmbeddingCacheService
 
-  constructor(specsDir = join(process.cwd(), 'specs')) {
+  constructor(specsDir = join(process.cwd(), 'specs'), memory?: OneAgentMemory) {
     this.specsDir = specsDir;
-    this.memory = OneAgentMemory.getInstance();
+    this.memory = memory || getOneAgentMemory();
     // Use explicit embedding capability (returns lightweight generation client; model name via getEmbeddingModel())
     const client = getModelFor('embedding_text');
     this.embeddingModel = getEmbeddingModel() as 'gemini-embedding-001';
@@ -221,8 +222,8 @@ export class SyncService {
             metadata: { type: 'constitutional_rule', domain, timestamp: ts },
           };
 
-          // Store in memory using canonical metadata
-          const metadata = unifiedMetadataService.create('memory', 'SyncService', {
+          // Store in memory using canonical metadata (await the async creation)
+          const metadata = await unifiedMetadataService.create('memory', 'SyncService', {
             system: {
               userId: 'system',
               source: 'SyncService',

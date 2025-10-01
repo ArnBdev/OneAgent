@@ -5,8 +5,7 @@ import ConstitutionValidator from '../../validation/ConstitutionValidator';
 import { OneAgentMemory } from '../../memory/OneAgentMemory';
 import { GeminiClient } from '../../tools/geminiClient';
 import type { EmbeddingResult } from '../../types/gemini';
-import { createUnifiedTimestamp } from '../../utils/UnifiedBackboneService';
-import type { MemoryRecord, MemorySearchResult } from '../../types/oneagent-backbone-types';
+// Removed unused imports after canonical mock fix
 
 // Ensure fast mode is disabled for these tests so validator doesn't auto-allow
 delete process.env.ONEAGENT_FAST_TEST_MODE;
@@ -19,78 +18,18 @@ describe('ConstitutionValidator.check', () => {
   });
 
   function mockSearchMemoryWith(rules: string[]) {
-    const results: MemoryRecord[] = rules.map((r, i) => ({
+    // Canonical MemorySearchResult[] mock
+    const payload = rules.map((r, i) => ({
       id: `r${i}`,
       content: r,
       metadata: {
-        id: `m${i}`,
         type: 'memory',
-        version: '1.0',
-        temporal: {
-          created: {
-            iso: new Date().toISOString(),
-            unix: createUnifiedTimestamp().unix,
-            utc: new Date().toUTCString(),
-            local: new Date().toString(),
-            timezone: 'UTC',
-            context: 'test',
-            contextual: { timeOfDay: 'morning', energyLevel: 'high', optimalFor: [] },
-            metadata: { source: 'test', precision: 'second', timezone: 'UTC' },
-          },
-          updated: {
-            iso: new Date().toISOString(),
-            unix: createUnifiedTimestamp().unix,
-            utc: new Date().toUTCString(),
-            local: new Date().toString(),
-            timezone: 'UTC',
-            context: 'test',
-            contextual: { timeOfDay: 'morning', energyLevel: 'high', optimalFor: [] },
-            metadata: { source: 'test', precision: 'second', timezone: 'UTC' },
-          },
-          contextSnapshot: {
-            timeOfDay: 'morning',
-            dayOfWeek: 'Monday',
-            businessContext: false,
-            energyContext: 'standard',
-          },
-        },
-        system: { source: 'test', component: 'unit', userId: 'system' },
-        quality: {
-          score: 1,
-          constitutionalCompliant: true,
-          validationLevel: 'basic',
-          confidence: 1,
-        },
-        content: {
-          category: 'constitutional_rule',
-          tags: ['test'],
-          sensitivity: 'internal',
-          relevanceScore: 1,
-          contextDependency: 'global',
-        },
-        relationships: { children: [], related: [], dependencies: [] },
-        analytics: { accessCount: 0, lastAccessPattern: 'n/a', usageContext: [] },
+        userId: 'system',
+        category: 'constitutional_rule',
+        tags: ['test'],
+        timestamp: new Date().toISOString(),
       },
-      relatedMemories: [],
-      accessCount: 0,
-      lastAccessed: new Date(),
-      qualityScore: 0,
-      constitutionalStatus: 'compliant',
-      lastValidation: new Date(),
     }));
-    const payload: MemorySearchResult = {
-      results,
-      totalFound: results.length,
-      totalResults: results.length,
-      searchTime: 1,
-      averageRelevance: 0,
-      averageQuality: 0,
-      constitutionalCompliance: 1,
-      queryContext: [],
-      suggestedRefinements: [],
-      relatedQueries: [],
-      query: 'constitutional_rule',
-    };
     jest.spyOn(OneAgentMemory.prototype, 'searchMemory').mockResolvedValue(payload);
   }
 

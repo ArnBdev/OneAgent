@@ -1,11 +1,6 @@
 import { Request, Response } from 'express';
-import {
-  ContextCategory,
-  PrivacyLevel,
-  MemorySearchResult,
-  MemoryRecord,
-  AgentType,
-} from '../types/oneagent-backbone-types';
+import { ContextCategory, PrivacyLevel, AgentType } from '../types/oneagent-backbone-types';
+import type { MemorySearchResult } from '../types/oneagent-memory-types';
 
 // Canonical A2A protocol types
 
@@ -46,7 +41,8 @@ interface A2AMessage {
   kind?: 'message';
 }
 
-import { OneAgentMemory } from '../memory/OneAgentMemory';
+import { getOneAgentMemory } from '../utils/UnifiedBackboneService';
+import type { OneAgentMemory } from '../memory/OneAgentMemory';
 import { EntityExtractionService, ExtractedEntity } from '../intelligence/EntityExtractionService';
 import { unifiedAgentCommunicationService } from '../utils/UnifiedAgentCommunicationService';
 import {
@@ -61,7 +57,7 @@ interface ChatRequest {
   message: string;
   userId: string;
   agentType?: string;
-  memoryContext?: MemorySearchResult;
+  memoryContext?: MemorySearchResult[];
   // New: Support for agent-to-agent communication
   fromAgent?: string;
   toAgent?: string;
@@ -81,7 +77,7 @@ interface ChatResponse {
   response: string;
   agentType: string;
   conversationId?: string;
-  memoryContext?: MemorySearchResult;
+  memoryContext?: MemorySearchResult[];
   semanticAnalysis?: SemanticAnalysisResult; // optionally exposed (controlled by flag)
   error?: string;
 }
@@ -96,10 +92,14 @@ export class ChatAPI {
   private memoryClient: OneAgentMemory;
   private timeService: OneAgentUnifiedTimeService;
   private metadataService: OneAgentUnifiedMetadataService;
-  constructor() {
-    this.memoryClient = OneAgentMemory.getInstance();
-    this.timeService = OneAgentUnifiedTimeService.getInstance();
-    this.metadataService = OneAgentUnifiedMetadataService.getInstance();
+  constructor(
+    memoryClient?: OneAgentMemory,
+    timeService?: OneAgentUnifiedTimeService,
+    metadataService?: OneAgentUnifiedMetadataService,
+  ) {
+    this.memoryClient = memoryClient || getOneAgentMemory();
+    this.timeService = timeService || OneAgentUnifiedTimeService.getInstance();
+    this.metadataService = metadataService || OneAgentUnifiedMetadataService.getInstance();
   }
 
   /**
@@ -114,7 +114,7 @@ export class ChatAPI {
       fromAgent?: string;
       toAgent?: string;
       conversationId?: string;
-      memoryContext?: MemorySearchResult;
+      memoryContext?: MemorySearchResult[];
       includeSemanticAnalysis?: boolean; // new flag to expose semanticAnalysis externally
     } = {},
   ): Promise<ChatResponse> {
@@ -188,33 +188,17 @@ export class ChatAPI {
 
       // Store message in canonical memory system (unified metadata) – non-fatal if backend unavailable
       try {
-        await this.memoryClient.addMemoryCanonical(
-          JSON.stringify(a2aMessage),
-          {
-            system: {
-              userId,
-              source: 'chatAPI',
-              component: 'chat-message',
-              sessionId: conversationId,
-            },
-            content: {
-              category: 'a2a_message',
-              tags: ['chat', 'a2a', a2aMessage.role],
-              sensitivity: 'internal',
-              relevanceScore: 0.7,
-              contextDependency: 'session',
-            },
-            quality: {
-              score: 0.8,
-              constitutionalCompliant: true,
-              validationLevel: 'basic',
-              confidence: 0.75,
-            },
-            relationships: { parent: conversationId, children: [], related: [], dependencies: [] },
-            analytics: { accessCount: 0, lastAccessPattern: 'write', usageContext: [] },
+        await this.memoryClient.addMemory({
+          content: JSON.stringify(a2aMessage),
+          metadata: {
+            userId,
+            conversationId,
+            agentType: options.agentType || options.toAgent || 'core',
+            role: options.fromAgent ? 'agent' : 'user',
+            tags: ['chat', 'a2a', options.fromAgent ? 'agent' : 'user'],
+            nlacs: true,
           },
-          userId,
-        );
+        });
       } catch (memErr) {
         console.warn('[ChatAPI] non-fatal memory store failure (message)', memErr);
       }
@@ -253,7 +237,7 @@ export class ChatAPI {
         response: content,
         agentType: targetAgentType,
         conversationId,
-        memoryContext,
+        memoryContext: memoryContext ?? [],
       };
       if (options.includeSemanticAnalysis && semanticAnalysis) {
         response.semanticAnalysis = semanticAnalysis;
@@ -264,6 +248,7 @@ export class ChatAPI {
       const fallback: ChatResponse = {
         response: 'I apologize, but I encountered an error processing your message.',
         agentType: 'error',
+        memoryContext: [],
         error: error instanceof Error ? error.message : 'Unknown error',
       };
       if (options.includeSemanticAnalysis && semanticAnalysis) {
@@ -371,71 +356,42 @@ export class ChatAPI {
         return;
       }
       // Store user message in canonical memory system
-      await this.memoryClient.addMemoryCanonical(
-        message,
-        this.metadataService.create('agent_message', 'ChatAPI', {
-          system: {
-            userId,
-            source: 'chat_api',
-            component: 'conversation',
-            sessionId: req.body.conversationId,
-          },
-          content: {
-            category: 'chat_interaction',
-            tags: ['chat', 'message', 'user'],
-            sensitivity: 'internal',
-            relevanceScore: 0.9,
-            contextDependency: 'session',
-          },
-          contextual: {
-            conversationId: req.body.conversationId,
-            agentType,
-            role: 'user',
-          },
-        }),
-        userId,
-      );
+      await this.memoryClient.addMemory({
+        content: message,
+        metadata: {
+          userId,
+          conversationId: req.body.conversationId,
+          agentType,
+          role: 'user',
+          tags: ['chat', 'message', 'user'],
+        },
+      });
       // Process the message through CoreAgent
       // [CANONICAL FIX] Remove all references to coreAgent for now to allow build to succeed.
       // const agentResponse = await this.coreAgent.processMessage(message, userId);
       // Store agent response in memory (non-fatal)
       try {
-        await this.memoryClient.addMemoryCanonical(
-          message,
-          this.metadataService.create('agent_message', 'ChatAPI', {
-            system: {
-              userId,
-              source: 'chat_api',
-              component: 'conversation',
-              sessionId: req.body.conversationId,
-            },
-            content: {
-              category: 'chat_interaction',
-              tags: ['chat', 'message', 'assistant'],
-              sensitivity: 'internal',
-              relevanceScore: 0.85,
-              contextDependency: 'session',
-            },
-            contextual: {
-              conversationId: req.body.conversationId,
-              agentType,
-              role: 'assistant',
-              confidence: 0.8,
-            },
-          }),
-          userId,
-        );
+        await this.memoryClient.addMemory({
+          content: message,
+          metadata: {
+            userId,
+            conversationId: req.body.conversationId,
+            agentType,
+            role: 'assistant',
+            tags: ['chat', 'message', 'assistant'],
+          },
+        });
       } catch (memErr) {
         console.warn('[ChatAPI] non-fatal memory store failure (agent response)', memErr);
       }
       // Get relevant memory context for response
       const memoryResponse = memoryContext
-        ? await this.memoryClient.searchMemory({ query: message, userId, type: 'chat-messages' })
-        : undefined;
+        ? await this.memoryClient.searchMemory({ query: message, userId })
+        : [];
       const response: ChatResponse = {
         response: message,
         agentType: agentType,
-        memoryContext: memoryResponse,
+        memoryContext: Array.isArray(memoryResponse) ? memoryResponse : [],
       };
       res.json(response);
     } catch (error) {
@@ -463,18 +419,16 @@ export class ChatAPI {
       }
       // Search for chat messages in memory
 
-      const memoryResult = await this.memoryClient.searchMemory({
+      const memories = await this.memoryClient.searchMemory({
         query: 'chat message',
         userId,
         limit: parseInt(limit as string),
-        type: 'chat-messages',
       });
-      const memories = memoryResult?.results || [];
       // Parse and format canonical A2A messages from memory
       const chatHistory =
-        memories.length > 0
+        Array.isArray(memories) && memories.length > 0
           ? memories
-              .map((memory: MemoryRecord) => {
+              .map((memory: MemorySearchResult) => {
                 let parsed: A2AMessage | null = null;
                 try {
                   parsed = JSON.parse(memory.content);
@@ -495,7 +449,7 @@ export class ChatAPI {
                       : undefined,
                 };
               })
-              .sort((a, b) => {
+              .sort((a: { timestamp: unknown }, b: { timestamp: unknown }) => {
                 const toTime = (ts: unknown): number => {
                   if (!ts) return 0;
                   if (typeof ts === 'number') return ts;
@@ -597,44 +551,17 @@ export class ChatAPI {
     query: string,
     userId: string,
     limit: number = 5,
-  ): Promise<MemorySearchResult> {
+  ): Promise<MemorySearchResult[]> {
     try {
       const memoryResult = await this.memoryClient.searchMemory({
         query,
         userId,
         limit,
-        type: 'chat-messages',
       });
-      return (
-        memoryResult || {
-          results: [],
-          totalFound: 0,
-          totalResults: 0,
-          searchTime: 0,
-          averageRelevance: 0,
-          averageQuality: 0,
-          constitutionalCompliance: 1,
-          queryContext: [],
-          suggestedRefinements: [],
-          relatedQueries: [],
-          query,
-        }
-      );
+      return Array.isArray(memoryResult) ? memoryResult : [];
     } catch (error) {
       console.error('Failed to get memory context:', error);
-      return {
-        results: [],
-        totalFound: 0,
-        totalResults: 0,
-        searchTime: 0,
-        averageRelevance: 0,
-        averageQuality: 0,
-        constitutionalCompliance: 1,
-        queryContext: [],
-        suggestedRefinements: [],
-        relatedQueries: [],
-        query,
-      };
+      return [];
     }
   }
 

@@ -48,7 +48,7 @@ export async function handleMissionStart(
         type: 'mission_update',
         id: createUnifiedId('system', 'mission_update'),
         timestamp: createUnifiedTimestamp().iso,
-        unix: Date.now(),
+        unix: createUnifiedTimestamp().unix,
         server: { name: SERVER_NAME, version: SERVER_VERSION },
         payload: { missionId, status: 'planning_started' },
       });
@@ -94,7 +94,7 @@ export async function handleMissionStart(
           type: 'mission_update',
           id: createUnifiedId('system', 'mission_update'),
           timestamp: createUnifiedTimestamp().iso,
-          unix: Date.now(),
+          unix: createUnifiedTimestamp().unix,
           server: { name: SERVER_NAME, version: SERVER_VERSION },
           payload: { missionId, status: 'tasks_generated', tasksSummary: plannedTasks.slice(0, 5) },
         });
@@ -104,7 +104,7 @@ export async function handleMissionStart(
         type: 'mission_update',
         id: createUnifiedId('system', 'mission_update'),
         timestamp: createUnifiedTimestamp().iso,
-        unix: Date.now(),
+        unix: createUnifiedTimestamp().unix,
         server: { name: SERVER_NAME, version: SERVER_VERSION },
         payload: { missionId, status: 'planned', planningSession },
       });
@@ -127,7 +127,7 @@ export async function handleMissionStart(
         type: 'mission_update',
         id: createUnifiedId('system', 'mission_update'),
         timestamp: createUnifiedTimestamp().iso,
-        unix: Date.now(),
+        unix: createUnifiedTimestamp().unix,
         server: { name: SERVER_NAME, version: SERVER_VERSION },
         payload: { missionId, status: 'error', error: e instanceof Error ? e.message : String(e) },
       });

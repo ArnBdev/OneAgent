@@ -343,29 +343,27 @@ export class EnhancedChatAPI {
       `${message.fromParticipant.name}: ${message.content}\n` +
       `${agentResponse.metadata?.agentType || 'Agent'}: ${agentResponse.content}`;
 
-    await this.unifiedMemoryClient.store(
-      conversationText,
-      unifiedMetadataService.create('memory', 'UniversalConversationGateway', {
-        system: {
-          source: 'UniversalConversationGateway',
-          component: 'conversation-system',
-          userId,
-        },
-        content: {
-          category: 'universal_conversation',
-          tags: [message.fromParticipant.type, 'agent'],
-          sensitivity: 'internal',
-          relevanceScore: 1.0,
-          contextDependency: 'session',
-        },
-        quality: {
-          score: 1.0,
-          confidence: 1.0,
-          constitutionalCompliant: true,
-          validationLevel: 'enhanced',
-        },
-      }),
-    );
+    const metadata = await unifiedMetadataService.create('memory', 'UniversalConversationGateway', {
+      system: {
+        source: 'UniversalConversationGateway',
+        component: 'conversation-system',
+        userId,
+      },
+      content: {
+        category: 'universal_conversation',
+        tags: [message.fromParticipant.type, 'agent'],
+        sensitivity: 'internal',
+        relevanceScore: 1.0,
+        contextDependency: 'session',
+      },
+      quality: {
+        score: 1.0,
+        confidence: 1.0,
+        constitutionalCompliant: true,
+        validationLevel: 'enhanced',
+      },
+    });
+    await this.unifiedMemoryClient.store(conversationText, metadata);
   }
 
   private extractAgentType(agent: ISpecializedAgent): AgentType {

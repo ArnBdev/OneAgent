@@ -13,6 +13,7 @@ import { EventEmitter } from 'events';
 import { generateUnifiedId } from '../../utils/UnifiedBackboneService';
 import { unifiedAgentCommunicationService } from '../../utils/UnifiedAgentCommunicationService';
 import { OneAgentMemory } from '../../memory/OneAgentMemory';
+import { getOneAgentMemory } from '../../utils/UnifiedBackboneService';
 import { OneAgentUnifiedBackbone } from '../../utils/UnifiedBackboneService';
 import { UnifiedBackboneService } from '../../utils/UnifiedBackboneService';
 import { unifiedMonitoringService } from '../../monitoring/UnifiedMonitoringService';
@@ -305,31 +306,49 @@ export class OneAgentA2AProtocol extends EventEmitter {
   // Canonical: Use unified cache for persistent/cross-agent state
   private cache = OneAgentUnifiedBackbone.getInstance().cache;
 
-  // Canonical async accessors for persistent state
+  // Canonical async accessors for persistent state (use plain objects for cache)
   async getActiveTasks(): Promise<Map<string, Task>> {
-    let tasks = await this.cache.get('activeTasks');
-    if (!tasks) {
-      tasks = new Map<string, Task>();
-      await this.cache.set('activeTasks', tasks);
+    let tasksObj = await this.cache.get('activeTasks');
+    if (!tasksObj) {
+      tasksObj = {};
+      await this.cache.set('activeTasks', tasksObj);
     }
-    return tasks as Map<string, Task>;
+    // Convert plain object to Map for in-memory use
+    const typedTasksObj = tasksObj as Record<string, Task>;
+    /**
+     * Justified: ephemeral, algorithm-local Map for in-memory conversion only (not a persistent cache).
+     * All persistent state is stored in the unified cache as plain objects.
+     * This pattern is allowed per OneAgent canonicalization policy.
+     */
+    return new Map(Object.entries(typedTasksObj));
   }
 
   async setActiveTasks(tasks: Map<string, Task>): Promise<void> {
-    await this.cache.set('activeTasks', tasks);
+    // Convert Map to plain object for cache
+    const obj: Record<string, Task> = {};
+    for (const [k, v] of tasks.entries()) obj[k] = v;
+    await this.cache.set('activeTasks', obj);
   }
 
   async getTaskContexts(): Promise<Map<string, string[]>> {
-    let ctx = await this.cache.get('taskContexts');
-    if (!ctx) {
-      ctx = new Map<string, string[]>();
-      await this.cache.set('taskContexts', ctx);
+    let ctxObj = await this.cache.get('taskContexts');
+    if (!ctxObj) {
+      ctxObj = {};
+      await this.cache.set('taskContexts', ctxObj);
     }
-    return ctx as Map<string, string[]>;
+    const typedCtxObj = ctxObj as Record<string, string[]>;
+    /**
+     * Justified: ephemeral, algorithm-local Map for in-memory conversion only (not a persistent cache).
+     * All persistent state is stored in the unified cache as plain objects.
+     * This pattern is allowed per OneAgent canonicalization policy.
+     */
+    return new Map(Object.entries(typedCtxObj));
   }
 
   async setTaskContexts(ctx: Map<string, string[]>): Promise<void> {
-    await this.cache.set('taskContexts', ctx);
+    const obj: Record<string, string[]> = {};
+    for (const [k, v] of ctx.entries()) obj[k] = v;
+    await this.cache.set('taskContexts', obj);
   }
   private unifiedBackbone: OneAgentUnifiedBackbone;
   private memory: OneAgentMemory;
@@ -344,8 +363,8 @@ export class OneAgentA2AProtocol extends EventEmitter {
   constructor(agentCard: AgentCard) {
     super();
     this.unifiedBackbone = OneAgentUnifiedBackbone.getInstance();
-    // Use canonical singleton access instead of dynamic require to avoid parallel systems
-    this.memory = OneAgentMemory.getInstance();
+    // Canonical: use getOneAgentMemory() accessor
+    this.memory = getOneAgentMemory();
     this.agentCard = agentCard;
 
     console.log('🚀 OneAgent A2A Protocol initialized');
@@ -528,7 +547,7 @@ export class OneAgentA2AProtocol extends EventEmitter {
     const result = await this.processMessageThroughAgent(params.message, task);
 
     // Store in memory
-    const adapter = CommunicationPersistenceAdapter.getInstance();
+    const adapter = new CommunicationPersistenceAdapter();
     await adapter.persistTask({
       taskId: task.id,
       contextId: task.contextId,
@@ -615,7 +634,7 @@ export class OneAgentA2AProtocol extends EventEmitter {
     // Persist updated state
     await this.setActiveTasks(activeTasks);
 
-    const adapter2 = CommunicationPersistenceAdapter.getInstance();
+    const adapter2 = new CommunicationPersistenceAdapter();
     await adapter2.persistTask({
       taskId: task.id,
       contextId: task.contextId,
@@ -966,7 +985,7 @@ export class OneAgentA2AProtocol extends EventEmitter {
   }): Promise<string> {
     const messageId = generateUnifiedId('message');
     const timestamp = this.unifiedBackbone.getServices().timeService.now();
-    const adapter = CommunicationPersistenceAdapter.getInstance();
+    const adapter = new CommunicationPersistenceAdapter();
 
     // Create A2A compliant message (unchanged external behavior)
     const message: Message = {
@@ -1304,7 +1323,7 @@ Response Required: ${params.requiresResponse ? 'Yes' : 'No'}
     status: 'active' | 'inactive' | 'busy' | 'offline',
   ): Promise<void> {
     const start = this.unifiedBackbone.getServices().timeService.now().unix;
-    const adapter = CommunicationPersistenceAdapter.getInstance();
+    const adapter = new CommunicationPersistenceAdapter();
     try {
       await adapter.persistAgentStatus({ agentId, status });
       unifiedMonitoringService.trackOperation(
@@ -1344,7 +1363,7 @@ Response Required: ${params.requiresResponse ? 'Yes' : 'No'}
     const discussionId = generateUnifiedId('discussion');
     const services = this.unifiedBackbone.getServices();
     const timestamp = services.timeService.now();
-    const adapter = CommunicationPersistenceAdapter.getInstance();
+    const adapter = new CommunicationPersistenceAdapter();
 
     await adapter.persistDiscussion({
       discussionId,
@@ -1412,7 +1431,7 @@ Response Required: ${params.requiresResponse ? 'Yes' : 'No'}
         );
 
         // Update discussion in memory
-        const adapter = CommunicationPersistenceAdapter.getInstance();
+        const adapter = new CommunicationPersistenceAdapter();
         await adapter.persistDiscussionUpdate({
           discussion: parsedDiscussion,
           discussionId,
@@ -1459,7 +1478,7 @@ Response Required: ${params.requiresResponse ? 'Yes' : 'No'}
     const opStart = this.unifiedBackbone.getServices().timeService.now().unix;
     const timestamp = this.unifiedBackbone.getServices().timeService.now();
     const messageId = generateUnifiedId('message');
-    const adapter = CommunicationPersistenceAdapter.getInstance();
+    const adapter = new CommunicationPersistenceAdapter();
 
     const message: Message = {
       id: messageId,
@@ -1501,7 +1520,7 @@ Response Required: ${params.requiresResponse ? 'Yes' : 'No'}
         const discussion: AgentDiscussion = JSON.parse(memoryResults2[0].content);
         discussion.messages.push(message);
         discussion.lastActivity = new Date(timestamp.utc);
-        const adapter2 = CommunicationPersistenceAdapter.getInstance();
+        const adapter2 = new CommunicationPersistenceAdapter();
         await adapter2.persistDiscussionUpdate({
           discussion,
           discussionId,
@@ -1536,7 +1555,7 @@ Response Required: ${params.requiresResponse ? 'Yes' : 'No'}
     const start = this.unifiedBackbone.getServices().timeService.now().unix;
     const insights: AgentInsight[] = [];
     const timestamp = this.unifiedBackbone.getServices().timeService.now();
-    const adapter = CommunicationPersistenceAdapter.getInstance();
+    const adapter = new CommunicationPersistenceAdapter();
     try {
       const patterns = await this.analyzeConversationPatterns(conversationHistory);
       for (const pattern of patterns) {
@@ -1609,7 +1628,7 @@ Response Required: ${params.requiresResponse ? 'Yes' : 'No'}
     context?: string,
   ): Promise<SynthesizedKnowledge | null> {
     const start = this.unifiedBackbone.getServices().timeService.now().unix;
-    const adapter = CommunicationPersistenceAdapter.getInstance();
+    const adapter = new CommunicationPersistenceAdapter();
     try {
       const timestamp = this.unifiedBackbone.getServices().timeService.now();
       const knowledgeId = generateUnifiedId('knowledge');
@@ -1770,7 +1789,12 @@ Response Required: ${params.requiresResponse ? 'Yes' : 'No'}
     // Simplified pattern analysis - can be enhanced with ML
     const patterns: CommunicationPattern[] = [];
 
-    // Topic frequency analysis
+    // Topic frequency analysis (ephemeral, algorithm-local Map is allowed)
+    /**
+     * Justified: ephemeral, algorithm-local Map for topic frequency analysis (not a persistent cache).
+     * Used only within this method for local computation. No persistent state.
+     * Allowed by OneAgent canonicalization policy.
+     */
     const topicFrequency = new Map<string, number>();
     for (const message of conversationHistory) {
       const topics = this.extractTopics(message.content || '');
@@ -1909,7 +1933,12 @@ Response Required: ${params.requiresResponse ? 'Yes' : 'No'}
     // Simplified collaboration analysis
     const patterns: CommunicationPattern[] = [];
 
-    // Analyze response patterns
+    // Analyze response patterns (ephemeral, algorithm-local Map is allowed)
+    /**
+     * Justified: ephemeral, algorithm-local Map for response pattern analysis (not a persistent cache).
+     * Used only within this method for local computation. No persistent state.
+     * Allowed by OneAgent canonicalization policy.
+     */
     const responsePatterns = new Map<string, number>();
     for (const result of memoryResults) {
       const contributor = result.metadata?.contributor || 'unknown';

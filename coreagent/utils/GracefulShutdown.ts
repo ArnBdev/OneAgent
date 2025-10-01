@@ -2,7 +2,7 @@
  * GracefulShutdown - Canonical global shutdown utility
  * Ensures all active intervals, monitors, and resources are stopped before process exit.
  */
-import { OneAgentUnifiedBackbone } from './UnifiedBackboneService';
+import { OneAgentUnifiedBackbone, createUnifiedTimestamp } from './UnifiedBackboneService';
 import { healthMonitoringService } from '../monitoring/HealthMonitoringService';
 
 export interface ShutdownOptions {
@@ -27,7 +27,7 @@ export class GracefulShutdownManager {
     if (this.shuttingDown) return;
     this.shuttingDown = true;
 
-    const start = Date.now();
+    const start = createUnifiedTimestamp();
     const {
       exit = false,
       timeoutMs = 5000,
@@ -114,13 +114,13 @@ export class GracefulShutdownManager {
         new Promise((resolve) => setTimeout(resolve, timeoutMs)),
       ]);
 
-      const elapsed = Date.now() - start;
+      const elapsed = createUnifiedTimestamp().unix - start.unix;
       this.logger.log(`✅ Graceful shutdown complete in ${elapsed}ms`);
     } catch (err) {
       this.logger.error('❌ Shutdown encountered errors:', err);
     } finally {
       if (exit) {
-        const elapsed = Date.now() - start;
+        const elapsed = createUnifiedTimestamp().unix - start.unix;
         let shouldExit = true;
         if (elapsed > timeoutMs && !forceAfterTimeout) {
           this.logger.warn('⏳ Shutdown timeout exceeded; process left running by configuration');

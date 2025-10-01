@@ -242,7 +242,7 @@ export class DevAgent extends BaseAgent implements ISpecializedAgent {
     this.conversationHistory.push(userMessage);
 
     // Persist user message in unified memory (canonical) with timestamp
-    const brainstormingDoc = await llmClient.generate({
+    try {
       const metadata = unifiedMetadataService.create('dev_agent_user_message', 'DevAgent', {
         system: {
           source: 'dev_agent',
@@ -251,14 +251,16 @@ export class DevAgent extends BaseAgent implements ISpecializedAgent {
           userId: context.user.id,
         },
         content: {
-    const featureSpecDoc = await llmClient.generate({
           tags: ['dev', 'user_message'],
           sensitivity: 'internal',
           relevanceScore: 0.1,
           contextDependency: 'session',
         },
       });
-      await this.memoryClient?.addMemoryCanonical(message, metadata, context.user.id);
+      await this.memoryClient?.addMemory({
+        content: message,
+        metadata
+      });
     } catch (memoryErr) {
       console.warn(`⚠️ DevAgent memory add failed: ${memoryErr}`);
     }
@@ -268,10 +270,20 @@ export class DevAgent extends BaseAgent implements ISpecializedAgent {
     try {
       const search = await this.memoryClient?.searchMemory({
         query: message.slice(0, 80),
+        limit: 3
+        // No forbidden fields (filters, type, semanticSearch)
+      });
+      priorMemories = Array.isArray(search) ? search : [];
+    } catch (searchErr) {
+      console.warn(`⚠️ DevAgent memory search failed: ${searchErr}`);
+    }
+    try {
+      const search = await this.memoryClient?.searchMemory({
+        query: message.slice(0, 80),
         limit: 3,
         filters: { type: 'dev_agent_user_message', agentId: this.config.id },
       });
-      priorMemories = search?.results || [];
+      priorMemories = Array.isArray(search) ? search : [];
     } catch (searchErr) {
       console.warn(`⚠️ DevAgent memory search failed: ${searchErr}`);
     }

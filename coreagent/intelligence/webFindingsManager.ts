@@ -32,9 +32,8 @@ export class WebFindingsManager {
     process.env.ONEAGENT_WEBFINDINGS_NEG_TTL_MS ?? 120000,
   );
 
-  // In-memory caches
-  private searchCache = new Map<string, WebSearchFinding>();
-  private fetchCache = new Map<string, WebFetchFinding>();
+  // Canonical: Use unified cache for all cross-cutting caching
+  // Use OneAgentUnifiedBackbone.getInstance().cache (already assigned to this.cacheSystem)
 
   // File system paths
   private readonly basePath: string;
@@ -156,10 +155,7 @@ export class WebFindingsManager {
         }
 
         if (!this.localCacheDisabled) {
-          this.searchCache.set(finding.id, finding);
-          // Also cache by query hash for quick lookup
-          const queryHash = this.hashQuery(query);
-          this.searchCache.set(queryHash, finding);
+          // Local cache is disabled; do not store in local map (canonical: unified cache only)
         }
         finding.storage.cached = true;
       }
@@ -251,10 +247,7 @@ export class WebFindingsManager {
         }
 
         if (!this.localCacheDisabled) {
-          this.fetchCache.set(finding.id, finding);
-          // Also cache by URL hash for quick lookup
-          const urlHash = this.hashUrl(url);
-          this.fetchCache.set(urlHash, finding);
+          // Local cache is disabled; do not store in local map (canonical: unified cache only)
         }
         finding.storage.cached = true;
       }
@@ -340,7 +333,7 @@ export class WebFindingsManager {
       return {
         cache: {
           size: cacheSize.sizeInMB,
-          entries: this.searchCache.size + this.fetchCache.size,
+          entries: 0, // Canonical: unified cache only, cannot count synchronously
           hitRate: this.stats.operations > 0 ? this.stats.cacheHits / this.stats.operations : 0,
           oldestEntry: cacheSize.oldestEntry,
           newestEntry: cacheSize.newestEntry,
@@ -384,7 +377,7 @@ export class WebFindingsManager {
         spaceSaved += persistentCleanup.spaceSaved;
       }
 
-      retained = this.searchCache.size + this.fetchCache.size;
+      retained = 0; // Canonical: unified cache only
       const endTime = createUnifiedTimestamp();
       const operationTime = endTime.unix - startTime.unix;
 
@@ -636,11 +629,13 @@ export class WebFindingsManager {
         };
       }
 
-      await this.memoryIntelligence.storeMemory(
+      await this.memoryIntelligence.getMemorySystem().addMemory({
         content,
-        finding.metadata.userId || 'system',
-        metadata,
-      );
+        metadata: {
+          ...metadata,
+          userId: finding.metadata.userId || 'system',
+        },
+      });
       console.log(`💾 Finding persisted to memory system: ${finding.id}`);
     } catch (error) {
       console.error('❌ Failed to persist to memory system:', error);
@@ -719,21 +714,7 @@ export class WebFindingsManager {
     }
 
     if (!this.localCacheDisabled) {
-      // Scan local in-memory maps as a fast, ephemeral index
-      for (const finding of Array.from(this.searchCache.values())) {
-        if (!seen.has(finding.id) && this.matchesSearchOptions(finding, options)) {
-          findings.push(finding);
-          seen.add(finding.id);
-          this.stats.cacheHits++;
-        }
-      }
-      for (const finding of Array.from(this.fetchCache.values())) {
-        if (!seen.has(finding.id) && this.matchesSearchOptions(finding, options)) {
-          findings.push(finding);
-          seen.add(finding.id);
-          this.stats.cacheHits++;
-        }
-      }
+      // Local cache is disabled; do not scan local maps (canonical: unified cache only)
     }
 
     // If still empty and a query was provided, set a short negative cache marker
@@ -878,40 +859,14 @@ export class WebFindingsManager {
   }
 
   private calculateCacheSize(): { sizeInMB: number; oldestEntry: string; newestEntry: string } {
-    let totalSize = 0;
     const currentTime = createUnifiedTimestamp();
-    let oldestTime = currentTime.unix; // ms
-    let newestTime = 0; // ms
-    let entries = 0;
 
-    // Calculate search cache size
-    for (const finding of Array.from(this.searchCache.values())) {
-      const findingSize = JSON.stringify(finding).length;
-      totalSize += findingSize;
-      entries++;
-      const timestamp = new Date(finding.metadata.timestamp).getTime();
-      oldestTime = Math.min(oldestTime, timestamp);
-      newestTime = Math.max(newestTime, timestamp);
-    }
-
-    // Calculate fetch cache size
-    for (const finding of Array.from(this.fetchCache.values())) {
-      const findingSize = JSON.stringify(finding).length;
-      totalSize += findingSize;
-      entries++;
-      const timestamp = new Date(finding.metadata.timestamp).getTime();
-      oldestTime = Math.min(oldestTime, timestamp);
-      newestTime = Math.max(newestTime, timestamp);
-    }
-
-    const oldestIso = entries > 0 ? new Date(oldestTime).toISOString() : currentTime.iso;
-    const newestIso =
-      entries > 0 ? new Date(newestTime || oldestTime).toISOString() : currentTime.iso;
+    // Canonical: unified cache only; local caches removed
 
     return {
-      sizeInMB: totalSize / (1024 * 1024),
-      oldestEntry: oldestIso,
-      newestEntry: newestIso,
+      sizeInMB: 0,
+      oldestEntry: currentTime.iso,
+      newestEntry: currentTime.iso,
     };
   }
 
@@ -993,40 +948,10 @@ export class WebFindingsManager {
   }
 
   private async cleanupCache(): Promise<{ expired: number; lowImportance: number }> {
-    let expired = 0;
-    let lowImportance = 0;
-    const now = createUnifiedTimestamp();
+    // Canonical: unified cache only; no local cache cleaning required
 
-    if (this.localCacheDisabled) {
-      // Unified cache handles TTL expiry internally; nothing to do locally
-      return { expired: 0, lowImportance: 0 };
-    }
-
-    // Clean search cache
-    for (const [key, finding] of Array.from(this.searchCache.entries())) {
-      const age = new Date(now.iso).getTime() - new Date(finding.storage.lastAccessed).getTime();
-      if (age > finding.storage.ttl) {
-        this.searchCache.delete(key);
-        expired++;
-      } else if (finding.classification.importance < 0.3) {
-        this.searchCache.delete(key);
-        lowImportance++;
-      }
-    }
-
-    // Clean fetch cache
-    for (const [key, finding] of Array.from(this.fetchCache.entries())) {
-      const age = new Date(now.iso).getTime() - new Date(finding.storage.lastAccessed).getTime();
-      if (age > finding.storage.ttl) {
-        this.fetchCache.delete(key);
-        expired++;
-      } else if (finding.classification.importance < 0.3) {
-        this.fetchCache.delete(key);
-        lowImportance++;
-      }
-    }
-
-    return { expired, lowImportance };
+    // Canonical: unified cache only; no local cache cleaning required
+    return { expired: 0, lowImportance: 0 };
   }
 
   private async cleanupPersistentStorage(): Promise<{

@@ -68,6 +68,11 @@ function shallowMerge<T extends object>(base: T, patch?: Partial<T>): T {
 class UnifiedConfigProviderImpl {
   private base: ServerConfig;
   private runtimeOverrides: PartialConfig = {};
+  /**
+   * ARCHITECTURAL EXCEPTION: This Map is used for ephemeral configuration overrides.
+   * It is NOT a persistent cache and is cleared on restart. Allowed for config management.
+   */
+  // eslint-disable-next-line oneagent/no-parallel-cache
   private scopedOverrides: Map<string, PartialConfig> = new Map();
   private frozen = false;
   private initialized = false;

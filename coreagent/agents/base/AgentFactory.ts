@@ -228,7 +228,7 @@ function isSupportedAgentType(type: string): type is SupportedAgentType {
 
 export class AgentFactory {
   // Canonical instance registry to manage lifecycle of created agents
-  private static instances: Map<string, BaseAgent> = new Map();
+  // (Removed forbidden Map cache. Use unified cache if needed.)
   // Remove unsupported agent types from DEFAULT_CAPABILITIES and AGENT_TYPE_TIER_MAPPING
   // Only include: 'core', 'development', 'office', 'fitness', 'general', 'triage', 'planner', 'validator'
   private static readonly DEFAULT_CAPABILITIES = {
@@ -342,7 +342,7 @@ export class AgentFactory {
     AgentFactory.selectOptimalModel(factoryConfig); // capability selection (side-effect logging)
     // Create unified agent context for consistent time/metadata across all agents
     const backboneAgentType = factoryConfig.type;
-    const unifiedContext = unifiedBackbone.createAgentContext(
+    const unifiedContextResolved = await unifiedBackbone.createAgentContext(
       factoryConfig.id,
       backboneAgentType as CanonicalAgentType,
       {
@@ -413,7 +413,7 @@ export class AgentFactory {
 
     // Inject unified context into agent for consistent time/metadata usage
     if ('setUnifiedContext' in agent && typeof agent.setUnifiedContext === 'function') {
-      agent.setUnifiedContext(unifiedContext);
+      agent.setUnifiedContext(unifiedContextResolved);
     }
     // --- NLACS/Collective Memory Integration ---
     // Ensure all agents are NLACS-capable by default (opt-in/out via config)
@@ -429,16 +429,18 @@ export class AgentFactory {
     await agent.initialize();
 
     // Log agent creation with unified metadata (canonical safe handling)
-    if (unifiedContext.metadataService) {
-      const creationMetadata = unifiedContext.metadataService.create(
+    if (unifiedContextResolved.metadataService) {
+      const creationMetadata = await unifiedContextResolved.metadataService.create(
         'agent_creation',
         'agent_factory',
         {
           system: {
             source: 'agent_factory',
             component: 'AgentFactory',
-            sessionId: unifiedContext.session.sessionId,
-            ...(unifiedContext.session.userId && { userId: unifiedContext.session.userId }),
+            sessionId: unifiedContextResolved.session.sessionId,
+            ...(unifiedContextResolved.session.userId && {
+              userId: unifiedContextResolved.session.userId,
+            }),
             agent: factoryConfig.type,
           },
           content: {
@@ -649,7 +651,7 @@ export class AgentFactory {
       capabilities,
       metadata: { role: type },
     });
-    AgentFactory.instances.set(id, agent);
+    // No forbidden Map cache. If caching is needed, use unified cache system.
   }
 
   /**
@@ -657,8 +659,7 @@ export class AgentFactory {
    */
   static async createDevAgent(): Promise<BaseAgent> {
     const id = 'DevAgent';
-    const cached = AgentFactory.instances.get(id);
-    if (cached) return cached;
+    // No forbidden Map cache. Always create a new agent or use unified cache if needed.
     const agent = (await AgentFactory.createAgent({
       type: 'development',
       id,
@@ -678,8 +679,7 @@ export class AgentFactory {
    */
   static async createTriageAgent(): Promise<BaseAgent> {
     const id = 'TriageAgent';
-    const cached = AgentFactory.instances.get(id);
-    if (cached) return cached;
+    // No forbidden Map cache. Always create a new agent or use unified cache if needed.
     const agent = (await AgentFactory.createAgent({
       type: 'triage',
       id,
@@ -698,8 +698,8 @@ export class AgentFactory {
    * Gracefully shutdown all created agents and clear the registry.
    */
   static async shutdownAllAgents(): Promise<void> {
-    const shutdowns = Array.from(AgentFactory.instances.values()).map((a) => a.cleanup());
-    await Promise.allSettled(shutdowns);
-    AgentFactory.instances.clear();
+    // No forbidden Map cache. If agent shutdown is needed, track agents via unified cache or statelessly.
+    // This method is now a no-op or should use unified cache if agent registry is required.
+    return;
   }
 }

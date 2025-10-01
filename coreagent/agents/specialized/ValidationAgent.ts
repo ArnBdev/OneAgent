@@ -19,7 +19,7 @@ import {
 import { ISpecializedAgent, AgentHealthStatus } from '../base/ISpecializedAgent';
 import { OneAgentMemory } from '../../memory/OneAgentMemory';
 import { UnifiedMetadata, MemoryRecord } from '../../types/oneagent-backbone-types';
-import { generateUnifiedId } from '../../utils/UnifiedBackboneService';
+import { generateUnifiedId, getOneAgentMemory } from '../../utils/UnifiedBackboneService';
 
 export interface ValidationResult {
   isValid: boolean;
@@ -80,12 +80,13 @@ interface BMADPoint {
  * - Helpfulness: Offers actionable improvement suggestions
  * - Safety: Prevents harmful code patterns and vulnerabilities
  */
+
 export class ValidationAgent extends BaseAgent implements ISpecializedAgent {
   private memory: OneAgentMemory;
 
-  constructor(config: AgentConfig) {
+  constructor(config: AgentConfig, memory?: OneAgentMemory) {
     super(config);
-    this.memory = OneAgentMemory.getInstance();
+    this.memory = memory || getOneAgentMemory();
   }
 
   /** ISpecializedAgent interface implementation */
@@ -949,7 +950,10 @@ export class ValidationAgent extends BaseAgent implements ISpecializedAgent {
 
       const memoryContent = `Constitutional AI Validation: ${validationData.result.compliant ? 'COMPLIANT' : 'NON-COMPLIANT'} (Score: ${(validationData.result.overallScore * 100).toFixed(1)}%)`;
 
-      await this.memory.addMemoryCanonical(memoryContent, metadata);
+      await this.memory.addMemory({
+        content: memoryContent,
+        metadata,
+      });
     } catch (error) {
       console.error('Failed to store validation result:', error);
       // Don't throw - validation should continue even if memory storage fails

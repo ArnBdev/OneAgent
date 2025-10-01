@@ -36,18 +36,18 @@ export class OneAgentMemoryDeleteTool extends UnifiedMCPTool {
       return { success: false, data: { error: 'Invalid input: memoryId (string) is required' } };
     }
     try {
-      const { memoryId, userId } = args;
-      const result = await this.memoryClient.deleteMemory(memoryId, userId || 'default-user');
+      const { memoryId } = args;
+      const result = await this.memoryClient.deleteMemory({ id: memoryId });
       // Structured, typed output
       return {
         success: true,
         data: {
           id: memoryId,
-          userId: userId || 'default-user',
           deleted: result?.success === true,
-          message: result?.message || 'Memory deleted successfully',
+          message:
+            result?.success === true ? 'Memory deleted successfully' : 'Delete operation failed',
           error: result?.error || null,
-          timestamp: result?.timestamp || new Date().toISOString(),
+          timestamp: new Date().toISOString(),
         },
       };
     } catch (error) {

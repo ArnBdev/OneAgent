@@ -471,11 +471,13 @@ export class Phase4MemoryDrivenIntelligence {
         timestamp: createUnifiedTimestamp().iso,
         category: 'phase4_comprehensive',
       };
-      await this.system.memory.addMemoryCanonical(
-        `Phase 4 Analysis: ${result.qualityScore.toFixed(2)} quality score with ${result.recommendations.length} recommendations`,
-        meta,
-        'oneagent_system',
-      );
+      await this.system.memory.addMemory({
+        content: `Phase 4 Analysis: ${result.qualityScore.toFixed(2)} quality score with ${result.recommendations.length} recommendations`,
+        metadata: {
+          ...meta,
+          userId: 'oneagent_system',
+        },
+      });
     } catch (err) {
       console.warn('[Phase4Integration] Failed to store analysis result canonically:', err);
     }

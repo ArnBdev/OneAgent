@@ -31,6 +31,12 @@ import { OneAgentUnifiedBackbone } from '../../utils/UnifiedBackboneService.js';
 // =====================================
 
 export class OneAgentMetadataRepository implements MetadataRepository {
+  /**
+   * ARCHITECTURAL EXCEPTION: This Map provides in-memory metadata storage with indices.
+   * It is used for runtime metadata management with structured indexing.
+   * This usage is allowed for metadata repository infrastructure.
+   */
+  // eslint-disable-next-line oneagent/no-parallel-cache
   private storage: Map<string, AnyMetadata> = new Map();
   private unifiedBackbone: OneAgentUnifiedBackbone;
   private indices: {

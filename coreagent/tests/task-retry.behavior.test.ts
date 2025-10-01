@@ -17,7 +17,8 @@ describe('Task Delegation Retry Behavior', () => {
       /* ignore */
     }
     await taskDelegationService.harvestAndQueue();
-    const engine = OneAgentEngine.getInstance();
+    // Canonical: Use direct instantiation for OneAgentEngine
+    const engine = new OneAgentEngine();
     // Force tasks without targetAgent by injecting a synthetic one if needed
     const queued = taskDelegationService.getQueuedTasks();
     if (!queued.length) return; // environment produced no actions; skip

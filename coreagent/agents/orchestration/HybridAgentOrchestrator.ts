@@ -2,13 +2,13 @@
 import type { AgentCard } from '../../types/oneagent-backbone-types';
 import { isAgentExecutionResult } from '../../types/agent-execution-types';
 import { unifiedAgentCommunicationService } from '../../utils/UnifiedAgentCommunicationService';
-import { OneAgentMemory } from '../../memory/OneAgentMemory';
+import { getOneAgentMemory } from '../../utils/UnifiedBackboneService';
 import {
   createUnifiedId,
   createUnifiedTimestamp,
   unifiedMetadataService,
 } from '../../utils/UnifiedBackboneService';
-import { feedbackService } from '../../services/FeedbackService';
+
 import type { UserRating } from '../../types/oneagent-backbone-types';
 
 /**
@@ -32,15 +32,15 @@ import type { UserRating } from '../../types/oneagent-backbone-types';
 export class HybridAgentOrchestrator {
   private static instance: HybridAgentOrchestrator | null = null;
   private comm = unifiedAgentCommunicationService;
-  private memory = OneAgentMemory.getInstance();
+  private memory = getOneAgentMemory();
   private orchestratorId: string;
   /** Pending task completion promises keyed by taskId */
-  private pendingTasks: Map<
+  private pendingTasks: Record<
     string,
     { resolve: (ok: boolean) => void; reject: (e: Error) => void; timeout: NodeJS.Timeout }
-  > = new Map();
+  > = {};
   /** Track dispatch start times (unix ms) for latency measurement */
-  private dispatchStartTimes: Map<string, number> = new Map();
+  private dispatchStartTimes: Record<string, number> = {};
   private listenersAttached = false;
   /** Last operation metrics snapshot broadcast (in-memory only, non-authoritative) */
   private lastOperationMetricsSnapshot: Record<string, unknown> | null = null;
@@ -80,18 +80,17 @@ export class HybridAgentOrchestrator {
         );
         try {
           const ts = createUnifiedTimestamp();
-          await this.memory.addMemoryCanonical(
-            'Deprecation: ONEAGENT_DISABLE_REAL_AGENT_EXECUTION',
-            {
+          await this.memory.addMemory({
+            content: 'Deprecation: ONEAGENT_DISABLE_REAL_AGENT_EXECUTION',
+            metadata: {
               type: 'deprecation_notice',
               flag: 'ONEAGENT_DISABLE_REAL_AGENT_EXECUTION',
               replacement: 'ONEAGENT_SIMULATE_AGENT_EXECUTION',
               timestamp: ts.iso,
               details:
                 'Deprecated flag observed; auto-migrated to ONEAGENT_SIMULATE_AGENT_EXECUTION=1',
-            } as unknown as Record<string, unknown>,
-            'system_orchestration',
-          );
+            },
+          });
         } catch {
           /* ignore memory audit failures */
         }
@@ -120,7 +119,8 @@ export class HybridAgentOrchestrator {
       // Automatic requeue scan at each wave start (best-effort)
       try {
         const { taskDelegationService } = await import('../../services/TaskDelegationService');
-        const requeued = taskDelegationService.processDueRequeues(Date.now());
+        const now = createUnifiedTimestamp().unix;
+        const requeued = taskDelegationService.processDueRequeues(now);
         if (requeued.length) {
           await this.logOperation('requeue_wave', { count: requeued.length, taskIds: requeued });
         }
@@ -144,7 +144,7 @@ export class HybridAgentOrchestrator {
           }
           dispatched.push(task.id);
           // Record dispatch start time for latency measurement
-          this.dispatchStartTimes.set(task.id, Date.now());
+          this.dispatchStartTimes[task.id] = createUnifiedTimestamp().unix;
           // Select agent (skill inference from action simple heuristic)
           const skill = this.inferSkillFromAction(task.action);
           const agent = skill ? await this.selectBestAgent(skill).catch(() => null) : null;
@@ -175,10 +175,10 @@ export class HybridAgentOrchestrator {
               10,
             );
             const timeout = setTimeout(() => {
-              this.pendingTasks.delete(task.id);
+              delete this.pendingTasks[task.id];
               reject(new Error('task_timeout'));
             }, timeoutMs);
-            this.pendingTasks.set(task.id, {
+            this.pendingTasks[task.id] = {
               resolve: (ok: boolean) => {
                 clearTimeout(timeout);
                 resolve(ok);
@@ -188,7 +188,7 @@ export class HybridAgentOrchestrator {
                 reject(e);
               },
               timeout,
-            });
+            };
           })
             .catch((err) => {
               taskDelegationService.markExecutionResult(task.id, false, err.message, err.message);
@@ -229,7 +229,7 @@ export class HybridAgentOrchestrator {
       dispatched: dispatched.length,
       completed: completed.length,
       failed: failed.length,
-      durationMs: Date.now() - startTs.unix,
+      durationMs: createUnifiedTimestamp().unix - startTs.unix,
     });
     return { dispatched, completed, failed };
   }
@@ -271,7 +271,7 @@ export class HybridAgentOrchestrator {
             (parsed?.status as string | undefined) ||
             (typeof parsed?.result === 'string' ? (parsed.result as string) : undefined);
         }
-        if (!taskId || !this.pendingTasks.has(taskId)) return;
+        if (!taskId || !(taskId in this.pendingTasks)) return;
         const terminal =
           status === 'completed' ||
           /TASK_COMPLETE/i.test(text) ||
@@ -282,8 +282,10 @@ export class HybridAgentOrchestrator {
         (async () => {
           const { taskDelegationService } = await import('../../services/TaskDelegationService');
           const success = status === 'completed' || /TASK_COMPLETE/i.test(text);
-          const start = this.dispatchStartTimes.get(taskId);
-          const durationMs = start ? Math.max(0, Date.now() - start) : undefined;
+          const startTime = this.dispatchStartTimes[taskId];
+          const durationMs = startTime
+            ? Math.max(0, createUnifiedTimestamp().unix - startTime)
+            : undefined;
           if (success) {
             taskDelegationService.markExecutionResult(
               taskId,
@@ -301,7 +303,7 @@ export class HybridAgentOrchestrator {
               durationMs,
             );
           }
-          const entry = this.pendingTasks.get(taskId)!;
+          const entry = this.pendingTasks[taskId]!;
           entry.resolve(success);
           // Emit operation_metrics_snapshot (task_execution aggregate) after each terminal result
           try {
@@ -329,8 +331,8 @@ export class HybridAgentOrchestrator {
             /* ignore metrics snapshot errors */
           }
         })();
-        this.pendingTasks.delete(taskId);
-        this.dispatchStartTimes.delete(taskId);
+        delete this.pendingTasks[taskId];
+        delete this.dispatchStartTimes[taskId];
       } catch {
         /* ignore listener errors */
       }
@@ -423,7 +425,8 @@ export class HybridAgentOrchestrator {
       this.requeueScheduler = setInterval(async () => {
         try {
           const { taskDelegationService } = await import('../../services/TaskDelegationService');
-          const requeued = taskDelegationService.processDueRequeues(Date.now());
+          const now = createUnifiedTimestamp().unix;
+          const requeued = taskDelegationService.processDueRequeues(now);
           if (requeued.length) {
             await this.logOperation('requeue_scheduler_wave', {
               count: requeued.length,
@@ -454,6 +457,9 @@ export class HybridAgentOrchestrator {
   async recordFeedback(taskId: string, userRating: UserRating, correction?: string): Promise<void> {
     await this.logOperation('feedback_recording_started', { taskId, userRating });
     const ts = createUnifiedTimestamp();
+    const feedbackService = new (await import('../../services/FeedbackService')).FeedbackService(
+      this.memory,
+    );
     await feedbackService.save({ taskId, userRating, correction, timestamp: ts.iso });
     await this.logOperation('feedback_recorded', { taskId, userRating });
   }
@@ -463,7 +469,7 @@ export class HybridAgentOrchestrator {
    */
   private async logOperation(operation: string, metadata: Record<string, unknown>): Promise<void> {
     try {
-      const unifiedMeta = unifiedMetadataService.create(
+      const unifiedMeta = await unifiedMetadataService.create(
         'orchestrator_operation',
         'HybridAgentOrchestrator',
         {
@@ -491,11 +497,10 @@ export class HybridAgentOrchestrator {
         timestamp: createUnifiedTimestamp().iso,
         ...metadata,
       };
-      await this.memory.addMemoryCanonical(
-        `Orchestrator operation: ${operation}`,
-        unifiedMeta,
-        'system_orchestration',
-      );
+      await this.memory.addMemory({
+        content: `Orchestrator operation: ${operation}`,
+        metadata: unifiedMeta,
+      });
     } catch (error) {
       console.warn(`Failed to log orchestrator operation: ${error}`);
     }
@@ -655,21 +660,25 @@ export class HybridAgentOrchestrator {
 
       // Log successful assignment in memory for audit trail
       try {
-        const meta = unifiedMetadataService.create('task_assignment', 'HybridAgentOrchestrator', {
-          system: {
-            source: 'hybrid_orchestrator',
-            component: 'HybridAgentOrchestrator',
-            userId: 'system_orchestration',
-            sessionId,
+        const meta = await unifiedMetadataService.create(
+          'task_assignment',
+          'HybridAgentOrchestrator',
+          {
+            system: {
+              source: 'hybrid_orchestrator',
+              component: 'HybridAgentOrchestrator',
+              userId: 'system_orchestration',
+              sessionId,
+            },
+            content: {
+              category: 'task_assignment',
+              tags: ['task', 'assignment', agent.name],
+              sensitivity: 'internal',
+              relevanceScore: 0.3,
+              contextDependency: 'session',
+            },
           },
-          content: {
-            category: 'task_assignment',
-            tags: ['task', 'assignment', agent.name],
-            sensitivity: 'internal',
-            relevanceScore: 0.3,
-            contextDependency: 'session',
-          },
-        });
+        );
         interface TaskAssignmentExtension {
           custom?: Record<string, unknown>;
         }
@@ -682,11 +691,10 @@ export class HybridAgentOrchestrator {
           orchestratorId: this.orchestratorId,
           status: 'assigned',
         };
-        await this.memory.addMemoryCanonical(
-          `Task assigned to ${agent.name}: ${taskContext.summary || 'Task execution'}`,
-          meta,
-          'system_orchestration',
-        );
+        await this.memory.addMemory({
+          content: `Task assigned to ${agent.name}: ${taskContext.summary || 'Task execution'}`,
+          metadata: meta,
+        });
       } catch (storeErr) {
         console.warn('Failed to store task assignment memory (canonical):', storeErr);
       }
@@ -911,12 +919,11 @@ export class HybridAgentOrchestrator {
   }> {
     try {
       // Search for orchestrator operations in memory
-      const operations = await this.memory.searchMemory({
+      const list = await this.memory.searchMemory({
         query: `orchestratorId:${this.orchestratorId}`,
         userId: 'system_orchestration',
         limit: 100,
       });
-      const list = operations?.results || [];
       const totalOperations = list.length;
       interface OperationRecord {
         metadata?: Record<string, unknown>;

@@ -101,16 +101,22 @@ export class SystemHealthTool extends UnifiedMCPTool {
 
       if (components.includes('mcp')) {
         const mcpEndpoint = UnifiedBackboneService.getEndpoints().mcp;
-        const mcpStatus = getUnifiedMCPClient().getHealth();
+        const mcpStatus = await getUnifiedMCPClient().getHealth();
         healthMetrics.components.mcp = {
           status: mcpStatus.status === 'healthy' ? 'operational' : mcpStatus.status,
           protocol: 'HTTP MCP 2025-06-18',
           port: mcpEndpoint.port,
-          averageResponseTimeMs: mcpStatus.details.averageResponseTime,
-          errorRate: `${Math.round(mcpStatus.details.errorRate * 100)}%`,
-          activeConnections: mcpStatus.details.activeConnections,
-          servers: mcpStatus.details.servers,
-          cacheHitRate: `${Math.round(mcpStatus.details.cacheHitRate * 100)}%`,
+          averageResponseTimeMs: mcpStatus.details?.averageResponseTime,
+          errorRate:
+            mcpStatus.details?.errorRate !== undefined
+              ? `${Math.round(mcpStatus.details.errorRate * 100)}%`
+              : undefined,
+          activeConnections: mcpStatus.details?.activeConnections,
+          servers: mcpStatus.details?.servers,
+          cacheHitRate:
+            mcpStatus.details?.cacheHitRate !== undefined
+              ? `${Math.round(mcpStatus.details.cacheHitRate * 100)}%`
+              : undefined,
         };
       }
 

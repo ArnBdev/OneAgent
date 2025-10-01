@@ -26,6 +26,12 @@ export const missionControlWsMetrics = {
   connectionsTotal: 0,
   messagesSentTotal: 0,
   subscriptionsTotal: 0,
+  /**
+   * ARCHITECTURAL EXCEPTION: This Map tracks active channel subscriptions by count.
+   * It is used for real-time WebSocket subscription management, not persistent state.
+   * This usage is allowed for WebSocket infrastructure.
+   */
+  // eslint-disable-next-line oneagent/no-parallel-cache
   channelSubscriptions: new Map<string, number>(),
 };
 
@@ -110,7 +116,7 @@ export function createMissionControlWSS(
           type: 'protocol_error',
           id: createUnifiedId('system', 'protocol_error'),
           timestamp: createUnifiedTimestamp().iso,
-          unix: Date.now(),
+          unix: createUnifiedTimestamp().unix,
           server: { name: SERVER_NAME, version: SERVER_VERSION },
           error: { code: 'invalid_message', detail: validated.errors.slice(0, 3) },
         });
@@ -146,7 +152,7 @@ export function createMissionControlWSS(
                 type: 'subscription_ack',
                 id: createUnifiedId('system', 'sub_ack'),
                 timestamp: createUnifiedTimestamp().iso,
-                unix: Date.now(),
+                unix: createUnifiedTimestamp().unix,
                 server: { name: SERVER_NAME, version: SERVER_VERSION },
                 payload: { channel: c, status: 'subscribed' },
               });
@@ -155,7 +161,7 @@ export function createMissionControlWSS(
                 type: 'subscription_error',
                 id: createUnifiedId('system', 'sub_err'),
                 timestamp: createUnifiedTimestamp().iso,
-                unix: Date.now(),
+                unix: createUnifiedTimestamp().unix,
                 server: { name: SERVER_NAME, version: SERVER_VERSION },
                 error: {
                   code: 'unknown_channel',
@@ -181,7 +187,7 @@ export function createMissionControlWSS(
                 type: 'subscription_ack',
                 id: createUnifiedId('system', 'unsub_ack'),
                 timestamp: createUnifiedTimestamp().iso,
-                unix: Date.now(),
+                unix: createUnifiedTimestamp().unix,
                 server: { name: SERVER_NAME, version: SERVER_VERSION },
                 payload: { channel: c, status: 'unsubscribed' },
               });
@@ -193,7 +199,7 @@ export function createMissionControlWSS(
             type: 'pong',
             id: createUnifiedId('system', 'pong'),
             timestamp: createUnifiedTimestamp().iso,
-            unix: Date.now(),
+            unix: createUnifiedTimestamp().unix,
             server: { name: SERVER_NAME, version: SERVER_VERSION },
           });
         }
@@ -202,7 +208,7 @@ export function createMissionControlWSS(
             type: 'whoami',
             id: createUnifiedId('system', 'whoami'),
             timestamp: createUnifiedTimestamp().iso,
-            unix: Date.now(),
+            unix: createUnifiedTimestamp().unix,
             server: { name: SERVER_NAME, version: SERVER_VERSION },
             payload: { server: SERVER_NAME, version: SERVER_VERSION, channels: registry.list() },
           });
@@ -213,6 +219,11 @@ export function createMissionControlWSS(
             if (engineRef) {
               let map = missionEngines.get(ws);
               if (!map) {
+                /**
+                 * ARCHITECTURAL EXCEPTION: This Map stores mission engines per WebSocket connection.
+                 * It is used for runtime session management, not persistent state.
+                 * This usage is allowed for WebSocket session tracking.
+                 */
                 map = new Map();
                 missionEngines.set(ws, map);
               }
@@ -230,7 +241,7 @@ export function createMissionControlWSS(
               type: 'protocol_error',
               id: createUnifiedId('system', 'protocol_error'),
               timestamp: createUnifiedTimestamp().iso,
-              unix: Date.now(),
+              unix: createUnifiedTimestamp().unix,
               server: { name: SERVER_NAME, version: SERVER_VERSION },
               error: {
                 code: 'unknown_mission',

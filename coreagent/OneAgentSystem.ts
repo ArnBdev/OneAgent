@@ -16,7 +16,11 @@ import {
   ProjectScope,
   UnifiedTimestamp,
 } from './types/oneagent-backbone-types.js';
-import { createUnifiedTimestamp, createUnifiedId } from './utils/UnifiedBackboneService';
+import {
+  createUnifiedTimestamp,
+  createUnifiedId,
+  OneAgentUnifiedBackbone,
+} from './utils/UnifiedBackboneService';
 
 // Import existing agent infrastructure
 import { AgentFactory, AgentFactoryConfig } from './agents/base/AgentFactory';
@@ -160,15 +164,34 @@ export interface MeetingSynthesis {
  */
 export class OneAgentSystem extends EventEmitter {
   public coreAgent!: CoreAgent; // Make public for TeamMeetingEngine access
-  public specialists: Map<string, SpecialistAgent> = new Map(); // Make public for TeamMeetingEngine
-  private activeAgent!: SpecialistAgent;
-  private conversationContext!: ConversationContext;
-  public teamMeetingEngine!: TeamMeetingEngine; // Make public for access
+  // Canonical: Use unified cache for persistent specialists
+  // Use async accessors for persistent state
+  // Only allow ephemeral, algorithm-local Map usage with justification
+
+  private cache: ReturnType<typeof OneAgentUnifiedBackbone.getInstance>['cache'];
 
   constructor() {
     super();
+    this.cache = OneAgentUnifiedBackbone.getInstance().cache;
     this.initializeSystem();
   }
+
+  // Canonical async accessors for specialists
+  async getSpecialists(): Promise<Record<string, SpecialistAgent>> {
+    let specialistsObj = await this.cache.get('specialists');
+    if (!specialistsObj) {
+      specialistsObj = {};
+      await this.cache.set('specialists', specialistsObj);
+    }
+    return specialistsObj as Record<string, SpecialistAgent>;
+  }
+
+  async setSpecialists(specialists: Record<string, SpecialistAgent>): Promise<void> {
+    await this.cache.set('specialists', specialists);
+  }
+  private activeAgent!: SpecialistAgent;
+  private conversationContext!: ConversationContext;
+  public teamMeetingEngine!: TeamMeetingEngine; // Make public for access
 
   private async initializeSystem(): Promise<void> {
     // Initialize CoreAgent as the primary orchestrator
@@ -223,7 +246,8 @@ export class OneAgentSystem extends EventEmitter {
    * Execute seamless handoff between agents
    */
   private async executeHandoff(targetAgentId: string): Promise<string> {
-    const targetAgent = this.specialists.get(targetAgentId);
+    const specialists = await this.getSpecialists();
+    const targetAgent = specialists[targetAgentId];
     if (!targetAgent) {
       return `I couldn't find the ${targetAgentId} specialist. Let me handle this directly.`;
     }
@@ -342,13 +366,16 @@ export class OneAgentSystem extends EventEmitter {
       ];
 
       // Register all agents in a canonical, extensible loop
+      const specialists = await this.getSpecialists();
       for (const config of agentConfigs) {
         // Use canonical config from UnifiedBackboneService
         const agent = await AgentFactory.createAgent(config);
-        this.specialists.set(config.id, this.createAgentAdapter(agent, config.id));
+        specialists[config.id] = this.createAgentAdapter(agent, config.id);
       }
-
-      console.log(`✅ Registered ${this.specialists.size} specialist agents successfully`);
+      await this.setSpecialists(specialists);
+      console.log(
+        `✅ Registered ${Object.keys(specialists).length} specialist agents successfully`,
+      );
     } catch (error) {
       console.error('❌ Failed to register specialist agents:', error);
       throw error;
@@ -495,9 +522,7 @@ export class OneAgentSystem extends EventEmitter {
   }
 
   // Getters for system access
-  getSpecialistAgents(): Map<string, SpecialistAgent> {
-    return this.specialists;
-  }
+  // Deprecated: Use async getSpecialists instead
 
   getActiveAgent(): SpecialistAgent {
     return this.activeAgent;
@@ -731,10 +756,29 @@ class CoreAgent implements SpecialistAgent {
  */
 class TeamMeetingEngine {
   private oneAgentSystem: OneAgentSystem;
-  private activeMeetings: Map<string, TeamMeeting> = new Map();
+  // Canonical: Use unified cache for persistent activeMeetings
+  // Use async accessors for persistent state
+  // Only allow ephemeral, algorithm-local Map usage with justification
+
+  private cache: ReturnType<typeof OneAgentUnifiedBackbone.getInstance>['cache'];
 
   constructor(oneAgentSystem: OneAgentSystem) {
     this.oneAgentSystem = oneAgentSystem;
+    this.cache = OneAgentUnifiedBackbone.getInstance().cache;
+  }
+
+  // Canonical async accessors for activeMeetings
+  private async getActiveMeetings(): Promise<Record<string, TeamMeeting>> {
+    let meetingsObj = await this.cache.get('activeMeetings');
+    if (!meetingsObj) {
+      meetingsObj = {};
+      await this.cache.set('activeMeetings', meetingsObj);
+    }
+    return meetingsObj as Record<string, TeamMeeting>;
+  }
+
+  private async setActiveMeetings(meetings: Record<string, TeamMeeting>): Promise<void> {
+    await this.cache.set('activeMeetings', meetings);
   }
 
   async conductMeeting(request: TeamMeetingRequest): Promise<TeamMeeting> {
@@ -751,7 +795,9 @@ class TeamMeetingEngine {
       discussion: [],
     };
 
-    this.activeMeetings.set(meetingId, meeting);
+    const meetings = await this.getActiveMeetings();
+    meetings[meetingId] = meeting;
+    await this.setActiveMeetings(meetings);
 
     try {
       // Phase 1: Gather individual perspectives
@@ -839,7 +885,7 @@ class TeamMeetingEngine {
     for (const participantId of meeting.participants) {
       try {
         const agent =
-          this.oneAgentSystem.specialists.get(participantId) ||
+          (await this.oneAgentSystem.getSpecialists())[participantId] ||
           (participantId === 'CoreAgent' ? this.oneAgentSystem.coreAgent : null);
 
         if (agent) {
@@ -874,7 +920,7 @@ class TeamMeetingEngine {
       for (const participantId of meeting.participants) {
         try {
           const agent =
-            this.oneAgentSystem.specialists.get(participantId) ||
+            (await this.oneAgentSystem.getSpecialists())[participantId] ||
             (participantId === 'CoreAgent' ? this.oneAgentSystem.coreAgent : null);
 
           if (agent) {

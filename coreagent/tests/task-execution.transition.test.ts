@@ -21,7 +21,8 @@ describe('Task Delegation Execution Transition', () => {
     if (!queued.length) return; // nothing to test, allow pass (non-deterministic environment)
 
     // Simulate dispatch + execution
-    const engine = OneAgentEngine.getInstance();
+    // Canonical: Use direct instantiation for OneAgentEngine
+    const engine = new OneAgentEngine();
     // @ts-expect-error accessing private for test (could refactor with public helper)
     await engine.dispatchQueuedTasks?.();
 

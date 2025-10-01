@@ -13,6 +13,7 @@ import {
   createUnifiedId,
   OneAgentUnifiedBackbone,
   unifiedMetadataService,
+  getOneAgentMemory,
 } from '../utils/UnifiedBackboneService';
 import { getModelFor } from '../config/UnifiedModelPicker';
 
@@ -76,7 +77,7 @@ export class MultimodalEmbeddingService {
 
   constructor(geminiClient: GeminiClient, memorySystem?: OneAgentMemory) {
     this.geminiClient = geminiClient;
-    this.memorySystem = memorySystem || OneAgentMemory.getInstance();
+    this.memorySystem = memorySystem || getOneAgentMemory();
   }
 
   async semanticSearch(
@@ -93,16 +94,16 @@ export class MultimodalEmbeddingService {
       });
       // Canonical: searchMemory returns MemorySearchResult[]
       const memoryResults = Array.isArray(searchResults) ? searchResults : [];
-      const results: SemanticSearchResult[] = memoryResults
-        .filter(
-          (item): item is import('../types/oneagent-backbone-types').MemoryRecord =>
-            !!item &&
-            typeof item === 'object' &&
-            'id' in item &&
-            'content' in item &&
-            'metadata' in item,
-        )
-        .map((item: import('../types/oneagent-backbone-types').MemoryRecord) => {
+      const filtered = memoryResults.filter(
+        (item): item is import('../types/oneagent-backbone-types').MemoryRecord =>
+          !!item &&
+          typeof item === 'object' &&
+          'id' in item &&
+          'content' in item &&
+          'metadata' in item,
+      );
+      const results: SemanticSearchResult[] = await Promise.all(
+        filtered.map(async (item: import('../types/oneagent-backbone-types').MemoryRecord) => {
           const meta = (item.metadata || {}) as Record<string, unknown>;
           return {
             memory: {
@@ -114,13 +115,21 @@ export class MultimodalEmbeddingService {
               timestamp: meta.timestamp
                 ? new Date(meta.timestamp as string | number | Date)
                 : new Date(),
-              metadata: meta,
+              metadata:
+                meta && typeof meta === 'object' && meta.type
+                  ? meta
+                  : await unifiedMetadataService.create(
+                      'embedding_result',
+                      'MultimodalEmbeddingService',
+                      meta,
+                    ),
               summary: typeof meta.summary === 'string' ? meta.summary : undefined,
             },
             similarity: typeof meta.similarity === 'number' ? meta.similarity : 0,
             embeddingResult: meta.embeddingResult as EmbeddingResult | undefined,
           };
-        });
+        }),
+      );
       const analytics: EmbeddingAnalytics = {
         totalMemories: memoryResults.length,
         searchResults: memoryResults.length,
@@ -157,22 +166,26 @@ export class MultimodalEmbeddingService {
     const opId = createUnifiedId('memory', agentId);
     try {
       globalProfiler.startOperation(opId, 'store-memory-embedding');
-      const unified = unifiedMetadataService.create(memoryType, 'MultimodalEmbeddingService', {
-        system: {
-          userId,
-          component: 'multimodal-embedding',
-          source: 'MultimodalEmbeddingService',
-          agent: { id: agentId, type: 'specialized' },
+      const unified = await unifiedMetadataService.create(
+        memoryType,
+        'MultimodalEmbeddingService',
+        {
+          system: {
+            userId,
+            component: 'multimodal-embedding',
+            source: 'MultimodalEmbeddingService',
+            agent: { id: agentId, type: 'specialized' },
+          },
+          content: {
+            category: memoryType,
+            tags: ['embedding', memoryType, agentId],
+            sensitivity: 'internal',
+            relevanceScore: 0.6,
+            contextDependency: 'session',
+          },
+          custom: { agentId, ...(metadata || {}) },
         },
-        content: {
-          category: memoryType,
-          tags: ['embedding', memoryType, agentId],
-          sensitivity: 'internal',
-          relevanceScore: 0.6,
-          contextDependency: 'session',
-        },
-        custom: { agentId, ...(metadata || {}) },
-      });
+      );
       const memoryId = await this.memorySystem.addMemory({
         content,
         metadata: unified,

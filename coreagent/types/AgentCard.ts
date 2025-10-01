@@ -309,7 +309,7 @@ export function createTestAgentCard(overrides: Partial<AgentCard> = {}): AgentCa
  * Create AgentCard with canonical backbone integration
  * Uses UnifiedBackboneService for proper temporal metadata
  */
-export function createAgentCard(
+export async function createAgentCard(
   config: {
     name: string;
     agentId: string;
@@ -326,27 +326,32 @@ export function createAgentCard(
     timeService: UnifiedTimeService;
     metadataService: UnifiedMetadataService;
   },
-): AgentCard {
+): Promise<AgentCard> {
   const timestamp = backboneService.timeService.now();
 
-  // Create unified metadata for the agent
-  const metadata = backboneService.metadataService.create('agent_card', 'agent_system', {
-    content: {
-      category: 'agent',
-      tags: [`agent:${config.agentId}`, `type:${config.agentType}`],
-      sensitivity: 'internal' as const,
-      relevanceScore: 0.9,
-      contextDependency: 'global' as const,
-    },
-    system: {
-      source: 'agent_system',
-      component: 'agent_registry',
-      agent: {
-        id: config.agentId,
-        type: config.agentType,
+  // Create unified metadata for the agent (await if async)
+  // If create is async, await it; otherwise, use directly
+  const metadata: UnifiedMetadata = await backboneService.metadataService.create(
+    'agent_card',
+    'agent_system',
+    {
+      content: {
+        category: 'agent',
+        tags: [`agent:${config.agentId}`, `type:${config.agentType}`],
+        sensitivity: 'internal' as const,
+        relevanceScore: 0.9,
+        contextDependency: 'global' as const,
+      },
+      system: {
+        source: 'agent_system',
+        component: 'agent_registry',
+        agent: {
+          id: config.agentId,
+          type: config.agentType,
+        },
       },
     },
-  });
+  );
 
   return {
     protocolVersion: DEFAULT_A2A_PROTOCOL_VERSION,
@@ -376,23 +381,26 @@ export function createAgentCard(
  * Update AgentCard with canonical backbone integration
  * Properly updates temporal metadata and maintains traceability
  */
-export function updateAgentCard(
+export async function updateAgentCard(
   existing: AgentCard,
   updates: Partial<AgentCard>,
   backboneService: {
     timeService: UnifiedTimeService;
     metadataService: UnifiedMetadataService;
   },
-): AgentCard {
+): Promise<AgentCard> {
   const timestamp = backboneService.timeService.now();
 
-  // Update unified metadata
-  const updatedMetadata = backboneService.metadataService.update(existing.metadata.id, {
-    temporal: {
-      ...existing.metadata.temporal,
-      updated: timestamp,
+  // Update unified metadata (await if async)
+  const updatedMetadata: UnifiedMetadata = await backboneService.metadataService.update(
+    existing.metadata.id,
+    {
+      temporal: {
+        ...existing.metadata.temporal,
+        updated: timestamp,
+      },
     },
-  });
+  );
 
   return {
     ...existing,

@@ -28,7 +28,8 @@ import type {
 // Import core systems
 import { ConstitutionalAI } from './agents/base/ConstitutionalAI';
 import { BMADElicitationEngine } from './agents/base/BMADElicitationEngine';
-import { OneAgentMemory, OneAgentMemoryConfig } from './memory/OneAgentMemory';
+import { OneAgentMemory } from './memory/OneAgentMemory';
+import { getOneAgentMemory } from './utils/UnifiedBackboneService';
 import {
   createUnifiedTimestamp,
   createUnifiedId,
@@ -128,7 +129,14 @@ export class OneAgentEngine extends EventEmitter {
   // Active tool-set management (canonical)
   private activeToolSetIds: Set<string> = new Set(Object.keys(TOOL_SETS));
   private readonly ALWAYS_ALLOWED_PREFIXES = ['oneagent_a2a_'];
-  constructor(_config?: Partial<typeof UnifiedBackboneService.config>) {
+  /**
+   * @param opts.memorySystem Optionally inject a canonical OneAgentMemory instance (DI preferred)
+   * @param _config Optionally override backbone config (rare; for test/migration only)
+   */
+  constructor(
+    opts: { memorySystem?: OneAgentMemory } = {},
+    _config?: Partial<typeof UnifiedBackboneService.config>,
+  ) {
     super();
     this.config = UnifiedBackboneService.config;
 
@@ -151,31 +159,18 @@ export class OneAgentEngine extends EventEmitter {
       };
     }
 
-    // Initialize canonical memory system
-    let memoryConfig: OneAgentMemoryConfig;
-    if (process.env.MEM0_API_URL) {
-      // Local mem0 server: set dummy apiKey to satisfy client
-      memoryConfig = {
-        apiUrl: process.env.MEM0_API_URL,
-        endpoint: process.env.MEM0_API_URL,
-        apiKey: process.env.MEM0_API_KEY || 'local-dev',
-      };
-    } else {
-      // Cloud mem0: require real apiKey
-      memoryConfig = {
-        apiKey: process.env.MEM0_API_KEY || 'demo-key',
-      };
-    }
-    this.memorySystem = OneAgentMemory.getInstance(memoryConfig);
+    // Canonical: Prefer DI, fallback to canonical accessor
+    this.memorySystem = opts.memorySystem || getOneAgentMemory();
     this.initializeCoreSystems();
   }
 
-  static getInstance(config?: Partial<typeof UnifiedBackboneService.config>): OneAgentEngine {
-    if (!OneAgentEngine.instance) {
-      OneAgentEngine.instance = new OneAgentEngine(config);
-    }
-    return OneAgentEngine.instance;
-  }
+  // Deprecated: static singleton pattern is forbidden. Use DI and explicit instantiation.
+  // static getInstance(config?: Partial<typeof UnifiedBackboneService.config>): OneAgentEngine {
+  //   if (!OneAgentEngine.instance) {
+  //     OneAgentEngine.instance = new OneAgentEngine(config);
+  //   }
+  //   return OneAgentEngine.instance;
+  // }
 
   /**
    * Initialize OneAgent Engine for specified mode
@@ -522,7 +517,7 @@ export class OneAgentEngine extends EventEmitter {
   private async initializeMemorySystem(): Promise<void> {
     // Memory system is always enabled in OneAgent - we have a canonical memory system
     console.log('💾 Initializing OneAgent Memory System...');
-    // Memory system is already initialized in constructor via OneAgentMemory singleton
+    // Memory system is already initialized in constructor via DI or canonical accessor
     console.log('✅ Memory System Initialized.');
   }
 

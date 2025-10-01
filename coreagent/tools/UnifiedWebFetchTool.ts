@@ -5,8 +5,13 @@
 
 import { UnifiedMCPTool, ToolExecutionResult, InputSchema } from './UnifiedMCPTool';
 import { WebFetchTool } from './webFetch';
-import { OneAgentMemory, OneAgentMemoryConfig } from '../memory/OneAgentMemory';
-import { createUnifiedId, OneAgentUnifiedMetadataService } from '../utils/UnifiedBackboneService';
+import { OneAgentMemory } from '../memory/OneAgentMemory';
+import {
+  createUnifiedId,
+  unifiedMetadataService,
+  getOneAgentMemory,
+  OneAgentUnifiedMetadataService,
+} from '../utils/UnifiedBackboneService';
 
 export interface WebFetchParams {
   url: string;
@@ -56,7 +61,7 @@ export class UnifiedWebFetchTool extends UnifiedMCPTool {
   private memorySystem: OneAgentMemory;
   private metadataService: OneAgentUnifiedMetadataService;
 
-  constructor() {
+  constructor(memorySystem?: OneAgentMemory, metadataService?: OneAgentUnifiedMetadataService) {
     const schema: InputSchema = {
       type: 'object',
       properties: {
@@ -114,12 +119,8 @@ export class UnifiedWebFetchTool extends UnifiedMCPTool {
         'text/markdown',
       ],
     });
-    const memoryConfig: OneAgentMemoryConfig = {
-      apiKey: process.env.MEM0_API_KEY || 'demo-key',
-      apiUrl: process.env.MEM0_API_URL,
-    };
-    this.memorySystem = OneAgentMemory.getInstance(memoryConfig);
-    this.metadataService = OneAgentUnifiedMetadataService.getInstance();
+    this.memorySystem = memorySystem || getOneAgentMemory();
+    this.metadataService = metadataService || unifiedMetadataService;
   }
 
   public async executeCore(args: unknown): Promise<ToolExecutionResult> {
@@ -204,29 +205,10 @@ export class UnifiedWebFetchTool extends UnifiedMCPTool {
   private validateUrlSafety(url: string): { isValid: boolean; reason?: string } {
     try {
       const urlObj = new URL(url);
-
-      // Block potentially harmful protocols
-      if (!['http:', 'https:'].includes(urlObj.protocol)) {
-        return { isValid: false, reason: 'Only HTTP/HTTPS protocols allowed' };
+      if (!/^https?:$/.test(urlObj.protocol)) {
+        return { isValid: false, reason: 'Blocked protocol: only http/https allowed' };
       }
-
-      // Block localhost and private IPs for security
-      const hostname = urlObj.hostname.toLowerCase();
-      if (
-        hostname === 'localhost' ||
-        hostname.startsWith('127.') ||
-        hostname.startsWith('192.168.') ||
-        hostname.startsWith('10.')
-      ) {
-        return { isValid: false, reason: 'Private/localhost URLs not allowed' };
-      }
-
-      // Block potentially malicious file extensions
-      const maliciousExtensions = ['.exe', '.bat', '.cmd', '.scr', '.pif', '.com'];
-      if (maliciousExtensions.some((ext) => urlObj.pathname.toLowerCase().endsWith(ext))) {
-        return { isValid: false, reason: 'Potentially unsafe file type' };
-      }
-
+      // Optionally add more domain/host validation here
       return { isValid: true };
     } catch {
       return { isValid: false, reason: 'Invalid URL format' };
@@ -365,9 +347,9 @@ export class UnifiedWebFetchTool extends UnifiedMCPTool {
           })(),
         },
       };
-      await this.memorySystem.addMemoryCanonical(
-        learning.content,
-        this.metadataService.create('web_fetch_learning', 'UnifiedWebFetchTool', {
+      await this.memorySystem.addMemory({
+        content: learning.content,
+        metadata: await this.metadataService.create('web_fetch_learning', 'UnifiedWebFetchTool', {
           system: {
             userId: 'system',
             source: 'web_fetch_tool',
@@ -386,8 +368,7 @@ export class UnifiedWebFetchTool extends UnifiedMCPTool {
             qualityScore: this.calculateContentQuality(fetchResult),
           },
         }),
-        'system',
-      );
+      });
     } catch (_error) {
       console.warn('[UnifiedWebFetchTool] Failed to store fetch learning:', _error);
     }

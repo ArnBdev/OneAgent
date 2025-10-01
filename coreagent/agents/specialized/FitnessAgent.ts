@@ -20,9 +20,15 @@ import { PromptConfig, AgentPersona } from '../base/PromptEngine';
 import type { ConstitutionalPrinciple } from '../../types/oneagent-backbone-types';
 import { MemoryRecord } from '../../types/oneagent-backbone-types';
 
+import { OneAgentMemory } from '../../memory/OneAgentMemory';
+import { getOneAgentMemory } from '../../utils/UnifiedBackboneService';
+
 export class FitnessAgent extends BaseAgent implements ISpecializedAgent {
-  constructor(config: AgentConfig, promptConfig?: PromptConfig) {
+  private memory: OneAgentMemory;
+
+  constructor(config: AgentConfig, promptConfig?: PromptConfig, memory?: OneAgentMemory) {
     super(config, promptConfig || FitnessAgent.createFitnessPromptConfig());
+    this.memory = memory || getOneAgentMemory();
   }
 
   // Only domain-specific action handlers below (e.g., createWorkout, trackProgress, provideNutritionAdvice)
@@ -35,19 +41,27 @@ export class FitnessAgent extends BaseAgent implements ISpecializedAgent {
     try {
       this.validateContext(context);
 
-      // Search for relevant fitness context in memory
-      const search = await this.searchMemories(context.user.id, message, 5);
-      const relevantMemories: MemoryRecord[] = search.result.results;
+      // Canonical memory search
+
+      const relevantMemories = (await this.memory.searchMemory({
+        query: message,
+        userId: context.user.id,
+        limit: 5,
+      })) as MemoryRecord[];
 
       // Generate AI response with fitness expertise
       const response = await this.generateFitnessResponse(message, relevantMemories);
 
-      // Store this interaction in memory for future reference
-      await this.addMemory(context.user.id, `Fitness Query: ${message}\nResponse: ${response}`, {
-        type: 'fitness_consultation',
-        category: this.categorizeQuery(message),
-        timestamp: new Date().toISOString(),
-        sessionId: context.sessionId,
+      // Store this interaction in memory for future reference (canonical signature)
+
+      await this.memory.addMemory({
+        content: `Fitness Query: ${message}\nResponse: ${response}`,
+        metadata: {
+          type: 'fitness_consultation',
+          category: this.categorizeQuery(message),
+          timestamp: new Date().toISOString(),
+          sessionId: context.sessionId,
+        },
       });
 
       const base = this.createResponse(response, [], relevantMemories);

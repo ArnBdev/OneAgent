@@ -42,6 +42,7 @@ import {
 } from '../types/oneagent-backbone-types';
 import type { MemorySearchResult } from '../types/oneagent-memory-types';
 import { OneAgentMemory } from '../memory/OneAgentMemory';
+import { getOneAgentMemory } from '../utils/UnifiedBackboneService';
 import { unifiedMonitoringService } from '../monitoring/UnifiedMonitoringService';
 import {
   createUnifiedId,
@@ -137,9 +138,9 @@ export class UnifiedAgentCommunicationService implements UnifiedAgentCommunicati
   }
 
   // Singleton pattern ensures one canonical instance
-  public static getInstance(): UnifiedAgentCommunicationService {
+  public static getInstance(memory?: OneAgentMemory): UnifiedAgentCommunicationService {
     if (!UnifiedAgentCommunicationService.instance) {
-      const memoryInstance = OneAgentMemory.getInstance();
+      const memoryInstance = memory || getOneAgentMemory();
       UnifiedAgentCommunicationService.instance = new UnifiedAgentCommunicationService(
         memoryInstance,
       );
@@ -966,7 +967,7 @@ export class UnifiedAgentCommunicationService implements UnifiedAgentCommunicati
 
       await this.memory.addMemory({
         content: `Enhanced Business Session Created: ${config.name} - Focus: ${config.discussionType} - Targets: ${config.insightTargets.join(', ')}`,
-        metadata: businessSessionMetadata,
+        metadata: await businessSessionMetadata,
       });
 
       // Emit business session creation event
@@ -993,7 +994,7 @@ export class UnifiedAgentCommunicationService implements UnifiedAgentCommunicati
     return this.runSafely('facilitateDiscussion', async () => {
       console.log(`🎯 Facilitating discussion for session: ${sessionId}`);
 
-      const facilitationMetadata = unifiedMetadataService.create(
+      const facilitationMetadata = await unifiedMetadataService.create(
         'facilitation_rules',
         'UnifiedAgentCommunicationService',
         {
@@ -1116,7 +1117,7 @@ export class UnifiedAgentCommunicationService implements UnifiedAgentCommunicati
       );
       await this.memory.addMemory({
         content: `Consensus Result: ${proposal} -> ${consensusResult.agreed ? 'AGREED' : 'NOT AGREED'}`,
-        metadata: consensusMetadata,
+        metadata: await consensusMetadata,
       });
       // removed direct monitoring increment
       // removed direct monitoring increment
@@ -1240,7 +1241,7 @@ export class UnifiedAgentCommunicationService implements UnifiedAgentCommunicati
         );
         await this.memory.addMemory({
           content: `Emergent Insight: ${insight.type} – ${insight.content.substring(0, 120)}`,
-          metadata: insightMetadata,
+          metadata: await insightMetadata,
         });
       }
       // removed direct monitoring increment
@@ -1286,7 +1287,7 @@ export class UnifiedAgentCommunicationService implements UnifiedAgentCommunicati
 
       await this.memory.addMemory({
         content: `Real-Time Mode Enabled: Session ${sessionId}`,
-        metadata: realtimeMetadata,
+        metadata: await realtimeMetadata,
       });
 
       this.emit('realtime_mode_enabled', { sessionId });
@@ -1342,7 +1343,7 @@ export class UnifiedAgentCommunicationService implements UnifiedAgentCommunicati
 
       await this.memory.addMemory({
         content: `Priority Message [${priority.level.toUpperCase()}]: ${message.content}`,
-        metadata: priorityMetadata,
+        metadata: await priorityMetadata,
       });
 
       // Emit priority routing events
@@ -1433,7 +1434,7 @@ export class UnifiedAgentCommunicationService implements UnifiedAgentCommunicati
 
       await this.memory.addMemory({
         content: `Session Coherence Analysis: Score ${coherenceScore.toFixed(2)}, Drift ${topicDrift.toFixed(2)}, Quality ${discussionQuality.toFixed(2)}`,
-        metadata: coherenceMetadata,
+        metadata: await coherenceMetadata,
       });
 
       // Emit coherence monitoring events
@@ -1688,7 +1689,7 @@ export class UnifiedAgentCommunicationService implements UnifiedAgentCommunicati
     );
     await this.memory.addMemory({
       content: `Session Update: ${activity}`,
-      metadata,
+      metadata: await metadata,
     });
   }
 }

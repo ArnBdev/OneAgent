@@ -1,5 +1,5 @@
 import { taskDelegationService } from '../services/TaskDelegationService';
-import { OneAgentMemory } from '../memory/OneAgentMemory';
+import { getOneAgentMemory } from '../utils/UnifiedBackboneService';
 import { createUnifiedTimestamp, createUnifiedId } from '../utils/UnifiedBackboneService';
 
 /**
@@ -9,7 +9,7 @@ import { createUnifiedTimestamp, createUnifiedId } from '../utils/UnifiedBackbon
 
 describe('Task Delegation Persistence Restore', () => {
   it('restores previously persisted tasks (synthetic)', async () => {
-    const memory = OneAgentMemory.getInstance();
+    const memory = getOneAgentMemory();
     // Inject two synthetic proactive task memories
     for (let i = 0; i < 2; i++) {
       const action = `SyntheticAction${i}`;

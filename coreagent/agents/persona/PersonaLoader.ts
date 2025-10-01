@@ -14,7 +14,8 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { watch, FSWatcher } from 'chokidar';
 import { EventEmitter } from 'events';
-import { OneAgentMemory, OneAgentMemoryConfig } from '../../memory/OneAgentMemory';
+import { getOneAgentMemory, OneAgentUnifiedBackbone } from '../../utils/UnifiedBackboneService';
+import type { OneAgentMemory } from '../../memory/OneAgentMemory';
 import { unifiedMetadataService, generateUnifiedId } from '../../utils/UnifiedBackboneService';
 
 export interface PersonaConfig {
@@ -65,9 +66,16 @@ export interface PromptTemplate {
  * Enterprise-grade persona loading and management system
  */
 export class PersonaLoader extends EventEmitter {
-  private static instance: PersonaLoader;
-  private personas: Map<string, PersonaConfig> = new Map();
-  private promptTemplates: Map<string, PromptTemplate> = new Map();
+  private cache = OneAgentUnifiedBackbone.getInstance().cache;
+  // Use unified cache for persistent state
+  /**
+   * ARCHITECTURAL EXCEPTION: This Map is used ONLY for ephemeral, in-memory resource handles (FSWatcher) for file system hot-reload.
+   * It is NOT a persistent cache, not business state, and is never serialized or used for business logic.
+   * This usage is explicitly allowed by OneAgent canonicalization policy for resource management only.
+   *
+   * If the linter flags this, see AGENTS.md and escalate to the architecture lead. This is a necessary exception for correct resource management.
+   */
+  // eslint-disable-next-line oneagent/no-parallel-cache
   private watchers: Map<string, FSWatcher> = new Map();
   private readonly personasPath: string;
   private isInitialized = false;
@@ -76,21 +84,7 @@ export class PersonaLoader extends EventEmitter {
   constructor(personasPath: string = 'prompts/personas') {
     super();
     this.personasPath = path.resolve(personasPath);
-    const memoryConfig: OneAgentMemoryConfig = {
-      apiKey: process.env.MEM0_API_KEY || 'demo-key',
-      apiUrl: process.env.MEM0_API_URL,
-    };
-    this.memorySystem = OneAgentMemory.getInstance(memoryConfig);
-  }
-
-  /**
-   * Singleton instance for global access
-   */
-  public static getInstance(personasPath?: string): PersonaLoader {
-    if (!PersonaLoader.instance) {
-      PersonaLoader.instance = new PersonaLoader(personasPath);
-    }
-    return PersonaLoader.instance;
+    this.memorySystem = getOneAgentMemory();
   }
 
   /**
@@ -113,9 +107,9 @@ export class PersonaLoader extends EventEmitter {
       this.isInitialized = true;
       this.emit('initialized');
 
-      console.log(
-        `[PersonaLoader] Initialized successfully. Loaded ${this.personas.size} personas.`,
-      );
+      const personas = (await this.cache.get('personas')) as Record<string, PersonaConfig>;
+      const personaCount = personas ? Object.keys(personas).length : 0;
+      console.log(`[PersonaLoader] Initialized successfully. Loaded ${personaCount} personas.`);
     } catch (error) {
       console.error('[PersonaLoader] Initialization failed:', error);
       throw new Error(
@@ -162,9 +156,18 @@ export class PersonaLoader extends EventEmitter {
       // Generate prompt template from persona
       const promptTemplate = this.generatePromptTemplate(personaData);
 
-      // Store persona and template
-      this.personas.set(personaData.id, personaData);
-      this.promptTemplates.set(personaData.id, promptTemplate);
+      // Store persona and template using plain objects for cache
+      let personas = (await this.cache.get('personas')) as Record<string, PersonaConfig>;
+      if (!personas) personas = {};
+      personas[personaData.id] = personaData;
+      await this.cache.set('personas', personas);
+      let promptTemplates = (await this.cache.get('promptTemplates')) as Record<
+        string,
+        PromptTemplate
+      >;
+      if (!promptTemplates) promptTemplates = {};
+      promptTemplates[personaData.id] = promptTemplate;
+      await this.cache.set('promptTemplates', promptTemplates);
 
       console.log(`[PersonaLoader] Loaded persona: ${personaData.id} (${personaData.name})`);
 
@@ -406,7 +409,7 @@ Please respond according to your persona configuration and quality standards.`;
         capabilities: persona.capabilities.primary,
         systemPrompt: template.systemPrompt,
       };
-      await this.memorySystem.addMemory({ content, metadata });
+      await this.memorySystem.addMemory({ content, metadata: await metadata });
     } catch (error) {
       console.error(`[PersonaLoader] Failed to store persona in memory:`, error);
     }
@@ -415,34 +418,38 @@ Please respond according to your persona configuration and quality standards.`;
   /**
    * Get persona configuration by ID
    */
-  public getPersona(agentId: string): PersonaConfig | null {
-    return this.personas.get(agentId) || null;
+  public async getPersona(agentId: string): Promise<PersonaConfig | null> {
+    const personas = (await this.cache.get('personas')) as Record<string, PersonaConfig>;
+    return personas?.[agentId] || null;
   }
 
   /**
    * Get prompt template by agent ID
    */
-  public getPromptTemplate(agentId: string): PromptTemplate | null {
-    return this.promptTemplates.get(agentId) || null;
+  public async getPromptTemplate(agentId: string): Promise<PromptTemplate | null> {
+    const templates = (await this.cache.get('promptTemplates')) as Record<string, PromptTemplate>;
+    return templates?.[agentId] || null;
   }
 
   /**
    * Get all loaded personas
    */
-  public getAllPersonas(): PersonaConfig[] {
-    return Array.from(this.personas.values());
+  public async getAllPersonas(): Promise<PersonaConfig[]> {
+    const personas = (await this.cache.get('personas')) as Record<string, PersonaConfig>;
+    return personas ? Object.values(personas) : [];
   }
 
   /**
    * Generate dynamic prompt for agent
    */
-  public generatePrompt(
+  public async generatePrompt(
     agentId: string,
     userMessage: string,
     context: Record<string, unknown> = {},
     memoryContext: { content: string }[] = [],
-  ): string {
-    const template = this.promptTemplates.get(agentId);
+  ): Promise<string> {
+    const templates = (await this.cache.get('promptTemplates')) as Record<string, PromptTemplate>;
+    const template = templates?.[agentId];
     if (!template) {
       throw new Error(`No prompt template found for agent: ${agentId}`);
     }
@@ -465,7 +472,9 @@ Please respond according to your persona configuration and quality standards.`;
    * Update persona configuration (for self-improvement)
    */
   public async updatePersona(agentId: string, updates: Partial<PersonaConfig>): Promise<void> {
-    const currentPersona = this.personas.get(agentId);
+    let personas = (await this.cache.get('personas')) as Record<string, PersonaConfig>;
+    if (!personas) personas = {};
+    const currentPersona = personas[agentId];
     if (!currentPersona) {
       throw new Error(`Persona not found: ${agentId}`);
     }
@@ -478,9 +487,16 @@ Please respond according to your persona configuration and quality standards.`;
     // Generate new template
     const newTemplate = this.generatePromptTemplate(updatedPersona);
 
-    // Update in memory
-    this.personas.set(agentId, updatedPersona);
-    this.promptTemplates.set(agentId, newTemplate);
+    // Update in cache
+    personas[agentId] = updatedPersona;
+    await this.cache.set('personas', personas);
+    let promptTemplates = (await this.cache.get('promptTemplates')) as Record<
+      string,
+      PromptTemplate
+    >;
+    if (!promptTemplates) promptTemplates = {};
+    promptTemplates[agentId] = newTemplate;
+    await this.cache.set('promptTemplates', promptTemplates);
 
     // Store update in memory for learning
     await this.storePersonaInMemory(updatedPersona, newTemplate);
@@ -497,13 +513,12 @@ Please respond according to your persona configuration and quality standards.`;
       await watcher.close();
     }
     this.watchers.clear();
-    this.personas.clear();
-    this.promptTemplates.clear();
+    await this.cache.set('personas', {});
+    await this.cache.set('promptTemplates', {});
     this.isInitialized = false;
   }
 
   // ID generation is handled by UnifiedBackboneService.generateUnifiedId; no local helpers.
 }
 
-// Export singleton instance
-export const personaLoader = PersonaLoader.getInstance();
+// No default singleton export; use DI or explicit instantiation.

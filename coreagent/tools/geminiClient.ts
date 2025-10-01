@@ -572,9 +572,17 @@ export class GeminiClient {
   private mockGenerateEmbedding(text: string, options?: EmbeddingOptions): EmbeddingResult {
     console.log(`🔢 Mock embedding generation for: "${text.substring(0, 50)}..."`);
 
-    // Generate a realistic mock embedding (384 dimensions like text-embedding-004)
+    // Generate a deterministic mock embedding (384 dimensions like text-embedding-004)
+    // Use text hash for deterministic output instead of Math.random()
     const dimensions = 384;
-    const embedding = Array.from({ length: dimensions }, () => Math.random() * 2 - 1);
+    const textHash = Array.from(text).reduce(
+      (hash, char) => ((hash << 5) - hash + char.charCodeAt(0)) | 0,
+      0,
+    );
+    const embedding = Array.from({ length: dimensions }, (_, i) => {
+      const seed = (textHash + i) / Math.pow(2, 31);
+      return (seed % 2) - 1; // Range [-1, 1]
+    });
 
     // Normalize the embedding to unit length (common practice)
     const magnitude = Math.sqrt(embedding.reduce((sum, val) => sum + val * val, 0));

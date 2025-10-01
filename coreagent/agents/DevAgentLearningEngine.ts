@@ -20,7 +20,11 @@ import { CodeAnalysisResult } from './AdvancedCodeAnalysisEngine';
 import { getEnhancedTimeContext } from '../utils/EnhancedTimeAwareness.js';
 import { OneAgentUnifiedBackbone } from '../utils/UnifiedBackboneService.js';
 import { OneAgentMemory } from '../memory/OneAgentMemory';
-import { createUnifiedTimestamp, unifiedMetadataService } from '../utils/UnifiedBackboneService';
+import {
+  createUnifiedTimestamp,
+  unifiedMetadataService,
+  getOneAgentMemory,
+} from '../utils/UnifiedBackboneService';
 
 export interface LearnedPattern {
   id: string;
@@ -102,10 +106,37 @@ export class DevAgentLearningEngine {
   private unifiedBackbone: OneAgentUnifiedBackbone;
   private memoryBridge: OneAgentMemory;
 
-  // In-memory cache for fast access
-  private patternCache: Map<string, LearnedPattern> = new Map();
-  private categoryIndex: Map<string, string[]> = new Map(); // category -> pattern IDs
-  private languageIndex: Map<string, string[]> = new Map(); // language -> pattern IDs
+  // Canonical: Use unified cache for all persistent agent caches (object-literal pattern)
+  private async getPatternCache(): Promise<{ [id: string]: LearnedPattern }> {
+    return (
+      ((await this.unifiedBackbone.cache.get(`${this.agentId}:patternCache`)) as {
+        [id: string]: LearnedPattern;
+      }) || {}
+    );
+  }
+  private async setPatternCache(val: { [id: string]: LearnedPattern }): Promise<void> {
+    await this.unifiedBackbone.cache.set(`${this.agentId}:patternCache`, val);
+  }
+  private async getCategoryIndex(): Promise<{ [category: string]: string[] }> {
+    return (
+      ((await this.unifiedBackbone.cache.get(`${this.agentId}:categoryIndex`)) as {
+        [category: string]: string[];
+      }) || {}
+    );
+  }
+  private async setCategoryIndex(val: { [category: string]: string[] }): Promise<void> {
+    await this.unifiedBackbone.cache.set(`${this.agentId}:categoryIndex`, val);
+  }
+  private async getLanguageIndex(): Promise<{ [language: string]: string[] }> {
+    return (
+      ((await this.unifiedBackbone.cache.get(`${this.agentId}:languageIndex`)) as {
+        [language: string]: string[];
+      }) || {}
+    );
+  }
+  private async setLanguageIndex(val: { [language: string]: string[] }): Promise<void> {
+    await this.unifiedBackbone.cache.set(`${this.agentId}:languageIndex`, val);
+  }
 
   private metrics: LearningMetrics = {
     totalPatterns: 0,
@@ -123,7 +154,8 @@ export class DevAgentLearningEngine {
     this.a2aProtocol = a2aProtocol;
     // context7Integration initialization removed (deprecated)
     this.unifiedBackbone = OneAgentUnifiedBackbone.getInstance();
-    this.memoryBridge = OneAgentMemory.getInstance();
+    // Canonical: use getOneAgentMemory() accessor
+    this.memoryBridge = getOneAgentMemory();
   }
 
   /**
@@ -139,7 +171,8 @@ export class DevAgentLearningEngine {
       // Update metrics
       await this.updateMetrics();
 
-      console.log(`[LearningEngine] Loaded ${this.patternCache.size} existing patterns`);
+      const patternCache = await this.getPatternCache();
+      console.log(`[LearningEngine] Loaded ${Object.keys(patternCache).length} existing patterns`);
       console.log(
         `[LearningEngine] Average confidence: ${this.metrics.averageConfidence.toFixed(2)}`,
       );
@@ -235,8 +268,8 @@ export class DevAgentLearningEngine {
     maxResults: number = 5,
   ): Promise<LearnedPattern[]> {
     try {
-      // First check cache
-      const cached = this.searchPatternCache(problem, language, category);
+      // First check cache (async)
+      const cached = await this.searchPatternCache(problem, language, category);
 
       // Also search in persistent memory
       const memoryResults = await this.searchPatternsInMemory(
@@ -272,7 +305,8 @@ export class DevAgentLearningEngine {
     _userFeedback?: 'positive' | 'negative' | 'neutral',
   ): Promise<void> {
     try {
-      const pattern = this.patternCache.get(patternId);
+      const cache = { ...(await this.getPatternCache()) };
+      const pattern = cache[patternId];
       if (!pattern) {
         console.warn(`[LearningEngine] Pattern ${patternId} not found for usage recording`);
         return;
@@ -298,7 +332,8 @@ export class DevAgentLearningEngine {
       await this.updatePatternInMemory(pattern);
 
       // Update cache
-      this.patternCache.set(patternId, pattern);
+      cache[patternId] = pattern;
+      await this.setPatternCache(cache);
 
       console.log(
         `[LearningEngine] Updated pattern ${pattern.name}: confidence=${pattern.confidence.toFixed(2)}, success rate=${pattern.successRate.toFixed(2)}`,
@@ -326,7 +361,9 @@ export class DevAgentLearningEngine {
     try {
       console.log('[LearningEngine] Starting pattern cleanup...');
 
-      for (const [patternId, pattern] of this.patternCache) {
+      const cache = { ...(await this.getPatternCache()) };
+      for (const patternId of Object.keys(cache)) {
+        const pattern = cache[patternId];
         // Remove patterns with very low success rate and high usage
         if (pattern.timesUsed > 10 && pattern.successRate < 0.3) {
           await this.removePattern(patternId);
@@ -344,6 +381,7 @@ export class DevAgentLearningEngine {
         }
       }
 
+      await this.setPatternCache(cache);
       console.log(`[LearningEngine] Cleanup complete: removed ${removed}, updated ${updated}`);
       return { removed, updated };
     } catch (error) {
@@ -363,18 +401,17 @@ export class DevAgentLearningEngine {
         query: 'learned pattern solution best practice devagent',
         userId: 'global',
         limit: 100,
-        semanticSearch: true,
-        type: 'learned-patterns',
       });
       const loadedPatterns: string[] = [];
+      const cache = { ...(await this.getPatternCache()) };
       if (Array.isArray(memoryResult)) {
         for (const memory of memoryResult) {
           // Canonical: expect metadata.type === 'learned_pattern' and content is valid JSON
           if (memory.metadata?.type === 'learned_pattern') {
             try {
               const pattern: LearnedPattern = JSON.parse(memory.content);
-              this.patternCache.set(pattern.id, pattern);
-              this.updateIndexes(pattern);
+              cache[pattern.id] = pattern;
+              await this.updateIndexes(pattern);
               loadedPatterns.push(pattern.name);
             } catch (parseError) {
               console.warn(
@@ -384,9 +421,11 @@ export class DevAgentLearningEngine {
             }
           }
         }
+        await this.setPatternCache(cache);
       }
+      const patternCache = await this.getPatternCache();
       console.log(
-        `[LearningEngine] Loaded ${this.patternCache.size} existing patterns from global repository: ${loadedPatterns.join(', ')}`,
+        `[LearningEngine] Loaded ${Object.keys(patternCache).length} existing patterns from global repository: ${loadedPatterns.join(', ')}`,
       );
     } catch (error) {
       console.warn('[LearningEngine] Failed to load existing patterns:', error);
@@ -403,7 +442,7 @@ export class DevAgentLearningEngine {
     context: LearningContext,
   ): Promise<LearnedPattern | null> {
     // Use AI to extract meaningful patterns
-    const unifiedMetadata = this.unifiedBackbone
+    const unifiedMetadata = await this.unifiedBackbone
       .getServices()
       .metadataService.create('learning-pattern', 'DevAgentLearningEngine', {
         content: {
@@ -477,7 +516,7 @@ export class DevAgentLearningEngine {
     const codeBlocks = this.extractCodeBlocks(doc.content);
     const bestPractices = this.extractBestPractices(doc.content);
     for (const codeBlock of codeBlocks) {
-      const patternMetadata = this.unifiedBackbone.getServices().metadataService.create(
+      const patternMetadata = await this.unifiedBackbone.getServices().metadataService.create(
         'context7-pattern', // Only for documentation learning
         'DevAgentLearningEngine',
         {
@@ -530,7 +569,7 @@ export class DevAgentLearningEngine {
     for (const bestPractice of bestPractices) {
       if (bestPractice.trim().length < 20) continue; // Skip short/incomplete practices
 
-      const practiceMetadata = this.unifiedBackbone.getServices().metadataService.create(
+      const practiceMetadata = await this.unifiedBackbone.getServices().metadataService.create(
         'context7-best-practice', // Only for documentation learning
         'DevAgentLearningEngine',
         {
@@ -588,20 +627,24 @@ export class DevAgentLearningEngine {
    */
   private async storeNewPattern(pattern: LearnedPattern): Promise<LearnedPattern> {
     try {
-      const meta = unifiedMetadataService.create('learned_pattern', 'DevAgentLearningEngine', {
-        system: {
-          source: 'dev_agent_learning',
-          component: 'DevAgentLearningEngine',
-          userId: 'dev_agent',
+      const meta = await unifiedMetadataService.create(
+        'learned_pattern',
+        'DevAgentLearningEngine',
+        {
+          system: {
+            source: 'dev_agent_learning',
+            component: 'DevAgentLearningEngine',
+            userId: 'dev_agent',
+          },
+          content: {
+            category: 'learned_pattern',
+            tags: ['learning', pattern.category, pattern.language],
+            sensitivity: 'internal',
+            relevanceScore: pattern.confidence,
+            contextDependency: 'session',
+          },
         },
-        content: {
-          category: 'learned_pattern',
-          tags: ['learning', pattern.category, pattern.language],
-          sensitivity: 'internal',
-          relevanceScore: pattern.confidence,
-          contextDependency: 'session',
-        },
-      });
+      );
       interface PatternExt {
         custom?: Record<string, unknown>;
       }
@@ -614,7 +657,7 @@ export class DevAgentLearningEngine {
         applicationCount: pattern.timesUsed,
         lastApplied: createUnifiedTimestamp().iso,
       };
-      await this.memoryBridge.addMemoryCanonical(JSON.stringify(pattern), meta, 'dev_agent');
+      await this.memoryBridge.addMemory({ content: JSON.stringify(pattern), metadata: meta });
       return pattern;
     } catch (error) {
       console.error('[LearningEngine] Failed to store new pattern:', error);
@@ -627,16 +670,20 @@ export class DevAgentLearningEngine {
    */
   private updateIndexes(pattern: LearnedPattern): void {
     // Category index
-    if (!this.categoryIndex.has(pattern.category)) {
-      this.categoryIndex.set(pattern.category, []);
-    }
-    this.categoryIndex.get(pattern.category)!.push(pattern.id);
+    (async () => {
+      const catIdx = { ...(await this.getCategoryIndex()) };
+      if (!catIdx[pattern.category]) catIdx[pattern.category] = [];
+      catIdx[pattern.category].push(pattern.id);
+      await this.setCategoryIndex(catIdx);
+    })();
 
     // Language index
-    if (!this.languageIndex.has(pattern.language)) {
-      this.languageIndex.set(pattern.language, []);
-    }
-    this.languageIndex.get(pattern.language)!.push(pattern.id);
+    (async () => {
+      const langIdx = { ...(await this.getLanguageIndex()) };
+      if (!langIdx[pattern.language]) langIdx[pattern.language] = [];
+      langIdx[pattern.language].push(pattern.id);
+      await this.setLanguageIndex(langIdx);
+    })();
   }
 
   /**
@@ -750,21 +797,21 @@ export class DevAgentLearningEngine {
     problem: string,
     language: string,
     category?: string,
-  ): LearnedPattern[] {
-    const results = [];
-
-    for (const pattern of this.patternCache.values()) {
-      if (pattern.language === language) {
-        if (category && pattern.category !== category) continue;
-
-        const relevance = this.calculateRelevance(pattern, problem);
-        if (relevance > 0.3) {
-          results.push(pattern);
+  ): Promise<LearnedPattern[]> {
+    return (async () => {
+      const patternCache = await this.getPatternCache();
+      const results: LearnedPattern[] = [];
+      for (const pattern of Object.values(patternCache)) {
+        if (pattern.language === language) {
+          if (category && pattern.category !== category) continue;
+          const relevance = this.calculateRelevance(pattern, problem);
+          if (relevance > 0.3) {
+            results.push(pattern);
+          }
         }
       }
-    }
-
-    return results;
+      return results;
+    })();
   }
   private async searchPatternsInMemory(
     problem: string,
@@ -778,8 +825,6 @@ export class DevAgentLearningEngine {
         query: searchQuery,
         userId: this.agentId,
         limit: maxResults,
-        semanticSearch: true,
-        type: 'learned-patterns',
       });
       const list = Array.isArray(memoryResult) ? memoryResult : [];
       const patterns: LearnedPattern[] = list
@@ -816,7 +861,8 @@ export class DevAgentLearningEngine {
 
   private async findSimilarPattern(pattern: LearnedPattern): Promise<LearnedPattern | null> {
     // Simple similarity check - can be enhanced with semantic analysis
-    for (const existing of this.patternCache.values()) {
+    const patternCache = await this.getPatternCache();
+    for (const existing of Object.values(patternCache)) {
       if (
         existing.language === pattern.language &&
         existing.category === pattern.category &&
@@ -842,7 +888,8 @@ export class DevAgentLearningEngine {
     patternId: string,
     context: LearningContext,
   ): Promise<LearnedPattern> {
-    const pattern = this.patternCache.get(patternId)!;
+    const cache = { ...(await this.getPatternCache()) };
+    const pattern = cache[patternId]!;
 
     // Update metrics
     pattern.timesUsed++;
@@ -859,10 +906,12 @@ export class DevAgentLearningEngine {
     }
 
     await this.updatePatternInMemory(pattern);
+    cache[patternId] = pattern;
+    await this.setPatternCache(cache);
     return pattern;
   }
   private async updatePatternInMemory(pattern: LearnedPattern): Promise<void> {
-    const meta = unifiedMetadataService.create('learned_pattern', 'DevAgentLearningEngine', {
+    const meta = await unifiedMetadataService.create('learned_pattern', 'DevAgentLearningEngine', {
       system: {
         source: 'dev_agent_learning',
         component: 'DevAgentLearningEngine',
@@ -893,13 +942,16 @@ export class DevAgentLearningEngine {
   }
 
   private async removePattern(patternId: string): Promise<void> {
-    this.patternCache.delete(patternId);
+    const cache = { ...(await this.getPatternCache()) };
+    delete cache[patternId];
+    await this.setPatternCache(cache);
     // Note: We don't actually delete from memory to preserve history
     console.log(`[LearningEngine] Removed pattern ${patternId} from active cache`);
   }
 
   private async updateMetrics(): Promise<void> {
-    const patterns = Array.from(this.patternCache.values());
+    const patternCache = await this.getPatternCache();
+    const patterns: LearnedPattern[] = Object.values(patternCache);
 
     this.metrics.totalPatterns = patterns.length;
     this.metrics.averageConfidence =

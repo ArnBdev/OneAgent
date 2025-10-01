@@ -125,15 +125,16 @@ export class BMADElicitationEngine {
   ];
 
   // Context-specific elicitation patterns
-  private static readonly DOMAIN_PATTERNS = new Map<string, number[]>([
-    ['development', [1, 2, 3, 5, 6, 7]],
-    ['analysis', [1, 4, 6, 8, 9]],
-    ['advice', [0, 2, 4, 5, 9]],
-    ['creative', [0, 4, 6, 7, 8]],
-    ['planning', [3, 4, 5, 7, 9]],
-    ['implementation', [2, 3, 5, 6, 9]],
-    ['problem-solving', [1, 2, 6, 7, 8]],
-  ]);
+  // Canonical: static, read-only object for constant pattern lookup (linter-compliant)
+  private static readonly DOMAIN_PATTERNS: { [domain: string]: number[] } = {
+    development: [1, 2, 3, 5, 6, 7],
+    analysis: [1, 4, 6, 8, 9],
+    advice: [0, 2, 4, 5, 9],
+    creative: [0, 4, 6, 7, 8],
+    planning: [3, 4, 5, 7, 9],
+    implementation: [2, 3, 5, 6, 9],
+    'problem-solving': [1, 2, 6, 7, 8],
+  };
 
   /**
    * Apply intelligent elicitation framework based on task analysis
@@ -176,7 +177,7 @@ export class BMADElicitationEngine {
     domain: string = 'general',
   ): ElicitationPoint[] {
     // Start with domain-specific patterns
-    const domainPoints = BMADElicitationEngine.DOMAIN_PATTERNS.get(domain) || [0, 4, 6, 9];
+    const domainPoints = BMADElicitationEngine.DOMAIN_PATTERNS[domain] || [0, 4, 6, 9];
 
     // Filter by complexity appropriateness
     const applicablePoints = BMADElicitationEngine.ELICITATION_POINTS.filter((point) => {
@@ -314,8 +315,8 @@ export class BMADElicitationEngine {
     }
 
     // Get domain-specific base points
-    const basePoints = BMADElicitationEngine.DOMAIN_PATTERNS.get(taskAnalysis.domain) ||
-      BMADElicitationEngine.DOMAIN_PATTERNS.get(domain) || [0, 4, 6, 9];
+    const basePoints = BMADElicitationEngine.DOMAIN_PATTERNS[taskAnalysis.domain] ||
+      BMADElicitationEngine.DOMAIN_PATTERNS[domain] || [0, 4, 6, 9];
 
     // Filter points by applicability and complexity
     const availablePoints = BMADElicitationEngine.ELICITATION_POINTS.filter((point) => {
@@ -457,7 +458,7 @@ ${riskGuidance[taskAnalysis.riskLevel] || 'Standard risk considerations apply.'}
   }
 
   private getSuggestedPoints(domain: string, complexity: string): number[] {
-    const basePoints = BMADElicitationEngine.DOMAIN_PATTERNS.get(domain) || [0, 4, 6, 9];
+    const basePoints = BMADElicitationEngine.DOMAIN_PATTERNS[domain] || [0, 4, 6, 9];
     const maxPoints = this.getOptimalPointCount(complexity as 'simple' | 'medium' | 'complex');
 
     return basePoints.slice(0, maxPoints);

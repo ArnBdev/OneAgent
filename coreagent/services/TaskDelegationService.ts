@@ -1,5 +1,6 @@
 import { createUnifiedId, createUnifiedTimestamp } from '../utils/UnifiedBackboneService';
 import { OneAgentMemory } from '../memory/OneAgentMemory';
+import { getOneAgentMemory } from '../utils/UnifiedBackboneService';
 import { unifiedMonitoringService } from '../monitoring/UnifiedMonitoringService';
 
 export interface DelegatedTask {
@@ -29,7 +30,7 @@ export interface DelegatedTask {
 
 export class TaskDelegationService {
   private static instance: TaskDelegationService;
-  private memory = OneAgentMemory.getInstance();
+  private memory: OneAgentMemory;
   private queue: DelegatedTask[] = [];
   private dedup = new Set<string>();
   private readonly MAX_QUEUE = 100; // Prevent unbounded growth (memory hygiene)
@@ -40,9 +41,11 @@ export class TaskDelegationService {
   private deepAnalysisProvider:
     | (() => { summary: string; recommendedActions: string[]; snapshotHash?: string } | null)
     | null = null;
-  private constructor() {}
-  static getInstance(): TaskDelegationService {
-    if (!this.instance) this.instance = new TaskDelegationService();
+  private constructor(memory?: OneAgentMemory) {
+    this.memory = memory || getOneAgentMemory();
+  }
+  static getInstance(memory?: OneAgentMemory): TaskDelegationService {
+    if (!this.instance) this.instance = new TaskDelegationService(memory);
     return this.instance;
   }
 

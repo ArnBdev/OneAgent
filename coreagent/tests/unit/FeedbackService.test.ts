@@ -1,15 +1,9 @@
-import { feedbackService } from '../../services/FeedbackService';
+import { FeedbackService } from '../../services/FeedbackService';
 import { OneAgentMemory } from '../../memory/OneAgentMemory';
 import type { FeedbackRecord } from '../../types/oneagent-backbone-types';
 
-jest.mock('../../memory/OneAgentMemory', () => {
-  const addMemoryCanonical = jest.fn().mockResolvedValue('mem_1');
-  return {
-    OneAgentMemory: {
-      getInstance: jest.fn(() => ({ addMemoryCanonical })),
-    },
-  };
-});
+const addMemory = jest.fn().mockResolvedValue('mem_1');
+const mockMemory = { addMemory } as unknown as OneAgentMemory;
 
 describe('FeedbackService', () => {
   it('saves feedback to memory with canonical metadata', async () => {
@@ -20,13 +14,15 @@ describe('FeedbackService', () => {
       timestamp: new Date().toISOString(),
     };
 
-    await feedbackService.save(feedback);
+    // Create a FeedbackService instance with DI for memory
+    // Canonical: Use direct instantiation for FeedbackService with DI
+    const service = new FeedbackService(mockMemory);
+    await service.save(feedback);
 
-    const mem = OneAgentMemory.getInstance() as unknown as { addMemoryCanonical: jest.Mock };
-    expect(mem.addMemoryCanonical).toHaveBeenCalled();
-    const [summary, metadata, userId] = mem.addMemoryCanonical.mock.calls[0];
-    expect(summary).toContain('Feedback GOOD for task task_123');
-    expect(userId).toBe('feedback');
-    expect(metadata.type || metadata?.content?.category).toBeDefined(); // metadata shape exists
+    expect(addMemory).toHaveBeenCalled();
+    const [req] = addMemory.mock.calls[0];
+    expect(req.content).toContain('Feedback GOOD for task task_123');
+    expect(req.metadata.userId).toBe('feedback');
+    expect(req.metadata.type || req.metadata?.content?.category).toBeDefined(); // metadata shape exists
   });
 });

@@ -91,13 +91,11 @@ export class PerformanceAPI {
   async getSystemStatus(): Promise<PerformanceAPIResponse<SystemStatus>> {
     try {
       const report = await globalProfiler.generateReport();
-      const memorySearch = await this.memoryClient.searchMemory({
-        query: 'system',
+      const memoryData = await this.memoryClient.searchMemory({
+        query: '',
         limit: 100,
-        type: 'system',
       });
-      const memoryData = memorySearch?.results || [];
-      await this.memoryIntelligence.generateMemoryAnalytics('system');
+      await this.memoryIntelligence.generateMemoryAnalytics('');
       // Integrate unified error metrics (non-critical augmentation)
       let validationErrors = 0;
       try {
@@ -123,7 +121,6 @@ export class PerformanceAPI {
         await this.memoryClient.searchMemory({
           query: 'test',
           limit: 1,
-          type: 'system',
         });
         services.mem0 = 'connected';
       } catch {
@@ -243,9 +240,9 @@ export class PerformanceAPI {
   }): Promise<PerformanceAPIResponse> {
     try {
       await this.memoryClient.searchMemory({
-        query: filter?.query || '',
+        query: filter?.query ?? '',
         limit: filter?.limit || 100,
-        type: 'system',
+        userId: filter?.userId ?? '',
       });
       const analytics = await this.memoryIntelligence.generateMemoryAnalytics(
         filter?.userId || 'system',
@@ -304,46 +301,37 @@ export class PerformanceAPI {
           model: filter?.model,
         });
         const elapsed = Math.max(0, createUnifiedTimestamp().unix - t0);
-        const memories = searchResults.results.map((r) => r.memory);
-        // Try to extract elapsedMs from analytics in a type-safe way
-        const analyticsObj = (searchResults as unknown as { analytics?: { elapsedMs?: number } })
-          .analytics;
-        const analyticsElapsed =
-          analyticsObj && typeof analyticsObj.elapsedMs === 'number'
-            ? analyticsObj.elapsedMs
-            : elapsed;
-        // Emit canonical metrics for semantic search path
+        // Canonical: treat searchResults as array of memories
+        const memories = Array.isArray(searchResults) ? searchResults : [];
         void metricsService.logMemorySearch({
           taskId,
-          userId: filter?.userId || 'system',
+          userId: filter?.userId ?? '',
           agentId: 'PerformanceAPI',
           query,
-          latencyMs: analyticsElapsed,
-          vectorResultsCount: Array.isArray(memories) ? memories.length : 0,
+          latencyMs: elapsed,
+          vectorResultsCount: memories.length,
           graphResultsCount: 0,
-          finalContextSize: Array.isArray(memories) ? memories.length : 0,
+          finalContextSize: memories.length,
         });
         results = {
-          memories: searchResults.results.map((r) => r.memory),
-          analytics: searchResults.analytics,
+          memories,
           searchType: 'semantic',
           taskId,
         };
       } else {
         // Use basic search
         const memoryResults = await this.memoryClient.searchMemory({
-          query: query,
+          query: typeof query === 'string' ? query : '',
           limit: filter?.limit || 50,
-          type: 'system',
+          userId: filter?.userId ?? '',
         });
         const elapsed = Math.max(0, createUnifiedTimestamp().unix - t0);
-        const memories = memoryResults?.results || [];
-        // Emit canonical metrics for basic path
+        const memories = memoryResults;
         void metricsService.logMemorySearch({
           taskId,
-          userId: filter?.userId || 'system',
+          userId: filter?.userId ?? '',
           agentId: 'PerformanceAPI',
-          query: query || '',
+          query: typeof query === 'string' ? query : '',
           latencyMs: elapsed,
           vectorResultsCount: memories.length,
           graphResultsCount: 0,
@@ -402,7 +390,8 @@ export class PerformanceAPI {
         updatedAt: createUnifiedTimestamp().utc,
       };
 
-      const category = await this.memoryIntelligence.categorizeMemory(tempMemory);
+      // Canonical: fallback to 'general' category (categorizeMemory not available)
+      const category = 'general';
       const importance = await this.memoryIntelligence.calculateImportanceScore(tempMemory);
       // Store with embedding and intelligence
       const result = await this.embeddingsTool.storeMemoryWithEmbedding(

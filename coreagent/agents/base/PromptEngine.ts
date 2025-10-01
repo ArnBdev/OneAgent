@@ -176,58 +176,44 @@ export class PromptEngine {
   ];
 
   // Systematic Prompting Frameworks
-  private static readonly PROMPT_FRAMEWORKS: Map<string, PromptFramework> = new Map([
-    [
-      'RTF',
-      {
-        id: 'RTF',
-        name: 'Role-Task-Format',
-        structure: ['role', 'task', 'format'],
-        useCase: 'Straightforward, well-defined tasks',
-        effectiveness: 0.85,
-      },
-    ],
-    [
-      'TAG',
-      {
-        id: 'TAG',
-        name: 'Task-Action-Goal',
-        structure: ['task', 'action', 'goal'],
-        useCase: 'Goal-oriented tasks with specific outcomes',
-        effectiveness: 0.82,
-      },
-    ],
-    [
-      'RISE',
-      {
-        id: 'RISE',
-        name: 'Role-Input-Steps-Example',
-        structure: ['role', 'input', 'steps', 'example'],
-        useCase: 'Complex tasks requiring guided thinking',
-        effectiveness: 0.88,
-      },
-    ],
-    [
-      'RGC',
-      {
-        id: 'RGC',
-        name: 'Role-Goal-Constraints',
-        structure: ['role', 'goal', 'constraints'],
-        useCase: 'Constrained environments with specific limitations',
-        effectiveness: 0.84,
-      },
-    ],
-    [
-      'CARE',
-      {
-        id: 'CARE',
-        name: 'Content-Action-Result-Example',
-        structure: ['content', 'action', 'result', 'example'],
-        useCase: 'Context-rich scenarios requiring comprehensive analysis',
-        effectiveness: 0.9,
-      },
-    ],
-  ]);
+  // Canonical: Use plain object for static, read-only pattern lookup (linter compliant)
+  private static readonly PROMPT_FRAMEWORKS: Record<string, PromptFramework> = {
+    RTF: {
+      id: 'RTF',
+      name: 'Role-Task-Format',
+      structure: ['role', 'task', 'format'],
+      useCase: 'Straightforward, well-defined tasks',
+      effectiveness: 0.85,
+    },
+    TAG: {
+      id: 'TAG',
+      name: 'Task-Action-Goal',
+      structure: ['task', 'action', 'goal'],
+      useCase: 'Goal-oriented tasks with specific outcomes',
+      effectiveness: 0.82,
+    },
+    RISE: {
+      id: 'RISE',
+      name: 'Role-Input-Steps-Example',
+      structure: ['role', 'input', 'steps', 'example'],
+      useCase: 'Complex tasks requiring guided thinking',
+      effectiveness: 0.88,
+    },
+    RGC: {
+      id: 'RGC',
+      name: 'Role-Goal-Constraints',
+      structure: ['role', 'goal', 'constraints'],
+      useCase: 'Constrained environments with specific limitations',
+      effectiveness: 0.84,
+    },
+    CARE: {
+      id: 'CARE',
+      name: 'Content-Action-Result-Example',
+      structure: ['content', 'action', 'result', 'example'],
+      useCase: 'Context-rich scenarios requiring comprehensive analysis',
+      effectiveness: 0.9,
+    },
+  };
 
   private config: PromptConfig;
 
@@ -394,7 +380,7 @@ Context:
       selectedFramework = 'RISE';
     }
 
-    const framework = PromptEngine.PROMPT_FRAMEWORKS.get(selectedFramework);
+    const framework = PromptEngine.PROMPT_FRAMEWORKS[selectedFramework];
     if (!framework) return '';
 
     return `\nFramework Application (${framework.name}):

@@ -237,7 +237,7 @@ export class WebSearchTool {
       return searchResult;
     }
 
-    let filteredResults = searchResult.results;
+    let filteredResults = Array.isArray(searchResult.results) ? searchResult.results : [];
 
     // Apply domain filtering
     if (options.filterDomains && options.filterDomains.length > 0) {
@@ -357,7 +357,9 @@ export class WebSearchTool {
       console.log('🔍 Testing web search functionality...');
 
       const testResult = await this.quickSearch('OpenAI GPT-4', 1);
-      const isWorking = testResult.totalResults > 0 || testResult.results.length >= 0;
+      const isWorking =
+        testResult.totalResults > 0 ||
+        (Array.isArray(testResult.results) && testResult.results.length >= 0);
 
       if (isWorking) {
         console.log('✅ Web search test passed');
@@ -692,7 +694,7 @@ export class WebSearchTool {
 
     try {
       // Store successful search pattern with canonical metadata
-      const unified = unifiedMetadataService.create('search_pattern', 'WebSearchTool', {
+      const unified = await unifiedMetadataService.create('search_pattern', 'WebSearchTool', {
         system: { userId: 'system', component: 'web-search', source: 'WebSearchTool' },
         content: {
           category: 'web_search',
@@ -711,14 +713,20 @@ export class WebSearchTool {
           relevance_scores: response.results.map((r) => r.relevanceScore).filter(Boolean),
         },
       });
-      await this.memorySystem.addMemoryCanonical(
-        `Search Query: "${query}" | Results: ${response.totalResults} found in ${response.searchTime}ms | Top domains: ${response.results
-          .slice(0, 3)
-          .map((r) => r.domain)
-          .join(', ')}`,
-        unified,
-        'system',
-      );
+      await this.memorySystem.addMemory({
+        content: `Search Query: "${query}" | Results: ${response.totalResults} found in ${response.searchTime}ms | Top domains: ${
+          Array.isArray(response.results)
+            ? response.results
+                .slice(0, 3)
+                .map((r) => r.domain)
+                .join(', ')
+            : ''
+        }`,
+        metadata:
+          typeof unified === 'object' && unified !== null
+            ? JSON.parse(JSON.stringify(unified))
+            : {},
+      });
       console.log(`🧠 Stored search learning for query: "${query}"`);
     } catch (error) {
       console.warn('⚠️ Failed to store search learning:', error);
@@ -732,10 +740,11 @@ export class WebSearchTool {
     if (!this.memorySystem) return [];
 
     try {
-      const searchResults = await this.memorySystem.searchMemory(
-        `search query similar to: ${query}`,
-      );
-
+      const searchResults = await this.memorySystem.searchMemory({
+        query: `search query similar to: ${query}`,
+        userId: 'system',
+        limit: 10,
+      });
       return Array.isArray(searchResults) ? searchResults : [];
     } catch (error) {
       console.warn('⚠️ Failed to retrieve similar search patterns:', error);
@@ -750,34 +759,42 @@ export class WebSearchTool {
     query: string,
     results: WebSearchResponse['results'],
   ): Promise<void> {
-    if (!this.memorySystem || results.length === 0) return;
+    if (!this.memorySystem || !Array.isArray(results) || results.length === 0) return;
 
     try {
       // Store only high-relevance results
-      const qualityResults = results.filter((r) => (r.relevanceScore || 0) > 70);
+      const qualityResults = Array.isArray(results)
+        ? results.filter((r) => (r.relevanceScore || 0) > 70)
+        : [];
 
       if (qualityResults.length > 0) {
-        const unified = unifiedMetadataService.create('quality_search_results', 'WebSearchTool', {
-          system: { userId: 'system', component: 'web-search', source: 'WebSearchTool' },
-          content: {
-            category: 'web_search',
-            tags: ['search_results', 'high_quality', 'reference'],
-            sensitivity: 'internal',
-            relevanceScore: 0.8,
-            contextDependency: 'session',
+        const unified = await unifiedMetadataService.create(
+          'quality_search_results',
+          'WebSearchTool',
+          {
+            system: { userId: 'system', component: 'web-search', source: 'WebSearchTool' },
+            content: {
+              category: 'web_search',
+              tags: ['search_results', 'high_quality', 'reference'],
+              sensitivity: 'internal',
+              relevanceScore: 0.8,
+              contextDependency: 'session',
+            },
+            custom: {
+              original_query: query,
+              result_count: qualityResults.length,
+              domains: qualityResults.map((r) => r.domain),
+              urls: qualityResults.map((r) => r.url),
+            },
           },
-          custom: {
-            original_query: query,
-            result_count: qualityResults.length,
-            domains: qualityResults.map((r) => r.domain),
-            urls: qualityResults.map((r) => r.url),
-          },
-        });
-        await this.memorySystem.addMemoryCanonical(
-          `High-quality search results for "${query}": ${qualityResults.map((r) => `${r.title} (${r.domain}) - ${r.description.substring(0, 100)}`).join(' | ')}`,
-          unified,
-          'system',
         );
+        await this.memorySystem.addMemory({
+          content: `High-quality search results for "${query}": ${qualityResults.map((r) => `${r.title} (${r.domain}) - ${r.description.substring(0, 100)}`).join(' | ')}`,
+          metadata:
+            typeof unified === 'object' && unified !== null
+              ? JSON.parse(JSON.stringify(unified))
+              : {},
+        });
         console.log(`🧠 Stored ${qualityResults.length} quality results for: "${query}"`);
       }
     } catch (error) {

@@ -20,6 +20,8 @@ import { PromptConfig, AgentPersona } from '../base/PromptEngine';
 import type { ConstitutionalPrinciple } from '../../types/oneagent-backbone-types';
 import { MemoryRecord } from '../../types/oneagent-backbone-types';
 import { proactiveObserverService } from '../../services/ProactiveTriageOrchestrator';
+import { OneAgentMemory } from '../../memory/OneAgentMemory';
+import { getOneAgentMemory } from '../../utils/UnifiedBackboneService';
 
 interface TaskAnalysis {
   confidence: number;
@@ -77,8 +79,11 @@ interface TriageAnalysis {
 }
 
 export class TriageAgent extends BaseAgent implements ISpecializedAgent {
-  constructor(config: AgentConfig, promptConfig?: PromptConfig) {
+  private memory: OneAgentMemory;
+
+  constructor(config: AgentConfig, promptConfig?: PromptConfig, memory?: OneAgentMemory) {
     super(config, promptConfig || TriageAgent.createTriagePromptConfig());
+    this.memory = memory || getOneAgentMemory();
   }
 
   /** ISpecializedAgent interface implementation */
@@ -516,9 +521,13 @@ export class TriageAgent extends BaseAgent implements ISpecializedAgent {
     try {
       this.validateContext(context);
 
-      // Search for relevant routing patterns in memory
-      const search = await this.searchMemories(context.user.id, message, 5);
-      const relevantMemories = search.result.results;
+      // Canonical memory search
+
+      const relevantMemories = (await this.memory.searchMemory({
+        query: message,
+        userId: context.user.id,
+        limit: 5,
+      })) as MemoryRecord[];
 
       // Analyze the task/query for routing decisions
       const triageAnalysis = await this.analyzeTaskForTriage(message, relevantMemories);
@@ -526,11 +535,11 @@ export class TriageAgent extends BaseAgent implements ISpecializedAgent {
       // Generate AI response with triage expertise
       const response = await this.generateTriageResponse(message, triageAnalysis, relevantMemories);
 
-      // Store this routing decision in memory for future reference
-      await this.addMemory(
-        context.user.id,
-        `Triage Analysis: ${message}\nRouting Decision: ${JSON.stringify(triageAnalysis)}\nResponse: ${response}`,
-        {
+      // Store this routing decision in memory for future reference (canonical signature)
+
+      await this.memory.addMemory({
+        content: `Triage Analysis: ${message}\nRouting Decision: ${JSON.stringify(triageAnalysis)}\nResponse: ${response}`,
+        metadata: {
           type: 'triage_decision',
           priority: triageAnalysis.priority,
           recommendedAgent: triageAnalysis.recommendedAgent,
@@ -538,7 +547,7 @@ export class TriageAgent extends BaseAgent implements ISpecializedAgent {
           timestamp: new Date().toISOString(),
           sessionId: context.sessionId,
         },
-      );
+      });
 
       const base = this.createResponse(response, [], relevantMemories);
       return await this.finalizeResponseWithTaskDetection(message, base);

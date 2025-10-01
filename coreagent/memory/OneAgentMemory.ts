@@ -29,15 +29,14 @@ export type OneAgentMemoryConfig = MemoryClientConfig;
  */
 
 export class OneAgentMemory {
-  private static instance: OneAgentMemory | null = null;
   private client: IMemoryClient;
   private config: OneAgentMemoryConfig;
   private eventListener?: (event: MemoryEvent) => void;
 
   constructor(config: OneAgentMemoryConfig) {
     this.config = config;
-    // Backend selection logic
-    const provider = config.provider || process.env.ONEAGENT_MEMORY_PROVIDER || 'mem0';
+    // Backend selection logic: provider must be set in config (no process.env fallback)
+    const provider = config.provider;
     if (provider === 'memgraph') {
       this.client = new MemgraphMemoryClient(config);
     } else {
@@ -47,21 +46,12 @@ export class OneAgentMemory {
   }
 
   /**
-   * Get singleton instance
-   */
-  static getInstance(config?: OneAgentMemoryConfig): OneAgentMemory {
-    if (!OneAgentMemory.instance) {
-      OneAgentMemory.instance = new OneAgentMemory(config || {});
-    }
-    return OneAgentMemory.instance;
-  }
-
-  /**
    * Add a memory item using the canonical IMemoryClient interface
    */
   /**
    * Canonical addMemory: accepts a MemoryAddRequest object
    */
+
   async addMemory(req: MemoryAddRequest): Promise<string> {
     // Ensure userId is present in metadata for traceability
     if (!req.metadata || typeof req.metadata !== 'object') {

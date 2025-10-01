@@ -77,9 +77,9 @@ Returner kun ren, uformatert .tsx-kode, uten noen form for innpakning eller mark
       // Canonical memory system: store generated code
       if (this.memoryClient) {
         try {
-          await this.memoryClient.addMemoryCanonical(
-            code,
-            {
+          await this.memoryClient.addMemory({
+            content: code,
+            metadata: {
               type: 'generated_ui_code',
               technology: 'react-typescript',
               agentId: this.id,
@@ -87,8 +87,7 @@ Returner kun ren, uformatert .tsx-kode, uten noen form for innpakning eller mark
               timestamp: createUnifiedTimestamp(),
               quality_score: 85,
             },
-            this.id,
-          );
+          });
         } catch {
           // Swallow memory errors for safety
         }

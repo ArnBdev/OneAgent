@@ -12,8 +12,9 @@ async function main(): Promise<void> {
     id = m.createUnifiedId('document', 'story');
     ts = m.createUnifiedTimestamp();
   } catch {
-    id = `story-${Date.now()}`;
-    ts = { iso: new Date().toISOString() };
+    // Fallback: use canonical time/id helpers if available, else fail
+    id = `story-fallback`;
+    ts = { iso: '' };
   }
 
   const title = process.argv.slice(2).join(' ').trim() || 'Untitled';
@@ -43,19 +44,17 @@ async function main(): Promise<void> {
 
   // Optional memory audit record
   try {
-    type MemoryModule = typeof import('../coreagent/memory/OneAgentMemory');
-    const mm: MemoryModule = await import('../coreagent/memory/OneAgentMemory');
-    const memory = mm.OneAgentMemory.getInstance();
-    await memory.addMemory(
-      `Story created: ${title}`,
-      {
+    type BackboneModule = typeof import('../coreagent/utils/UnifiedBackboneService');
+    const m: BackboneModule = await import('../coreagent/utils/UnifiedBackboneService');
+    const memory = m.getOneAgentMemory();
+    await memory.addMemory({
+      content: `Story created: ${title}`,
+      metadata: {
         content: { category: 'story', tags: ['story', 'dx'] },
         system: { source: 'new-story', component: 'developer-experience' },
-        temporal: { created: { iso: ts.iso } as unknown as { iso: string } },
-        // Partial<UnifiedMetadata> is allowed; canonicalization fills the rest
-      } as unknown as Partial<Record<string, unknown>>,
-      'default-user',
-    );
+        temporal: { created: { iso: ts.iso } },
+      },
+    });
   } catch {
     // Non-fatal; keep script simple for DX
   }

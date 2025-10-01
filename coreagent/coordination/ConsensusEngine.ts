@@ -54,13 +54,17 @@ import {
   CompromiseSolution,
 } from '../types/oneagent-backbone-types';
 import { OneAgentMemory } from '../memory/OneAgentMemory';
-import { createUnifiedId, unifiedMetadataService } from '../utils/UnifiedBackboneService';
+import {
+  createUnifiedId,
+  unifiedMetadataService,
+  getOneAgentMemory,
+} from '../utils/UnifiedBackboneService';
 
 export class ConsensusEngine {
   private memory: OneAgentMemory;
 
-  constructor() {
-    this.memory = OneAgentMemory.getInstance();
+  constructor(memory?: OneAgentMemory) {
+    this.memory = memory || getOneAgentMemory();
     console.log('🤝 ConsensusEngine initialized with democratic decision-making algorithms');
   }
 
@@ -132,7 +136,7 @@ export class ConsensusEngine {
 
     // Store consensus result in canonical memory system
     try {
-      const metadata = unifiedMetadataService.create('consensus_result', 'ConsensusEngine', {
+      const metadata = await unifiedMetadataService.create('consensus_result', 'ConsensusEngine', {
         system: {
           source: 'consensus_building',
           component: 'ConsensusEngine',
@@ -145,16 +149,12 @@ export class ConsensusEngine {
           relevanceScore: consensusLevel,
           contextDependency: 'session',
         },
+        consensusData: consensusResult,
       });
-      interface ConsensusMetadataExtension {
-        consensusData?: ConsensusResult;
-      }
-      (metadata as ConsensusMetadataExtension).consensusData = consensusResult; // attach domain-specific payload
-      await this.memory.addMemoryCanonical(
-        `Consensus Result: ${consensusResult.agreed ? 'AGREEMENT' : 'NO CONSENSUS'} - ${proposal}`,
-        metadata,
-        'system_consensus',
-      );
+      await this.memory.addMemory({
+        content: `Consensus Result: ${consensusResult.agreed ? 'AGREEMENT' : 'NO CONSENSUS'} - ${proposal}`,
+        metadata: metadata as Record<string, unknown>,
+      });
     } catch (memErr) {
       console.warn('ConsensusEngine memory store failed:', memErr);
     }

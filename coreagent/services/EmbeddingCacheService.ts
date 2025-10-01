@@ -47,6 +47,12 @@ export class EmbeddingCacheService {
   private dirty = false;
   private persistPath: string;
   private saveInterval?: NodeJS.Timeout;
+  /**
+   * ARCHITECTURAL EXCEPTION: This Map provides fast lookup index for embedding records.
+   * It mirrors persisted data for performance, not additional business state.
+   * This usage is allowed for embedding cache optimization.
+   */
+  // eslint-disable-next-line oneagent/no-parallel-cache
   private inMemoryIndex = new Map<string, PersistedEmbeddingRecord>();
   private readonly VERSION = 'v1';
   private readonly FLUSH_INTERVAL_MS = 30000; // 30s
@@ -183,6 +189,11 @@ export class EmbeddingCacheService {
     texts: string[],
     kind: EmbeddingKind,
   ): Promise<Map<string, number[]>> {
+    /**
+     * ARCHITECTURAL EXCEPTION: This Map accumulates results for batch operation.
+     * It is a temporary collection for function return, not persistent state.
+     * This usage is allowed for batch operation results.
+     */
     const out = new Map<string, number[]>();
     const toCompute: string[] = [];
     const model = getEmbeddingModel();

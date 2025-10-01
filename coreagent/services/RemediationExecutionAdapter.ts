@@ -35,11 +35,15 @@ export class RemediationExecutionAdapter {
       return { success: false, errorCode: 'task_not_found', errorMessage: 'Task missing in queue' };
     }
     const start = createUnifiedTimestamp();
-    // Simulate latency (uniform) – future: distribution aware of action type
+    // Simulate latency (deterministic) – future: distribution aware of action type
     const span = this.maxLatencyMs - this.minLatencyMs;
-    const simulated = this.minLatencyMs + Math.random() * span;
+    const taskHash = Array.from(taskId).reduce(
+      (hash, char) => ((hash << 5) - hash + char.charCodeAt(0)) | 0,
+      0,
+    );
+    const simulated = this.minLatencyMs + Math.abs(taskHash % span);
     await new Promise((r) => setTimeout(r, simulated));
-    const success = Math.random() > this.failureRate;
+    const success = Math.abs(taskHash % 100) >= this.failureRate * 100; // Deterministic success/failure
     const end = createUnifiedTimestamp();
     // Emit operation metric with durationMs (ingested by PerformanceMonitor)
     unifiedMonitoringService.trackOperation(

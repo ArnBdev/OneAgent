@@ -454,7 +454,7 @@ export function createMetricsRouter(): Router {
             );
           }
           // Backoff pending tasks (queued but not yet eligible)
-          const nowUnix = Date.now();
+          const nowUnix = createUnifiedTimestamp().unix;
           const inBackoff = tasks.filter(
             (t) => t.status === 'queued' && t.nextAttemptUnix && t.nextAttemptUnix > nowUnix,
           ).length;

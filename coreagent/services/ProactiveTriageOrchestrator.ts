@@ -5,6 +5,7 @@ import { metricsService } from './MetricsService';
 import { sloService } from '../monitoring/SLOService';
 import { getModelFor } from '../config/UnifiedModelPicker';
 import { OneAgentMemory } from '../memory/OneAgentMemory';
+import { getOneAgentMemory } from '../utils/UnifiedBackboneService';
 
 // Canonical Proactive Triage + Deep Analysis Orchestrator (merges prior ProactiveObserverService intent with future TriageAgent consolidation)
 export interface ProactiveSnapshot {
@@ -53,11 +54,14 @@ export class ProactiveTriageOrchestrator {
   private lastSnapshot: ProactiveSnapshot | null = null;
   private lastTriage: TriageResult | null = null;
   private lastDeep: DeepAnalysisResult | null = null;
-  private memory = OneAgentMemory.getInstance();
+  private memory: OneAgentMemory;
 
-  static getInstance(cfg?: Partial<ProactiveConfig>): ProactiveTriageOrchestrator {
+  static getInstance(
+    cfg?: Partial<ProactiveConfig>,
+    memory?: OneAgentMemory,
+  ): ProactiveTriageOrchestrator {
     if (!ProactiveTriageOrchestrator.instance) {
-      ProactiveTriageOrchestrator.instance = new ProactiveTriageOrchestrator(cfg);
+      ProactiveTriageOrchestrator.instance = new ProactiveTriageOrchestrator(cfg, memory);
       // Register deep analysis provider with task delegation service (decoupled, avoids circular import usage back)
       taskDelegationService.registerDeepAnalysisProvider(
         () => ProactiveTriageOrchestrator.instance?.getLastDeepAnalysis() || null,
@@ -66,7 +70,7 @@ export class ProactiveTriageOrchestrator {
     return ProactiveTriageOrchestrator.instance;
   }
 
-  private constructor(cfg?: Partial<ProactiveConfig>) {
+  private constructor(cfg?: Partial<ProactiveConfig>, memory?: OneAgentMemory) {
     this.config = {
       intervalMs: parseInt(process.env.ONEAGENT_PROACTIVE_INTERVAL_MS || '45000', 10) || 45000,
       jitterRatio: 0.25,
@@ -76,12 +80,16 @@ export class ProactiveTriageOrchestrator {
       memoryPersistence: process.env.ONEAGENT_PROACTIVE_MEMORY === '1',
       ...(cfg || {}),
     };
+    this.memory = memory || getOneAgentMemory();
   }
 
   start(): void {
     if (this.timer) return;
     const schedule = () => {
-      const jitter = this.config.intervalMs * this.config.jitterRatio * Math.random();
+      // Use canonical IdType ('operation') for jitter seed
+      const jitterSeed =
+        parseInt(createUnifiedId('operation', 'proactive').slice(-6), 16) / 0xffffff;
+      const jitter = this.config.intervalMs * this.config.jitterRatio * jitterSeed;
       const delay = this.config.intervalMs + jitter;
       this.timer = setTimeout(async () => {
         try {
@@ -127,7 +135,7 @@ export class ProactiveTriageOrchestrator {
       };
     }
     this.running = true;
-    const start = Date.now();
+    const start = createUnifiedTimestamp().unix;
     try {
       const snapshot = await this.buildSnapshot();
       const triage = await this.performTriage(snapshot);
@@ -153,14 +161,14 @@ export class ProactiveTriageOrchestrator {
         }
       }
       unifiedMonitoringService.trackOperation('ProactiveObserver', 'observation_cycle', 'success', {
-        durationMs: Date.now() - start,
+        durationMs: createUnifiedTimestamp().unix - start,
         anomaly: triage.anomalySuspected,
         deep: !!deep,
       });
       return { triage, deep };
     } catch (err) {
       unifiedMonitoringService.trackOperation('ProactiveObserver', 'observation_cycle', 'error', {
-        durationMs: Date.now() - start,
+        durationMs: createUnifiedTimestamp().unix - start,
         error: err instanceof Error ? err.message : String(err),
       });
       throw err;

@@ -274,8 +274,8 @@ export class SmartGeminiClient {
         if (!(transient && attempt <= maxRetries)) {
           throw new Error(`Direct Gemini failed: ${msg}`);
         }
-        // Backoff with jitter
-        const delayMs = baseDelay * Math.pow(2, attempt - 1) + Math.floor(Math.random() * 100);
+        // Canonical exponential backoff with deterministic jitter
+        const delayMs = baseDelay * Math.pow(2, attempt - 1) + Math.floor((attempt % 11) * 9.09); // Deterministic 0-99ms jitter
         await new Promise((res) => setTimeout(res, delayMs));
       }
     }

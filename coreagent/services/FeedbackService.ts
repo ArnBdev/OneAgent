@@ -1,5 +1,9 @@
 import { OneAgentMemory } from '../memory/OneAgentMemory';
-import { unifiedMetadataService, createUnifiedTimestamp } from '../utils/UnifiedBackboneService';
+import {
+  unifiedMetadataService,
+  createUnifiedTimestamp,
+  getOneAgentMemory,
+} from '../utils/UnifiedBackboneService';
 import type { FeedbackRecord } from '../types/oneagent-backbone-types';
 
 /**
@@ -7,19 +11,18 @@ import type { FeedbackRecord } from '../types/oneagent-backbone-types';
  * Canonical singleton to persist user feedback correlated to task metrics.
  * Storage backend: OneAgentMemory (mem0) with metadata { type: 'feedback_record' }.
  */
-export class FeedbackService {
-  private static instance: FeedbackService | null = null;
-  private memory = OneAgentMemory.getInstance();
 
-  static getInstance(): FeedbackService {
-    if (!FeedbackService.instance) FeedbackService.instance = new FeedbackService();
-    return FeedbackService.instance;
+export class FeedbackService {
+  private memory: OneAgentMemory;
+
+  constructor(memory?: OneAgentMemory) {
+    this.memory = memory || getOneAgentMemory();
   }
 
   /** Save a feedback record to canonical memory */
   async save(feedback: FeedbackRecord): Promise<void> {
     const ts = createUnifiedTimestamp();
-    const meta = unifiedMetadataService.create('feedback_record', 'FeedbackService', {
+    const meta = await unifiedMetadataService.create('feedback_record', 'FeedbackService', {
       system: {
         source: 'FeedbackService',
         component: 'feedback',
@@ -52,5 +55,3 @@ export class FeedbackService {
     await this.memory.addMemory({ content: summary, metadata });
   }
 }
-
-export const feedbackService = FeedbackService.getInstance();

@@ -64,17 +64,17 @@ export class CoreAgent extends BaseAgent implements ISpecializedAgent {
     // Core agent processes orchestration and system coordination requests
     const response = await this.generateCoreResponse(message);
 
-    // Store interaction in memory for system coordination tracking
-    await this.addMemory(
-      context.user.id,
-      `Core orchestration request: ${message}\nResponse: ${response}`,
-      {
+    // Store interaction in memory for system coordination tracking (canonical MemoryAddRequest)
+    await this.addMemory({
+      content: `Core orchestration request: ${message}\nResponse: ${response}`,
+      metadata: {
         type: 'core_orchestration',
         category: 'system_coordination',
         timestamp: new Date().toISOString(),
         sessionId: context.sessionId,
+        userId: context.user.id,
       },
-    );
+    });
 
     const base = {
       content: response,

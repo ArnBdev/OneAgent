@@ -16,7 +16,8 @@ console.log('📋 Architecture: OneAgentEngine + HTTP MCP Server');
 console.log('🎯 Target: VS Code Copilot Chat Integration');
 console.log('');
 
-const oneAgent = OneAgentEngine.getInstance();
+// Canonical: Use direct instantiation for OneAgentEngine
+const oneAgent = new OneAgentEngine();
 oneAgent.initialize(mode).then(() => {
   startServer();
 });

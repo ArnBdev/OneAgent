@@ -21,7 +21,7 @@ export interface ReadinessReport {
 }
 
 async function probe(url: string, name: string, timeoutMs = 4000): Promise<SubsystemStatus> {
-  const start = Date.now();
+  const start = createUnifiedTimestamp();
   const ts = createUnifiedTimestamp();
   try {
     const controller = new AbortController();
@@ -33,7 +33,7 @@ async function probe(url: string, name: string, timeoutMs = 4000): Promise<Subsy
       name,
       healthy,
       endpoint: url,
-      latencyMs: Date.now() - start,
+      latencyMs: createUnifiedTimestamp().unix - start.unix,
       checkedAt: ts.iso,
       ...(healthy ? {} : { error: `HTTP ${res.status}` }),
     };
@@ -71,9 +71,9 @@ export async function waitForReadiness(
   timeoutMs = 15000,
   intervalMs = 1500,
 ): Promise<ReadinessReport> {
-  const start = Date.now();
+  const start = createUnifiedTimestamp();
   let last: ReadinessReport = await generateReadinessReport();
-  while (Date.now() - start < timeoutMs && last.overall !== 'healthy') {
+  while (createUnifiedTimestamp().unix - start.unix < timeoutMs && last.overall !== 'healthy') {
     await new Promise((r) => setTimeout(r, intervalMs));
     last = await generateReadinessReport();
   }

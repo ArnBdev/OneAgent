@@ -10,10 +10,15 @@
  */
 
 import { EventEmitter } from 'events';
-import { personaLoader, PersonaConfig } from './PersonaLoader';
-import { OneAgentMemory, OneAgentMemoryConfig } from '../../memory/OneAgentMemory';
+import { PersonaLoader, PersonaConfig } from './PersonaLoader';
+import { OneAgentMemory } from '../../memory/OneAgentMemory';
+import { getOneAgentMemory } from '../../utils/UnifiedBackboneService';
 // ALITA Integration
-import { generateUnifiedId } from '../../utils/UnifiedBackboneService';
+import {
+  generateUnifiedId,
+  OneAgentUnifiedBackbone,
+  createUnifiedTimestamp,
+} from '../../utils/UnifiedBackboneService';
 
 export interface PerformanceMetrics {
   agentId: string;
@@ -67,26 +72,24 @@ export interface ALITASelfEvaluationResult extends SelfEvaluationResult {
  * Self-improvement system for agent optimization
  */
 export class SelfImprovementSystem extends EventEmitter {
-  private static instance: SelfImprovementSystem;
-  private performanceHistory: Map<string, PerformanceMetrics[]> = new Map();
-  private evaluationSchedule: Map<string, NodeJS.Timeout> = new Map();
+  private personaLoader: PersonaLoader;
+  // Canonical: Use unified cache for all cross-cutting caching
+  private performanceHistory = OneAgentUnifiedBackbone.getInstance().cache;
+  // Ephemeral: Timers are not persisted and are justified as short-lived resource handles (not cache)
+  /**
+   * ARCHITECTURAL EXCEPTION: This Map is used ONLY for ephemeral timer resource handles.
+   * It is NOT a persistent cache, not business state, and is never serialized.
+   * This usage is explicitly allowed by OneAgent canonicalization policy for resource management only.
+   */
+  // eslint-disable-next-line oneagent/no-parallel-cache
+  private evaluationTimers: Map<string, ReturnType<typeof setInterval>> = new Map();
   private isActive = false;
   private memorySystem: OneAgentMemory;
 
-  private constructor() {
+  constructor(memorySystem?: OneAgentMemory) {
     super();
-    const memoryConfig: OneAgentMemoryConfig = {
-      apiKey: process.env.MEM0_API_KEY || 'demo-key',
-      apiUrl: process.env.MEM0_API_URL,
-    };
-    this.memorySystem = OneAgentMemory.getInstance(memoryConfig);
-  }
-
-  public static getInstance(): SelfImprovementSystem {
-    if (!SelfImprovementSystem.instance) {
-      SelfImprovementSystem.instance = new SelfImprovementSystem();
-    }
-    return SelfImprovementSystem.instance;
+    this.memorySystem = memorySystem || getOneAgentMemory();
+    this.personaLoader = new PersonaLoader();
   }
 
   /**
@@ -115,13 +118,14 @@ export class SelfImprovementSystem extends EventEmitter {
    * Register an agent for self-improvement tracking
    */
   public async registerAgent(agentId: string): Promise<void> {
-    if (!this.performanceHistory.has(agentId)) {
-      this.performanceHistory.set(agentId, []);
+    const history = (await this.performanceHistory.get(agentId)) as
+      | PerformanceMetrics[]
+      | undefined;
+    if (!history) {
+      await this.performanceHistory.set(agentId, []);
     }
-
     // Schedule regular evaluation (every 24 hours)
-    this.scheduleAgentEvaluation(agentId, 24 * 60 * 60 * 1000);
-
+    await this.scheduleAgentEvaluation(agentId, 24 * 60 * 60 * 1000);
     console.log(`[SelfImprovementSystem] Registered agent: ${agentId}`);
   }
 
@@ -129,19 +133,20 @@ export class SelfImprovementSystem extends EventEmitter {
    * Record performance metrics for an agent
    */
   public async recordPerformance(metrics: PerformanceMetrics): Promise<void> {
-    const history = this.performanceHistory.get(metrics.agentId) || [];
+    let history = (await this.performanceHistory.get(metrics.agentId)) as
+      | PerformanceMetrics[]
+      | undefined;
+    if (!history) history = [];
     history.push(metrics);
-
     // Keep only last 100 entries per agent
     if (history.length > 100) {
       history.splice(0, history.length - 100);
     }
-
-    this.performanceHistory.set(metrics.agentId, history);
-    // Store in memory for persistence
-    await this.memorySystem.addMemoryCanonical(
-      `Performance Metrics for ${metrics.agentId}: ${JSON.stringify(metrics)}`,
-      {
+    await this.performanceHistory.set(metrics.agentId, history);
+    // Store in memory for persistence (canonical)
+    await this.memorySystem.addMemory({
+      content: `Performance Metrics for ${metrics.agentId}: ${JSON.stringify(metrics)}`,
+      metadata: {
         type: 'performance_metrics',
         system: { userId: 'system', source: 'self_improvement', component: 'performance-tracking' },
         content: {
@@ -153,9 +158,8 @@ export class SelfImprovementSystem extends EventEmitter {
         },
         contextual: { agentId: metrics.agentId },
         quality: { score: metrics.averageQualityScore / 100, reliability: 0.9 },
-      } as unknown as Partial<import('../../types/oneagent-backbone-types').UnifiedMetadata>,
-      'system',
-    );
+      },
+    });
 
     // Check if immediate evaluation is needed
     if (this.needsImmediateAttention(metrics)) {
@@ -169,18 +173,17 @@ export class SelfImprovementSystem extends EventEmitter {
   public async performSelfEvaluation(agentId: string): Promise<SelfEvaluationResult> {
     console.log(`[SelfImprovementSystem] Performing self-evaluation for ${agentId}`);
 
-    const currentPersona = personaLoader.getPersona(agentId);
+    const currentPersona = await this.personaLoader.getPersona(agentId);
     if (!currentPersona) {
       throw new Error(`No persona found for agent: ${agentId}`);
     }
 
-    const history = this.performanceHistory.get(agentId) || [];
+    const history =
+      ((await this.performanceHistory.get(agentId)) as PerformanceMetrics[] | undefined) || [];
     const recentMetrics = history.slice(-10); // Last 10 interactions
-
     if (recentMetrics.length === 0) {
       throw new Error(`No performance data available for agent: ${agentId}`);
     }
-
     const currentMetrics = this.calculateAverageMetrics(recentMetrics);
     const improvements = await this.generateImprovementSuggestions(currentPersona, recentMetrics);
     const overallHealth = this.assessOverallHealth(currentMetrics);
@@ -188,16 +191,16 @@ export class SelfImprovementSystem extends EventEmitter {
 
     const evaluation: SelfEvaluationResult = {
       agentId,
-      timestamp: new Date().toISOString(),
+      timestamp: createUnifiedTimestamp().iso,
       currentMetrics,
       improvements,
       overallHealth,
       recommendedActions,
     };
     // Store evaluation results
-    await this.memorySystem.addMemoryCanonical(
-      `Self-evaluation for ${agentId}: ${overallHealth} health, ${improvements.length} suggestions`,
-      {
+    await this.memorySystem.addMemory({
+      content: `Self-evaluation for ${agentId}: ${overallHealth} health, ${improvements.length} suggestions`,
+      metadata: {
         type: 'self_evaluation',
         system: {
           userId: 'system',
@@ -214,9 +217,8 @@ export class SelfImprovementSystem extends EventEmitter {
         },
         contextual: { agentId, improvements: improvements.length, overallHealth },
         quality: { score: 0.9 },
-      } as unknown as Partial<import('../../types/oneagent-backbone-types').UnifiedMetadata>,
-      'system',
-    );
+      },
+    });
 
     // Apply high-priority improvements automatically
     await this.applyAutomaticImprovements(agentId, improvements);
@@ -327,7 +329,7 @@ export class SelfImprovementSystem extends EventEmitter {
 
     for (const suggestion of autoApplyable) {
       try {
-        await personaLoader.updatePersona(agentId, suggestion.proposedChange);
+        await this.personaLoader.updatePersona(agentId, suggestion.proposedChange);
 
         console.log(
           `[SelfImprovementSystem] Auto-applied improvement for ${agentId}: ${suggestion.description}`,
@@ -389,7 +391,7 @@ export class SelfImprovementSystem extends EventEmitter {
 
     return {
       agentId: metrics[0].agentId,
-      timestamp: new Date().toISOString(),
+      timestamp: createUnifiedTimestamp().iso,
       interactionCount: totals.interactionCount,
       averageQualityScore: totals.averageQualityScore / metrics.length,
       constitutionalCompliance: totals.constitutionalCompliance / metrics.length,
@@ -529,11 +531,10 @@ export class SelfImprovementSystem extends EventEmitter {
    */
   private scheduleAgentEvaluation(agentId: string, intervalMs: number): void {
     // Clear existing schedule
-    const existing = this.evaluationSchedule.get(agentId);
+    const existing = this.evaluationTimers.get(agentId);
     if (existing) {
       clearInterval(existing);
     }
-
     // Schedule new evaluation
     const timer = setInterval(async () => {
       try {
@@ -542,17 +543,15 @@ export class SelfImprovementSystem extends EventEmitter {
         console.error(`[SelfImprovementSystem] Scheduled evaluation failed for ${agentId}:`, error);
       }
     }, intervalMs);
-    // Let process exit naturally in short-lived scripts/tests
     (timer as unknown as NodeJS.Timer).unref?.();
-
-    this.evaluationSchedule.set(agentId, timer);
+    this.evaluationTimers.set(agentId, timer);
   }
 
   /**
    * Schedule evaluations for all registered agents
    */
   private async scheduleEvaluations(): Promise<void> {
-    const personas = personaLoader.getAllPersonas();
+    const personas = await this.personaLoader.getAllPersonas();
     for (const persona of personas) {
       await this.registerAgent(persona.id);
     }
@@ -572,14 +571,17 @@ export class SelfImprovementSystem extends EventEmitter {
       for (const memory of loadedMemories) {
         if (memory.metadata?.type === 'performance_metrics' && memory.metadata?.metrics) {
           const metrics = memory.metadata.metrics as PerformanceMetrics;
-          const history = this.performanceHistory.get(metrics.agentId) || [];
+          let history = (await this.performanceHistory.get(metrics.agentId)) as
+            | PerformanceMetrics[]
+            | undefined;
+          if (!history) history = [];
           history.push(metrics);
-          this.performanceHistory.set(metrics.agentId, history);
+          await this.performanceHistory.set(metrics.agentId, history);
         }
       }
-
+      // No direct .size property on async cache; log loaded count instead
       console.log(
-        `[SelfImprovementSystem] Loaded performance history for ${this.performanceHistory.size} agents`,
+        `[SelfImprovementSystem] Loaded performance history for ${loadedMemories.length} agents`,
       );
     } catch (error) {
       console.error('[SelfImprovementSystem] Failed to load performance history:', error);
@@ -589,24 +591,21 @@ export class SelfImprovementSystem extends EventEmitter {
   /**
    * Get performance history for an agent
    */
-  public getPerformanceHistory(agentId: string): PerformanceMetrics[] {
-    return this.performanceHistory.get(agentId) || [];
-  }
 
   /**
    * Cleanup resources
    */
   public async cleanup(): Promise<void> {
-    for (const timer of this.evaluationSchedule.values()) {
+    for (const timer of this.evaluationTimers.values()) {
       clearInterval(timer);
     }
-    this.evaluationSchedule.clear();
-    this.performanceHistory.clear();
+    this.evaluationTimers.clear();
+    await this.performanceHistory.clear();
     this.isActive = false;
   }
 
   // ID generation is handled by UnifiedBackboneService.generateUnifiedId; no local helpers.
 }
 
-// Export singleton instance
-export const selfImprovementSystem = SelfImprovementSystem.getInstance();
+// Export canonical instance (DI ready)
+export const selfImprovementSystem = new SelfImprovementSystem();

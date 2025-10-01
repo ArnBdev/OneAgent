@@ -30,7 +30,7 @@ describe('A2A communication integration', () => {
   let sessionId = '';
 
   beforeAll(async () => {
-    engine = OneAgentEngine.getInstance();
+    engine = new OneAgentEngine();
     await engine.initialize('cli');
   });
 

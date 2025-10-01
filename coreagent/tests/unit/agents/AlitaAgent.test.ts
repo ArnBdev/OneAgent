@@ -1,3 +1,4 @@
+import { getOneAgentMemory } from '../../../utils/UnifiedBackboneService';
 import { AlitaAgent } from '../../../agents/specialized/AlitaAgent';
 import { OneAgentMemory } from '../../../memory/OneAgentMemory';
 import SmartGeminiClient from '../../../tools/SmartGeminiClient';
@@ -82,7 +83,7 @@ describe('AlitaAgent.execute end-to-end (mocked)', () => {
         return Promise.resolve({ results: [] });
       }),
     } as unknown as OneAgentMemory;
-    jest.spyOn(OneAgentMemory, 'getInstance').mockReturnValue(memoryInst);
+    (getOneAgentMemory as unknown as jest.Mock).mockReturnValue(memoryInst);
 
     // Mock SmartGeminiClient
     const json = {

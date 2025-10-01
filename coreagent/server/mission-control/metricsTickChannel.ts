@@ -13,7 +13,7 @@ export function createMetricsTickChannel(): MissionControlChannel {
         try {
           const event = ev as { type?: string };
           if (event?.type !== 'operation_metric') return;
-          const now = Date.now();
+          const now = createUnifiedTimestamp().unix;
           if (now - lastSent < minInterval) return;
           lastSent = now;
           unifiedMonitoringService.getGlobalPerformanceReport().then((report) => {

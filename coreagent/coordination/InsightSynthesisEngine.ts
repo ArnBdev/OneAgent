@@ -42,7 +42,12 @@ import {
   BusinessRisk,
 } from '../types/oneagent-backbone-types';
 import { OneAgentMemory } from '../memory/OneAgentMemory';
-import { createUnifiedId, unifiedMetadataService } from '../utils/UnifiedBackboneService';
+import {
+  createUnifiedId,
+  createUnifiedTimestamp,
+  unifiedMetadataService,
+  getOneAgentMemory,
+} from '../utils/UnifiedBackboneService';
 import { ConstitutionalAI } from '../agents/base/ConstitutionalAI';
 
 export class InsightSynthesisEngine {
@@ -50,8 +55,11 @@ export class InsightSynthesisEngine {
   private constitutionalAI: ConstitutionalAI;
   private insightThreshold: number = 0.7; // Minimum quality threshold for insights
 
-  constructor() {
-    this.memory = OneAgentMemory.getInstance();
+  /**
+   * @param opts.memory Optionally inject a canonical OneAgentMemory instance (DI preferred)
+   */
+  constructor(opts: { memory?: OneAgentMemory } = {}) {
+    this.memory = opts.memory || getOneAgentMemory();
     this.constitutionalAI = new ConstitutionalAI({
       principles: [
         {
@@ -167,7 +175,7 @@ export class InsightSynthesisEngine {
       assumptions: await this.extractAssumptions(synthesizedContent),
       limitations: await this.identifyLimitations(synthesizedContent),
       recommendedActions: await this.generateRecommendedActions(synthesizedContent),
-      createdAt: new Date(),
+      createdAt: new Date(createUnifiedTimestamp().iso),
       constitutionallyValidated: await this.validateInsightConstitutionally(synthesizedContent),
     };
 
@@ -290,7 +298,7 @@ export class InsightSynthesisEngine {
       sources: [message.id],
       implications: await this.extractImplications(message.content),
       actionItems: await this.extractActionItems(message.content),
-      createdAt: new Date(),
+      createdAt: new Date(createUnifiedTimestamp().iso),
       relevanceScore: breakthroughScore,
       businessImpact,
       noveltyScore,
@@ -488,7 +496,7 @@ export class InsightSynthesisEngine {
   ): Promise<void> {
     for (const insight of insights) {
       try {
-        const metadata = unifiedMetadataService.create(
+        const metadata = await unifiedMetadataService.create(
           'breakthrough_insight',
           'InsightSynthesisEngine',
           {
@@ -513,9 +521,9 @@ export class InsightSynthesisEngine {
         }
         (metadata as InsightMetadataExtension).entityType = 'BreakthroughInsight';
         (metadata as InsightMetadataExtension).insightData = insight;
-        await this.memory.addMemoryCanonical({
+        await this.memory.addMemory({
           content: `Breakthrough Insight: ${insight.content}`,
-          metadata,
+          metadata: metadata as Record<string, unknown>,
         });
       } catch (err) {
         console.warn('InsightSynthesisEngine memory store failed:', err);
