@@ -1,19 +1,33 @@
-# OneAgent Memory Server Dependencies - FastAPI + Google Gemini + ChromaDB
+# OneAgent Memory Server - Production Dependencies
+# Updated: October 1, 2025
+# Python: 3.13.3
+# Target: OneAgent v4.3.0
 
-# FastAPI web framework
-fastapi>=0.104.0
-uvicorn[standard]>=0.24.0
-python-multipart>=0.0.6
+# === Core Framework ===
+fastmcp==2.12.4  # MCP server framework (official SDK foundation)
 
-# Core dependencies
-python-dotenv>=1.0.0
-requests>=2.31.0
-numpy>=1.24.0
-pydantic>=2.5.0
+# === Memory & LLM ===
+mem0ai==0.1.118  # Memory layer with graph backend (+26% accuracy vs OpenAI)
+google-genai>=1.39.1  # Gemini unified SDK (required by mem0 0.1.118 for Gemini Flash LLM)
 
-# Google AI SDK for Gemini
-google-generativeai>=0.3.0
+# === Memgraph Integration ===
+# NOTE: langchain-memgraph required by mem0's Memgraph provider but causes heavyweight initialization
+# overhead (PyTorch, transformers, etc.). Temporarily using in-memory graph store.
+# langchain-memgraph>=0.1.9  # Memgraph integration (commented out - use in-memory for faster startup)
 
-# Vector database and embeddings
-chromadb>=0.4.0
-sentence-transformers>=2.2.0
+# === Vector & Storage ===
+chromadb>=1.1.0  # Vector database for embeddings (latest stable with improved performance)
+neo4j>=6.0.1  # Memgraph compatibility (Bolt protocol, latest stable)
+
+# === HTTP & API ===
+requests>=2.31.0  # HTTP client for OneAgent embeddings endpoint
+python-multipart>=0.0.20  # File upload support (latest stable)
+
+# === Configuration ===
+python-dotenv>=1.1.1  # Environment variable management (Python 3.13 bugfixes)
+
+# === Utilities ===
+numpy>=2.3.3  # Numerical operations for embeddings (latest stable)
+
+# === Optional (for future local embeddings fallback) ===
+# sentence-transformers>=2.2.0  # Commented out - using OneAgent embeddings endpoint instead

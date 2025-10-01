@@ -630,39 +630,5 @@ export class UnifiedMonitoringService extends EventEmitter {
 }
 
 // Export singleton instance
-// Optional auto-instantiation: can be disabled for lightweight scripts / tests
-// Set ONEAGENT_DISABLE_AUTO_MONITORING=1 to prevent creation on import
-// Export either a real monitoring service or a lightweight no-op stub when disabled.
-export const unifiedMonitoringService: UnifiedMonitoringService = process.env
-  .ONEAGENT_DISABLE_AUTO_MONITORING
-  ? ({
-      // Minimal no-op implementation (cast to satisfy typing)
-      startMonitoring: async () => {
-        /* monitoring disabled */
-      },
-      stopMonitoring: async () => {
-        /* monitoring disabled */
-      },
-      trackOperation: (
-        _component: string,
-        _operation: string,
-        _status: string,
-        _meta?: Record<string, unknown>,
-      ) => {
-        /* no-op */
-      },
-      getRecentEvents: (_limit?: number) => [],
-      getSystemHealth: async () => ({ overall: 'healthy' }),
-      emit: () => true,
-      on: () => unifiedMonitoringService as unknown as UnifiedMonitoringService,
-      once: () => unifiedMonitoringService as unknown as UnifiedMonitoringService,
-      off: () => unifiedMonitoringService as unknown as UnifiedMonitoringService,
-      addListener: () => unifiedMonitoringService as unknown as UnifiedMonitoringService,
-      removeListener: () => unifiedMonitoringService as unknown as UnifiedMonitoringService,
-      removeAllListeners: () => unifiedMonitoringService as unknown as UnifiedMonitoringService,
-      listenerCount: () => 0,
-      listeners: () => [],
-      // Internal flags used occasionally
-      isMonitoring: false,
-    } as unknown as UnifiedMonitoringService)
-  : new UnifiedMonitoringService();
+// Always use real monitoring service - no mock/stub mode
+export const unifiedMonitoringService: UnifiedMonitoringService = new UnifiedMonitoringService();

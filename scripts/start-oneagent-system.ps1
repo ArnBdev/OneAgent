@@ -1,5 +1,5 @@
 # ===============================
-# OneAgent System Startup Script (2025-07-07)
+# OneAgent System Startup Script (v4.3.0)
 #
 # Starts BOTH the memory server (mem0/FastAPI) and the MCP server (Node.js/TypeScript) in parallel.
 #
@@ -18,6 +18,29 @@
 param(
     [switch]$NoBanner
 )
+
+# FUNCTION DEFINITIONS (Must be declared BEFORE use)
+function Wait-HttpReady {
+    param(
+        [string]$Url,
+        [int]$TimeoutSec = 45,
+        [int]$DelayMs = 500
+    )
+    $deadline = (Get-Date).AddSeconds($TimeoutSec)
+    while ((Get-Date) -lt $deadline) {
+        try {
+            # Accept any HTTP response (including 404) as a sign the server socket is open
+            $resp = Invoke-WebRequest -Uri $Url -Method Get -UseBasicParsing -TimeoutSec 5 -ErrorAction SilentlyContinue
+            if ($null -ne $resp -and $resp.StatusCode -ge 200 -and $resp.StatusCode -lt 500) { 
+                return $true 
+            }
+        } catch {
+            # Ignore errors, server may not be ready yet
+        }
+        Start-Sleep -Milliseconds $DelayMs
+    }
+    return $false
+}
 
 function Start-ProcessWithBanner {
     param(
@@ -55,54 +78,56 @@ Start-ProcessWithBanner -Name "MCP Server (Node/TypeScript)" -Command $mcpServer
 
 # Wait for MCP health endpoint before starting memory server
 $mcpProbeUrl = "http://127.0.0.1:$mcpPort/health"
-Write-Host "[OneAgent] Waiting for MCP server to become healthy before starting memory server..." -ForegroundColor Yellow
+Write-Host "[OneAgent] Waiting for MCP server to become healthy (up to 60 seconds)..." -ForegroundColor Yellow
 $mcpReady = Wait-HttpReady -Url $mcpProbeUrl -TimeoutSec 60
 if ($mcpReady) {
     Write-Host "[Probe] MCP server READY ($mcpProbeUrl)" -ForegroundColor Green
 } else {
     Write-Host "[Probe] MCP server TIMEOUT ($mcpProbeUrl)" -ForegroundColor Yellow
-    Write-Host "[OneAgent] MCP server did not become healthy in time. Exiting." -ForegroundColor Red
-    exit 1
+    Write-Host "[OneAgent] MCP server did not become healthy in time." -ForegroundColor Yellow
+    Write-Host "[OneAgent] Check the MCP server window for errors. Memory server will start anyway." -ForegroundColor Yellow
 }
 
 # Start Memory Server (Python/FastAPI/Uvicorn)
-$memoryServerCmd = "uvicorn servers.oneagent_memory_server:app --host 127.0.0.1 --port $memPort --reload"
-Start-ProcessWithBanner -Name "Memory Server (mem0)" -Command $memoryServerCmd -WorkingDirectory "$PSScriptRoot/.."
-
-function Wait-HttpReady {
-    param(
-        [string]$Url,
-        [int]$TimeoutSec = 45,
-        [int]$DelayMs = 500
-    )
-    $deadline = (Get-Date).AddSeconds($TimeoutSec)
-    while ((Get-Date) -lt $deadline) {
-        try {
-            # Accept any HTTP response (including 404) as a sign the server socket is open
-            $resp = Invoke-WebRequest -Uri $Url -Method Get -UseBasicParsing -TimeoutSec 5 -SkipHttpErrorCheck
-            if ($resp.StatusCode -ge 200 -and $resp.StatusCode -lt 500) { return $true }
-        } catch {
-            Start-Sleep -Milliseconds $DelayMs
-        }
-    }
-    return $false
+# Note: Uses old server name for backward compatibility - will be updated to mem0_fastmcp_server.py
+$pythonPath = if ($env:VIRTUAL_ENV) { 
+    Join-Path $env:VIRTUAL_ENV "Scripts\python.exe" 
+} else { 
+    "python" 
 }
-
+$memoryServerCmd = "`"$pythonPath`" servers/mem0_fastmcp_server.py"
+Start-ProcessWithBanner -Name "Memory Server (mem0+FastMCP)" -Command $memoryServerCmd -WorkingDirectory "$PSScriptRoot/.."
 
 # Optional readiness check for memory server
-$memProbeUrl = "http://127.0.0.1:$memPort/health"  # memory server exposes /health
+$memProbeUrl = "http://127.0.0.1:$memPort/health"
+Write-Host "[OneAgent] Waiting for Memory server to become healthy (up to 45 seconds)..." -ForegroundColor Yellow
 $memReady = Wait-HttpReady -Url $memProbeUrl -TimeoutSec 45
-if ($memReady) { Write-Host "[Probe] Memory server READY ($memProbeUrl)" -ForegroundColor Green } else { Write-Host "[Probe] Memory server TIMEOUT ($memProbeUrl)" -ForegroundColor Yellow }
-
-if ($memReady) {
-    Write-Host "[OneAgent] Both servers are UP and responding." -ForegroundColor Green
-} else {
-    Write-Host "[OneAgent] Memory server not ready within timeout window. Check its window; it may still finish starting." -ForegroundColor Yellow
+if ($memReady) { 
+    Write-Host "[Probe] Memory server READY ($memProbeUrl)" -ForegroundColor Green 
+} else { 
+    Write-Host "[Probe] Memory server TIMEOUT ($memProbeUrl)" -ForegroundColor Yellow 
+    Write-Host "[OneAgent] Memory server may still be starting. Check its window for progress." -ForegroundColor Yellow
 }
 
-Write-Host "[OneAgent] Both servers launched. Check their windows for output." -ForegroundColor Green
-Write-Host "[OneAgent] To stop, close the corresponding terminal windows." -ForegroundColor Yellow
+# Final status report
+Write-Host ""
+if ($mcpReady -and $memReady) {
+    Write-Host "===============================" -ForegroundColor Green
+    Write-Host " ✅ SYSTEM READY" -ForegroundColor Green
+    Write-Host "===============================" -ForegroundColor Green
+    Write-Host "MCP Server:    http://127.0.0.1:$mcpPort" -ForegroundColor Cyan
+    Write-Host "Memory Server: http://127.0.0.1:$memPort" -ForegroundColor Cyan
+} elseif ($mcpReady) {
+    Write-Host "[OneAgent] ⚠️  MCP server is UP, but memory server needs more time." -ForegroundColor Yellow
+    Write-Host "[OneAgent] MCP will work, but memory operations may fail until memory server is ready." -ForegroundColor Yellow
+} else {
+    Write-Host "[OneAgent] ⚠️  Servers launched but health checks timed out." -ForegroundColor Yellow
+    Write-Host "[OneAgent] Check the terminal windows for detailed startup logs." -ForegroundColor Yellow
+}
+Write-Host ""
+Write-Host "[OneAgent] To stop servers: Close their terminal windows or use Task Manager." -ForegroundColor DarkGray
 
 # Quick env visibility
 $mem0KeySet = [bool]$env:MEM0_API_KEY
-Write-Host ("[OneAgent] MEM0_API_KEY set: {0}" -f $mem0KeySet) -ForegroundColor DarkGray
+$googleKeySet = [bool]$env:GOOGLE_API_KEY
+Write-Host "[OneAgent] MEM0_API_KEY set: $mem0KeySet | GOOGLE_API_KEY set: $googleKeySet" -ForegroundColor DarkGray

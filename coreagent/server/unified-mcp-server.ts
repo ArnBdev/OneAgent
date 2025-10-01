@@ -1,8 +1,35 @@
+console.log('[TRACE] 🔵 Module load START - unified-mcp-server.ts');
+
+// ============================================================================
+// CRITICAL: Global error handlers to prevent silent exits
+// ============================================================================
+process.on('uncaughtException', (error) => {
+  console.error('💥 UNCAUGHT EXCEPTION:', error);
+  console.error('Stack:', error.stack);
+  process.exit(1);
+});
+
+process.on('unhandledRejection', (reason, promise) => {
+  console.error('💥 UNHANDLED PROMISE REJECTION:', reason);
+  console.error('Promise:', promise);
+  if (reason instanceof Error) {
+    console.error('Stack:', reason.stack);
+  }
+  process.exit(1);
+});
+
+console.log('[TRACE] 🔵 Global error handlers installed');
+
 import dotenv from 'dotenv';
 /* JSON-RPC 2.0 compliance marker: json-rpc */
 // Verification heuristic markers: standard MCP ports 8083 (professional), 8080 (legacy)
 import path from 'path';
+console.log('[TRACE] 🔵 Loading .env config...');
 dotenv.config({ path: path.join(process.cwd(), '.env') });
+console.log(
+  '[TRACE] 🔵 .env loaded, ONEAGENT_FORCE_AUTOSTART:',
+  process.env.ONEAGENT_FORCE_AUTOSTART,
+);
 // Quiet mode: suppress non-JSON stdout logs when integrating with external clients that expect stdio JSON-RPC
 const QUIET_MODE = process.env.ONEAGENT_MCP_QUIET === '1';
 
@@ -24,12 +51,17 @@ const QUIET_MODE = process.env.ONEAGENT_MCP_QUIET === '1';
 
 // Avoid logging secrets in output
 
+console.log('[TRACE] 🔵 Importing OneAgentEngine (with detailed tracing)...');
 import {
   OneAgentEngine,
   OneAgentRequest,
   OneAgentResponse,
   ToolDescriptor,
 } from '../OneAgentEngine';
+console.log('[TRACE] 🔵 OneAgentEngine imported successfully');
+
+console.log('[TRACE] 🔵 Importing UnifiedBackboneService...');
+console.log('[TRACE] 🔵 Importing UnifiedBackboneService...');
 import {
   createUnifiedTimestamp,
   UnifiedBackboneService,
@@ -39,15 +71,20 @@ import {
   unifiedTimeService,
   unifiedMetadataService,
 } from '../utils/UnifiedBackboneService';
+console.log('[TRACE] 🔵 UnifiedBackboneService imported');
+console.log('[TRACE] 🔵 Importing remaining dependencies...');
 import { createAgentCard } from '../types/AgentCard';
 import { SimpleAuditLogger } from '../audit/auditLogger';
 import passport from 'passport';
 
 import express from 'express';
+console.log('[TRACE] 🔵 All imports complete, creating Express app...');
 import { Request, Response, NextFunction } from 'express';
 import { createMetricsRouter } from '../api/metricsAPI';
 import { taskDelegationService } from '../services/TaskDelegationService';
+console.log('[TRACE] 🔵 Creating Express app instance...');
 const app = express();
+console.log('[TRACE] 🔵 Express app created');
 import { TOOL_SETS } from '../tools/ToolSets';
 import { embeddingCacheService } from '../services/EmbeddingCacheService';
 import { getEmbeddingModel, getEmbeddingClient } from '../config/UnifiedModelPicker';
@@ -81,7 +118,9 @@ app.use((req: Request, res: Response, next: NextFunction) => {
 });
 
 // Initialize OneAgent Engine (canonical: use explicit instantiation)
+console.log('[INIT] 🎯 Creating OneAgentEngine instance...');
 const oneAgent = new OneAgentEngine();
+console.log('[INIT] ✅ OneAgentEngine created successfully');
 
 // Canonical server identifiers (resolved via backbone/package.json)
 const SERVER_NAME = `${getAppName()} - Unified MCP Server`;
@@ -1347,23 +1386,87 @@ async function startServer(): Promise<void> {
 // Export app for integration tests (non-started). This does not create parallel servers; tests can import and invoke routes directly.
 export { app };
 
-// Conditional auto-start: Skip when running under Jest (NODE_ENV === 'test') or explicit disable flag.
-// Avoid auto-start when executed under ts-node (common in local tests), to prevent
-// multiple server/engine instances and racey state between instances.
-const IS_TS_NODE =
-  !!process.env.TS_NODE ||
-  (process.env._ || '').includes('ts-node') ||
-  process.argv.some((a) => a.toLowerCase().includes('ts-node'));
-const SHOULD_AUTOSTART =
-  process.env.ONEAGENT_DISABLE_AUTOSTART !== '1' &&
-  process.env.NODE_ENV !== 'test' &&
-  process.env.ONEAGENT_FAST_TEST_MODE !== '1' &&
-  !IS_TS_NODE;
-if (SHOULD_AUTOSTART) {
+// ============================================================================
+// ROBUST SERVER AUTOSTART LOGIC
+// ============================================================================
+// Goal: Start the server when explicitly invoked (npm run server:unified),
+// but not when imported as a module for testing or programmatic use.
+//
+// Approach: Use multiple detection methods for reliability across environments
+// ============================================================================
+
+/**
+ * Determine if we should auto-start the server
+ *
+ * Skip autostart when:
+ * - Explicitly disabled via ONEAGENT_DISABLE_AUTOSTART=1
+ * - Running in test mode (NODE_ENV=test or ONEAGENT_FAST_TEST_MODE=1)
+ * - Module is imported (not main entry point)
+ *
+ * Force autostart when:
+ * - Explicitly enabled via ONEAGENT_FORCE_AUTOSTART=1
+ * - Running via npm script with "unified-mcp-server" in path
+ */
+function shouldAutoStartServer(): boolean {
+  // Explicit control flags (highest priority)
+  if (process.env.ONEAGENT_FORCE_AUTOSTART === '1') {
+    console.log('[STARTUP] 🚀 Forcing autostart (ONEAGENT_FORCE_AUTOSTART=1)');
+    return true;
+  }
+
+  if (process.env.ONEAGENT_DISABLE_AUTOSTART === '1') {
+    console.log('[STARTUP] ⏸️  Autostart disabled (ONEAGENT_DISABLE_AUTOSTART=1)');
+    return false;
+  }
+
+  // Test mode detection
+  if (process.env.NODE_ENV === 'test' || process.env.ONEAGENT_FAST_TEST_MODE === '1') {
+    console.log('[STARTUP] 🧪 Test mode detected - skipping autostart');
+    return false;
+  }
+
+  // Check if this is the main entry point
+  // Method 1: require.main === module (works in standard Node.js)
+  const isMainModule = require.main === module;
+
+  // Method 2: Check if filename contains "unified-mcp-server" (works with ts-node)
+  const currentFile = module.filename || '';
+  const isServerFile = currentFile.includes('unified-mcp-server');
+
+  // Method 3: Check process.argv for the server script
+  const hasServerInArgs = process.argv.some((arg) => arg.includes('unified-mcp-server'));
+
+  console.log('[STARTUP] 🔍 Detection results:', {
+    isMainModule,
+    isServerFile,
+    hasServerInArgs,
+    currentFile,
+    'require.main': require.main?.filename,
+  });
+
+  // Auto-start if any detection method indicates we're running as main
+  const shouldStart = isMainModule || (isServerFile && hasServerInArgs);
+
+  if (shouldStart) {
+    console.log('[STARTUP] ✅ Auto-starting server (detected as main entry point)');
+  } else {
+    console.log('[STARTUP] 📦 Module imported - call startServer() explicitly to start');
+  }
+
+  return shouldStart;
+}
+
+// Execute autostart logic
+console.log('[STARTUP] 🔄 Running startup decision logic...');
+if (shouldAutoStartServer()) {
+  console.log('[STARTUP] 🎬 Initiating server startup...');
   startServer().catch((error) => {
-    console.error('💥 Startup failed:', error);
+    console.error('💥 Server startup failed:', error);
+    console.error('Stack trace:', error.stack);
     process.exit(1);
   });
+} else {
+  console.log('[STARTUP] 📦 Not auto-starting - waiting for explicit startServer() call');
 }
 
 export { startServer, oneAgent };

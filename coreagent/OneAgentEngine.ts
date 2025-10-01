@@ -12,10 +12,14 @@
  * - Quality-first development
  */
 
+console.log('[ENGINE] 📦 OneAgentEngine module loading START');
 import { EventEmitter } from 'events';
+console.log('[ENGINE] ✅ EventEmitter imported');
 import { UnifiedBackboneService } from './utils/UnifiedBackboneService';
+console.log('[ENGINE] ✅ UnifiedBackboneService imported');
 
 // Import canonical types
+console.log('[ENGINE] Importing types...');
 import type {
   OneAgentRequestParams,
   OneAgentResponseData,
@@ -24,28 +28,71 @@ import type {
   ToolResult,
   ConstitutionalPrinciple,
 } from './types/oneagent-backbone-types';
+console.log('[ENGINE] ✅ Types imported');
 
 // Import core systems
+console.log('[ENGINE] Importing ConstitutionalAI...');
 import { ConstitutionalAI } from './agents/base/ConstitutionalAI';
+console.log('[ENGINE] ✅ ConstitutionalAI imported');
+
+console.log('[ENGINE] Importing BMADElicitationEngine...');
 import { BMADElicitationEngine } from './agents/base/BMADElicitationEngine';
+console.log('[ENGINE] ✅ BMADElicitationEngine imported');
+
+console.log('[ENGINE] Importing OneAgentMemory...');
 import { OneAgentMemory } from './memory/OneAgentMemory';
+console.log('[ENGINE] ✅ OneAgentMemory imported');
+
+console.log('[ENGINE] Importing getOneAgentMemory...');
 import { getOneAgentMemory } from './utils/UnifiedBackboneService';
+console.log('[ENGINE] ✅ getOneAgentMemory imported');
+
+console.log('[ENGINE] Importing unified timestamp/ID...');
 import {
   createUnifiedTimestamp,
   createUnifiedId,
   OneAgentUnifiedBackbone,
 } from './utils/UnifiedBackboneService';
+console.log('[ENGINE] ✅ Unified utilities imported');
 
 // Import unified tools
+console.log('[ENGINE] Importing toolRegistry...');
 import { toolRegistry } from './tools/ToolRegistry';
+console.log('[ENGINE] ✅ toolRegistry imported');
+
+console.log('[ENGINE] Importing UnifiedWebSearchTool...');
 import { UnifiedWebSearchTool } from './tools/UnifiedWebSearchTool';
+console.log('[ENGINE] ✅ UnifiedWebSearchTool imported');
+
+console.log('[ENGINE] Importing unifiedAgentCommunicationService...');
 import { unifiedAgentCommunicationService } from './utils/UnifiedAgentCommunicationService';
+console.log('[ENGINE] ✅ unifiedAgentCommunicationService imported');
+
+console.log('[ENGINE] Importing SyncService...');
 import SyncService from './services/SyncService';
+console.log('[ENGINE] ✅ SyncService imported');
+
+console.log('[ENGINE] Importing ConstitutionValidator...');
 import { ConstitutionValidator } from './validation/ConstitutionValidator';
+console.log('[ENGINE] ✅ ConstitutionValidator imported');
+
+console.log('[ENGINE] Importing proactiveObserverService...');
 import { proactiveObserverService } from './services/ProactiveTriageOrchestrator';
+console.log('[ENGINE] ✅ proactiveObserverService imported');
+
+console.log('[ENGINE] Importing taskDelegationService...');
 import { taskDelegationService } from './services/TaskDelegationService';
+console.log('[ENGINE] ✅ taskDelegationService imported');
+
+console.log('[ENGINE] Importing unifiedMonitoringService...');
 import { unifiedMonitoringService } from './monitoring/UnifiedMonitoringService';
+console.log('[ENGINE] ✅ unifiedMonitoringService imported');
+
+console.log('[ENGINE] Importing TOOL_SETS...');
 import { TOOL_SETS, DEFAULT_ALWAYS_ALLOWED_TOOLS } from './tools/ToolSets';
+console.log('[ENGINE] ✅ TOOL_SETS imported');
+
+console.log('[ENGINE] 🎉 ALL IMPORTS COMPLETE - OneAgentEngine module loaded successfully');
 
 export type OneAgentMode = 'mcp-http' | 'mcp-stdio' | 'standalone' | 'cli' | 'vscode-embedded';
 
@@ -187,61 +234,85 @@ export class OneAgentEngine extends EventEmitter {
     try {
       // Initialize core systems
       await this.initializeMemorySystem();
-      // One-time constitution sync with memory readiness gating
-      try {
-        const memUrl =
-          process.env.MEM0_API_URL ||
-          `http://127.0.0.1:${process.env.ONEAGENT_MEMORY_PORT || '8010'}`;
-        const readyUrl = `${memUrl.replace(/\/$/, '')}/readyz`;
-        const authKey = process.env.MEM0_API_KEY || process.env.MEM0_API_TOKEN || '';
-        const startWait = createUnifiedTimestamp().unix;
-        const timeoutMs = 15000; // 15s max wait
-        let ready = false;
-        for (let attempt = 0; attempt < 30; attempt++) {
-          if (createUnifiedTimestamp().unix - startWait > timeoutMs) break;
-          try {
-            const controller = new AbortController();
-            const t = setTimeout(() => controller.abort(), 2500);
-            const resp = await fetch(readyUrl, {
-              method: 'GET',
-              headers: {
-                Authorization: authKey ? `Bearer ${authKey}` : '',
-                'MCP-Protocol-Version': '2025-06-18',
-              },
-              signal: controller.signal,
-            }).catch((e) => {
-              throw e;
-            });
-            clearTimeout(t);
-            if (resp && resp.ok) {
-              ready = true;
-              break;
+
+      // Skip memory probe if flag is set (for quick startup during development)
+      if (process.env.ONEAGENT_SKIP_MEMORY_PROBE !== '1') {
+        // One-time constitution sync with memory readiness gating
+        console.log('[ENGINE] 🔍 Checking memory server readiness...');
+        try {
+          const memUrl =
+            process.env.MEM0_API_URL ||
+            `http://127.0.0.1:${process.env.ONEAGENT_MEMORY_PORT || '8010'}`;
+          const readyUrl = `${memUrl.replace(/\/$/, '')}/readyz`;
+          console.log('[ENGINE] 📡 Memory probe URL:', readyUrl);
+          const authKey = process.env.MEM0_API_KEY || process.env.MEM0_API_TOKEN || '';
+          const startWait = createUnifiedTimestamp().unix;
+          const timeoutMs = 15000; // 15s max wait
+          let ready = false;
+          for (let attempt = 0; attempt < 30; attempt++) {
+            if (createUnifiedTimestamp().unix - startWait > timeoutMs) break;
+            try {
+              console.log(`[ENGINE] 🔄 Memory probe attempt ${attempt + 1}/30...`);
+              const controller = new AbortController();
+              const t = setTimeout(() => controller.abort(), 2500);
+              const resp = await fetch(readyUrl, {
+                method: 'GET',
+                headers: {
+                  Authorization: authKey ? `Bearer ${authKey}` : '',
+                  'MCP-Protocol-Version': '2025-06-18',
+                },
+                signal: controller.signal,
+              }).catch((e) => {
+                console.log('[ENGINE] ⚠️  Memory probe fetch failed:', e.message);
+                throw e;
+              });
+              clearTimeout(t);
+              if (resp && resp.ok) {
+                ready = true;
+                console.log('[ENGINE] ✅ Memory server ready!');
+                break;
+              }
+              console.log('[ENGINE] ⚠️  Memory probe non-OK response:', resp.status);
+            } catch {
+              console.log('[ENGINE] ⚠️  Memory probe attempt failed, retrying...');
+              // swallow and retry
             }
-          } catch {
-            // swallow and retry
+            await new Promise((r) => setTimeout(r, 500));
           }
-          await new Promise((r) => setTimeout(r, 500));
+          if (!ready) {
+            console.warn(
+              '⚠️ Memory readiness probe timed out; continuing without pre-sync (will retry async)',
+            );
+            // Fire and forget background sync attempt later
+            setTimeout(() => {
+              new SyncService()
+                .syncConstitution()
+                .catch((e) => console.warn('⚠️ Deferred SyncService failed:', e));
+            }, 5000);
+          } else {
+            console.log('[ENGINE] 🔄 Running SyncService.syncConstitution...');
+            const sync = new SyncService();
+            await sync.syncConstitution();
+            console.log('[ENGINE] ✅ SyncService completed');
+          }
+        } catch (e) {
+          console.warn('⚠️ SyncService failed (continuing startup):', e);
         }
-        if (!ready) {
-          console.warn(
-            '⚠️ Memory readiness probe timed out; continuing without pre-sync (will retry async)',
-          );
-          // Fire and forget background sync attempt later
-          setTimeout(() => {
-            new SyncService()
-              .syncConstitution()
-              .catch((e) => console.warn('⚠️ Deferred SyncService failed:', e));
-          }, 5000);
-        } else {
-          const sync = new SyncService();
-          await sync.syncConstitution();
-        }
-      } catch (e) {
-        console.warn('⚠️ SyncService failed (continuing startup):', e);
+      } else {
+        console.log('[ENGINE] ⏭️  Skipping memory probe (ONEAGENT_SKIP_MEMORY_PROBE=1)');
       }
+
+      console.log('[ENGINE] 🔄 Initializing ConstitutionalAI...');
       await this.initializeConstitutionalAI();
+      console.log('[ENGINE] ✅ ConstitutionalAI initialized');
+
+      console.log('[ENGINE] 🔄 Initializing BMAD...');
       await this.initializeBMAD();
+      console.log('[ENGINE] ✅ BMAD initialized');
+
+      console.log('[ENGINE] 🔄 Initializing Tools...');
       await this.initializeTools();
+      console.log('[ENGINE] ✅ Tools initialized');
 
       // Optional: start ProactiveObserver (Epic 6) if enabled via env flag
       if (process.env.ONEAGENT_PROACTIVE_OBSERVER === '1') {
@@ -539,7 +610,9 @@ export class OneAgentEngine extends EventEmitter {
     console.log('🛠️  Initializing standard tools...');
 
     this.unifiedWebSearch = new UnifiedWebSearchTool();
-    toolRegistry.registerTool(this.unifiedWebSearch);
+    console.log('[ENGINE] 🔧 Registering UnifiedWebSearchTool...');
+    await toolRegistry.registerTool(this.unifiedWebSearch);
+    console.log('[ENGINE] ✅ UnifiedWebSearchTool registered');
 
     // MultimodalEmbeddingService er nå canonical og leverandøragnostisk.
     // TODO: Integrer MultimodalEmbeddingService som standard embedding/multimodal verktøy.

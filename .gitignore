@@ -212,7 +212,7 @@ level-*-test-*
 servers/gemini_*.py
 servers/test_*.py
 servers/oneagent_mem0_*.py
-!servers/oneagent_memory_server.py  # Production memory server - ALLOW
+!servers/mem0_fastmcp_server.py      # Production memory server (mem0+FastMCP) - ALLOW
 !servers/requirements.txt            # Server dependencies - ALLOW
 
 # ================================

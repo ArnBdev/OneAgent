@@ -8,6 +8,7 @@ import {
   createUnifiedTimestamp,
   unifiedMetadataService,
 } from '../../utils/UnifiedBackboneService';
+import type { DelegatedTask } from '../../services/TaskDelegationService';
 
 import type { UserRating } from '../../types/oneagent-backbone-types';
 
@@ -351,7 +352,7 @@ export class HybridAgentOrchestrator {
     return m ? m[1] : null;
   }
 
-  /** Simulate agent execution asynchronously (used until real agent active execution pipeline implemented) */
+  /** Simulate agent execution asynchronously (LEGACY - used when ONEAGENT_SIMULATE_AGENT_EXECUTION != 0) */
   private async simulateAgentExecution(
     agentId: string,
     taskId: string,
@@ -377,6 +378,234 @@ export class HybridAgentOrchestrator {
     } catch {
       // ignore
     }
+  }
+
+  /**
+   * REAL AGENT EXECUTION: Execute task using real agent capabilities
+   * This is the breakthrough - agents actually DO things now, not just simulate!
+   */
+  private async executeRealAgentTask(
+    agent: AgentCard,
+    task: DelegatedTask,
+    sessionId: string,
+  ): Promise<void> {
+    const startTime = createUnifiedTimestamp().unix;
+    await this.logOperation('real_execution_started', {
+      taskId: task.id,
+      agentId: agent.id,
+      action: task.action,
+    });
+
+    try {
+      // Import AgentFactory to create agent instance dynamically
+      const { AgentFactory } = await import('../base/AgentFactory');
+
+      // Determine agent type from agent card
+      const agentType = this.inferAgentType(agent);
+
+      if (!agentType) {
+        throw new Error(`Cannot infer agent type for: ${agent.name}`);
+      }
+
+      // Create agent instance using factory (canonical pattern)
+      const agentInstance = await AgentFactory.createAgent({
+        type: agentType,
+        id: agent.id,
+        name: agent.name,
+        description: `${agentType} agent for autonomous task execution`,
+        customCapabilities: agent.capabilities || [],
+        memoryEnabled: true,
+        aiEnabled: true,
+      });
+
+      // Agent is already initialized by factory
+
+      // TypeScript type narrowing for agent methods
+      interface AgentWithMethods {
+        executeAction?: (action: unknown, params: unknown, context?: unknown) => Promise<unknown>;
+        processMessage?: (context: unknown, message: string) => Promise<unknown>;
+      }
+
+      // AgentFactory returns ISpecializedAgent which extends BaseAgent
+      const agentWithCapabilities = agentInstance as unknown as AgentWithMethods;
+      const hasExecuteAction = typeof agentWithCapabilities.executeAction === 'function';
+      const hasProcessMessage = typeof agentWithCapabilities.processMessage === 'function';
+
+      let executionResult: unknown;
+      let success = false;
+
+      if (hasExecuteAction) {
+        // Use executeAction if available (preferred for structured tasks)
+        await this.logOperation('real_execution_method', {
+          taskId: task.id,
+          method: 'executeAction',
+        });
+
+        executionResult = await agentWithCapabilities.executeAction!(
+          {
+            type: 'delegated_task',
+            description: task.action,
+            parameters: {
+              finding: task.finding,
+              taskId: task.id,
+              source: 'proactive_analysis',
+            },
+          },
+          {
+            finding: task.finding,
+            taskId: task.id,
+          },
+          undefined, // context can be undefined for autonomous tasks
+        );
+
+        const resultObj = executionResult as { success?: boolean };
+        success = resultObj?.success !== false;
+      } else if (hasProcessMessage) {
+        // Fallback to processMessage (conversational interface)
+        await this.logOperation('real_execution_method', {
+          taskId: task.id,
+          method: 'processMessage',
+        });
+
+        const timestamp = createUnifiedTimestamp();
+        const messageContent = `AUTONOMOUS TASK EXECUTION\nTASK_ID: ${task.id}\nACTION: ${task.action}\nFINDING: ${task.finding}\n\nPlease execute this task and respond with TASK_COMPLETE when done.`;
+
+        executionResult = await agentWithCapabilities.processMessage!(
+          {
+            user: {
+              id: 'system-autonomous',
+              name: 'Autonomous System',
+              createdAt: timestamp.iso,
+              lastActiveAt: timestamp.iso,
+            },
+            sessionId,
+            conversationHistory: [],
+          },
+          messageContent,
+        );
+
+        interface ProcessMessageResult {
+          content?: string;
+        }
+        const resultObj = executionResult as ProcessMessageResult;
+        success = resultObj?.content ? !resultObj.content.includes('ERROR') : false;
+      } else {
+        throw new Error(`Agent ${agent.id} does not implement executeAction or processMessage`);
+      }
+
+      const endTime = createUnifiedTimestamp().unix;
+      const durationMs = endTime - startTime;
+
+      // Send completion message back to orchestrator
+      await this.comm.sendMessage({
+        sessionId,
+        fromAgent: agent.id,
+        toAgent: 'orchestrator',
+        content: JSON.stringify({
+          taskId: task.id,
+          status: success ? 'completed' : 'failed',
+          agentId: agent.id,
+          type: 'agent_execution_result',
+          result: executionResult,
+          durationMs,
+          realExecution: true, // Flag to indicate this was real, not simulated
+        }),
+        messageType: 'action',
+        metadata: {
+          realExecution: true,
+          taskId: task.id,
+          success,
+        },
+      });
+
+      await this.logOperation('real_execution_completed', {
+        taskId: task.id,
+        agentId: agent.id,
+        success,
+        durationMs,
+        method: hasExecuteAction ? 'executeAction' : 'processMessage',
+      });
+    } catch (error) {
+      const endTime = createUnifiedTimestamp().unix;
+      const durationMs = endTime - startTime;
+      const errorMsg = error instanceof Error ? error.message : String(error);
+
+      await this.logOperation('real_execution_failed', {
+        taskId: task.id,
+        agentId: agent.id,
+        error: errorMsg,
+        durationMs,
+      });
+
+      // Send failure message
+      try {
+        await this.comm.sendMessage({
+          sessionId,
+          fromAgent: agent.id,
+          toAgent: 'orchestrator',
+          content: JSON.stringify({
+            taskId: task.id,
+            status: 'failed',
+            agentId: agent.id,
+            type: 'agent_execution_result',
+            error: errorMsg,
+            durationMs,
+            realExecution: true,
+          }),
+          messageType: 'action',
+          metadata: {
+            realExecution: true,
+            taskId: task.id,
+            success: false,
+            error: errorMsg,
+          },
+        });
+      } catch {
+        // If we can't even send the failure message, the pending promise will timeout
+      }
+
+      // Re-throw so the caller knows execution failed
+      throw error;
+    }
+  }
+
+  /**
+   * Infer agent type from AgentCard for dynamic instantiation via AgentFactory
+   */
+  private inferAgentType(
+    agent: AgentCard,
+  ): 'development' | 'office' | 'triage' | 'fitness' | 'core' | null {
+    const name = agent.name.toLowerCase();
+    const caps = (agent.capabilities || []).map((c) => c.toLowerCase());
+
+    // Infer from name and capabilities
+    if (name.includes('dev') || caps.some((c) => c.includes('develop') || c.includes('code'))) {
+      return 'development';
+    }
+    if (
+      name.includes('office') ||
+      caps.some((c) => c.includes('document') || c.includes('office'))
+    ) {
+      return 'office';
+    }
+    if (
+      name.includes('triage') ||
+      caps.some((c) => c.includes('triage') || c.includes('routing'))
+    ) {
+      return 'triage';
+    }
+    if (
+      name.includes('fitness') ||
+      caps.some((c) => c.includes('fitness') || c.includes('health'))
+    ) {
+      return 'fitness';
+    }
+    if (name.includes('core') || caps.some((c) => c.includes('core') || c.includes('general'))) {
+      return 'core';
+    }
+
+    // Default to development for general tasks
+    return 'development';
   }
 
   /** Broadcast a mission progress update summarizing plan progress (messageType: 'update') */

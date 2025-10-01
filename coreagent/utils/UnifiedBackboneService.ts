@@ -1189,6 +1189,11 @@ export class OneAgentUnifiedCacheSystem<T = unknown> {
   private diskCacheKey = 'OneAgentUnifiedCacheSystem.diskCache';
   private networkCacheKey = 'OneAgentUnifiedCacheSystem.networkCache';
 
+  // CRITICAL FIX: Actual storage backend to prevent infinite recursion
+  private memoryStorage = new Map<string, OneAgentCacheEntry<T>>();
+  private diskStorage = new Map<string, OneAgentCacheEntry<T>>();
+  private networkStorage = new Map<string, OneAgentCacheEntry<T>>();
+
   private metrics: OneAgentCacheMetrics = {
     memoryHits: 0,
     diskHits: 0,
@@ -1226,49 +1231,46 @@ export class OneAgentUnifiedCacheSystem<T = unknown> {
    * Get cached value with multi-tier lookup
    */
   async get(key: string): Promise<T | null> {
-    const startTime = createUnifiedTimestamp().unix;
-    this.metrics.totalQueries++;
-    const cache = OneAgentUnifiedBackbone.getInstance().cache;
-    // Tiered lookup: try memory, then disk, then network (all async)
-    const memoryEntryRaw = await cache.get(`${this.memoryCacheKey}:${key}`);
-    const memoryEntry =
-      memoryEntryRaw && typeof memoryEntryRaw === 'object' && 'value' in memoryEntryRaw
-        ? (memoryEntryRaw as OneAgentCacheEntry<T>)
-        : undefined;
-    if (memoryEntry && !this.isExpired(memoryEntry)) {
-      this.metrics.memoryHits++;
+    try {
+      const startTime = createUnifiedTimestamp().unix;
+      this.metrics.totalQueries++;
+
+      // Tiered lookup: try memory, then disk, then network (using actual storage, not recursive!)
+      const memoryEntry = this.memoryStorage.get(`${this.memoryCacheKey}:${key}`);
+      if (memoryEntry && !this.isExpired(memoryEntry)) {
+        this.metrics.memoryHits++;
+        this.updateMetrics(createUnifiedTimestamp().unix - startTime);
+        return memoryEntry.value;
+      }
+
+      const diskEntry = this.diskStorage.get(`${this.diskCacheKey}:${key}`);
+      if (diskEntry && !this.isExpired(diskEntry)) {
+        this.metrics.diskHits++;
+        // Promote to memory cache
+        this.memoryStorage.set(`${this.memoryCacheKey}:${key}`, diskEntry);
+        this.updateMetrics(createUnifiedTimestamp().unix - startTime);
+        return diskEntry.value;
+      }
+
+      const networkEntry = this.networkStorage.get(`${this.networkCacheKey}:${key}`);
+      if (networkEntry && !this.isExpired(networkEntry)) {
+        this.metrics.networkHits++;
+        // Promote to memory and disk cache
+        this.memoryStorage.set(`${this.memoryCacheKey}:${key}`, networkEntry);
+        this.diskStorage.set(`${this.diskCacheKey}:${key}`, networkEntry);
+        this.updateMetrics(createUnifiedTimestamp().unix - startTime);
+        return networkEntry.value;
+      }
+
+      // Cache miss
+      this.metrics.totalMisses++;
       this.updateMetrics(createUnifiedTimestamp().unix - startTime);
-      return memoryEntry.value;
+      return null;
+    } catch (error) {
+      console.error('[OneAgentUnifiedCacheSystem] ❌ CRITICAL ERROR in get():', error);
+      console.error('[OneAgentUnifiedCacheSystem] Stack:', (error as Error).stack);
+      throw error;
     }
-    const diskEntryRaw = await cache.get(`${this.diskCacheKey}:${key}`);
-    const diskEntry =
-      diskEntryRaw && typeof diskEntryRaw === 'object' && 'value' in diskEntryRaw
-        ? (diskEntryRaw as OneAgentCacheEntry<T>)
-        : undefined;
-    if (diskEntry && !this.isExpired(diskEntry)) {
-      this.metrics.diskHits++;
-      // Promote to memory cache
-      await cache.set(`${this.memoryCacheKey}:${key}`, diskEntry);
-      this.updateMetrics(createUnifiedTimestamp().unix - startTime);
-      return diskEntry.value;
-    }
-    const networkEntryRaw = await cache.get(`${this.networkCacheKey}:${key}`);
-    const networkEntry =
-      networkEntryRaw && typeof networkEntryRaw === 'object' && 'value' in networkEntryRaw
-        ? (networkEntryRaw as OneAgentCacheEntry<T>)
-        : undefined;
-    if (networkEntry && !this.isExpired(networkEntry)) {
-      this.metrics.networkHits++;
-      // Promote to memory and disk cache
-      await cache.set(`${this.memoryCacheKey}:${key}`, networkEntry);
-      await cache.set(`${this.diskCacheKey}:${key}`, networkEntry);
-      this.updateMetrics(createUnifiedTimestamp().unix - startTime);
-      return networkEntry.value;
-    }
-    // Cache miss
-    this.metrics.totalMisses++;
-    this.updateMetrics(createUnifiedTimestamp().unix - startTime);
-    return null;
   }
 
   /**
@@ -1276,7 +1278,6 @@ export class OneAgentUnifiedCacheSystem<T = unknown> {
    */
   async set(key: string, value: T, ttl?: number): Promise<void> {
     const actualTTL = ttl || this.config.defaultTTL;
-    const cache = OneAgentUnifiedBackbone.getInstance().cache;
     const entry: OneAgentCacheEntry<T> = {
       key,
       value,
@@ -1285,19 +1286,19 @@ export class OneAgentUnifiedCacheSystem<T = unknown> {
       size: this.estimateSize(value),
       ttl: actualTTL,
     };
-    await cache.set(`${this.memoryCacheKey}:${key}`, entry);
-    await cache.set(`${this.diskCacheKey}:${key}`, entry);
-    await cache.set(`${this.networkCacheKey}:${key}`, entry);
+    // Use actual storage, not recursive calls!
+    this.memoryStorage.set(`${this.memoryCacheKey}:${key}`, entry);
+    this.diskStorage.set(`${this.diskCacheKey}:${key}`, entry);
+    this.networkStorage.set(`${this.networkCacheKey}:${key}`, entry);
   }
 
   /**
    * Delete from all cache tiers
    */
   async delete(key: string): Promise<boolean> {
-    const cache = OneAgentUnifiedBackbone.getInstance().cache;
-    const memDel = await cache.delete(`${this.memoryCacheKey}:${key}`);
-    const diskDel = await cache.delete(`${this.diskCacheKey}:${key}`);
-    const netDel = await cache.delete(`${this.networkCacheKey}:${key}`);
+    const memDel = this.memoryStorage.delete(`${this.memoryCacheKey}:${key}`);
+    const diskDel = this.diskStorage.delete(`${this.diskCacheKey}:${key}`);
+    const netDel = this.networkStorage.delete(`${this.networkCacheKey}:${key}`);
     return !!(memDel || diskDel || netDel);
   }
 
@@ -1305,12 +1306,10 @@ export class OneAgentUnifiedCacheSystem<T = unknown> {
    * Clear all caches
    */
   async clear(): Promise<void> {
-    const cache = OneAgentUnifiedBackbone.getInstance().cache;
-    // For demo: clear all keys with the relevant prefixes (could be optimized)
-    // In production, use a more efficient key management system
-    // Here, we assume cache exposes a clear() for all, or we could iterate keys if needed
-    // For now, just clear all (fallback)
-    await cache.clear();
+    // FIXED: Use actual storage instead of recursive call
+    this.memoryStorage.clear();
+    this.diskStorage.clear();
+    this.networkStorage.clear();
   }
 
   /**

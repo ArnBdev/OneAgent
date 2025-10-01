@@ -122,13 +122,42 @@ export class ToolRegistry {
    */
   constructor(opts: { memorySystem?: OneAgentMemory } = {}) {
     this.memorySystem = opts.memorySystem || null;
-    this.initializeCategories();
-    this.registerNonMemoryTools();
-    this.registerMemoryTools();
-    this.initialized = true;
+    // NOTE: Async initialization deferred - call ensureInitialized() before use
+    // Constructor must remain synchronous; async operations moved to lazy init
+    this.initialized = false;
   }
 
   /**
+   * Lazy initialization - ensures registry is ready before first use.
+   * Idempotent - safe to call multiple times.
+   */
+  private async ensureInitialized(): Promise<void> {
+    if (this.initialized) return;
+
+    // CRITICAL: Set flag FIRST to prevent infinite recursion when registerTool calls ensureInitialized
+    this.initialized = true;
+
+    try {
+      console.log('[ToolRegistry] 🔄 Initializing categories...');
+      await this.initializeCategories();
+      console.log('[ToolRegistry] ✅ Categories initialized');
+
+      console.log('[ToolRegistry] 🔄 Registering non-memory tools...');
+      await this.registerNonMemoryTools();
+      console.log('[ToolRegistry] ✅ Non-memory tools registered');
+
+      console.log('[ToolRegistry] 🔄 Registering memory tools...');
+      await this.registerMemoryTools();
+      console.log('[ToolRegistry] ✅ Memory tools registered');
+
+      console.log('[ToolRegistry] 🎉 Initialization complete');
+    } catch (error) {
+      // Reset flag on error so next call retries
+      this.initialized = false;
+      console.error('[ToolRegistry] ❌ Initialization FAILED:', error);
+      throw error;
+    }
+  } /**
    * Set the shared memory system and (re)register memory tools.
    * @param memorySystem The canonical OneAgentMemory instance.
    */
@@ -142,11 +171,19 @@ export class ToolRegistry {
    * Ensures all ToolCategory values are present as keys.
    */
   private async initializeCategories(): Promise<void> {
-    const categories: Record<string, string[]> = {};
-    for (const category of Object.values(ToolCategory)) {
-      categories[category as ToolCategory] = [];
+    try {
+      console.log('[ToolRegistry] 📝 Creating category structure...');
+      const categories: Record<string, string[]> = {};
+      for (const category of Object.values(ToolCategory)) {
+        categories[category as ToolCategory] = [];
+      }
+      // Cache categories (now that cache system is fixed)
+      await this.cache.set(this.categoriesKey, categories);
+      console.log('[ToolRegistry] ✅ Categories structure created and cached');
+    } catch (error) {
+      console.error('[ToolRegistry] ❌ initializeCategories FAILED:', error);
+      throw error;
     }
-    await this.cache.set(this.categoriesKey, categories);
   }
 
   /**
@@ -154,36 +191,36 @@ export class ToolRegistry {
    * Called at construction and when memory system is set.
    * Only canonical, MCP-compliant tools are registered here.
    */
-  private registerNonMemoryTools(): void {
+  private async registerNonMemoryTools(): Promise<void> {
     // Web Research Tools
-    this.registerTool(new EnhancedSearchTool(), {
+    await this.registerTool(new EnhancedSearchTool(), {
       category: ToolCategory.WEB_RESEARCH,
       constitutionalLevel: 'enhanced',
       priority: 7,
       exposeToMCP: true,
     });
 
-    this.registerTool(new UnifiedWebSearchTool(), {
+    await this.registerTool(new UnifiedWebSearchTool(), {
       category: ToolCategory.WEB_RESEARCH,
       constitutionalLevel: 'enhanced',
       priority: 8,
       exposeToMCP: true,
     });
-    this.registerTool(new UnifiedWebFetchTool(), {
+    await this.registerTool(new UnifiedWebFetchTool(), {
       category: ToolCategory.WEB_RESEARCH,
       constitutionalLevel: 'enhanced',
       priority: 7,
       exposeToMCP: true,
     });
 
-    this.registerTool(new ConversationRetrievalTool(), {
+    await this.registerTool(new ConversationRetrievalTool(), {
       category: ToolCategory.AGENT_COMMUNICATION,
       constitutionalLevel: 'enhanced',
       priority: 7,
       exposeToMCP: true,
     });
 
-    this.registerTool(new ConversationSearchTool(), {
+    await this.registerTool(new ConversationSearchTool(), {
       category: ToolCategory.AGENT_COMMUNICATION,
       constitutionalLevel: 'enhanced',
       priority: 7,
@@ -191,7 +228,7 @@ export class ToolRegistry {
     });
 
     // System Health and Monitoring
-    this.registerTool(new SystemHealthTool(), {
+    await this.registerTool(new SystemHealthTool(), {
       category: ToolCategory.CORE_SYSTEM,
       constitutionalLevel: 'basic',
       priority: 6,
@@ -211,7 +248,7 @@ export class ToolRegistry {
     // });
 
     // Development and Professional Tools
-    this.registerTool(new CodeAnalysisTool(), {
+    await this.registerTool(new CodeAnalysisTool(), {
       category: ToolCategory.DEVELOPMENT,
       constitutionalLevel: 'enhanced',
       priority: 8,
@@ -224,27 +261,27 @@ export class ToolRegistry {
   /**
    * Register canonical OneAgent memory tools using the injected or canonical memory system.
    */
-  private registerMemoryTools(): void {
+  private async registerMemoryTools(): Promise<void> {
     const memoryClient = this.memorySystem || getOneAgentMemory();
-    this.registerTool(new OneAgentMemorySearchTool(memoryClient), {
+    await this.registerTool(new OneAgentMemorySearchTool(memoryClient), {
       category: ToolCategory.MEMORY_CONTEXT,
       constitutionalLevel: 'critical',
       priority: 10,
       exposeToMCP: true,
     });
-    this.registerTool(new OneAgentMemoryAddTool(memoryClient), {
+    await this.registerTool(new OneAgentMemoryAddTool(memoryClient), {
       category: ToolCategory.MEMORY_CONTEXT,
       constitutionalLevel: 'critical',
       priority: 10,
       exposeToMCP: true,
     });
-    this.registerTool(new OneAgentMemoryEditTool(memoryClient), {
+    await this.registerTool(new OneAgentMemoryEditTool(memoryClient), {
       category: ToolCategory.MEMORY_CONTEXT,
       constitutionalLevel: 'critical',
       priority: 10,
       exposeToMCP: true,
     });
-    this.registerTool(new OneAgentMemoryDeleteTool(memoryClient), {
+    await this.registerTool(new OneAgentMemoryDeleteTool(memoryClient), {
       category: ToolCategory.MEMORY_CONTEXT,
       constitutionalLevel: 'critical',
       priority: 10,
@@ -267,50 +304,71 @@ export class ToolRegistry {
    * @param metadata Optional partial ToolMetadata (merged with tool defaults).
    */
   public async registerTool(tool: UnifiedMCPTool, metadata?: Partial<ToolMetadata>): Promise<void> {
-    // Load tools and categories from cache
-    const tools = ((await this.cache.get(this.toolsKey)) as Record<string, ToolRegistration>) || {};
-    const categories =
-      ((await this.cache.get(this.categoriesKey)) as Record<string, string[]>) || {};
+    try {
+      console.log(`[ToolRegistry] 📥 Starting registration for: ${tool.name}`);
+      await this.ensureInitialized();
+      console.log(`[ToolRegistry] ✅ Registry initialized for: ${tool.name}`);
 
-    // Check if tool is already registered
-    if (tools[tool.name]) {
-      // Silent skip - tool already registered
-      return;
-    }
+      // Load existing tools and categories from cache (now that cache is fixed)
+      console.log(`[ToolRegistry] 🔄 Loading cache for: ${tool.name}`);
+      const tools =
+        ((await this.cache.get(this.toolsKey)) as Record<string, ToolRegistration>) || {};
+      const categories =
+        ((await this.cache.get(this.categoriesKey)) as Record<string, string[]>) || {};
+      console.log(`[ToolRegistry] ✅ Cache loaded for: ${tool.name}`);
 
-    const fullMetadata: ToolMetadata = {
-      category: metadata?.category || ToolCategory.DEVELOPMENT,
-      constitutionalLevel: metadata?.constitutionalLevel || tool.constitutionalLevel,
-      dependencies: metadata?.dependencies || [],
-      priority: metadata?.priority || 5,
-      exposeToMCP: metadata?.exposeToMCP !== false, // default true
-      internalOnly: metadata?.internalOnly || false,
-      experimental: metadata?.experimental || false,
-      version: metadata?.version || '1.0.0',
-      description: metadata?.description || tool.description || '',
-    };
+      // Check if tool is already registered
+      if (tools[tool.name]) {
+        console.log(`[ToolRegistry] ⏭️  Tool ${tool.name} already registered, skipping`);
+        // Silent skip - tool already registered
+        return;
+      }
 
-    const registration: ToolRegistration = {
-      tool,
-      metadata: fullMetadata,
-      registeredAt: new Date(createUnifiedTimestamp().iso),
-      usageCount: 0,
-    };
+      console.log(`[ToolRegistry] 🔨 Creating registration metadata for: ${tool.name}`);
+      const fullMetadata: ToolMetadata = {
+        category: metadata?.category || ToolCategory.DEVELOPMENT,
+        constitutionalLevel: metadata?.constitutionalLevel || tool.constitutionalLevel,
+        dependencies: metadata?.dependencies || [],
+        priority: metadata?.priority || 5,
+        exposeToMCP: metadata?.exposeToMCP !== false, // default true
+        internalOnly: metadata?.internalOnly || false,
+        experimental: metadata?.experimental || false,
+        version: metadata?.version || '1.0.0',
+        description: metadata?.description || tool.description || '',
+      };
 
-    tools[tool.name] = registration;
+      console.log(`[ToolRegistry] 📝 Building registration object for: ${tool.name}`);
+      const registration: ToolRegistration = {
+        tool,
+        metadata: fullMetadata,
+        registeredAt: new Date(createUnifiedTimestamp().iso),
+        usageCount: 0,
+      };
 
-    // Add to category
-    if (!categories[fullMetadata.category]) categories[fullMetadata.category] = [];
-    categories[fullMetadata.category].push(tool.name);
+      tools[tool.name] = registration;
 
-    // Save back to cache
-    await this.cache.set(this.toolsKey, tools);
-    await this.cache.set(this.categoriesKey, categories);
+      // Add to category
+      if (!categories[fullMetadata.category]) categories[fullMetadata.category] = [];
+      categories[fullMetadata.category].push(tool.name);
 
-    if (!(process.env.ONEAGENT_FAST_TEST_MODE === '1' || process.env.NODE_ENV === 'test')) {
-      console.log(
-        `[ToolRegistry] Registered ${tool.name} in ${fullMetadata.category} (priority: ${fullMetadata.priority})`,
-      );
+      // Store in cache (now that cache system is fixed)
+      await this.cache.set(this.toolsKey, tools);
+      console.log(`[ToolRegistry] ✅ Tools cached successfully for: ${tool.name}`);
+
+      await this.cache.set(this.categoriesKey, categories);
+      console.log(`[ToolRegistry] ✅ Categories cached successfully for: ${tool.name}`);
+
+      console.log(`[ToolRegistry] ✅ Cache saved successfully for: ${tool.name}`);
+
+      if (!(process.env.ONEAGENT_FAST_TEST_MODE === '1' || process.env.NODE_ENV === 'test')) {
+        console.log(
+          `[ToolRegistry] Registered ${tool.name} in ${fullMetadata.category} (priority: ${fullMetadata.priority})`,
+        );
+      }
+      console.log(`[ToolRegistry] 🎉 Registration complete for: ${tool.name}`);
+    } catch (error) {
+      console.error(`[ToolRegistry] ❌ registerTool FAILED for ${tool.name}:`, error);
+      throw error;
     }
   }
 
