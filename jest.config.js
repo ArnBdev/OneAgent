@@ -15,8 +15,21 @@ module.exports = {
         isolatedModules: false,
       },
     ],
+    // Transform ESM modules to CommonJS for Jest
+    '^.+\\.m?js$': [
+      'ts-jest',
+      {
+        useESM: false,
+        tsconfig: {
+          allowJs: true,
+          esModuleInterop: true,
+        },
+      },
+    ],
   },
-  moduleFileExtensions: ['ts', 'js', 'json'],
+  moduleFileExtensions: ['ts', 'js', 'json', 'mjs'],
+  // Transform ESM modules (marked, etc.) that Jest can't parse by default
+  transformIgnorePatterns: ['node_modules/(?!(marked)/)'],
   // Setup requiring Jest globals (beforeEach/afterEach) must run after env install
   setupFilesAfterEnv: ['<rootDir>/coreagent/tests/jest.setup.ts'],
   // Future: enable coverage thresholds once suite expanded

@@ -494,10 +494,208 @@ export class GMACompiler extends EventEmitter {
   /**
    * Helper: Extract tasks from Markdown
    */
-  private extractTasks(_tokens: Token[]): MissionBriefTask[] {
-    // Simplified extraction - to be enhanced in future iterations
-    // Full implementation would parse task sections from Markdown AST
-    return [];
+  private extractTasks(tokens: Token[]): MissionBriefTask[] {
+    const tasks: MissionBriefTask[] = [];
+    let currentTask: Partial<MissionBriefTask> | null = null;
+    let inTasksSection = false;
+    let currentSubsection = '';
+
+    for (const token of tokens) {
+      // Track if we're in the Tasks section
+      if (token.type === 'heading' && token.depth === 2) {
+        inTasksSection = token.text.toLowerCase().includes('task');
+        if (!inTasksSection && currentTask) {
+          // Exiting tasks section, save current task
+          if (currentTask.id && currentTask.name && currentTask.description) {
+            tasks.push(this.normalizeTask(currentTask));
+          }
+          currentTask = null;
+        }
+        continue;
+      }
+
+      if (!inTasksSection) continue;
+
+      // Parse task headings (### Task N:)
+      if (token.type === 'heading' && token.depth === 3) {
+        // Save previous task
+        if (currentTask && currentTask.id && currentTask.name && currentTask.description) {
+          tasks.push(this.normalizeTask(currentTask));
+        }
+
+        // Start new task
+        const match = token.text.match(/^Task\s+(\d+):\s*(.+)$/i);
+        if (match) {
+          const [, taskNum, title] = match;
+          currentTask = {
+            id: `task_${taskNum}`,
+            name: title.trim(),
+            description: '',
+            agentAssignment: {
+              preferredAgent: 'TBD',
+              fallbackStrategy: 'capability-based-matching',
+            },
+            acceptanceCriteria: [],
+            status: 'not-started',
+          };
+        }
+        continue;
+      }
+
+      // Parse subsections within tasks (Assignment, Dependencies, etc.)
+      if (token.type === 'heading' && token.depth === 4 && token.text.startsWith('**')) {
+        currentSubsection = token.text
+          .replace(/^\*\*|\*\*$/g, '')
+          .trim()
+          .toLowerCase();
+        continue;
+      }
+
+      // Parse task content
+      if (currentTask) {
+        if (token.type === 'paragraph') {
+          const text = token.text.trim();
+
+          // Handle inline field labels
+          if (text.startsWith('**Description**:')) {
+            currentTask.description = text.replace(/^\*\*Description\*\*:\s*/i, '').trim();
+          } else if (text.startsWith('**Estimated Effort**:')) {
+            const effortText = text.replace(/^\*\*Estimated Effort\*\*:\s*/i, '').trim();
+            currentTask.estimatedEffort = this.parseEffort(effortText);
+          } else if (text.startsWith('**Status**:')) {
+            const status = text
+              .replace(/^\*\*Status\*\*:\s*/i, '')
+              .trim()
+              .toLowerCase();
+            currentTask.status = (status as MissionBriefTask['status']) || 'not-started';
+          } else if (text.startsWith('**Dependencies**:')) {
+            const depsText = text.replace(/^\*\*Dependencies\*\*:\s*/i, '').trim();
+            if (depsText.toLowerCase() !== 'none') {
+              currentTask.dependencies = {
+                dependsOn: depsText.split(',').map((d: string) => d.trim()),
+              };
+            }
+          } else if (currentSubsection === 'description' && !currentTask.description) {
+            currentTask.description = text;
+          } else if (currentSubsection === 'estimated effort') {
+            currentTask.estimatedEffort = this.parseEffort(text);
+          } else if (currentSubsection === 'dependencies' && text.toLowerCase() !== 'none') {
+            currentTask.dependencies = {
+              dependsOn: text.split(',').map((d: string) => d.trim()),
+            };
+          }
+        } else if (token.type === 'list') {
+          // Handle list items (for assignment, inputs, outputs, acceptance criteria)
+          const items = this.parseListItems(token);
+
+          if (currentSubsection === 'assignment') {
+            for (const item of items) {
+              if (item.startsWith('- Preferred Agent:') || item.startsWith('Preferred Agent:')) {
+                currentTask.agentAssignment = currentTask.agentAssignment || {
+                  preferredAgent: 'TBD',
+                  fallbackStrategy: 'capability-based-matching',
+                };
+                currentTask.agentAssignment.preferredAgent = item
+                  .replace(/^-?\s*Preferred Agent:\s*/i, '')
+                  .trim();
+              } else if (
+                item.startsWith('- Fallback Strategy:') ||
+                item.startsWith('Fallback Strategy:')
+              ) {
+                currentTask.agentAssignment = currentTask.agentAssignment || {
+                  preferredAgent: 'TBD',
+                  fallbackStrategy: 'capability-based-matching',
+                };
+                currentTask.agentAssignment.fallbackStrategy = item
+                  .replace(/^-?\s*Fallback Strategy:\s*/i, '')
+                  .trim();
+              }
+            }
+          } else if (currentSubsection === 'acceptance criteria') {
+            currentTask.acceptanceCriteria = items.map((item) => ({
+              description: item.replace(/^-?\s*\[\s*\]\s*/i, '').trim(),
+              completed: false,
+            }));
+          } else if (currentSubsection === 'dependencies') {
+            const depItems = items
+              .map((i: string) => i.trim())
+              .filter((i: string) => i.toLowerCase() !== 'none');
+            if (depItems.length > 0) {
+              currentTask.dependencies = { dependsOn: depItems };
+            }
+          }
+        }
+      }
+    }
+
+    // Save final task
+    if (currentTask && currentTask.id && currentTask.name && currentTask.description) {
+      tasks.push(this.normalizeTask(currentTask));
+    }
+
+    return tasks;
+  }
+
+  /**
+   * Helper: Parse effort string to number (days)
+   */
+  private parseEffort(effortText: string): number | undefined {
+    const match = effortText.match(/(\d+\.?\d*)\s*(day|hour|week)/i);
+    if (!match) return undefined;
+
+    const [, value, unit] = match;
+    const numValue = parseFloat(value);
+
+    // Convert to days
+    switch (unit.toLowerCase()) {
+      case 'hour':
+        return Math.round(numValue / 8); // 8-hour workday
+      case 'day':
+        return numValue;
+      case 'week':
+        return numValue * 5; // 5-day workweek
+      default:
+        return undefined;
+    }
+  }
+
+  /**
+   * Helper: Parse list items from marked token
+   */
+  private parseListItems(listToken: Token): string[] {
+    const items: string[] = [];
+
+    if ('items' in listToken && Array.isArray(listToken.items)) {
+      for (const item of listToken.items) {
+        if ('text' in item && typeof item.text === 'string') {
+          items.push(item.text);
+        }
+      }
+    }
+
+    return items;
+  }
+
+  /**
+   * Helper: Normalize partial task to full task
+   */
+  private normalizeTask(partial: Partial<MissionBriefTask>): MissionBriefTask {
+    const timestamp = createUnifiedTimestamp();
+    return {
+      id: partial.id || `task_${timestamp.unix}`,
+      name: partial.name || 'Untitled Task',
+      description: partial.description || 'No description provided',
+      agentAssignment: partial.agentAssignment || {
+        preferredAgent: 'TBD',
+        fallbackStrategy: 'capability-based-matching',
+      },
+      acceptanceCriteria: partial.acceptanceCriteria || [],
+      inputs: partial.inputs,
+      outputs: partial.outputs,
+      dependencies: partial.dependencies,
+      estimatedEffort: partial.estimatedEffort,
+      status: partial.status || 'not-started',
+    };
   }
 
   /**
