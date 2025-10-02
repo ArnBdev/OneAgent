@@ -296,6 +296,15 @@ export class PlannerAgent extends BaseAgent implements ISpecializedAgent {
         description: 'Validate plans using Constitutional AI',
         parameters: {},
       },
+      {
+        type: 'generate_mission_brief',
+        description: 'Generate MissionBrief.md specification from natural language goal',
+        parameters: {
+          goal: 'string (required): Natural language goal description',
+          objective: 'string (alias for goal)',
+          context: 'object (optional): { userId, domain, priority, timeframe, resources, constraints }',
+        },
+      },
     ];
   }
 
@@ -399,6 +408,19 @@ export class PlannerAgent extends BaseAgent implements ISpecializedAgent {
             score: validation?.score || 0,
             violations: validation?.violations || [],
           };
+          break;
+        }
+        case 'generate_mission_brief': {
+          const goal = (params.goal || params.objective) as string;
+          if (!goal) throw new Error('Missing goal/objective for MissionBrief generation');
+          const context = (params.context as Record<string, unknown>) || {};
+          const missionBrief = await this.generateMissionBrief(goal, context);
+          // Wrap string result in expected format
+          result = {
+            sessionId: 'mission-brief-generation',
+            content: missionBrief,
+            success: true,
+          } as unknown as ExecuteActionResult;
           break;
         }
         default: {
