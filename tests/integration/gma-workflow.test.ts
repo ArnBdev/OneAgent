@@ -195,8 +195,23 @@ describe('GMA Workflow Integration Test', () => {
       console.log(`   ✅ Events emitted: ${eventTypes.join(', ')}`);
       console.log(`   📊 Total events: ${emittedEvents.length}`);
 
-      // Step 5: Gemini Feedback Assessment
-      console.log('\n🎯 Step 5: Gemini Feedback Assessment:');
+      // Step 5: Verify TaskQueue state (Gemini's recommendation)
+      console.log('\n📋 Step 5: Verify TaskQueue contains tasks...');
+      // Access private tasks Map via reflection for testing
+      const tasksMap = (taskQueue as any).tasks as Map<string, any>;
+      const queueSize = tasksMap.size;
+      
+      console.log(`   📊 TaskQueue Statistics:`);
+      console.log(`      - Tasks in queue: ${queueSize}`);
+      console.log(`      - Expected from compilation: ${compilationResult.tasksCreated}`);
+
+      // Verify TaskQueue matches compilation result
+      expect(queueSize).toBeGreaterThan(0);
+      expect(queueSize).toBeLessThanOrEqual(compilationResult.tasksCreated);
+      console.log(`   ✅ TaskQueue verified: ${queueSize} tasks present`);
+
+      // Step 6: Gemini Feedback Assessment
+      console.log('\n🎯 Step 6: Gemini Feedback Assessment:');
       console.log('='.repeat(80));
 
       if (compilationResult.tasksCreated === 0) {
