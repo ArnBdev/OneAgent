@@ -22,7 +22,11 @@ import { marked, type Token } from 'marked';
 import Ajv from 'ajv';
 import addFormats from 'ajv-formats';
 import { EventEmitter } from 'events';
-import { createUnifiedTimestamp, createUnifiedId, getOneAgentMemory } from '../utils/UnifiedBackboneService';
+import {
+  createUnifiedTimestamp,
+  createUnifiedId,
+  getOneAgentMemory,
+} from '../utils/UnifiedBackboneService';
 import { OneAgentMemory } from '../memory/OneAgentMemory';
 import type { TaskQueue } from './TaskQueue';
 import type { EmbeddingBasedAgentMatcher } from './EmbeddingBasedAgentMatcher';
@@ -443,11 +447,7 @@ export class GMACompiler extends EventEmitter {
   /**
    * Helper: Extract section content from Markdown tokens
    */
-  private extractSection(
-    tokens: Token[],
-    section: string,
-    subsection: string,
-  ): string | undefined {
+  private extractSection(tokens: Token[], section: string, subsection: string): string | undefined {
     // Simplified extraction - can be enhanced with proper AST traversal
     let inSection = false;
     let inSubsection = false;
