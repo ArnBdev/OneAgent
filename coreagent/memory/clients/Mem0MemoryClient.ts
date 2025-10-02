@@ -309,8 +309,17 @@ export class Mem0MemoryClient implements IMemoryClient {
           // End of event - parse accumulated data
           const eventData = dataLines.join('\n');
           try {
-            const parsed = JSON.parse(eventData) as MCPResponse<T>;
-            return parsed;
+            const parsed = JSON.parse(eventData);
+
+            // Skip notifications - we only want responses with 'result' or 'error'
+            // Notifications have 'method' field (e.g., "notifications/message")
+            // Responses have 'result' or 'error' field
+            if ('result' in parsed || 'error' in parsed) {
+              return parsed as MCPResponse<T>;
+            }
+
+            // Continue to next event if this was a notification
+            dataLines = [];
           } catch {
             // Try next event if parse fails
             dataLines = [];
@@ -672,7 +681,12 @@ export class Mem0MemoryClient implements IMemoryClient {
     try {
       const result = await this.callTool<{
         success: boolean;
-        results?: MemorySearchResult[];
+        results?: Array<{
+          id: string;
+          memory: string; // mem0 uses 'memory' instead of 'content'
+          metadata?: Record<string, unknown>;
+          score?: number;
+        }>;
         count?: number;
         error?: string;
       }>('search_memories', {
@@ -681,8 +695,18 @@ export class Mem0MemoryClient implements IMemoryClient {
         limit: query.limit || 10,
       });
 
-      if (!result || !result.success || result.error) {
-        unifiedLogger.error('Search memories failed', { error: result?.error });
+      // Handle undefined result (unwrapping issue)
+      if (!result) {
+        unifiedLogger.error('Search memories failed: result is undefined');
+        return [];
+      }
+
+      if (!result.success || result.error) {
+        unifiedLogger.error('Search memories failed', {
+          error: result.error,
+          success: result.success,
+          hasResults: !!result.results,
+        });
         return [];
       }
 
@@ -691,7 +715,18 @@ export class Mem0MemoryClient implements IMemoryClient {
         resultCount: result.count || 0,
       });
 
-      return result.results || [];
+      // Transform mem0 format to MemorySearchResult format
+      // mem0 returns { id, memory, metadata, score }
+      // We need { id, content, metadata, score }
+      const transformedResults: MemorySearchResult[] =
+        result.results?.map((r) => ({
+          id: r.id,
+          content: r.memory, // mem0 uses 'memory', we use 'content'
+          metadata: r.metadata || {},
+          score: r.score,
+        })) || [];
+
+      return transformedResults;
     } catch (error) {
       unifiedLogger.error('Failed to search memories', { error });
       return [];

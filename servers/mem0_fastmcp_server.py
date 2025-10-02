@@ -577,13 +577,91 @@ def capabilities() -> str:
         },
         "metadata": {
             "server": "OneAgent Memory Server",
-            "version": "v4.3.0",
+            "version": "v4.4.0",
             "framework": "FastMCP 2.12.4",
             "memory_backend": "mem0 0.1.118",
         },
     }
     
     return json.dumps(capabilities_data, indent=2)
+
+
+# ==============================================================================
+# Health Check Endpoints (Custom Routes)
+# ==============================================================================
+
+@mcp.custom_route("/health", methods=["GET"])
+async def health_check(request):
+    """
+    Liveness probe - server is alive and responding.
+    
+    Kubernetes liveness probe endpoint. Returns 200 OK if the server process
+    is running and can handle requests. Does not validate dependencies.
+    
+    Returns:
+        JSONResponse: Server health status with metadata
+        - status: "healthy" (always, if responding)
+        - service: "oneagent-memory-server"
+        - backend: "mem0+FastMCP"
+        - version: OneAgent version
+    """
+    from starlette.responses import JSONResponse
+    
+    return JSONResponse({
+        "status": "healthy",
+        "service": "oneagent-memory-server",
+        "backend": "mem0+FastMCP",
+        "version": "4.4.0",
+        "protocol": "MCP HTTP JSON-RPC 2.0"
+    })
+
+
+@mcp.custom_route("/health/ready", methods=["GET"])
+async def readiness_check(request):
+    """
+    Readiness probe - server can handle production traffic.
+    
+    Kubernetes readiness probe endpoint. Validates that all dependencies
+    are initialized and ready:
+    - MCP tools registered (memory operations available)
+    - MCP resources registered (capabilities exposed)
+    
+    Returns:
+        JSONResponse: Readiness status with checks
+        - HTTP 200: Ready for traffic
+        - HTTP 503: Not ready (dependencies failing)
+        - ready: boolean overall status
+        - checks: per-component validation
+    """
+    from starlette.responses import JSONResponse
+    
+    # Check MCP initialization
+    tools_ready = len(mcp._tools) > 0
+    resources_ready = len(mcp._resources) > 0
+    
+    # Overall readiness
+    ready = tools_ready and resources_ready
+    
+    # Build detailed checks
+    checks = {
+        "mcp_initialized": True,  # If we're responding, FastMCP is initialized
+        "tools_available": tools_ready,
+        "resources_available": resources_ready,
+        "tool_count": len(mcp._tools),
+        "resource_count": len(mcp._resources)
+    }
+    
+    status_code = 200 if ready else 503
+    
+    return JSONResponse(
+        {
+            "ready": ready,
+            "checks": checks,
+            "service": "oneagent-memory-server",
+            "version": "4.4.0"
+        },
+        status_code=status_code
+    )
 
 
 # ==============================================================================

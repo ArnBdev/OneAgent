@@ -37,6 +37,151 @@ const results = await memory.searchMemory({ query: 'dark mode', userId: 'user-12
 - **API keys and endpoints:**
   - `apiKey`, `apiUrl`, `endpoint` as needed by backend
 
+## Health Check Endpoints (v4.4.0+)
+
+The mem0+FastMCP server now provides production-grade health check endpoints for monitoring and orchestration:
+
+### Liveness Probe: `/health`
+
+Simple endpoint to verify the server process is alive and responding.
+
+**Request:**
+
+```bash
+curl http://localhost:8010/health
+```
+
+**Response (HTTP 200):**
+
+```json
+{
+  "status": "healthy",
+  "service": "oneagent-memory-server",
+  "backend": "mem0+FastMCP",
+  "version": "4.4.0",
+  "protocol": "MCP HTTP JSON-RPC 2.0"
+}
+```
+
+**Use Cases:**
+
+- Kubernetes liveness probes
+- Load balancer health checks
+- Simple "server alive" verification
+- Startup script validation
+
+### Readiness Probe: `/health/ready`
+
+Comprehensive endpoint that validates all dependencies are initialized and ready.
+
+**Request:**
+
+```bash
+curl http://localhost:8010/health/ready
+```
+
+**Response (HTTP 200 when ready):**
+
+```json
+{
+  "ready": true,
+  "checks": {
+    "mcp_initialized": true,
+    "tools_available": true,
+    "resources_available": true,
+    "tool_count": 5,
+    "resource_count": 2
+  },
+  "service": "oneagent-memory-server",
+  "version": "4.4.0"
+}
+```
+
+**Response (HTTP 503 when not ready):**
+
+```json
+{
+  "ready": false,
+  "checks": {
+    "mcp_initialized": true,
+    "tools_available": false,
+    "resources_available": false,
+    "tool_count": 0,
+    "resource_count": 0
+  },
+  "service": "oneagent-memory-server",
+  "version": "4.4.0"
+}
+```
+
+**Use Cases:**
+
+- Kubernetes readiness probes
+- Load balancer traffic routing decisions
+- Automated service recovery
+- Smoke test validation
+- Production monitoring dashboards
+
+### Implementation Details
+
+Health endpoints are implemented using FastMCP's custom route decorator:
+
+```python
+@mcp.custom_route("/health", methods=["GET"])
+async def health_check(request):
+    return JSONResponse({"status": "healthy", ...})
+
+@mcp.custom_route("/health/ready", methods=["GET"])
+async def readiness_check(request):
+    # Validate dependencies
+    ready = len(mcp._tools) > 0 and len(mcp._resources) > 0
+    return JSONResponse(
+        {"ready": ready, "checks": {...}},
+        status_code=200 if ready else 503
+    )
+```
+
+**Key Features:**
+
+- ✅ Coexists with `/mcp` MCP protocol endpoint
+- ✅ No authentication required (public health checks)
+- ✅ Fast response times (< 50ms typical)
+- ✅ Kubernetes/Docker compatible
+- ✅ Proper HTTP status codes (200/503)
+
+### Production Deployment
+
+**Kubernetes Configuration:**
+
+```yaml
+livenessProbe:
+  httpGet:
+    path: /health
+    port: 8010
+  initialDelaySeconds: 10
+  periodSeconds: 30
+  timeoutSeconds: 5
+
+readinessProbe:
+  httpGet:
+    path: /health/ready
+    port: 8010
+  initialDelaySeconds: 15
+  periodSeconds: 10
+  timeoutSeconds: 5
+```
+
+**Docker Compose Health Check:**
+
+```yaml
+healthcheck:
+  test: ['CMD', 'curl', '-f', 'http://localhost:8010/health/ready']
+  interval: 30s
+  timeout: 5s
+  retries: 3
+  start_period: 40s
+```
+
 ## Implementation Notes
 
 - All memory operations are validated and documented per OneAgent/ALITA standards.

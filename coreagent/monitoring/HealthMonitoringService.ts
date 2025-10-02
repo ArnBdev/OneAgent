@@ -50,6 +50,7 @@ interface ComponentHealthMap {
   agents: ComponentHealth;
   orchestrator: ComponentHealth;
   api: ComponentHealth;
+  memoryService?: ComponentHealth; // NEW: Memory backend health
 }
 
 interface PerformanceMetrics {
@@ -623,14 +624,15 @@ export class HealthMonitoringService extends EventEmitter {
   }
 
   private async getComponentHealthMap(): Promise<ComponentHealthMap> {
-    const [registry, agents, orchestrator, api] = await Promise.all([
+    const [registry, agents, orchestrator, api, memoryService] = await Promise.all([
       this.getRegistryHealth(),
       this.getAgentsHealth(),
       this.getOrchestratorHealth(),
       this.getApiHealth(),
+      this.getMemoryBackendHealth(), // NEW: Memory backend health check
     ]);
 
-    return { registry, agents, orchestrator, api };
+    return { registry, agents, orchestrator, api, memoryService };
   }
   /**
    * Lazily resolve the canonical UnifiedAgentCommunicationService to avoid circular imports
@@ -813,6 +815,71 @@ export class HealthMonitoringService extends EventEmitter {
     } catch (e) {
       return this.createUnhealthyComponent(
         `api_health_failed: ${e instanceof Error ? e.message : String(e)}`,
+      );
+    }
+  }
+
+  /**
+   * Get memory backend health (NEW: v4.4.1)
+   *
+   * Queries OneAgentMemory.getHealthStatus() which calls the mem0+FastMCP
+   * health://status MCP resource. Returns structured health data including:
+   * - healthy: boolean status
+   * - backend: 'mem0+FastMCP'
+   * - capabilities: Array of available tools
+   * - latency: Response time in ms
+   *
+   * Health status determined by:
+   * - healthy: < 500ms latency, healthy status
+   * - degraded: 500-2000ms latency OR degraded status
+   * - unhealthy: > 2000ms latency OR unhealthy status OR error
+   *
+   * @returns ComponentHealth with memory backend metrics
+   */
+  private async getMemoryBackendHealth(): Promise<ComponentHealth> {
+    const start = createUnifiedTimestamp().unix;
+    try {
+      // Lazily import OneAgentMemory to avoid circular deps
+      const { getOneAgentMemory } = await import('../utils/UnifiedBackboneService');
+      const memory = getOneAgentMemory();
+
+      // Call canonical memory health check (v4.4.0)
+      const healthStatus = await memory.getHealthStatus();
+
+      const now = createUnifiedTimestamp();
+      const latency = now.unix - start;
+
+      // Determine health status based on response and latency
+      let status: HealthStatus = 'healthy';
+      const latencyWarn = this.config.alertThresholds.memoryLatency || 500; // 500ms warn
+      const latencyUnhealthy = 2000; // 2s unhealthy
+
+      if (!healthStatus.healthy || latency >= latencyUnhealthy) {
+        status = 'unhealthy';
+      } else if (latency >= latencyWarn || healthStatus.details?.includes('timeout')) {
+        status = 'degraded';
+      }
+
+      return {
+        status,
+        uptime: now.unix,
+        responseTime: latency,
+        errorRate: healthStatus.healthy ? 0 : 1,
+        lastCheck: new Date(now.utc),
+        details: {
+          backend: healthStatus.backend,
+          healthy: healthStatus.healthy,
+          capabilities: healthStatus.capabilities,
+          capabilitiesCount: healthStatus.capabilities.length,
+          lastChecked: healthStatus.lastChecked,
+          latency,
+          raw: healthStatus.details,
+        },
+      };
+    } catch (error) {
+      unifiedLogger.error('Memory backend health check failed', { error });
+      return this.createUnhealthyComponent(
+        `memory_backend_health_failed: ${error instanceof Error ? error.message : String(error)}`,
       );
     }
   }

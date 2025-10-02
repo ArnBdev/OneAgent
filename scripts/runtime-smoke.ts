@@ -24,11 +24,10 @@ const mcpEndpoint = environmentConfig.endpoints.mcp.url.replace(/\/$/, '');
 // Note: Memory server is started via Python script; host/port derived from environmentConfig URLs only
 // derive but only use URLs for HTTP readiness
 const mcpBase = mcpEndpoint.replace(/\/mcp$/, '');
-const memBase = memEndpoint;
-const memHealth = `${memBase}/health`;
-const memReadyz = `${memBase}/readyz`;
-const memStats = (userId = 'smoke-user') =>
-  `${memBase}/v1/memories/stats?userId=${encodeURIComponent(userId)}`;
+// FastMCP memory server now has custom health check endpoints (v4.4.0+)
+const memBase = memEndpoint.replace(/\/mcp$/, ''); // Extract base URL
+const memHealth = `${memBase}/health`; // Liveness probe
+const memReadyz = `${memBase}/health/ready`; // Readiness probe
 // Candidate bases to tolerate IPv4/IPv6/localhost differences on Windows
 function buildMcpCandidates(base: string): string[] {
   const u = new URL(base);
@@ -87,26 +86,6 @@ async function httpGet(
       (headers as Record<string, string>)[k.toLowerCase()] = v;
     });
     return { status: res.status, body, headers };
-  } finally {
-    clearTimeout(t);
-  }
-}
-
-async function httpGetWithHeaders(
-  url: string,
-  headers: Record<string, string>,
-  timeoutMs = 5000,
-): Promise<{ status: number; body: string; headers: IncomingHttpHeaders }> {
-  const controller = new AbortController();
-  const t = setTimeout(() => controller.abort(), timeoutMs);
-  try {
-    const res = await fetch(url, { headers, signal: controller.signal });
-    const body = await res.text();
-    const outHeaders: IncomingHttpHeaders = {};
-    res.headers.forEach((v, k) => {
-      (outHeaders as Record<string, string>)[k.toLowerCase()] = v;
-    });
-    return { status: res.status, body, headers: outHeaders };
   } finally {
     clearTimeout(t);
   }
@@ -332,7 +311,7 @@ async function main() {
   );
 
   try {
-  if (!memUp) {
+    if (!memUp) {
       // Ensure GEMINI_API_KEY exists for memory server boot (health route doesn't use it)
       if (!process.env.GEMINI_API_KEY) {
         process.env.GEMINI_API_KEY = 'dummy-smoke-key';
@@ -357,11 +336,11 @@ async function main() {
       }
       // Start memory server using FastMCP-based implementation (mem0 + HTTP transport)
       // This replaces the legacy uvicorn-based ASGI app
-  // Use '-B' to disable bytecode caching and avoid stale __pycache__ on Windows
-  mem = run('python', ['-B', 'servers/mem0_fastmcp_server.py'], cwd);
-  // Wait for memory full readiness before starting MCP to avoid seeding races
-  const memReadyOk = await waitAnyReady([memReadyz, memHealth], 45000, 500);
-  if (!memReadyOk) throw new Error('Memory server not ready (no /readyz or /health)');
+      // Use '-B' to disable bytecode caching and avoid stale __pycache__ on Windows
+      mem = run('python', ['-B', 'servers/mem0_fastmcp_server.py'], cwd);
+      // Wait for memory full readiness before starting MCP to avoid seeding races
+      const memReadyOk = await waitAnyReady([memReadyz, memHealth], 45000, 500);
+      if (!memReadyOk) throw new Error('Memory server not ready (no /readyz or /health)');
     }
     // If memory was already up, still ensure readyz before bringing up MCP
     if (memUp) {
@@ -451,58 +430,24 @@ async function main() {
       throw new Error('MCP server not ready');
     }
 
-    // Memory health (tolerant): consider 2xx/4xx as reachable; JSON body optional
+    // Memory health check using new /health endpoint (v4.4.0+)
     try {
       const memHealthRes = await httpGet(memHealth, 2000);
-      if (memHealthRes.status >= 500) throw new Error(`/health status ${memHealthRes.status}`);
-      // If JSON body provided, check common fields, otherwise treat as reachable
-      try {
+      if (memHealthRes.status === 200) {
         const json = JSON.parse(memHealthRes.body || '{}');
-        if (
-          typeof json === 'object' &&
-          json !== null &&
-          ('success' in (json as Record<string, unknown>) || 'status' in (json as Record<string, unknown>))
-        ) {
-          // ok
+        if (json.status !== 'healthy') {
+          throw new Error(`Memory health check failed: status=${json.status}`);
         }
-      } catch {
-        // Non-JSON body; acceptable for readiness
+      } else {
+        throw new Error(`Memory /health endpoint returned status ${memHealthRes.status}`);
       }
     } catch (e) {
-      console.warn('Memory /health check non-fatal issue:', (e as Error)?.message || String(e));
+      console.error('Memory health check failed:', (e as Error)?.message || String(e));
+      throw e;
     }
 
-    // Minimal authenticated memory op: stats for a smoke user (optional)
-    // If memory server was already running, we may not know its MEM0_API_KEY → treat 401/426 as non-fatal and skip.
-    const memKey = process.env.MEM0_API_KEY;
-    if (memKey) {
-      try {
-        const authHeaders = {
-          Authorization: `Bearer ${memKey}`,
-          'MCP-Protocol-Version': MCP_PROTOCOL_VERSION,
-        } as const;
-        const statsRes = await httpGetWithHeaders(
-          memStats('smoke-user'),
-          authHeaders as unknown as Record<string, string>,
-        );
-        if (statsRes.status === 200) {
-          const statsJson = JSON.parse(statsRes.body || '{}');
-          if (!statsJson.success) {
-            console.warn('Memory stats responded 200 but not success; continuing.');
-          }
-        } else if (statsRes.status === 401 || statsRes.status === 426) {
-          console.warn(
-            'Memory stats unauthorized or protocol mismatch; skipping optional memory op.',
-          );
-        } else {
-          console.warn(`Memory stats unexpected status ${statsRes.status}; continuing.`);
-        }
-      } catch (e) {
-        console.warn('Memory stats optional check failed; continuing.', e);
-      }
-    } else {
-      console.log('Skipping memory stats optional check: MEM0_API_KEY not set.');
-    }
+    // Note: FastMCP memory server has no /v1/memories/stats endpoint
+    // We rely on MCP JSON-RPC protocol for all memory operations (tested below)
 
     // Health
     const healthJson = JSON.parse((await httpGet(mcpHealthUrl(), 5000)).body || '{}');

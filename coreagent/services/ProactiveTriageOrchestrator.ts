@@ -1,6 +1,7 @@
 ﻿import { createUnifiedTimestamp, createUnifiedId } from '../utils/UnifiedBackboneService';
 import { taskDelegationService } from './TaskDelegationService';
 import { unifiedMonitoringService } from '../monitoring/UnifiedMonitoringService';
+import { healthMonitoringService } from '../monitoring/HealthMonitoringService';
 import { metricsService } from './MetricsService';
 import { sloService } from '../monitoring/SLOService';
 import { getModelFor } from '../config/UnifiedModelPicker';
@@ -15,6 +16,13 @@ export interface ProactiveSnapshot {
   slos: ReturnType<typeof sloService.getConfig> | null;
   recentErrorEvents: number;
   errorBudgetBurnHot: Array<{ operation: string; burnRate: number; remaining: number }>;
+  // NEW: Memory backend health (Phase 2 - v4.4.1)
+  memoryBackend?: {
+    status: 'healthy' | 'degraded' | 'unhealthy';
+    latency: number;
+    capabilities: number;
+    backend: string;
+  };
 }
 
 export interface TriageResult {
@@ -25,6 +33,7 @@ export interface TriageResult {
   snapshotHash: string;
   latencyConcern?: boolean;
   errorBudgetConcern?: boolean;
+  memoryBackendConcern?: boolean; // NEW: Phase 2 v4.4.1
 }
 
 export interface DeepAnalysisResult {
@@ -230,7 +239,43 @@ export class ProactiveTriageOrchestrator {
       slos: slos || null,
       recentErrorEvents: errorEvents.length,
       errorBudgetBurnHot,
+      memoryBackend: await this.captureMemoryBackendHealth(),
     };
+  }
+
+  /**
+   * Capture memory backend health for proactive monitoring (NEW: Phase 2 v4.4.1)
+   */
+  private async captureMemoryBackendHealth(): Promise<
+    ProactiveSnapshot['memoryBackend'] | undefined
+  > {
+    try {
+      // Use healthMonitoringService directly to get ComponentHealth structure
+      const healthReport = await healthMonitoringService.getSystemHealth();
+      const memHealth = healthReport.components?.memoryService;
+
+      if (!memHealth) {
+        return undefined; // Memory health not available
+      }
+
+      return {
+        status: memHealth.status as 'healthy' | 'degraded' | 'unhealthy',
+        latency: memHealth.responseTime || 0,
+        capabilities: (memHealth.details?.capabilitiesCount as number) || 0,
+        backend: (memHealth.details?.backend as string) || 'unknown',
+      };
+    } catch (error) {
+      // Don't fail the entire snapshot if memory health check fails
+      unifiedMonitoringService.trackOperation(
+        'ProactiveObserver',
+        'capture_memory_health',
+        'error',
+        {
+          error: error instanceof Error ? error.message : String(error),
+        },
+      );
+      return undefined;
+    }
   }
 
   private hashObject(obj: unknown): string {
@@ -248,6 +293,28 @@ export class ProactiveTriageOrchestrator {
     const ts = createUnifiedTimestamp();
     const reasons: string[] = [];
     let anomaly = false;
+    let memoryBackendConcern = false;
+
+    // NEW: Check memory backend health (Phase 2 v4.4.1)
+    if (snapshot.memoryBackend) {
+      if (snapshot.memoryBackend.status === 'unhealthy') {
+        anomaly = true;
+        memoryBackendConcern = true;
+        reasons.push(`memory_backend_unhealthy`);
+      } else if (snapshot.memoryBackend.status === 'degraded') {
+        memoryBackendConcern = true;
+        reasons.push(`memory_backend_degraded`);
+      } else if (snapshot.memoryBackend.latency > 500) {
+        memoryBackendConcern = true;
+        reasons.push(`memory_backend_slow_latency`);
+      }
+
+      if (snapshot.memoryBackend.capabilities < 3) {
+        memoryBackendConcern = true;
+        reasons.push(`memory_backend_capabilities_reduced`);
+      }
+    }
+
     if (snapshot.errorBudgetBurnHot.length) {
       anomaly = true;
       reasons.push('error_budget_burn');
@@ -285,6 +352,7 @@ export class ProactiveTriageOrchestrator {
       }),
       latencyConcern: reasons.includes('latency_spike_ratio'),
       errorBudgetConcern: reasons.includes('error_budget_burn'),
+      memoryBackendConcern, // NEW: Phase 2 v4.4.1
     };
     // persist last snapshot + triage early (before deep analysis)
     this.lastSnapshot = snapshot;

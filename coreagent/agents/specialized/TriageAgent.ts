@@ -389,9 +389,20 @@ export class TriageAgent extends BaseAgent implements ISpecializedAgent {
   ): Promise<string> {
     if (!snap || !triage) return 'No proactive snapshot available yet.';
     const baseSummary = `Snapshot @ ${snap.takenAt} | Errors(last window): ${snap.recentErrorEvents} | HotOps: ${snap.errorBudgetBurnHot.length} | Anomaly: ${triage.anomalySuspected}`;
-    if (!deep) return baseSummary + ' | Deep analysis not yet performed.';
+
+    // NEW: Include memory backend status (Phase 2 v4.4.1)
+    let memoryStatus = '';
+    if (snap.memoryBackend) {
+      memoryStatus = `\nMemory Backend (${snap.memoryBackend.backend}): ${snap.memoryBackend.status.toUpperCase()} | Latency: ${snap.memoryBackend.latency}ms | Capabilities: ${snap.memoryBackend.capabilities}`;
+      if (snap.memoryBackend.status !== 'healthy') {
+        memoryStatus += ` ⚠️ CONCERN`;
+      }
+    }
+
+    if (!deep) return baseSummary + memoryStatus + ' | Deep analysis not yet performed.';
     return (
       baseSummary +
+      memoryStatus +
       `\nDeep Summary: ${deep.summary}\nTop Actions: ${deep.recommendedActions.join('; ')}`
     );
   }
@@ -403,6 +414,26 @@ export class TriageAgent extends BaseAgent implements ISpecializedAgent {
   ): string[] {
     const recs: string[] = [];
     if (!snap || !triage) return ['Await first proactive snapshot'];
+
+    // NEW: Memory backend recommendations (Phase 2 v4.4.1)
+    if (snap.memoryBackend) {
+      if (snap.memoryBackend.status === 'unhealthy') {
+        recs.push('CRITICAL: Restart memory server (mem0+FastMCP) - backend unreachable');
+        recs.push('Check memory server logs for errors');
+        recs.push('Verify network connectivity to port 8010');
+        recs.push('Validate MCP session initialization');
+      } else if (snap.memoryBackend.status === 'degraded') {
+        recs.push('WARNING: Memory backend degraded - investigate performance');
+        recs.push(`Current latency: ${snap.memoryBackend.latency}ms (target: < 500ms)`);
+        recs.push('Consider restarting memory server if persistent');
+      }
+
+      if (snap.memoryBackend.capabilities < 3) {
+        recs.push('Memory backend missing tools - verify MCP initialization');
+        recs.push('Check mem0_fastmcp_server.py tool registration');
+      }
+    }
+
     if (triage.latencyConcern)
       recs.push('Profile high latency operations & review recent deployments');
     if (triage.errorBudgetConcern)
