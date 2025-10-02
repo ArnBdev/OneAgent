@@ -126,13 +126,13 @@ export const oneAgentConfig: ServerConfig = {
   host: process.env.ONEAGENT_HOST || '127.0.0.1',
 
   // Memory Server Configuration
-  memoryPort: parseInt(process.env.ONEAGENT_MEMORY_PORT || '8001', 10),
+  memoryPort: parseInt(process.env.ONEAGENT_MEMORY_PORT || '8010', 10),
   memoryUrl:
     process.env.ONEAGENT_MEMORY_URL ||
-    `http://${process.env.ONEAGENT_HOST || '127.0.0.1'}:${parseInt(
-      process.env.ONEAGENT_MEMORY_PORT || '8001',
+    `http://${process.env.MEMORY_HOST || process.env.ONEAGENT_HOST || '127.0.0.1'}:${parseInt(
+      process.env.ONEAGENT_MEMORY_PORT || '8010',
       10,
-    )}`,
+    )}/mcp`,
 
   // MCP Server Configuration
   mcpPort: parseInt(process.env.ONEAGENT_MCP_PORT || '8083', 10),

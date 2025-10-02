@@ -29,6 +29,7 @@ import type {
   MemoryEvent,
 } from '../../types/oneagent-memory-types';
 import { unifiedLogger } from '../../utils/UnifiedLogger';
+import { UnifiedBackboneService } from '../../utils/UnifiedBackboneService';
 
 /**
  * MCP JSON-RPC 2.0 request interface
@@ -63,12 +64,15 @@ export class Mem0MemoryClient implements IMemoryClient {
 
   constructor(config: MemoryClientConfig) {
     this.config = config;
-    // Default to localhost:8010/mcp (mem0+FastMCP MCP endpoint)
-    this.baseUrl = config.apiUrl || 'http://localhost:8010/mcp';
+    // Get canonical memory URL from UnifiedBackboneService config
+    // Falls back to hardcoded default only if config not available
+    const canonicalUrl = UnifiedBackboneService.config?.memoryUrl || 'http://localhost:8010/mcp';
+    this.baseUrl = config.apiUrl || canonicalUrl;
 
     unifiedLogger.info('Mem0MemoryClient initialized', {
       backend: this.backendName,
       baseUrl: this.baseUrl,
+      configSource: config.apiUrl ? 'explicit' : 'canonical',
     });
   }
 
@@ -81,6 +85,9 @@ export class Mem0MemoryClient implements IMemoryClient {
 
   /**
    * Make MCP tool call via HTTP JSON-RPC 2.0
+   *
+   * FastMCP HTTP transport requires Accept headers for both JSON-RPC responses
+   * and SSE (Server-Sent Events) streaming. Without both, server returns HTTP 406.
    */
   private async callTool<T = unknown>(toolName: string, args: Record<string, unknown>): Promise<T> {
     const request: MCPRequest = {
@@ -100,13 +107,28 @@ export class Mem0MemoryClient implements IMemoryClient {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          Accept: 'application/json, text/event-stream',
           'MCP-Protocol-Version': '2025-06-18',
         },
         body: JSON.stringify(request),
       });
 
       if (!response.ok) {
-        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+        // For HTTP 400, try to get the response body for better debugging
+        let errorBody = '';
+        try {
+          errorBody = await response.text();
+        } catch {
+          // Ignore if body can't be read
+        }
+        const errorMsg = `HTTP ${response.status}: ${response.statusText}${errorBody ? ` - ${errorBody}` : ''}`;
+        unifiedLogger.error(`FastMCP HTTP error: ${toolName}`, { 
+          status: response.status, 
+          statusText: response.statusText,
+          body: errorBody.substring(0, 500),
+          requestArgs: JSON.stringify(args).substring(0, 500),
+        });
+        throw new Error(errorMsg);
       }
 
       const data: MCPResponse<T> = (await response.json()) as MCPResponse<T>;
@@ -124,6 +146,9 @@ export class Mem0MemoryClient implements IMemoryClient {
 
   /**
    * Read MCP resource via HTTP JSON-RPC 2.0
+   *
+   * FastMCP HTTP transport requires Accept headers for both JSON-RPC responses
+   * and SSE (Server-Sent Events) streaming. Without both, server returns HTTP 406.
    */
   private async readResource<T = unknown>(uri: string): Promise<T> {
     const request: MCPRequest = {
@@ -140,6 +165,7 @@ export class Mem0MemoryClient implements IMemoryClient {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          Accept: 'application/json, text/event-stream',
           'MCP-Protocol-Version': '2025-06-18',
         },
         body: JSON.stringify(request),
@@ -218,6 +244,18 @@ export class Mem0MemoryClient implements IMemoryClient {
     req: MemoryAddRequest,
   ): Promise<{ success: boolean; id?: string; error?: string }> {
     try {
+      // Serialize metadata to JSON-safe format (FastMCP requirement)
+      // Complex objects like UnifiedTimestamp must be converted to primitives  
+      const jsonSafeMetadata = JSON.parse(JSON.stringify(req.metadata));
+
+      // Debug: Log what we're sending to FastMCP
+      unifiedLogger.debug('Calling add_memory with serialized metadata', {
+        content: req.content.substring(0, 100),
+        userId: jsonSafeMetadata.userId,
+        metadataKeys: Object.keys(jsonSafeMetadata),
+        metadataJson: JSON.stringify(jsonSafeMetadata).substring(0, 500),
+      });
+
       const result = await this.callTool<{
         success: boolean;
         memories?: { id?: string }[];
@@ -225,8 +263,8 @@ export class Mem0MemoryClient implements IMemoryClient {
         error?: string;
       }>('add_memory', {
         content: req.content,
-        user_id: req.metadata.userId || 'default-user',
-        metadata: req.metadata,
+        user_id: jsonSafeMetadata.userId || 'default-user',
+        metadata: jsonSafeMetadata,
       });
 
       if (!result.success || result.error) {
