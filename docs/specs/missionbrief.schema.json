@@ -1,0 +1,435 @@
+﻿{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "MissionBrief Specification Schema",
+  "description": "JSON schema for validating MissionBrief.md YAML frontmatter and structured data",
+  "type": "object",
+  "required": ["metadata", "goal", "tasks"],
+  "properties": {
+    "metadata": {
+      "type": "object",
+      "required": ["specId", "version", "created", "author", "domain", "priority", "status"],
+      "properties": {
+        "specId": {
+          "type": "string",
+          "pattern": "^MISSION-[0-9]{4}-[0-9]{2}-[0-9]{2}-[A-Z0-9]{8}$",
+          "description": "Unique identifier following format MISSION-YYYY-MM-DD-XXXXXXXX"
+        },
+        "version": {
+          "type": "string",
+          "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$",
+          "description": "Semantic version (major.minor.patch)"
+        },
+        "created": {
+          "type": "string",
+          "format": "date-time",
+          "description": "ISO 8601 timestamp"
+        },
+        "author": {
+          "type": "string",
+          "description": "Agent ID or user ID that created the spec"
+        },
+        "domain": {
+          "type": "string",
+          "enum": ["work", "personal", "health", "finance", "creative"],
+          "description": "Domain compartment for privacy isolation"
+        },
+        "priority": {
+          "type": "string",
+          "enum": ["critical", "high", "medium", "low"],
+          "description": "Mission priority level"
+        },
+        "status": {
+          "type": "string",
+          "enum": ["draft", "active", "completed", "archived"],
+          "description": "Overall specification status"
+        },
+        "lineage": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "pattern": "^MISSION-[0-9]{4}-[0-9]{2}-[0-9]{2}-[A-Z0-9]{8}$"
+          },
+          "description": "Parent specification IDs (for forking/branching)"
+        },
+        "tags": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Keywords for discovery and categorization"
+        }
+      }
+    },
+    "goal": {
+      "type": "object",
+      "required": ["what", "why", "successCriteria"],
+      "properties": {
+        "what": {
+          "type": "string",
+          "minLength": 10,
+          "maxLength": 500,
+          "description": "Clear objective statement (1-2 sentences)"
+        },
+        "why": {
+          "type": "string",
+          "minLength": 20,
+          "maxLength": 1000,
+          "description": "Business value or strategic rationale (2-3 sentences)"
+        },
+        "successCriteria": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 10,
+          "items": {
+            "type": "object",
+            "required": ["description", "completed"],
+            "properties": {
+              "description": {
+                "type": "string",
+                "minLength": 10,
+                "description": "Measurable outcome definition"
+              },
+              "completed": {
+                "type": "boolean",
+                "description": "Completion status"
+              }
+            }
+          }
+        }
+      }
+    },
+    "context": {
+      "type": "object",
+      "properties": {
+        "background": {
+          "type": "string",
+          "description": "Relevant background information"
+        },
+        "assumptions": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Explicit assumptions"
+        },
+        "constraints": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["type", "description"],
+            "properties": {
+              "type": {
+                "type": "string",
+                "enum": ["time", "resource", "policy"],
+                "description": "Constraint category"
+              },
+              "description": {
+                "type": "string",
+                "description": "Constraint details"
+              }
+            }
+          }
+        }
+      }
+    },
+    "tasks": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "description",
+          "agentAssignment",
+          "acceptanceCriteria",
+          "status"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^task-[0-9]+$",
+            "description": "Unique task identifier within spec"
+          },
+          "name": {
+            "type": "string",
+            "minLength": 5,
+            "maxLength": 100,
+            "description": "Task name"
+          },
+          "description": {
+            "type": "string",
+            "minLength": 20,
+            "maxLength": 2000,
+            "description": "What needs to be done (2-3 sentences)"
+          },
+          "agentAssignment": {
+            "type": "object",
+            "required": ["preferredAgent", "fallbackStrategy"],
+            "properties": {
+              "preferredAgent": {
+                "type": "string",
+                "description": "Agent ID or capability match criteria"
+              },
+              "fallbackStrategy": {
+                "type": "string",
+                "description": "Alternative agents or escalation path"
+              }
+            }
+          },
+          "inputs": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": ["description", "source", "format"],
+              "properties": {
+                "description": {
+                  "type": "string"
+                },
+                "source": {
+                  "type": "string"
+                },
+                "format": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "outputs": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": ["description", "destination", "format"],
+              "properties": {
+                "description": {
+                  "type": "string"
+                },
+                "destination": {
+                  "type": "string"
+                },
+                "format": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "dependencies": {
+            "type": "object",
+            "properties": {
+              "dependsOn": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "pattern": "^task-[0-9]+$"
+                },
+                "description": "Task IDs that must complete first"
+              },
+              "blocks": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "pattern": "^task-[0-9]+$"
+                },
+                "description": "Task IDs that wait for this task"
+              }
+            }
+          },
+          "acceptanceCriteria": {
+            "type": "array",
+            "minItems": 1,
+            "items": {
+              "type": "object",
+              "required": ["description", "completed"],
+              "properties": {
+                "description": {
+                  "type": "string",
+                  "minLength": 10
+                },
+                "completed": {
+                  "type": "boolean"
+                }
+              }
+            }
+          },
+          "estimatedEffort": {
+            "type": "number",
+            "minimum": 0,
+            "description": "Estimated effort in hours"
+          },
+          "status": {
+            "type": "string",
+            "enum": ["not-started", "in-progress", "completed", "blocked", "failed"],
+            "description": "Current task status"
+          }
+        }
+      }
+    },
+    "qualityStandards": {
+      "type": "object",
+      "properties": {
+        "codeQuality": {
+          "type": "string",
+          "description": "Minimum quality grade requirement"
+        },
+        "testing": {
+          "type": "object",
+          "properties": {
+            "unitTestCoverage": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 100
+            },
+            "integrationTests": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "performanceTargets": {
+              "type": "object"
+            }
+          }
+        },
+        "constitutionalAI": {
+          "type": "object",
+          "required": ["accuracy", "transparency", "helpfulness", "safety"],
+          "properties": {
+            "accuracy": {
+              "type": "boolean"
+            },
+            "transparency": {
+              "type": "boolean"
+            },
+            "helpfulness": {
+              "type": "boolean"
+            },
+            "safety": {
+              "type": "boolean"
+            }
+          }
+        }
+      }
+    },
+    "resources": {
+      "type": "object",
+      "properties": {
+        "apis": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["name", "purpose"],
+            "properties": {
+              "name": {
+                "type": "string"
+              },
+              "purpose": {
+                "type": "string"
+              },
+              "endpoint": {
+                "type": "string",
+                "format": "uri"
+              }
+            }
+          }
+        },
+        "dataSources": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["name", "location"],
+            "properties": {
+              "name": {
+                "type": "string"
+              },
+              "location": {
+                "type": "string"
+              },
+              "accessMethod": {
+                "type": "string"
+              }
+            }
+          }
+        },
+        "capabilities": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "externalDependencies": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["library", "version"],
+            "properties": {
+              "library": {
+                "type": "string"
+              },
+              "version": {
+                "type": "string"
+              },
+              "purpose": {
+                "type": "string"
+              }
+            }
+          }
+        }
+      }
+    },
+    "risks": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["description", "impact", "probability", "mitigation"],
+        "properties": {
+          "description": {
+            "type": "string"
+          },
+          "impact": {
+            "type": "string",
+            "enum": ["high", "medium", "low"]
+          },
+          "probability": {
+            "type": "string",
+            "enum": ["high", "medium", "low"]
+          },
+          "mitigation": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "timeline": {
+      "type": "object",
+      "properties": {
+        "milestones": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["date", "description"],
+            "properties": {
+              "date": {
+                "type": "string",
+                "format": "date"
+              },
+              "description": {
+                "type": "string"
+              }
+            }
+          }
+        },
+        "criticalPath": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "pattern": "^task-[0-9]+$"
+          }
+        },
+        "buffer": {
+          "type": "string",
+          "description": "Buffer percentage or time"
+        }
+      }
+    }
+  }
+}

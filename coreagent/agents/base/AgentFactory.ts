@@ -309,22 +309,24 @@ export class AgentFactory {
 
     // Capability mapping per agent type; respects cost/perf flags
     const capability: import('../../config/UnifiedModelPicker').ModelCapability = (() => {
-      if (factoryConfig.modelTier === 'economy' || factoryConfig.prioritizeCost) return 'fast_text';
+      // Respect explicit tier flags first (legacy mapping preserved)
+      if (factoryConfig.modelTier === 'economy' || factoryConfig.prioritizeCost) return 'utility';
       if (factoryConfig.modelTier === 'premium' || factoryConfig.prioritizePerformance)
-        return 'advanced_text';
-      // Defaults by agent type
+        return 'agentic_reasoning';
+      // Epic 15 defaults by agent type
       switch (factoryConfig.type) {
         case 'office':
         case 'fitness':
-          return 'fast_text';
+        case 'general':
+          return 'utility';
         case 'core':
         case 'development':
         case 'triage':
         case 'planner':
         case 'validator':
-          return 'advanced_text';
+          return 'agentic_reasoning';
         default:
-          return 'fast_text';
+          return 'utility';
       }
     })();
 

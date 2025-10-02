@@ -1,4 +1,0 @@
-
-> oneagent-core@4.2.2 lint
-> eslint . --ext .ts --ignore-pattern coreagent/vscode-extension/** --fix json
-

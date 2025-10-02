@@ -1190,8 +1190,11 @@ export class OneAgentUnifiedCacheSystem<T = unknown> {
   private networkCacheKey = 'OneAgentUnifiedCacheSystem.networkCache';
 
   // CRITICAL FIX: Actual storage backend to prevent infinite recursion
+  // eslint-disable-next-line oneagent/no-parallel-cache
   private memoryStorage = new Map<string, OneAgentCacheEntry<T>>();
+  // eslint-disable-next-line oneagent/no-parallel-cache
   private diskStorage = new Map<string, OneAgentCacheEntry<T>>();
+  // eslint-disable-next-line oneagent/no-parallel-cache
   private networkStorage = new Map<string, OneAgentCacheEntry<T>>();
 
   private metrics: OneAgentCacheMetrics = {

@@ -15,10 +15,11 @@ OneAgent v4.3.0 had slow startup times due to blocking tool registration before 
 ## Root Causes Identified
 
 ### 1. Tool Registration Bottleneck
+
 ```
 [ToolRegistry] Processing per tool:
   1. 📥 Starting registration
-  2. ✅ Registry initialized  
+  2. ✅ Registry initialized
   3. 🔄 Loading cache
   4. ✅ Cache loaded
   5. 🔨 Creating metadata
@@ -27,11 +28,12 @@ OneAgent v4.3.0 had slow startup times due to blocking tool registration before 
   8. ✅ Categories cached
   9. ✅ Cache saved
   10. 🎉 Registration complete
-  
+
 12 tools × 10 operations × cache I/O = ~90-120 seconds
 ```
 
 **Analysis**: Each tool registration involves:
+
 - File system I/O (cache operations)
 - Category structure validation
 - Metadata construction
@@ -39,6 +41,7 @@ OneAgent v4.3.0 had slow startup times due to blocking tool registration before 
 - **Verbose console logging** (adds overhead)
 
 ### 2. Sequential Startup Flow (Before)
+
 ```
 1. Load modules (3s)
 2. Initialize OneAgent Engine
@@ -50,6 +53,7 @@ OneAgent v4.3.0 had slow startup times due to blocking tool registration before 
 **Problem**: HTTP endpoints (/health, /mcp) unavailable until ALL tools registered.
 
 ### 3. Memory Server Health Check Issues
+
 ```python
 # FastMCP /mcp endpoint behavior
 GET /mcp → 406 Not Acceptable  # This is CORRECT
@@ -63,9 +67,11 @@ POST /mcp → 200 OK (MCP protocol)
 ## Solutions Implemented
 
 ### v4.3.0.1: Health Check Fixes
+
 **Commit**: `8ae94c4`
 
 **Changes**:
+
 1. Fixed memory server probe to handle 406 as success
 2. Increased MCP timeout: 60s → 90s → 120s
 3. Better error messaging
@@ -76,30 +82,34 @@ POST /mcp → 200 OK (MCP protocol)
 ---
 
 ### v4.3.0.2: Parallel Initialization (MAJOR)
+
 **Commit**: `accbe02`
 
 **Architecture Change**: Start HTTP server BEFORE tool initialization
 
 #### Before (Sequential):
+
 ```typescript
 async function startServer() {
-  await initializeServer();  // BLOCKS for 90-120s
-  app.listen(port, host);    // HTTP available after tools ready
+  await initializeServer(); // BLOCKS for 90-120s
+  app.listen(port, host); // HTTP available after tools ready
 }
 ```
 
 #### After (Parallel):
+
 ```typescript
 async function startServer() {
-  const server = app.listen(port, host);  // HTTP available in 3-5s
-  
-  initializeServer()  // Tools initialize in background
+  const server = app.listen(port, host); // HTTP available in 3-5s
+
+  initializeServer() // Tools initialize in background
     .then(() => console.log('✅ Tools ready!'))
-    .catch(err => console.error('Tool init failed'));
+    .catch((err) => console.error('Tool init failed'));
 }
 ```
 
 **Key Benefits**:
+
 1. `/health` endpoint available in 3-5 seconds
 2. Tool registration happens asynchronously
 3. Both servers can start simultaneously
@@ -112,6 +122,7 @@ async function startServer() {
 ### Timeline Comparison
 
 **Before (v4.3.0)**:
+
 ```
 T+0s:   MCP server starts loading modules
 T+3s:   Modules loaded, starting tool registration
@@ -124,6 +135,7 @@ Total:  124 seconds until both operational
 ```
 
 **After (v4.3.0.2)**:
+
 ```
 T+0s:   MCP server starts loading modules
 T+3s:   Modules loaded, HTTP server starts immediately
@@ -143,6 +155,7 @@ Total:  9 seconds until both operational
 ### Startup Script Changes
 
 **Health Check Optimization**:
+
 ```powershell
 # Before: Wait up to 120s for full MCP initialization
 Wait-HttpReady -Url "http://127.0.0.1:8083/health" -TimeoutSec 120
@@ -152,6 +165,7 @@ Wait-HttpReady -Url "http://127.0.0.1:8083/health" -TimeoutSec 30
 ```
 
 **Memory Server Probe**:
+
 ```powershell
 # Correctly handle 406 Not Acceptable as success
 catch [System.Net.WebException] {
@@ -165,6 +179,7 @@ catch [System.Net.WebException] {
 ### Server Logs (v4.3.0.2)
 
 **Expected Output**:
+
 ```
 🌟 OneAgent HTTP Server Started!
 📡 Server Information:
@@ -182,6 +197,7 @@ catch [System.Net.WebException] {
 ## Future Optimization Opportunities
 
 ### 1. Reduce Tool Registration Verbosity
+
 **Impact**: Moderate (~10-20% reduction)
 
 ```typescript
@@ -192,21 +208,21 @@ if (process.env.ONEAGENT_QUIET_STARTUP !== '1') {
 ```
 
 ### 2. Parallel Tool Registration
+
 **Impact**: High (~50-70% reduction)
 
 ```typescript
 // Current: Sequential
 for (const tool of tools) {
-  await registerTool(tool);  // Each takes ~7-10s
+  await registerTool(tool); // Each takes ~7-10s
 }
 
 // Future: Parallel
-await Promise.all(
-  tools.map(tool => registerTool(tool))
-);
+await Promise.all(tools.map((tool) => registerTool(tool)));
 ```
 
 ### 3. Lazy Tool Loading
+
 **Impact**: Highest (tools load on-demand)
 
 ```typescript
@@ -215,6 +231,7 @@ await Promise.all(
 ```
 
 ### 4. Cache Optimization
+
 **Impact**: Moderate (~20-30% reduction)
 
 - Batch cache operations instead of per-tool
@@ -226,9 +243,11 @@ await Promise.all(
 ## Known Limitations
 
 ### 1. Tool Operations Before Init Complete
+
 **Scenario**: Client calls tool before registration finishes
 
 **Mitigation**: Queue tool calls until initialization complete
+
 ```typescript
 if (!serverInitialized) {
   return { error: 'Server initializing, please retry in 10s' };
@@ -236,9 +255,11 @@ if (!serverInitialized) {
 ```
 
 ### 2. Health Check Doesn't Reflect Tool Status
+
 **Current**: `/health` returns 200 even if tools still loading
 
 **Future Enhancement**: Add `/health?detailed=true` with component status:
+
 ```json
 {
   "status": "initializing",
@@ -249,6 +270,7 @@ if (!serverInitialized) {
 ```
 
 ### 3. WebSocket Connections During Init
+
 **Scenario**: Mission Control WS connects before tools ready
 
 **Current**: Works but tool list incomplete
@@ -260,12 +282,12 @@ if (!serverInitialized) {
 
 ### Key Performance Indicators
 
-| Metric | v4.3.0 | v4.3.0.2 | Improvement |
-|--------|--------|----------|-------------|
-| HTTP Available | 93s | 5s | **94% faster** |
-| Both Servers Ready | 124s | 9s | **93% faster** |
-| Tool Registration | 90s | 90s | (unchanged, now async) |
-| Memory Server Start | 124s | 9s | **93% faster** |
+| Metric              | v4.3.0 | v4.3.0.2 | Improvement            |
+| ------------------- | ------ | -------- | ---------------------- |
+| HTTP Available      | 93s    | 5s       | **94% faster**         |
+| Both Servers Ready  | 124s   | 9s       | **93% faster**         |
+| Tool Registration   | 90s    | 90s      | (unchanged, now async) |
+| Memory Server Start | 124s   | 9s       | **93% faster**         |
 
 ### Startup Events Timeline
 
@@ -287,6 +309,7 @@ v4.3.0.2 Event Log:
 ## Developer Impact
 
 ### Before (v4.3.0)
+
 ```bash
 # Start servers
 ./scripts/start-oneagent-system.ps1
@@ -296,6 +319,7 @@ v4.3.0.2 Event Log:
 ```
 
 ### After (v4.3.0.2)
+
 ```bash
 # Start servers
 ./scripts/start-oneagent-system.ps1
@@ -306,6 +330,7 @@ v4.3.0.2 Event Log:
 ```
 
 **Benefits**:
+
 - Faster iteration cycles
 - Better development experience
 - Reduced CI/CD pipeline times
@@ -316,15 +341,18 @@ v4.3.0.2 Event Log:
 ## Troubleshooting
 
 ### Issue: MCP Server Still Slow
+
 **Symptoms**: HTTP server takes >30s to start
 
 **Diagnosis**:
+
 1. Check Node.js version: `node --version` (should be v18+)
 2. Check TypeScript compilation: `npm run build`
 3. Check disk I/O: Tool cache writes may be slow
 4. Check for zombie processes: `Get-Process node`
 
 **Solutions**:
+
 ```powershell
 # Clear tool cache
 Remove-Item data/cache/tools -Recurse -Force
@@ -337,23 +365,28 @@ $env:ONEAGENT_QUIET_STARTUP=1
 ```
 
 ### Issue: Tools Not Registered
+
 **Symptoms**: Tool calls fail with "tool not found"
 
 **Diagnosis**:
+
 ```bash
 # Check MCP server logs
 # Should see: "✅ OneAgent Engine Fully Initialized!"
 ```
 
 **Solutions**:
+
 - Wait for full initialization (~90s from HTTP start)
 - Check for errors in tool registration logs
 - Verify tool definitions in `coreagent/tools/`
 
 ### Issue: Memory Server Can't Connect
+
 **Symptoms**: Memory operations fail after startup
 
 **Diagnosis**:
+
 ```bash
 # Check memory server logs
 # Should see: "INFO: Uvicorn running on http://0.0.0.0:8010"
@@ -364,6 +397,7 @@ curl http://localhost:8010/health
 ```
 
 **Solutions**:
+
 - Memory server is independent - doesn't need MCP
 - Use `oneagent_memory_*` tools (they handle connection)
 - Check GOOGLE_API_KEY is set for Gemini
@@ -377,7 +411,7 @@ v4.3.0.2 represents a **major architectural improvement** in OneAgent's startup 
 ✅ **93% faster** parallel server startup  
 ✅ **Non-blocking** tool initialization  
 ✅ **Better UX** - immediate feedback  
-✅ **Production-ready** - graceful degradation  
+✅ **Production-ready** - graceful degradation
 
 The solution maintains all functionality while dramatically improving developer experience and deployment speed.
 

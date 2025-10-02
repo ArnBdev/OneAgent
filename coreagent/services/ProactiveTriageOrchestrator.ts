@@ -262,7 +262,7 @@ export class ProactiveTriageOrchestrator {
     }
     if (!anomaly) {
       try {
-        const model = getModelFor('fast_text');
+        const model = getModelFor('utility');
         const prompt = `You are a triage gate. Given a JSON snapshot decide if deep analysis is needed. Return ONLY yes or no.\nSnapshot:${JSON.stringify({ e: snapshot.recentErrorEvents, hot: snapshot.errorBudgetBurnHot, lat: snapshot.stats.latency })}`;
         const resp = await this.generateText(model, prompt);
         if (/yes/i.test(resp.trim())) {
@@ -304,7 +304,7 @@ export class ProactiveTriageOrchestrator {
   ): Promise<DeepAnalysisResult | null> {
     const ts = createUnifiedTimestamp();
     try {
-      const model = getModelFor('advanced_text');
+      const model = getModelFor('agentic_reasoning');
       const prompt = `You are a senior reliability analyst. Analyze system snapshot + triage reasons. Provide JSON {summary, actions, findings}.\nTriageReasons:${triage.reasons.join(',')}\nSnapshot:${JSON.stringify({ latency: snapshot.stats.latency, errorBudgetHot: snapshot.errorBudgetBurnHot, ops: snapshot.operations.totalOperations, components: Object.keys(snapshot.operations.components).length, errEvents: snapshot.recentErrorEvents })}`;
       const raw = await this.generateText(model, prompt);
       let summary = 'Deep analysis unavailable';

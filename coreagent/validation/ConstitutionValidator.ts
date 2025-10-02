@@ -1,5 +1,5 @@
 import { getOneAgentMemory } from '../utils/UnifiedBackboneService';
-import { getModelFor } from '../config/UnifiedModelPicker';
+import { getEmbeddingClient } from '../config/UnifiedModelPicker';
 import { embeddingCacheService } from '../services/EmbeddingCacheService';
 
 export interface RuleMatch {
@@ -24,7 +24,7 @@ export interface ComplianceResult {
  */
 export class ConstitutionValidator {
   private memory = getOneAgentMemory();
-  private gemini = getModelFor('embedding_text');
+  private embedClient = getEmbeddingClient();
 
   constructor(private opts: { topK?: number; threshold?: number } = {}) {}
 
@@ -53,7 +53,7 @@ export class ConstitutionValidator {
     }
 
     // Compute similarities if client exposes embedding API (GeminiClient or SmartGeminiClient pass-through)
-    const maybe: unknown = this.gemini as unknown;
+  const maybe: unknown = this.embedClient as unknown;
     const canEmbed =
       typeof maybe === 'object' &&
       maybe !== null &&

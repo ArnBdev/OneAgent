@@ -1265,7 +1265,8 @@ async function startServer(): Promise<void> {
           `   • Mission Control WS: ${base.replace(/\/$/, '')}${MISSION_CONTROL_WS_PATH}`,
         );
         console.log('');
-        console.log('⏳ Initializing OneAgent Engine (tools, AI, memory)...');
+        console.log('📋 Note: Engine initialization completed during startup (tools registered)');
+        console.log('✅ All endpoints available - server ready for requests!');
       }
     });
 
@@ -1423,14 +1424,14 @@ export { app };
  */
 function shouldAutoStartServer(): boolean {
   // Explicit control flags (highest priority)
-  if (process.env.ONEAGENT_FORCE_AUTOSTART === '1') {
-    console.log('[STARTUP] 🚀 Forcing autostart (ONEAGENT_FORCE_AUTOSTART=1)');
-    return true;
-  }
-
+  // IMPORTANT: A hard disable must always win over force to avoid double-starts
   if (process.env.ONEAGENT_DISABLE_AUTOSTART === '1') {
     console.log('[STARTUP] ⏸️  Autostart disabled (ONEAGENT_DISABLE_AUTOSTART=1)');
     return false;
+  }
+  if (process.env.ONEAGENT_FORCE_AUTOSTART === '1') {
+    console.log('[STARTUP] 🚀 Forcing autostart (ONEAGENT_FORCE_AUTOSTART=1)');
+    return true;
   }
 
   // Test mode detection
