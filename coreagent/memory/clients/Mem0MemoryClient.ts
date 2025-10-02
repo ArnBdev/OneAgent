@@ -61,6 +61,8 @@ export class Mem0MemoryClient implements IMemoryClient {
   private eventListener?: (event: MemoryEvent) => void;
   private baseUrl: string;
   private requestIdCounter = 0;
+  private sessionId: string | null = null;
+  private initializePromise: Promise<void> | null = null;
 
   constructor(config: MemoryClientConfig) {
     this.config = config;
@@ -84,12 +86,263 @@ export class Mem0MemoryClient implements IMemoryClient {
   }
 
   /**
-   * Make MCP tool call via HTTP JSON-RPC 2.0
+   * Initialize MCP session (MCP Specification 2025-06-18 Session Management)
    *
-   * FastMCP HTTP transport requires Accept headers for both JSON-RPC responses
-   * and SSE (Server-Sent Events) streaming. Without both, server returns HTTP 406.
+   * Per MCP spec: "A server using the Streamable HTTP transport MAY assign a session ID
+   * at initialization time, by including it in an `Mcp-Session-Id` header on the HTTP
+   * response containing the `InitializeResult`."
+   *
+   * This method sends the required `initialize` request and extracts the session ID
+   * from the response header for inclusion in all subsequent requests.
+   */
+  private async initializeMCPSession(): Promise<void> {
+    if (this.sessionId) {
+      return; // Already initialized
+    }
+
+    unifiedLogger.info('Initializing MCP session', { baseUrl: this.baseUrl });
+
+    const request: MCPRequest = {
+      jsonrpc: '2.0',
+      method: 'initialize',
+      params: {
+        protocolVersion: '2025-06-18',
+        capabilities: {}, // Client capabilities (none for basic usage)
+        clientInfo: {
+          name: 'OneAgent',
+          version: '4.3.0',
+        },
+      },
+      id: this.getNextRequestId(),
+    };
+
+    try {
+      const response = await fetch(this.baseUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Accept: 'application/json, text/event-stream',
+          'MCP-Protocol-Version': '2025-06-18',
+        },
+        body: JSON.stringify(request),
+      });
+
+      if (!response.ok) {
+        const errorBody = await response.text().catch(() => '');
+        throw new Error(
+          `MCP initialization failed: HTTP ${response.status} ${response.statusText}${errorBody ? ` - ${errorBody}` : ''}`,
+        );
+      }
+
+      // Check response Content-Type to handle both JSON and SSE responses
+      const contentType = response.headers.get('Content-Type') || '';
+
+      if (contentType.includes('text/event-stream')) {
+        // Server returned SSE stream - need to parse SSE events
+        const text = await response.text();
+        const lines = text.split('\n');
+        let dataLines: string[] = [];
+
+        for (const line of lines) {
+          const trimmedLine = line.trim(); // Remove \r and whitespace
+
+          if (trimmedLine.startsWith('data: ')) {
+            dataLines.push(trimmedLine.substring(6)); // Remove "data: " prefix
+          } else if (trimmedLine === '' && dataLines.length > 0) {
+            // Empty line marks end of event - parse accumulated data
+            const eventData = dataLines.join('\n');
+            try {
+              const data: MCPResponse<{ protocolVersion: string; capabilities: unknown }> =
+                JSON.parse(eventData);
+
+              if (data.error) {
+                throw new Error(
+                  `MCP initialization error: ${data.error.code} - ${data.error.message}`,
+                );
+              }
+
+              // Extract session ID from response header (may be null for stateless servers)
+              this.sessionId = response.headers.get('Mcp-Session-Id');
+
+              if (this.sessionId) {
+                unifiedLogger.info('MCP session established', {
+                  sessionId: this.sessionId.substring(0, 8) + '...',
+                  protocolVersion: data.result?.protocolVersion,
+                });
+              } else {
+                unifiedLogger.info('MCP session initialized (stateless mode - no session ID)', {
+                  protocolVersion: data.result?.protocolVersion,
+                });
+              }
+
+              // Send the required 'initialized' notification (MCP Specification requirement)
+              // This MUST be sent after receiving InitializeResult and before making any requests
+              await this.sendInitializedNotification();
+              return; // Success
+            } catch {
+              // Try next event (parsing failed, continue to next data block)
+            }
+            dataLines = [];
+          }
+        }
+
+        throw new Error('Failed to parse MCP initialization response from SSE stream');
+      } else {
+        // Standard JSON response
+        const data: MCPResponse<{ protocolVersion: string; capabilities: unknown }> =
+          await response.json();
+
+        if (data.error) {
+          throw new Error(`MCP initialization error: ${data.error.code} - ${data.error.message}`);
+        }
+
+        // Extract session ID from response header (may be null for stateless servers)
+        this.sessionId = response.headers.get('Mcp-Session-Id');
+
+        if (this.sessionId) {
+          unifiedLogger.info('MCP session established', {
+            sessionId: this.sessionId.substring(0, 8) + '...',
+            protocolVersion: data.result?.protocolVersion,
+          });
+        } else {
+          unifiedLogger.info('MCP session initialized (stateless mode - no session ID)', {
+            protocolVersion: data.result?.protocolVersion,
+          });
+        }
+
+        // Send the required 'initialized' notification (MCP Specification requirement)
+        // This MUST be sent after receiving InitializeResult and before making any requests
+        await this.sendInitializedNotification();
+      }
+    } catch (error) {
+      unifiedLogger.error('MCP session initialization failed', {
+        error: error instanceof Error ? error.message : String(error),
+      });
+      throw error;
+    }
+  }
+
+  /**
+   * Send 'initialized' notification to server
+   *
+   * Per MCP Specification 2025-06-18:
+   * "After receiving the `InitializeResult`, the client MUST send an `initialized`
+   * notification. This tells the server that the client is ready to start normal
+   * operations."
+   *
+   * This is a notification (no response expected), not a request.
+   */
+  private async sendInitializedNotification(): Promise<void> {
+    const notification = {
+      jsonrpc: '2.0' as const,
+      method: 'notifications/initialized',
+      params: {},
+      // Note: Notifications do NOT include an 'id' field
+    };
+
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+      Accept: 'application/json, text/event-stream',
+    };
+
+    if (this.sessionId) {
+      headers['Mcp-Session-Id'] = this.sessionId;
+    }
+
+    const response = await fetch(this.baseUrl, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify(notification),
+    });
+
+    if (!response.ok && response.status !== 202) {
+      // 202 Accepted is expected for notifications
+      unifiedLogger.warn('Initialized notification returned non-OK status', {
+        status: response.status,
+      });
+    }
+
+    unifiedLogger.debug('Sent initialized notification to server');
+  }
+
+  /**
+   * Ensure MCP session is initialized before making requests
+   * Uses promise caching to prevent multiple concurrent initialization attempts
+   */
+  private async ensureInitialized(): Promise<void> {
+    if (this.initializePromise) {
+      await this.initializePromise;
+      return;
+    }
+
+    this.initializePromise = this.initializeMCPSession();
+    await this.initializePromise;
+  }
+
+  /**
+   * Parse MCP response from SSE or JSON format
+   *
+   * FastMCP returns text/event-stream for all responses.
+   * This helper handles both SSE and pure JSON responses.
+   *
+   * SSE Format:
+   * ```
+   * event: message
+   * data: {"jsonrpc":"2.0","result":{...}}
+   * ```
+   */
+  private async parseResponse<T>(response: Response): Promise<MCPResponse<T>> {
+    const contentType = response.headers.get('Content-Type') || '';
+
+    if (contentType.includes('text/event-stream')) {
+      // Parse SSE stream
+      const text = await response.text();
+      const lines = text.split('\n');
+      let dataLines: string[] = [];
+
+      for (const line of lines) {
+        const trimmedLine = line.trim(); // Remove \r and whitespace
+
+        if (trimmedLine.startsWith('data: ')) {
+          dataLines.push(trimmedLine.substring(6)); // Remove "data: " prefix
+        } else if (trimmedLine === '' && dataLines.length > 0) {
+          // End of event - parse accumulated data
+          const eventData = dataLines.join('\n');
+          try {
+            const parsed = JSON.parse(eventData) as MCPResponse<T>;
+            return parsed;
+          } catch {
+            // Try next event if parse fails
+            dataLines = [];
+          }
+        }
+      }
+
+      // If we couldn't parse any events, throw with details
+      unifiedLogger.error('Failed to parse SSE response', {
+        textLength: text.length,
+        linesCount: lines.length,
+      });
+      throw new Error('Failed to parse SSE response: no valid data events found');
+    } else {
+      // Standard JSON response
+      return (await response.json()) as MCPResponse<T>;
+    }
+  }
+
+  /**
+   * Make MCP tool call via HTTP JSON-RPC 2.0 (with session management)
+   *
+   * Per MCP Specification 2025-06-18:
+   * - Ensures session is initialized before making requests
+   * - Includes Mcp-Session-Id header if session ID is available
+   * - Handles session expiry (HTTP 404) by reinitializing and retrying
+   * - Supports both stateful (with session) and stateless (no session) modes
    */
   private async callTool<T = unknown>(toolName: string, args: Record<string, unknown>): Promise<T> {
+    // Ensure session is initialized before making tool calls
+    await this.ensureInitialized();
+
     const request: MCPRequest = {
       jsonrpc: '2.0',
       method: 'tools/call',
@@ -100,18 +353,39 @@ export class Mem0MemoryClient implements IMemoryClient {
       id: this.getNextRequestId(),
     };
 
-    unifiedLogger.debug(`MCP tool call: ${toolName}`, { args });
+    unifiedLogger.debug(`MCP tool call: ${toolName}`, {
+      args,
+      requestBody: JSON.stringify(request).substring(0, 1000),
+    });
 
     try {
+      // Build headers with session ID if available
+      const headers: Record<string, string> = {
+        'Content-Type': 'application/json',
+        Accept: 'application/json, text/event-stream',
+        'MCP-Protocol-Version': '2025-06-18',
+      };
+
+      if (this.sessionId) {
+        headers['Mcp-Session-Id'] = this.sessionId;
+      }
+
       const response = await fetch(this.baseUrl, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Accept: 'application/json, text/event-stream',
-          'MCP-Protocol-Version': '2025-06-18',
-        },
+        headers,
         body: JSON.stringify(request),
       });
+
+      // Handle session expiry (HTTP 404) - reinitialize and retry once
+      if (response.status === 404 && this.sessionId) {
+        unifiedLogger.warn('MCP session expired (HTTP 404), reinitializing', {
+          expiredSessionId: this.sessionId.substring(0, 8) + '...',
+        });
+        this.sessionId = null;
+        this.initializePromise = null;
+        // Retry with new session
+        return this.callTool(toolName, args);
+      }
 
       if (!response.ok) {
         // For HTTP 400, try to get the response body for better debugging
@@ -122,8 +396,8 @@ export class Mem0MemoryClient implements IMemoryClient {
           // Ignore if body can't be read
         }
         const errorMsg = `HTTP ${response.status}: ${response.statusText}${errorBody ? ` - ${errorBody}` : ''}`;
-        unifiedLogger.error(`FastMCP HTTP error: ${toolName}`, { 
-          status: response.status, 
+        unifiedLogger.error(`FastMCP HTTP error: ${toolName}`, {
+          status: response.status,
           statusText: response.statusText,
           body: errorBody.substring(0, 500),
           requestArgs: JSON.stringify(args).substring(0, 500),
@@ -131,13 +405,25 @@ export class Mem0MemoryClient implements IMemoryClient {
         throw new Error(errorMsg);
       }
 
-      const data: MCPResponse<T> = (await response.json()) as MCPResponse<T>;
+      // Parse response (handles both SSE and JSON formats)
+      const data: MCPResponse<T> = await this.parseResponse<T>(response);
 
       if (data.error) {
         throw new Error(`MCP Error ${data.error.code}: ${data.error.message}`);
       }
 
-      return data.result as T;
+      // FastMCP wraps tool results in a structured format:
+      // result.structuredContent contains the actual tool return value
+      // result.content contains a text representation
+      // We need to unwrap this to get the actual tool result
+      let toolResult = data.result as T;
+
+      // Check if result has the FastMCP wrapper structure
+      if (toolResult && typeof toolResult === 'object' && 'structuredContent' in toolResult) {
+        toolResult = (toolResult as { structuredContent: T }).structuredContent;
+      }
+
+      return toolResult;
     } catch (error) {
       unifiedLogger.error(`MCP tool call failed: ${toolName}`, { error });
       throw error;
@@ -145,12 +431,15 @@ export class Mem0MemoryClient implements IMemoryClient {
   }
 
   /**
-   * Read MCP resource via HTTP JSON-RPC 2.0
+   * Read MCP resource via HTTP JSON-RPC 2.0 (with session management)
    *
-   * FastMCP HTTP transport requires Accept headers for both JSON-RPC responses
-   * and SSE (Server-Sent Events) streaming. Without both, server returns HTTP 406.
+   * Resources are read-only data endpoints (like GET in REST).
+   * Requires session initialization and includes session ID if available.
    */
   private async readResource<T = unknown>(uri: string): Promise<T> {
+    // Ensure session is initialized
+    await this.ensureInitialized();
+
     const request: MCPRequest = {
       jsonrpc: '2.0',
       method: 'resources/read',
@@ -161,13 +450,20 @@ export class Mem0MemoryClient implements IMemoryClient {
     unifiedLogger.debug(`MCP resource read: ${uri}`);
 
     try {
+      // Build headers with session ID if available
+      const headers: Record<string, string> = {
+        'Content-Type': 'application/json',
+        Accept: 'application/json, text/event-stream',
+        'MCP-Protocol-Version': '2025-06-18',
+      };
+
+      if (this.sessionId) {
+        headers['Mcp-Session-Id'] = this.sessionId;
+      }
+
       const response = await fetch(this.baseUrl, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Accept: 'application/json, text/event-stream',
-          'MCP-Protocol-Version': '2025-06-18',
-        },
+        headers,
         body: JSON.stringify(request),
       });
 
@@ -175,7 +471,8 @@ export class Mem0MemoryClient implements IMemoryClient {
         throw new Error(`HTTP ${response.status}: ${response.statusText}`);
       }
 
-      const data: MCPResponse = (await response.json()) as MCPResponse;
+      // Parse response (handles both SSE and JSON formats)
+      const data: MCPResponse = await this.parseResponse(response);
 
       if (data.error) {
         throw new Error(`MCP Error ${data.error.code}: ${data.error.message}`);
@@ -245,16 +542,12 @@ export class Mem0MemoryClient implements IMemoryClient {
   ): Promise<{ success: boolean; id?: string; error?: string }> {
     try {
       // Serialize metadata to JSON-safe format (FastMCP requirement)
-      // Complex objects like UnifiedTimestamp must be converted to primitives  
+      // Complex objects like UnifiedTimestamp must be converted to primitives
       const jsonSafeMetadata = JSON.parse(JSON.stringify(req.metadata));
 
-      // Debug: Log what we're sending to FastMCP
-      unifiedLogger.debug('Calling add_memory with serialized metadata', {
-        content: req.content.substring(0, 100),
-        userId: jsonSafeMetadata.userId,
-        metadataKeys: Object.keys(jsonSafeMetadata),
-        metadataJson: JSON.stringify(jsonSafeMetadata).substring(0, 500),
-      });
+      // Extract userId from metadata (passed as separate parameter to FastMCP)
+      const userId = jsonSafeMetadata.userId || 'default-user';
+      delete jsonSafeMetadata.userId; // Remove from metadata to avoid duplication
 
       const result = await this.callTool<{
         success: boolean;
@@ -263,14 +556,14 @@ export class Mem0MemoryClient implements IMemoryClient {
         error?: string;
       }>('add_memory', {
         content: req.content,
-        user_id: jsonSafeMetadata.userId || 'default-user',
+        user_id: userId,
         metadata: jsonSafeMetadata,
       });
 
-      if (!result.success || result.error) {
+      if (!result || !result.success || result.error) {
         return {
           success: false,
-          error: result.error || 'Unknown error adding memory',
+          error: result?.error || 'Unknown error adding memory',
         };
       }
 
@@ -388,8 +681,8 @@ export class Mem0MemoryClient implements IMemoryClient {
         limit: query.limit || 10,
       });
 
-      if (!result.success || result.error) {
-        unifiedLogger.error('Search memories failed', { error: result.error });
+      if (!result || !result.success || result.error) {
+        unifiedLogger.error('Search memories failed', { error: result?.error });
         return [];
       }
 
@@ -415,5 +708,51 @@ export class Mem0MemoryClient implements IMemoryClient {
   async unsubscribeEvents(): Promise<void> {
     this.eventListener = undefined;
     unifiedLogger.info('Event subscription removed');
+  }
+
+  /**
+   * Close MCP session and cleanup resources
+   *
+   * Per MCP Specification 2025-06-18 Session Management:
+   * "Clients that no longer need a particular session should send an HTTP DELETE
+   * to the MCP endpoint with the Mcp-Session-Id header, to explicitly terminate
+   * the session."
+   */
+  async close(): Promise<void> {
+    if (this.sessionId) {
+      unifiedLogger.info('Closing MCP session', {
+        sessionId: this.sessionId.substring(0, 8) + '...',
+      });
+
+      try {
+        const response = await fetch(this.baseUrl, {
+          method: 'DELETE',
+          headers: {
+            'Mcp-Session-Id': this.sessionId,
+          },
+        });
+
+        if (response.status === 405) {
+          // Server doesn't support explicit session termination (Method Not Allowed)
+          unifiedLogger.debug('Server does not support explicit session termination (405)');
+        } else if (!response.ok) {
+          unifiedLogger.warn('Session termination returned non-OK status', {
+            status: response.status,
+          });
+        } else {
+          unifiedLogger.info('MCP session closed successfully');
+        }
+      } catch (error) {
+        // Don't throw - session termination is best-effort
+        unifiedLogger.warn('Failed to terminate MCP session', {
+          error: error instanceof Error ? error.message : String(error),
+        });
+      }
+
+      this.sessionId = null;
+      this.initializePromise = null;
+    }
+
+    await this.unsubscribeEvents();
   }
 }

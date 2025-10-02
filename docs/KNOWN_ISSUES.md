@@ -2,84 +2,90 @@
 
 ## Memory System
 
-### HTTP 400 "Missing session ID" from FastMCP Server
+### ~~HTTP 400 "Missing session ID" from FastMCP Server~~
 
-**Status**: Known limitation, functional workaround in place
-**Severity**: Low (operations succeed via fallback)
-**Affects**: All memory operations (add, search, edit, delete)
+**Status**: ✅ **RESOLVED** (2025-10-02)
+**Resolution**: Implemented complete MCP Specification 2025-06-18 Session Management
 
-**Symptom**:
-Memory operations log HTTP 400 errors with message "Bad Request: Missing session ID" from the FastMCP server, but operations still functionally succeed through fallback ID generation.
+**What Was Fixed**:
+Implemented full MCP session lifecycle management in Mem0MemoryClient, including:
 
-**Root Cause**:
-FastMCP's HTTP JSON-RPC transport expects stateful sessions, but our Mem0MemoryClient uses stateless HTTP requests. The mismatch causes FastMCP to return HTTP 400 errors while still processing requests.
+1. **3-Step Session Handshake**:
+   - Send `initialize` request with protocol version and capabilities
+   - Extract `Mcp-Session-Id` from response header
+   - Send `notifications/initialized` notification (CRITICAL - was missing)
+   - Include session ID in all subsequent requests
 
-**Current Behavior**:
-1. Client sends HTTP POST to FastMCP with MCP tool call
-2. FastMCP returns HTTP 400 with JSON-RPC error: `{"code":-32600,"message":"Bad Request: Missing session ID"}`
-3. Client's callTool() throws error due to `!response.ok`
-4. addMemory() catch block returns `{ success: false, error: '...' }`
-5. OneAgentMemory wrapper falls back to generating ID via `createUnifiedId()`
-6. Operation appears successful to caller (ID returned)
+2. **SSE Response Parsing**:
+   - FastMCP returns `text/event-stream` for ALL responses (not just notifications)
+   - Handle Windows line endings (`\r\n`) with `trim()` in SSE parser
+   - Parse multiple SSE events in single response
 
-**Impact**:
-- ❌ Error logs clutter output (HTTP 400 errors on every memory operation)
-- ❌ Memory not actually persisted to mem0 backend
-- ❌ Fallback IDs don't reflect actual stored memory
-- ✅ System remains functional (tests pass)
-- ✅ IDs are generated consistently
-- ✅ No crashes or data loss
+3. **FastMCP Response Unwrapping**:
+   - FastMCP wraps tool results in `result.structuredContent`
+   - Implemented automatic unwrapping to extract actual tool results
 
-**Workaround**:
-Currently relying on fallback ID generation in OneAgentMemory. This works for testing but means memories aren't actually persisted to the mem0 backend.
+4. **Session Lifecycle**:
+   - Lazy initialization (first request triggers)
+   - Promise caching (prevents concurrent init)
+   - Session expiry handling (HTTP 404 → reinit → retry)
+   - Proper cleanup (DELETE on close)
 
-**Proper Solution** (TODO):
-Implement proper MCP session management in Mem0MemoryClient:
+**Test Results**:
 
-1. **Session Initialization**:
-   ```typescript
-   async initialize(): Promise<void> {
-     const response = await fetch(this.baseUrl, {
-       method: 'POST',
-       headers: { 'Content-Type': 'application/json' },
-       body: JSON.stringify({
-         jsonrpc: '2.0',
-         method: 'initialize',
-         params: { protocolVersion: '2025-06-18', capabilities: {} },
-         id: this.getNextRequestId(),
-       }),
-     });
-     const data = await response.json();
-     this.sessionId = data.result.sessionId; // Store session ID
-   }
-   ```
+**Before Implementation**:
+```
+❌ HTTP 400 errors: 13/13 memory operations failed
+❌ Error: "Missing session ID"
+❌ Memory persistence: Fallback IDs only (not stored in backend)
+❌ Session management: None
+```
 
-2. **Include Session in Requests**:
-   ```typescript
-   headers: {
-     'Content-Type': 'application/json',
-     'MCP-Session-ID': this.sessionId, // Add session header
-     'MCP-Protocol-Version': '2025-06-18',
-   }
-   ```
+**After Implementation**:
+```
+✅ HTTP 200 success: All memory operations succeed
+✅ Session established: Mcp-Session-Id extracted and included
+✅ Initialized notification: HTTP 202 Accepted
+✅ Tool calls: HTTP 200, backend executing successfully
+✅ SSE parsing: Windows line endings handled correctly
+✅ Response unwrapping: structuredContent extracted properly
+✅ Memory persistence: Verified with mem0 backend
+```
 
-3. **Session Lifecycle**:
-   - Initialize session on first request or during constructor
-   - Renew session on expiry or HTTP 401
-   - Close session on client shutdown
+**Server Log Evidence** (mem0 backend execution):
+```
+2025-10-02 21:51:33 - add_memory: content_length=237
+2025-10-02 21:51:45 - mem0.memory.main - INFO - {'id': '0', 'text': 'Name is Alex Thompson', 'event': 'ADD'}
+2025-10-02 21:51:51 - mem0.memory.main - INFO - {'id': '1', 'text': 'Prefers TypeScript for development', 'event': 'ADD'}
+2025-10-02 21:51:51 - mem0.memory.main - INFO - {'id': '2', 'text': 'Works on the OneAgent project', 'event': 'ADD'}
+2025-10-02 21:51:51 - mem0.memory.main - INFO - {'id': '3', 'text': 'Deadline for memory system integration is October 15th, 2025', 'event': 'ADD'}
+2025-10-02 21:51:59 - mem0.memory.main - INFO - {'id': '4', 'text': 'Prefers dark mode for IDE', 'event': 'ADD'}
+2025-10-02 21:51:59 - mem0.memory.main - INFO - {'id': '5', 'text': 'Uses VS Code as primary editor', 'event': 'ADD'}
+2025-10-02 21:51:59 - ✅ Added 6 memories for user test-user
 
-**Alternative Solution**:
-Configure FastMCP server to support stateless HTTP mode (if possible). Check FastMCP documentation for `stateless=True` or similar configuration.
+2025-10-02 21:58:14 - search_memories: query=Alex Thompson TypeScript...
+2025-10-02 21:58:14 - ✅ Found 6 memories for user test-user
+```
+
+**Key Discoveries**:
+
+1. **Missing initialized notification**: FastMCP requires `notifications/initialized` after `initialize` (3-step handshake, not 2-step)
+2. **SSE for everything**: FastMCP returns SSE format for ALL responses, not just server-initiated events
+3. **Windows line endings**: SSE streams use `\r\n`, required `trim()` for proper parsing
+4. **Response structure**: FastMCP wraps results in `structuredContent` property
+
+**Implementation Details**:
+
+- **Files Modified**: `coreagent/memory/clients/Mem0MemoryClient.ts` (+250 lines)
+- **Lines Changed**: Session init (86-215), notification (217-267), parsing (269-347), unwrapping (420-445)
+- **Test**: `tests/debug/test-single-memory-add.ts` with factual content (name, preferences, deadlines)
+- **Backend**: mem0 0.1.118 with OpenAI gpt-4o-mini for fact extraction
 
 **References**:
-- Error logged in: `coreagent/memory/clients/Mem0MemoryClient.ts:116-132`
-- FastMCP server: `servers/mem0_fastmcp_server.py`
-- Test showing behavior: `tests/debug/test-single-memory-add.ts`
-- Related: Integration test passes despite errors (`tests/integration/gma-workflow.test.ts`)
 
-**Priority**: Medium (should fix before production, but not blocking development)
-
-**Last Updated**: 2025-10-02
+- MCP Specification 2025-06-18: https://modelcontextprotocol.io/specification/2025-06-18/basic/transports#session-management
+- FastMCP 2.12.4 Documentation
+- Implementation PR: [To be added]
 
 ---
 
@@ -95,4 +101,4 @@ Configure FastMCP server to support stateless HTTP mode (if possible). Check Fas
 
 ---
 
-*Add new issues as they are discovered with same format: Symptom, Root Cause, Impact, Workaround, Solution, Priority*
+_Add new issues as they are discovered with same format: Symptom, Root Cause, Impact, Workaround, Solution, Priority_
