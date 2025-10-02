@@ -18,11 +18,11 @@
 import * as fs from 'fs/promises';
 import * as path from 'path';
 import * as yaml from 'js-yaml';
-import { marked } from 'marked';
+import { marked, type Token } from 'marked';
 import Ajv from 'ajv';
 import addFormats from 'ajv-formats';
 import { EventEmitter } from 'events';
-import { createUnifiedTimestamp, createUnifiedId } from '../utils/UnifiedBackboneService';
+import { createUnifiedTimestamp, createUnifiedId, getOneAgentMemory } from '../utils/UnifiedBackboneService';
 import { OneAgentMemory } from '../memory/OneAgentMemory';
 import type { TaskQueue } from './TaskQueue';
 import type { EmbeddingBasedAgentMatcher } from './EmbeddingBasedAgentMatcher';
@@ -135,7 +135,7 @@ export class GMACompiler extends EventEmitter {
     super();
     this.taskQueue = config.taskQueue;
     this.agentMatcher = config.agentMatcher;
-    this.memory = OneAgentMemory.getInstance();
+    this.memory = getOneAgentMemory();
     this.enableValidation = config.enableValidation ?? true;
     this.enableMemoryAudit = config.enableMemoryAudit ?? true;
 
@@ -238,7 +238,7 @@ export class GMACompiler extends EventEmitter {
     } else {
       // Generate default metadata
       metadata = {
-        specId: createUnifiedId('MISSION', 'generated'),
+        specId: createUnifiedId('workflow', 'generated'),
         version: '1.0.0',
         created: createUnifiedTimestamp().iso,
         author: 'GMACompiler',
@@ -331,26 +331,45 @@ export class GMACompiler extends EventEmitter {
 
       try {
         // Match agent for task
-        const agentMatch = await this.agentMatcher.matchAgent(task.description, {
-          preferredCapabilities: [task.agentAssignment.preferredAgent],
-          minSimilarity: 0.7,
-        });
+        const availableAgents: import('./EmbeddingBasedAgentMatcher').AgentProfile[] = [
+          // Placeholder - in production, fetch from agent registry
+          {
+            id: task.agentAssignment.preferredAgent,
+            name: task.agentAssignment.preferredAgent,
+            type: 'specialized',
+            capabilities: [task.agentAssignment.preferredAgent],
+            specializations: [],
+            description: `Agent for ${task.name}`,
+            availability: 'available',
+          },
+        ];
 
-        if (!agentMatch || !agentMatch.agent) {
+        const agentMatch = await this.agentMatcher.matchTaskToAgent(
+          {
+            id: task.id,
+            name: task.name,
+            description: task.description,
+            requiredSkills: [task.agentAssignment.preferredAgent],
+            complexity: 'moderate',
+            priority: spec.metadata.priority,
+          },
+          availableAgents,
+        );
+
+        if (!agentMatch || !agentMatch.agentId) {
           warnings.push(
             `No suitable agent found for task ${task.id}, using fallback: ${task.agentAssignment.fallbackStrategy}`,
           );
           continue;
         }
 
-        // Add task to queue
+        // Add task to queue (generates ID internally)
         await this.taskQueue.addTask({
-          id: createUnifiedId('task', task.id),
-          type: 'gma_task',
-          executorId: agentMatch.agent.id,
-          priority: this.mapPriorityToNumber(spec.metadata.priority),
-          createdAt: createUnifiedTimestamp().unix,
-          data: {
+          name: task.name,
+          description: task.description,
+          priority: spec.metadata.priority,
+          dependsOn: [],
+          payload: {
             specId: spec.metadata.specId,
             taskId: task.id,
             taskName: task.name,
@@ -360,18 +379,20 @@ export class GMACompiler extends EventEmitter {
             acceptanceCriteria: task.acceptanceCriteria,
             estimatedEffort: task.estimatedEffort,
           },
+          executorId: agentMatch.agentId,
+          maxAttempts: 3,
         });
 
         tasksCreated.push(task.id);
-        if (!agentsAssigned.includes(agentMatch.agent.id)) {
-          agentsAssigned.push(agentMatch.agent.id);
+        if (!agentsAssigned.includes(agentMatch.agentId)) {
+          agentsAssigned.push(agentMatch.agentId);
         }
 
         this.emit('task_compiled', {
           specId: spec.metadata.specId,
           taskId: task.id,
-          agentId: agentMatch.agent.id,
-          similarity: agentMatch.similarity,
+          agentId: agentMatch.agentId,
+          similarity: agentMatch.similarityScore,
         });
       } catch (error) {
         warnings.push(
@@ -423,7 +444,7 @@ export class GMACompiler extends EventEmitter {
    * Helper: Extract section content from Markdown tokens
    */
   private extractSection(
-    tokens: marked.Token[],
+    tokens: Token[],
     section: string,
     subsection: string,
   ): string | undefined {
@@ -454,7 +475,7 @@ export class GMACompiler extends EventEmitter {
    * Helper: Extract checkbox list from Markdown
    */
   private extractCheckboxList(
-    _tokens: marked.Token[],
+    _tokens: Token[],
     _section: string,
     _subsection: string,
   ): Array<{ description: string; completed: boolean }> {
@@ -465,7 +486,7 @@ export class GMACompiler extends EventEmitter {
   /**
    * Helper: Extract list items from Markdown
    */
-  private extractList(_tokens: marked.Token[], _section: string, _subsection: string): string[] {
+  private extractList(_tokens: Token[], _section: string, _subsection: string): string[] {
     // Simplified extraction - to be enhanced in future iterations
     return [];
   }
@@ -473,7 +494,7 @@ export class GMACompiler extends EventEmitter {
   /**
    * Helper: Extract tasks from Markdown
    */
-  private extractTasks(_tokens: marked.Token[]): MissionBriefTask[] {
+  private extractTasks(_tokens: Token[]): MissionBriefTask[] {
     // Simplified extraction - to be enhanced in future iterations
     // Full implementation would parse task sections from Markdown AST
     return [];
