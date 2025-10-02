@@ -39,7 +39,56 @@ Introduced **GMA (Generative Markdown Artifacts)** - a revolutionary spec-driven
   - Constitutional AI: Adheres to accuracy, transparency, helpfulness, safety?
   - Dependency Validation: Task graph valid and optimized?
 
-### 🎼 GMACompiler - Orchestration Engine
+### 🤖 PlannerAgent GMA Capability
+
+- **Method**: `generateMissionBrief(goal, context)` - Convert natural language goals → MissionBrief.md specifications
+- **Features**:
+  - Natural language goal analysis with AI
+  - YAML frontmatter generation with comprehensive metadata (specId, version, domain, priority, status, lineage, tags)
+  - 10-section MissionBrief structure generation:
+    1. Goal (what, why, success criteria)
+    2. Context (background, assumptions, constraints)
+    3. Tasks (AI-powered decomposition with acceptance criteria, dependencies, effort estimates)
+    4. Quality Standards (Grade A+ target, testing requirements, Constitutional AI compliance)
+    5. Resources (APIs, data sources, capabilities, dependencies)
+    6. Risk Assessment (risks, mitigations, impact/probability matrix)
+    7. Timeline (milestones, critical path, buffer allocation)
+    8. Review & Approval (SpecLintingAgent score, BMAD compliance)
+    9. Execution Log (auto-populated by GMACompiler)
+    10. Memory Audit Trail (lifecycle, cross-references, domain isolation)
+  - Constitutional AI validation of generated specification (100% compliance)
+  - Memory storage with metadata and lineage tracking
+  - GMACompiler validation integration for correctness
+  - Canonical ID generation using `createUnifiedId()`
+  - Returns complete MissionBrief.md as formatted string
+
+- **Action Integration**:
+  - Action type: `'generate_mission_brief'`
+  - Parameters: `goal` or `objective` (required), `context` (optional: userId, domain, priority, timeframe, resources, constraints)
+  - Available via `executeAction()` for action-based invocation
+  - Exposed in `getAvailableActions()` for agent discovery
+
+- **Example Usage**:
+  ```typescript
+  const plannerAgent = new PlannerAgent(config);
+  await plannerAgent.initialize();
+  
+  // Direct method call
+  const missionBrief = await plannerAgent.generateMissionBrief(
+    "Build a REST API for user management with authentication",
+    { domain: 'work', priority: 'high', timeframe: '2 weeks' }
+  );
+  
+  // Action-based invocation
+  const result = await plannerAgent.executeAction('generate_mission_brief', {
+    goal: "Build a REST API for user management with authentication",
+    context: { domain: 'work', priority: 'high', timeframe: '2 weeks' }
+  });
+  ```
+
+- **Workflow**: Natural language goal → PlannerAgent.generateMissionBrief() → MissionBrief.md → GMACompiler → TaskQueue → Agent execution
+
+### 🔧 JSON Schema Validation
 
 - **File**: `coreagent/orchestration/GMACompiler.ts` - Compiles MissionBrief.md into executable task queues
 - **Features**:
