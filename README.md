@@ -1,4 +1,4 @@
-# OneAgent v4.2.3 - Memory-Driven Intelligence Platform
+# OneAgent v4.4.0 - Memory-Driven Intelligence Platform
 
 Note for contributors and Copilot users: See the canonical repository agent instructions in [AGENTS.md](./AGENTS.md).
 
@@ -536,4 +536,4 @@ MIT License - See LICENSE file for details
 
 ---
 
-_This is the canonical README for OneAgent v4.2.3. All documentation is current and reflects the consolidated Phase 4 implementation plus communication persistence & retry groundwork._
+_This is the canonical README for OneAgent v4.4.0. All documentation is current and reflects the consolidated Phase 4 implementation plus communication persistence & retry groundwork._
