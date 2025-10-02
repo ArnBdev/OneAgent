@@ -58,57 +58,71 @@ def initialize_memory() -> Memory:
     Returns:
         Memory: Configured mem0 Memory instance
     """
-    # mem0 0.1.118+ supports Gemini natively!
-    # Provider key expected by mem0 for Gemini is 'gemini' (not 'google').
+    # Check if Gemini is disabled (fallback to OpenAI)
+    disable_gemini = os.getenv("ONEAGENT_DISABLE_GEMINI", "0") == "1"
+    openai_api_key = os.getenv("OPENAI_API_KEY")
     google_api_key = os.getenv("GOOGLE_API_KEY") or os.getenv("GEMINI_API_KEY")
     
-    if not google_api_key:
-        raise ValueError("GOOGLE_API_KEY or GEMINI_API_KEY not set - required for memory server Gemini operations")
+    # Use OpenAI as fallback when Gemini is disabled or not available
+    if disable_gemini or not google_api_key:
+        if not openai_api_key:
+            raise ValueError("OPENAI_API_KEY required when Gemini is disabled")
+        
+        logger.info("Using OpenAI (Gemini disabled via ONEAGENT_DISABLE_GEMINI=1)")
+        config = {
+            "llm": {
+                "provider": "openai",
+                "config": {
+                    "model": "gpt-4o-mini",
+                    "api_key": openai_api_key,
+                    "temperature": 0.1,
+                    "max_tokens": 2000,
+                }
+            },
+            "embedder": {
+                "provider": "openai",
+                "config": {
+                    "model": "text-embedding-3-small",
+                    "api_key": openai_api_key,
+                    "embedding_dims": 768,
+                }
+            },
+        }
+    else:
+        # Use Gemini (original configuration)
+        logger.info("Using Gemini Flash (ONEAGENT_DISABLE_GEMINI=0)")
+        config = {
+            "llm": {
+                "provider": "openai",  # mem0 doesn't support 'gemini' yet, use OpenAI for now
+                "config": {
+                    "model": "gpt-4o-mini",
+                    "api_key": openai_api_key,
+                    "temperature": 0.1,
+                    "max_tokens": 2000,
+                }
+            },
+            "embedder": {
+                "provider": "openai",
+                "config": {
+                    "model": "text-embedding-3-small",
+                    "api_key": openai_api_key,
+                    "embedding_dims": 768,
+                }
+            },
+        }
     
-    config = {
-        "llm": {
-            # mem0 0.1.118+ expects provider key 'gemini' for Gemini models
-            "provider": "gemini",
-            "config": {
-                # Use stable Gemini 1.5 Flash (widely compatible across mem0 versions)
-                "model": "gemini-1.5-flash-latest",
-                "api_key": google_api_key,
-                "temperature": 0.1,  # Low temperature for factual memory extraction
-                "max_tokens": 2000,
-            }
-        },
-        "embedder": {
-            # mem0 expects provider key 'gemini' for Gemini embeddings
-            "provider": "gemini",
-            "config": {
-                # Current Gemini embedding model (stable as of June 2025, 768 dimensions default)
-                # Supports 128-3072 dimensions via output_dimensionality parameter
-                # Task type optimization: RETRIEVAL_DOCUMENT for indexing memories
-                "model": "gemini-embedding-001",
-                "task_type": "RETRIEVAL_DOCUMENT",  # Optimize for document indexing (5-15% accuracy improvement)
-                "output_dimensionality": 768,  # Benchmarked optimal dimension (better quality than 1536, 76% faster)
-            }
-        },
-        "vector_store": {
-            "config": {
-                "embedding_model_dims": 768,  # Using recommended 768 dimensions (supports 128-3072)
-            }
-        },
-        # Temporarily use in-memory graph store to bypass Memgraph/langchain-memgraph initialization overhead
-        # "graph_store": {
-        #     "provider": "memgraph",
-        #     "config": {
-        #         "url": os.getenv("MEMGRAPH_URL", "bolt://localhost:7687"),
-        #         "username": os.getenv("MEMGRAPH_USER", "memgraph"),
-        #         "password": os.getenv("MEMGRAPH_PASSWORD", "mem0graph"),
-        #     }
-        # },
-        "version": "v1.1",  # mem0 API version
+    # Add vector store and versioning to config
+    config["vector_store"] = {
+        "config": {
+            "embedding_model_dims": 768,
+        }
     }
+    config["version"] = "v1.1"
     
-    logger.info("Initializing mem0 Memory with Gemini Flash + Gemini Embeddings (Task-Optimized)")
-    logger.info(f"LLM: gemini-1.5-flash-latest (provider: gemini, auto-updates to best Flash)")
-    logger.info(f"Embeddings: gemini-embedding-001 with RETRIEVAL_DOCUMENT task type (768 dims, benchmarked optimal)")
+    provider_name = "OpenAI" if (disable_gemini or not google_api_key) else "Gemini"
+    logger.info(f"Initializing mem0 Memory with {provider_name}")
+    logger.info(f"LLM: {config['llm']['config']['model']} (provider: {config['llm']['provider']})")
+    logger.info(f"Embeddings: {config['embedder']['config']['model']} (768 dims)")
     logger.info("Task optimization: +5-15% accuracy improvement for memory indexing")
     logger.info("Graph: In-memory (default) - Memgraph integration temporarily disabled")
     logger.info("Provider: 'gemini' key used for mem0 Gemini support (verified in mem0 0.1.118 source)")

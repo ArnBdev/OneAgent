@@ -69,20 +69,21 @@ Introduced **GMA (Generative Markdown Artifacts)** - a revolutionary spec-driven
   - Exposed in `getAvailableActions()` for agent discovery
 
 - **Example Usage**:
+
   ```typescript
   const plannerAgent = new PlannerAgent(config);
   await plannerAgent.initialize();
-  
+
   // Direct method call
   const missionBrief = await plannerAgent.generateMissionBrief(
-    "Build a REST API for user management with authentication",
-    { domain: 'work', priority: 'high', timeframe: '2 weeks' }
+    'Build a REST API for user management with authentication',
+    { domain: 'work', priority: 'high', timeframe: '2 weeks' },
   );
-  
+
   // Action-based invocation
   const result = await plannerAgent.executeAction('generate_mission_brief', {
-    goal: "Build a REST API for user management with authentication",
-    context: { domain: 'work', priority: 'high', timeframe: '2 weeks' }
+    goal: 'Build a REST API for user management with authentication',
+    context: { domain: 'work', priority: 'high', timeframe: '2 weeks' },
   });
   ```
 

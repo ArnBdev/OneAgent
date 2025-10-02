@@ -302,7 +302,8 @@ export class PlannerAgent extends BaseAgent implements ISpecializedAgent {
         parameters: {
           goal: 'string (required): Natural language goal description',
           objective: 'string (alias for goal)',
-          context: 'object (optional): { userId, domain, priority, timeframe, resources, constraints }',
+          context:
+            'object (optional): { userId, domain, priority, timeframe, resources, constraints }',
         },
       },
     ];
@@ -653,7 +654,7 @@ export class PlannerAgent extends BaseAgent implements ISpecializedAgent {
   /**
    * Generate MissionBrief.md specification from natural language goal
    * Epic 18 Phase 1: GMA MVP Enhancement
-   * 
+   *
    * Features:
    * - Natural language → MissionBrief.md conversion
    * - BMAD framework compliance validation
@@ -669,26 +670,30 @@ export class PlannerAgent extends BaseAgent implements ISpecializedAgent {
       priority?: 'critical' | 'high' | 'medium' | 'low';
       maxTasks?: number;
       includeRiskAssessment?: boolean;
-    }
+    },
   ): Promise<{ specId: string; content: string; filePath?: string }> {
     try {
       const services = this.unifiedBackbone.getServices();
       const timestamp = services.timeService.now();
-      
+
       // Generate unique specification ID using canonical ID generation
       const datePrefix = timestamp.iso.slice(0, 10); // YYYY-MM-DD
-      const uniqueSuffix = createUnifiedId('workflow', 'mission').split('_').pop()?.toUpperCase().slice(0, 8) || 'XXXXXXXX';
+      const uniqueSuffix =
+        createUnifiedId('workflow', 'mission').split('_').pop()?.toUpperCase().slice(0, 8) ||
+        'XXXXXXXX';
       const specId = `MISSION-${datePrefix}-${uniqueSuffix}`;
-      
+
       // Validate goal with Constitutional AI
       const goalValidation = await this.constitutionalAI?.validateResponse(
         naturalLanguageGoal,
         'Validate mission brief goal for accuracy, clarity, and ethical compliance',
-        { context: 'gma_goal_validation' }
+        { context: 'gma_goal_validation' },
       );
 
       if (!goalValidation?.isValid) {
-        throw new Error(`Goal validation failed: ${goalValidation?.violations?.map(v => v.description).join(', ') || 'Unknown validation error'}`);
+        throw new Error(
+          `Goal validation failed: ${goalValidation?.violations?.map((v) => v.description).join(', ') || 'Unknown validation error'}`,
+        );
       }
 
       // Decompose goal into tasks using existing planning intelligence
@@ -700,15 +705,21 @@ export class PlannerAgent extends BaseAgent implements ISpecializedAgent {
         timeframe: context?.timeframe || 'TBD',
         stakeholders: context?.stakeholders || [],
         riskTolerance: context?.riskTolerance || 'medium',
-        qualityRequirements: context?.qualityRequirements || ['Constitutional AI compliance', 'Quality score ≥ 80%'],
-        successCriteria: context?.successCriteria || ['All tasks completed', 'Quality standards met'],
-        constitutionalRequirements: ['Accuracy', 'Transparency', 'Helpfulness', 'Safety']
+        qualityRequirements: context?.qualityRequirements || [
+          'Constitutional AI compliance',
+          'Quality score ≥ 80%',
+        ],
+        successCriteria: context?.successCriteria || [
+          'All tasks completed',
+          'Quality standards met',
+        ],
+        constitutionalRequirements: ['Accuracy', 'Transparency', 'Helpfulness', 'Safety'],
       };
 
       const tasks = await this.decomposeObjective(
         naturalLanguageGoal,
         planningContext,
-        options?.maxTasks || 10
+        options?.maxTasks || 10,
       );
 
       // Generate MissionBrief.md content
@@ -718,14 +729,14 @@ export class PlannerAgent extends BaseAgent implements ISpecializedAgent {
         tasks,
         planningContext,
         options || {},
-        timestamp
+        timestamp,
       );
 
       // Validate generated specification with Constitutional AI
       const specValidation = await this.constitutionalAI?.validateResponse(
         missionBrief,
         'Validate complete MissionBrief.md specification for quality and completeness',
-        { context: 'gma_spec_validation' }
+        { context: 'gma_spec_validation' },
       );
 
       // Store in memory with lineage tracking
@@ -742,29 +753,28 @@ export class PlannerAgent extends BaseAgent implements ISpecializedAgent {
           constitutionalCompliance: specValidation?.isValid || false,
           lineage: [this.config.id],
           agentId: this.config.id,
-          qualityScore: Math.round((goalValidation.score + (specValidation?.score || 0)) / 2)
-        })
+          qualityScore: Math.round((goalValidation.score + (specValidation?.score || 0)) / 2),
+        }),
       });
 
-      console.log(`📝 Generated MissionBrief.md: ${specId} (${tasks.length} tasks, quality: ${specValidation?.score?.toFixed(2) || 'N/A'})`);
+      console.log(
+        `📝 Generated MissionBrief.md: ${specId} (${tasks.length} tasks, quality: ${specValidation?.score?.toFixed(2) || 'N/A'})`,
+      );
 
       return {
         specId,
         content: missionBrief,
         // In production, would write to file system; for now return content only
-        filePath: undefined
+        filePath: undefined,
       };
     } catch (error) {
       const errorHandler = this.unifiedBackbone.getServices().errorHandler;
-      await errorHandler.handleError(
-        error instanceof Error ? error : new Error(String(error)),
-        {
-          component: 'planner_agent',
-          operation: 'generate_mission_brief',
-          agentId: this.config.id,
-          context: 'gma_generation'
-        }
-      );
+      await errorHandler.handleError(error instanceof Error ? error : new Error(String(error)), {
+        component: 'planner_agent',
+        operation: 'generate_mission_brief',
+        agentId: this.config.id,
+        context: 'gma_generation',
+      });
       throw error;
     }
   }
@@ -782,14 +792,15 @@ export class PlannerAgent extends BaseAgent implements ISpecializedAgent {
       priority?: 'critical' | 'high' | 'medium' | 'low';
       includeRiskAssessment?: boolean;
     },
-    timestamp: UnifiedTimestamp
+    timestamp: UnifiedTimestamp,
   ): string {
     const domain = options.domain || 'work';
     const priority = options.priority || 'medium';
-    
+
     // Build tasks section with proper formatting
-    const tasksSection = tasks.map((task, idx) => {
-      return `### Task ${idx + 1}: ${task.title}
+    const tasksSection = tasks
+      .map((task, idx) => {
+        return `### Task ${idx + 1}: ${task.title}
 
 **Description**: ${task.description}
 
@@ -811,14 +822,15 @@ ${task.metadata.constitutionalCompliance ? '- [ ] Constitutional AI compliance v
 **Dependencies**: ${task.dependencies.length > 0 ? task.dependencies.join(', ') : 'None'}
 
 **Status**: ${task.status}`;
-    }).join('\n\n---\n\n');
+      })
+      .join('\n\n---\n\n');
 
     // Build success criteria from tasks and context
     const successCriteria = [
       ...context.successCriteria,
       `All ${tasks.length} tasks completed successfully`,
       'Quality score ≥ 80% (Grade A)',
-      'Constitutional AI compliance maintained'
+      'Constitutional AI compliance maintained',
     ];
 
     return `\`\`\`yaml
@@ -852,7 +864,7 @@ ${successCriteria.map((c, i) => `${i + 1}. ${c}`).join('\n')}
 Generated from natural language goal by PlannerAgent (${this.config.id}) using Constitutional AI validation and BMAD framework compliance.
 
 ### Assumptions
-${context.constraints.length > 0 ? context.constraints.map(c => `- ${c}`).join('\n') : '- Standard OneAgent operational assumptions apply'}
+${context.constraints.length > 0 ? context.constraints.map((c) => `- ${c}`).join('\n') : '- Standard OneAgent operational assumptions apply'}
 
 ### Constraints
 **Time**: ${context.timeframe}
@@ -885,7 +897,7 @@ ${tasksSection}
 ## 5. Resources
 
 ### Required APIs
-${context.resources.map(r => `- ${r}`).join('\n') || '- OneAgent Core APIs\n- Memory System\n- AI Services'}
+${context.resources.map((r) => `- ${r}`).join('\n') || '- OneAgent Core APIs\n- Memory System\n- AI Services'}
 
 ### Data Sources
 - OneAgent Memory
@@ -893,7 +905,11 @@ ${context.resources.map(r => `- ${r}`).join('\n') || '- OneAgent Core APIs\n- Me
 - Agent capability profiles
 
 ### Required Capabilities
-${Array.from(new Set(tasks.flatMap(t => t.requiredSkills))).map(s => `- ${s}`).join('\n') || '- General planning capabilities'}
+${
+  Array.from(new Set(tasks.flatMap((t) => t.requiredSkills)))
+    .map((s) => `- ${s}`)
+    .join('\n') || '- General planning capabilities'
+}
 
 ### External Dependencies
 - UnifiedBackboneService (canonical time/ID/metadata)
@@ -902,11 +918,15 @@ ${Array.from(new Set(tasks.flatMap(t => t.requiredSkills))).map(s => `- ${s}`).j
 
 ## 6. Risk Assessment
 
-${options.includeRiskAssessment ? this.generateRiskAssessmentSection(tasks, context) : `| Risk | Impact | Probability | Mitigation |
+${
+  options.includeRiskAssessment
+    ? this.generateRiskAssessmentSection(tasks, context)
+    : `| Risk | Impact | Probability | Mitigation |
 |------|--------|-------------|------------|
 | Task complexity underestimated | Medium | Low | Buffer time allocation |
 | Resource constraints | Low | Medium | Flexible task prioritization |
-| Quality standards not met | High | Low | Continuous Constitutional AI validation |`}
+| Quality standards not met | High | Low | Continuous Constitutional AI validation |`
+}
 
 ## 7. Timeline
 
@@ -918,7 +938,12 @@ ${options.includeRiskAssessment ? this.generateRiskAssessmentSection(tasks, cont
 5. **Completion Review** (Final Day): Quality validation and retrospective
 
 ### Critical Path
-${tasks.filter(t => t.priority === 'critical' || t.priority === 'high').map(t => `- ${t.title}`).join('\n') || '- All tasks are on critical path'}
+${
+  tasks
+    .filter((t) => t.priority === 'critical' || t.priority === 'high')
+    .map((t) => `- ${t.title}`)
+    .join('\n') || '- All tasks are on critical path'
+}
 
 ### Buffer
 20% time buffer for unexpected complexity and quality improvements
@@ -994,13 +1019,17 @@ ${tasks.filter(t => t.priority === 'critical' || t.priority === 'high').map(t =>
     // Simple heuristic: if context has explicit rationale, use it; otherwise infer from goal
     const explicitRationale = (context as unknown as { rationale?: string }).rationale;
     if (explicitRationale) return explicitRationale;
-    
+
     // Infer rationale based on goal keywords
     const goalLower = goal.toLowerCase();
     if (goalLower.includes('improve') || goalLower.includes('enhance')) {
       return 'To enhance existing capabilities and deliver better outcomes for users.';
     }
-    if (goalLower.includes('create') || goalLower.includes('build') || goalLower.includes('develop')) {
+    if (
+      goalLower.includes('create') ||
+      goalLower.includes('build') ||
+      goalLower.includes('develop')
+    ) {
       return 'To create new functionality that addresses identified needs and opportunities.';
     }
     if (goalLower.includes('fix') || goalLower.includes('resolve') || goalLower.includes('solve')) {
@@ -1009,7 +1038,7 @@ ${tasks.filter(t => t.priority === 'critical' || t.priority === 'high').map(t =>
     if (goalLower.includes('optimize') || goalLower.includes('performance')) {
       return 'To optimize system performance and resource utilization for better efficiency.';
     }
-    
+
     return 'To achieve the stated objective through systematic planning and execution.';
   }
 
@@ -1017,54 +1046,60 @@ ${tasks.filter(t => t.priority === 'critical' || t.priority === 'high').map(t =>
    * Generate risk assessment section
    */
   private generateRiskAssessmentSection(tasks: PlanningTask[], context: PlanningContext): string {
-    const risks: Array<{ risk: string; impact: string; probability: string; mitigation: string }> = [];
-    
+    const risks: Array<{ risk: string; impact: string; probability: string; mitigation: string }> =
+      [];
+
     // Analyze task complexity risks
-    const complexTasks = tasks.filter(t => t.complexity === 'complex' || t.complexity === 'expert').length;
+    const complexTasks = tasks.filter(
+      (t) => t.complexity === 'complex' || t.complexity === 'expert',
+    ).length;
     if (complexTasks > 0) {
       risks.push({
         risk: `${complexTasks} complex/expert tasks requiring specialized skills`,
         impact: 'High',
         probability: 'Medium',
-        mitigation: 'Assign to experienced agents with proven track record'
+        mitigation: 'Assign to experienced agents with proven track record',
       });
     }
-    
+
     // Analyze dependency risks
-    const tasksWithDeps = tasks.filter(t => t.dependencies.length > 0).length;
+    const tasksWithDeps = tasks.filter((t) => t.dependencies.length > 0).length;
     if (tasksWithDeps > tasks.length / 2) {
       risks.push({
         risk: 'High task interdependency may cause cascading delays',
         impact: 'Medium',
         probability: 'Medium',
-        mitigation: 'Parallel execution where possible, buffer time for critical path'
+        mitigation: 'Parallel execution where possible, buffer time for critical path',
       });
     }
-    
+
     // Analyze resource constraints
     if (context.riskTolerance === 'low') {
       risks.push({
         risk: 'Low risk tolerance limits adaptive strategies',
         impact: 'Medium',
         probability: 'Low',
-        mitigation: 'Conservative estimates, frequent checkpoint reviews'
+        mitigation: 'Conservative estimates, frequent checkpoint reviews',
       });
     }
-    
+
     // Analyze quality requirements
     if (context.qualityRequirements.length > 0) {
       risks.push({
         risk: 'Strict quality requirements may impact velocity',
         impact: 'Low',
         probability: 'Medium',
-        mitigation: 'Continuous Constitutional AI validation, early quality gates'
+        mitigation: 'Continuous Constitutional AI validation, early quality gates',
       });
     }
-    
+
     // Build table
-    const header = '| Risk | Impact | Probability | Mitigation |\n|------|--------|-------------|------------|';
-    const rows = risks.map(r => `| ${r.risk} | ${r.impact} | ${r.probability} | ${r.mitigation} |`).join('\n');
-    
+    const header =
+      '| Risk | Impact | Probability | Mitigation |\n|------|--------|-------------|------------|';
+    const rows = risks
+      .map((r) => `| ${r.risk} | ${r.impact} | ${r.probability} | ${r.mitigation} |`)
+      .join('\n');
+
     return `${header}\n${rows}`;
   }
 

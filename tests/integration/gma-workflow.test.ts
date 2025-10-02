@@ -200,7 +200,7 @@ describe('GMA Workflow Integration Test', () => {
       // Access private tasks Map via reflection for testing
       const tasksMap = (taskQueue as any).tasks as Map<string, any>;
       const queueSize = tasksMap.size;
-      
+
       console.log(`   📊 TaskQueue Statistics:`);
       console.log(`      - Tasks in queue: ${queueSize}`);
       console.log(`      - Expected from compilation: ${compilationResult.tasksCreated}`);

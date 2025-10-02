@@ -63,8 +63,8 @@ export class Mem0MemoryClient implements IMemoryClient {
 
   constructor(config: MemoryClientConfig) {
     this.config = config;
-    // Default to localhost:8010 (mem0+FastMCP server)
-    this.baseUrl = config.apiUrl || 'http://localhost:8010';
+    // Default to localhost:8010/mcp (mem0+FastMCP MCP endpoint)
+    this.baseUrl = config.apiUrl || 'http://localhost:8010/mcp';
 
     unifiedLogger.info('Mem0MemoryClient initialized', {
       backend: this.backendName,
