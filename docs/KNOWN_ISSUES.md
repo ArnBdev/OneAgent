@@ -1,13 +1,26 @@
 ﻿# Known Issues - OneAgent
 
-## Memory System
+> **Last Updated**: 2025-10-02 (v4.4.0)
 
-### ~~HTTP 400 "Missing session ID" from FastMCP Server~~
+## Active Issues
 
-**Status**: ✅ **RESOLVED** (2025-10-02)
+### (No active issues currently)
+
+All previously tracked issues have been resolved. This section will be populated as new issues are discovered during development and production use.
+
+---
+
+## Resolved Issues
+
+### Memory System
+
+#### ~~HTTP 400 "Missing session ID" from FastMCP Server~~
+
+**Status**: ✅ **RESOLVED** (2025-10-02 - v4.4.0)  
 **Resolution**: Implemented complete MCP Specification 2025-06-18 Session Management
 
 **What Was Fixed**:
+
 Implemented full MCP session lifecycle management in Mem0MemoryClient, including:
 
 1. **3-Step Session Handshake**:
@@ -34,6 +47,7 @@ Implemented full MCP session lifecycle management in Mem0MemoryClient, including
 **Test Results**:
 
 **Before Implementation**:
+
 ```
 ❌ HTTP 400 errors: 13/13 memory operations failed
 ❌ Error: "Missing session ID"
@@ -42,6 +56,7 @@ Implemented full MCP session lifecycle management in Mem0MemoryClient, including
 ```
 
 **After Implementation**:
+
 ```
 ✅ HTTP 200 success: All memory operations succeed
 ✅ Session established: Mcp-Session-Id extracted and included
@@ -53,6 +68,7 @@ Implemented full MCP session lifecycle management in Mem0MemoryClient, including
 ```
 
 **Server Log Evidence** (mem0 backend execution):
+
 ```
 2025-10-02 21:51:33 - add_memory: content_length=237
 2025-10-02 21:51:45 - mem0.memory.main - INFO - {'id': '0', 'text': 'Name is Alex Thompson', 'event': 'ADD'}
@@ -86,6 +102,7 @@ Implemented full MCP session lifecycle management in Mem0MemoryClient, including
 - MCP Specification 2025-06-18: https://modelcontextprotocol.io/specification/2025-06-18/basic/transports#session-management
 - FastMCP 2.12.4 Documentation
 - Implementation PR: [To be added]
+- Comprehensive Audit: `docs/reports/MEMORY_SYSTEM_AUDIT_2025-10-02.md`
 
 ---
 
@@ -101,4 +118,23 @@ Implemented full MCP session lifecycle management in Mem0MemoryClient, including
 
 ---
 
-_Add new issues as they are discovered with same format: Symptom, Root Cause, Impact, Workaround, Solution, Priority_
+## How to Report New Issues
+
+When discovering new issues, please document them using the following format:
+
+### Issue Title
+
+**Status**: 🐛 **ACTIVE** | ⚠️ **INVESTIGATING** | 🔧 **IN PROGRESS** | ✅ **RESOLVED**  
+**Severity**: 🔴 **CRITICAL** | 🟠 **HIGH** | 🟡 **MEDIUM** | 🟢 **LOW**  
+**Discovered**: Date (version)
+
+**Symptom**: Brief description of the observable problem  
+**Root Cause**: Technical explanation of the underlying issue (if known)  
+**Impact**: Who/what is affected and how severely  
+**Workaround**: Temporary solution or mitigation (if available)  
+**Solution**: Planned or implemented fix  
+**References**: Links to related docs, PRs, issues
+
+---
+
+_This document is actively maintained. Issues are moved to "Resolved" section upon fix and verification._

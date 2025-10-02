@@ -455,7 +455,7 @@ unifiedLogger.info('Memory client initialized', {
 
 ---
 
-**Version**: 4.5.0  
+**Version**: 4.4.0  
 **Last Updated**: 2025-10-02  
 **Author**: James (OneAgent DevAgent)  
 **Constitutional AI Compliance**: ✅ Accuracy, Transparency, Helpfulness, Safety
