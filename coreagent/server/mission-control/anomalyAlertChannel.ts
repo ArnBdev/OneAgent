@@ -15,7 +15,8 @@ export function createAnomalyAlertChannel(): MissionControlChannel {
     name: 'anomaly_alert',
     onSubscribe: (ws, ctx) => {
       // Simple periodic evaluator – can be extended with adaptive thresholds.
-      const evaluate = () => {
+      // Phase 3: Made async to support memory backend health checks
+      const evaluate = async () => {
         try {
           const ts = createUnifiedTimestamp();
           const stats = getMissionStatsSnapshot();
@@ -73,6 +74,50 @@ export function createAnomalyAlertChannel(): MissionControlChannel {
             }
           }
 
+          // Memory backend health anomaly (Phase 3: v4.4.2)
+          const latestHealth = await ctx.getHealth();
+          const memHealth = (latestHealth.components as Record<string, unknown> | undefined)
+            ?.memoryService as
+            | {
+                status?: string;
+                responseTime?: number;
+                lastCheck?: string;
+                details?: { backend?: string; error?: string; capabilitiesCount?: number };
+              }
+            | undefined;
+
+          if (memHealth?.status === 'unhealthy') {
+            alerts.push({
+              category: 'health',
+              severity: 'critical',
+              message: 'Memory backend unreachable or unhealthy',
+              metric: 'memory_backend_status',
+              value: 0,
+              threshold: 1,
+              details: {
+                backend: memHealth.details?.backend,
+                error: memHealth.details?.error,
+                lastChecked: memHealth.lastCheck,
+                responseTime: memHealth.responseTime,
+              },
+            });
+          }
+
+          if (memHealth?.responseTime && memHealth.responseTime > 1000) {
+            alerts.push({
+              category: 'health',
+              severity: 'warning',
+              message: `Memory backend latency high: ${memHealth.responseTime}ms`,
+              metric: 'memory_backend_latency',
+              value: memHealth.responseTime,
+              threshold: 1000,
+              details: {
+                backend: memHealth.details?.backend,
+                capabilities: memHealth.details?.capabilitiesCount,
+              },
+            });
+          }
+
           for (const a of alerts) {
             ctx.send(ws, {
               type: 'anomaly_alert',
@@ -102,9 +147,9 @@ export function createAnomalyAlertChannel(): MissionControlChannel {
           });
         }
       };
-      evaluate();
+      void evaluate(); // Initial evaluation (async)
       const intervalRef = setInterval(
-        evaluate,
+        () => void evaluate(), // Periodic evaluations (async)
         Number(process.env.ONEAGENT_ANOMALY_ALERT_INTERVAL_MS || 15000),
       );
       ctx.connectionState.set(ws, {

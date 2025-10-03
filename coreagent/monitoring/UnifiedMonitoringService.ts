@@ -626,6 +626,98 @@ export class UnifiedMonitoringService extends EventEmitter {
     this.metricProviders.set(name, provider);
   }
 
+  /**
+   * Expose Prometheus metrics in text format
+   * Phase 3: Memory Backend Health Monitoring Integration v4.4.2
+   *
+   * Metrics exposed:
+   * - oneagent_memory_backend_healthy: Health status (1=healthy, 0.5=degraded, 0=unhealthy)
+   * - oneagent_memory_backend_latency_ms: Response time in milliseconds
+   * - oneagent_memory_backend_capabilities: Available tool count
+   * - oneagent_mission_active: Active missions count
+   * - oneagent_mission_completed: Completed missions count
+   * - oneagent_mission_errors: Mission errors count
+   *
+   * Constitutional AI Compliance:
+   * - Accuracy: Reports actual health data from HealthMonitoringService
+   * - Transparency: Metric names and labels follow Prometheus best practices
+   * - Helpfulness: Provides actionable monitoring data for Prometheus/Grafana
+   * - Safety: Read-only operation with error handling
+   */
+  async exposePrometheusMetrics(): Promise<string> {
+    const lines: string[] = [];
+
+    try {
+      // Get health report from canonical source
+      const healthReport = await this.healthMonitoringService.getSystemHealth();
+
+      // Memory backend metrics (Phase 3)
+      if (healthReport.components?.memoryService) {
+        const memHealth = healthReport.components.memoryService;
+        const healthValue =
+          memHealth.status === 'healthy' ? 1 : memHealth.status === 'degraded' ? 0.5 : 0;
+
+        lines.push(
+          '# HELP oneagent_memory_backend_healthy Memory backend health status (1=healthy, 0.5=degraded, 0=unhealthy)',
+        );
+        lines.push('# TYPE oneagent_memory_backend_healthy gauge');
+        lines.push(
+          `oneagent_memory_backend_healthy{backend="${memHealth.details?.backend || 'unknown'}"} ${healthValue}`,
+        );
+
+        lines.push(
+          '# HELP oneagent_memory_backend_latency_ms Memory backend response time in milliseconds',
+        );
+        lines.push('# TYPE oneagent_memory_backend_latency_ms gauge');
+        lines.push(
+          `oneagent_memory_backend_latency_ms{backend="${memHealth.details?.backend || 'unknown'}"} ${memHealth.responseTime || 0}`,
+        );
+
+        lines.push(
+          '# HELP oneagent_memory_backend_capabilities Memory backend available tool count',
+        );
+        lines.push('# TYPE oneagent_memory_backend_capabilities gauge');
+        lines.push(
+          `oneagent_memory_backend_capabilities{backend="${memHealth.details?.backend || 'unknown'}"} ${memHealth.details?.capabilitiesCount || 0}`,
+        );
+      }
+
+      // Mission metrics (from operation tracking)
+      const opSummary = this.summarizeOperationMetrics({ window: 300000 }); // Last 5 minutes
+      const missionStats = opSummary.components['mission'] || {
+        totals: { success: 0, error: 0, total: 0 },
+      };
+
+      lines.push('# HELP oneagent_mission_active Currently active missions');
+      lines.push('# TYPE oneagent_mission_active gauge');
+      lines.push(
+        `oneagent_mission_active ${missionStats.totals.total - missionStats.totals.success - missionStats.totals.error}`,
+      );
+
+      lines.push('# HELP oneagent_mission_completed Total completed missions');
+      lines.push('# TYPE oneagent_mission_completed counter');
+      lines.push(`oneagent_mission_completed ${missionStats.totals.success}`);
+
+      lines.push('# HELP oneagent_mission_errors Total mission errors');
+      lines.push('# TYPE oneagent_mission_errors counter');
+      lines.push(`oneagent_mission_errors ${missionStats.totals.error}`);
+
+      // System health overall
+      lines.push('# HELP oneagent_system_health Overall system health score (0-100)');
+      lines.push('# TYPE oneagent_system_health gauge');
+      lines.push(`oneagent_system_health ${healthReport.constitutional.averageQualityScore}`);
+    } catch (error) {
+      // Fallback metrics on error
+      lines.push('# HELP oneagent_metrics_error Metrics exposition error occurred');
+      lines.push('# TYPE oneagent_metrics_error gauge');
+      lines.push(
+        `oneagent_metrics_error{reason="${error instanceof Error ? error.message.replace(/"/g, '\\"') : 'unknown'}"} 1`,
+      );
+    }
+
+    return lines.join('\n') + '\n';
+  }
+
   // Extensible: add more methods for new metrics/components
 }
 
