@@ -123,7 +123,7 @@ export interface ServerConfig {
 export const oneAgentConfig: ServerConfig = {
   // Core Configuration
   environment: process.env.ONEAGENT_ENV || 'development',
-  host: process.env.ONEAGENT_HOST || '127.0.0.1',
+  host: process.env.ONEAGENT_HOST || '0.0.0.0', // Bind to all interfaces (IPv4 + IPv6)
 
   // Memory Server Configuration
   memoryPort: parseInt(process.env.ONEAGENT_MEMORY_PORT || '8010', 10),
