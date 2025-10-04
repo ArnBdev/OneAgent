@@ -98,6 +98,13 @@ app.use(express.urlencoded({ extended: true }));
 app.use(passport.initialize());
 // Metrics API (lightweight, no auth for internal dashboard)
 app.use(createMetricsRouter());
+
+// Canonical Prometheus metrics endpoint alias
+app.get('/metrics', (req, res, next) => {
+  // Forward to the canonical Prometheus exposition endpoint
+  req.url = '/api/v1/metrics/prometheus';
+  next();
+});
 // REMOVE authentication for /mcp endpoint for local/dev Copilot Chat compatibility
 // app.use('/mcp', passport.authenticate('oauth-bearer', { session: false }));
 

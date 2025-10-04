@@ -560,9 +560,11 @@ export class Mem0MemoryClient implements IMemoryClient {
 
       const result = await this.callTool<{
         success: boolean;
+        memory_id?: string; // Backend now returns memory_id at top level
         memories?: { id?: string }[];
         count?: number;
         error?: string;
+        verified?: boolean; // Backend verification flag
       }>('add_memory', {
         content: req.content,
         user_id: userId,
@@ -576,13 +578,16 @@ export class Mem0MemoryClient implements IMemoryClient {
         };
       }
 
+      // Backend now returns canonical memory_id at top level
       const memoryId =
-        result.memories && result.memories.length > 0 ? result.memories[0]?.id : undefined;
+        result.memory_id ||
+        (result.memories && result.memories.length > 0 ? result.memories[0]?.id : undefined);
 
       unifiedLogger.info('Memory added successfully', {
         userId: req.metadata.userId,
         memoryId,
         count: result.count,
+        verified: result.verified,
       });
 
       return {
@@ -683,11 +688,17 @@ export class Mem0MemoryClient implements IMemoryClient {
         success: boolean;
         results?: Array<{
           id: string;
-          memory: string; // mem0 uses 'memory' instead of 'content'
+          memory?: string; // mem0 uses 'memory' for the memory text
+          content?: string; // Some backends may use 'content'
+          text?: string; // Some backends may use 'text'
           metadata?: Record<string, unknown>;
           score?: number;
+          search_rank?: number; // Backend enrichment
+          search_query?: string; // Backend enrichment
         }>;
         count?: number;
+        query?: string; // Backend enrichment
+        user_id?: string; // Backend enrichment
         error?: string;
       }>('search_memories', {
         query: query.query,
@@ -713,15 +724,17 @@ export class Mem0MemoryClient implements IMemoryClient {
       unifiedLogger.info('Search completed successfully', {
         userId: query.userId,
         resultCount: result.count || 0,
+        queryEcho: result.query,
       });
 
       // Transform mem0 format to MemorySearchResult format
-      // mem0 returns { id, memory, metadata, score }
+      // mem0 may return { id, memory, metadata, score } or { id, content, metadata, score }
       // We need { id, content, metadata, score }
       const transformedResults: MemorySearchResult[] =
         result.results?.map((r) => ({
           id: r.id,
-          content: r.memory, // mem0 uses 'memory', we use 'content'
+          // Try multiple fields for content (memory, content, text, or fallback to empty)
+          content: r.memory || r.content || r.text || '[no content]',
           metadata: r.metadata || {},
           score: r.score,
         })) || [];

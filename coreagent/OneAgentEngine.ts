@@ -243,7 +243,7 @@ export class OneAgentEngine extends EventEmitter {
           const memUrl =
             process.env.MEM0_API_URL ||
             `http://127.0.0.1:${process.env.ONEAGENT_MEMORY_PORT || '8010'}`;
-          const readyUrl = `${memUrl.replace(/\/$/, '')}/readyz`;
+          const readyUrl = `${memUrl.replace(/\/$/, '')}/health/ready`;
           console.log('[ENGINE] 📡 Memory probe URL:', readyUrl);
           const authKey = process.env.MEM0_API_KEY || process.env.MEM0_API_TOKEN || '';
           const startWait = createUnifiedTimestamp().unix;

@@ -1,40 +1,47 @@
-/**
- * Runtime test: verifies searchMemory returns canonical-adapted structure
- */
-import { OneAgentMemory } from '../../coreagent/memory/OneAgentMemory';
+import { getOneAgentMemory } from '../../coreagent/utils/UnifiedBackboneService';
+import { ensureMemoryServerReady, clearTestMemories } from './memoryTestUtils';
 
-(async () => {
-  const memory = OneAgentMemory.getInstance();
-  // Add a couple of memories
-  await memory.addMemory(
-    'Search Test Memory A',
-    { category: 'test', tags: ['search', 'a'] },
-    'search-user',
-  );
-  await memory.addMemory(
-    'Search Test Memory B',
-    { category: 'test', tags: ['search', 'b'] },
-    'search-user',
-  );
+describe('Memory Search (Canonical)', () => {
+  jest.setTimeout(20000);
+  const userId = 'search-user';
+  const testMemories = [
+    {
+      content: 'Search Test Memory A',
+      metadata: { category: 'test', tags: ['search', 'a'], userId },
+    },
+    {
+      content: 'Search Test Memory B',
+      metadata: { category: 'test', tags: ['search', 'b'], userId },
+    },
+  ];
+  const memory = getOneAgentMemory();
 
-  const result = await memory.searchMemory({
-    query: 'Search Test Memory',
-    userId: 'search-user',
-    limit: 5,
+  beforeAll(async () => {
+    await ensureMemoryServerReady();
+    await clearTestMemories(userId);
+    for (const m of testMemories) {
+      await memory.addMemory(m);
+    }
   });
-  if (!result) throw new Error('No result returned');
-  if (!Array.isArray(result.results)) throw new Error('results not array');
-  if (result.results.length < 2) throw new Error('expected at least 2 results');
-  const first = result.results[0];
-  const requiredKeys = ['id', 'content', 'metadata'];
-  for (const k of requiredKeys) {
-    if (!(k in first)) throw new Error(`missing key ${k} in memory record`);
-  }
-  if (!first.metadata || typeof first.metadata !== 'object')
-    throw new Error('metadata missing or not object');
-  console.log('[search-canonical-metadata.test] PASS', {
-    totalFound: result.totalFound,
-    sampleId: first.id,
-    metadataKeys: Object.keys(first.metadata as Record<string, unknown>).slice(0, 6),
+
+  afterAll(async () => {
+    await clearTestMemories(userId);
   });
-})();
+
+  it('returns canonical-adapted structure and finds all test memories', async () => {
+    const result = await memory.searchMemory({
+      query: 'Search Test Memory',
+      userId,
+      limit: 5,
+    });
+    expect(result).toBeTruthy();
+    expect(Array.isArray(result)).toBe(true);
+    expect(result.length).toBeGreaterThanOrEqual(2);
+    const first = result[0];
+    const requiredKeys = ['id', 'content', 'metadata'];
+    for (const k of requiredKeys) {
+      expect(first).toHaveProperty(k);
+    }
+    expect(first.metadata && typeof first.metadata === 'object').toBe(true);
+  });
+});

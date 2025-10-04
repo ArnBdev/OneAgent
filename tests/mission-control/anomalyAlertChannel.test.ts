@@ -182,11 +182,10 @@ describe('anomalyAlertChannel', () => {
 
       setTimeout(() => {
         const anomalies = ws.sent.filter((m: any) => m.type === 'anomaly_alert');
-        
+
         const memoryAlerts = anomalies.filter(
           (a: any) =>
-            a.payload?.category === 'health' &&
-            /Memory backend/i.test(a.payload?.message),
+            a.payload?.category === 'health' && /Memory backend/i.test(a.payload?.message),
         );
 
         // Should not emit memory backend alerts when healthy
@@ -219,8 +218,7 @@ describe('anomalyAlertChannel', () => {
         const anomalies = ws.sent.filter((m: any) => m.type === 'anomaly_alert');
         const memoryAlerts = anomalies.filter(
           (a: any) =>
-            a.payload?.category === 'health' &&
-            /Memory backend/i.test(a.payload?.message),
+            a.payload?.category === 'health' && /Memory backend/i.test(a.payload?.message),
         );
 
         expect(memoryAlerts.length).toBe(0);

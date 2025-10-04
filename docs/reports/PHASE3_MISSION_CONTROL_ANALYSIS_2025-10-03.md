@@ -348,9 +348,35 @@ const emitStatus = async (explicit?: string) => {
 
 - `ctx.getHealth()` calls `HealthMonitoringService.getSystemHealth()`
 - Phase 1 already adds `memoryService` to `ComponentHealthMap`
-- health_delta channel automatically includes it
+- `health_delta` channel automatically includes it in the payload
 
-**Verification**: Test with both servers running, subscribe to `health_delta`, check payload
+**Verification Steps:**
+
+1. **Start both MCP and memory servers** (see `scripts/start-oneagent-system.ps1`).
+2. **Subscribe to `health_delta` channel** via WebSocket (`ws://localhost:8083/ws/mission-control`).
+3. **Check payload**: Confirm `health.components.memoryService` is present and reflects backend status.
+4. **UI Dashboard**: Open `MissionControlDashboard` in the UI (`ui/src/components/MissionControlDashboard.tsx`) and verify memory backend health is displayed.
+5. **Reference**: Canonical logic in `coreagent/server/mission-control/healthDeltaChannel.ts` and `coreagent/monitoring/UnifiedMonitoringService.ts`.
+
+**Test Example:**
+
+```json
+{
+  "type": "health_delta",
+  "payload": {
+    "status": "healthy",
+    "health": {
+      "components": {
+        "memoryService": {
+          "status": "healthy",
+          "responseTime": 42,
+          "details": { "backend": "mem0", "capabilitiesCount": 7 }
+        }
+      }
+    }
+  }
+}
+```
 
 #### Task 3.2: Add Prometheus Metrics
 
@@ -361,3 +387,38 @@ const emitStatus = async (explicit?: string) => {
 <function_calls>
 <invoke name="grep_search">
 <parameter name="query">exposePrometheusMetrics|prometheus|gauge.\*memory|oneagent_mission
+
+**Action**: ✅ **COMPLETE**
+
+- `exposePrometheusMetrics()` exposes all required metrics, including:
+  - `oneagent_memory_backend_healthy`
+  - `oneagent_memory_backend_latency_ms`
+  - `oneagent_memory_backend_capabilities`
+  - `oneagent_mission_active`, `oneagent_mission_completed`, `oneagent_mission_errors`
+- Metrics are available at `/metrics` endpoint (see `coreagent/monitoring/UnifiedMonitoringService.ts`).
+
+**Verification Steps:**
+
+1. **Start MCP server** (ensure memory backend is running for full metrics).
+2. **Access** `http://localhost:8083/metrics` in browser or with `curl`.
+3. **Check for memory backend metrics** in output (see above names).
+4. **Reference**: Canonical logic in `coreagent/monitoring/UnifiedMonitoringService.ts`.
+
+**Test Example Output:**
+
+```
+# HELP oneagent_memory_backend_healthy Memory backend health status (1=healthy, 0.5=degraded, 0=unhealthy)
+# TYPE oneagent_memory_backend_healthy gauge
+oneagent_memory_backend_healthy{backend="mem0"} 1
+# HELP oneagent_memory_backend_latency_ms Memory backend response time in milliseconds
+# TYPE oneagent_memory_backend_latency_ms gauge
+oneagent_memory_backend_latency_ms{backend="mem0"} 42
+# HELP oneagent_memory_backend_capabilities Memory backend available tool count
+# TYPE oneagent_memory_backend_capabilities gauge
+oneagent_memory_backend_capabilities{backend="mem0"} 7
+```
+
+---
+
+**Documentation Note:**
+All health and metrics logic is canonicalized. For future changes, update only `UnifiedMonitoringService.ts` and `healthDeltaChannel.ts`. UI integration is in `MissionControlDashboard.tsx`.

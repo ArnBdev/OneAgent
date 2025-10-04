@@ -77,6 +77,46 @@
 - `neo4j>=6.0.1` — Optional graph driver (Memgraph compatibility)
 - `python-dotenv>=1.1.1`, `numpy>=2.3.3` — Utilities
 
+## Embeddings Cohesion & Canonical Flow (v4.4.2+)
+
+### Canonical Embeddings Architecture
+
+- **Single Source of Truth:** All embeddings for both OneAgent and mem0 are generated via the OneAgent `/api/v1/embeddings` endpoint.
+- **Configuration:**
+  - `.env` sets `ONEAGENT_EMBEDDINGS_URL` (used by mem0 and OneAgent)
+  - `ONEAGENT_EMBEDDINGS_SOURCE=node` ensures mem0 uses the OneAgent endpoint
+  - `OPENAI_API_KEY` and `GEMINI_API_KEY` are used for provider fallback
+- **mem0 Configuration:**
+  - `servers/mem0_fastmcp_server.py` loads `.env` and configures its embedder to use the OneAgent endpoint if available
+  - Fallback to OpenAI only if Gemini is disabled and OneAgent endpoint is not available
+- **TypeScript Configuration:**
+  - `coreagent/config/index.ts` and `UnifiedBackboneService` use env-driven config for embeddings provider/model
+  - All memory and embeddings operations route through canonical services
+
+### Startup Order
+
+- **Best Practice:** Start the MCP server (OneAgent) before the memory server (mem0) to ensure the embeddings endpoint is available for mem0 at startup.
+- **Script:** Use `./scripts/start-oneagent-system.ps1` for correct order.
+
+### Troubleshooting Embeddings Mismatches
+
+- **Symptoms:** Semantic search or memory creation fails, or embeddings are inconsistent between systems.
+- **Checklist:**
+  1. Ensure both servers are running and `.env` is consistent
+  2. Confirm `ONEAGENT_EMBEDDINGS_URL` is set and reachable from mem0
+  3. Check logs for errors about missing or fallback embeddings provider
+  4. Validate that both systems use the same model (e.g., `text-embedding-3-small`)
+  5. Restart both servers after config changes
+
+**References:**
+
+- `.env` (ONEAGENT_EMBEDDINGS_URL, ONEAGENT_EMBEDDINGS_SOURCE, OPENAI_API_KEY, GEMINI_API_KEY)
+- `servers/mem0_fastmcp_server.py` (embedder config)
+- `coreagent/config/index.ts` (TypeScript config)
+- [memory-system-architecture.md](./memory-system-architecture.md)
+
+---
+
 **Type Safety (v4.3.0 Fixes)**:
 
 - Line 190: `health.backend` converted via `JSON.stringify()` (Record<string, string> → string)

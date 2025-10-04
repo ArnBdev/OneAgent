@@ -1,16 +1,13 @@
-import { OneAgentMemory } from '../../coreagent/memory/OneAgentMemory';
-import { createUnifiedTimestamp } from '../../coreagent/utils/UnifiedBackboneService';
+import {
+  getOneAgentMemory,
+  createUnifiedTimestamp,
+} from '../../coreagent/utils/UnifiedBackboneService';
 
 describe('memory integration (embedding + search)', () => {
   jest.setTimeout(20000);
+  jest.setTimeout(20000);
   it('adds memory with embedding metadata and can search it', async () => {
-    const memory = OneAgentMemory.getInstance();
-    const ready = await memory.waitForReady?.(10000, 500);
-    if (!ready) {
-      console.warn('[TEST] Memory server not ready; skipping embedding/search integration test.');
-      expect(true).toBe(true);
-      return;
-    }
+    const memory = getOneAgentMemory();
     const testMemory = {
       content: 'BMAD memory integration test for gemini-embedding-001 model',
       metadata: {

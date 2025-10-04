@@ -148,6 +148,7 @@ The `health_delta` channel now automatically includes memory backend health stat
 ```
 
 **Status Values**:
+
 - `healthy`: Backend responsive, all capabilities available
 - `degraded`: Backend responsive but slow (>500ms latency)
 - `unhealthy`: Backend unreachable or returning errors
@@ -214,12 +215,12 @@ Triggers when memory backend response time exceeds 1000ms.
 
 New metrics exposed via `exposePrometheusMetrics()` method in `UnifiedMonitoringService`:
 
-| Metric                                   | Type  | Labels      | Description                                                       | Example Value |
-| ---------------------------------------- | ----- | ----------- | ----------------------------------------------------------------- | ------------- |
-| `oneagent_memory_backend_healthy`        | gauge | `backend`   | Health status (1=healthy, 0.5=degraded, 0=unhealthy)             | `1`           |
-| `oneagent_memory_backend_latency_ms`     | gauge | `backend`   | Response time in milliseconds                                     | `42`          |
-| `oneagent_memory_backend_capabilities`   | gauge | `backend`   | Available tool count                                              | `7`           |
-| `oneagent_system_health`                 | gauge | (none)      | Overall system health score (0-100)                               | `95`          |
+| Metric                                 | Type  | Labels    | Description                                          | Example Value |
+| -------------------------------------- | ----- | --------- | ---------------------------------------------------- | ------------- |
+| `oneagent_memory_backend_healthy`      | gauge | `backend` | Health status (1=healthy, 0.5=degraded, 0=unhealthy) | `1`           |
+| `oneagent_memory_backend_latency_ms`   | gauge | `backend` | Response time in milliseconds                        | `42`          |
+| `oneagent_memory_backend_capabilities` | gauge | `backend` | Available tool count                                 | `7`           |
+| `oneagent_system_health`               | gauge | (none)    | Overall system health score (0-100)                  | `95`          |
 
 **Example Prometheus Exposition**:
 
@@ -251,8 +252,8 @@ oneagent_system_health 95
   labels:
     severity: critical
   annotations:
-    summary: "Memory backend {{ $labels.backend }} is unhealthy"
-    description: "Health value: {{ $value }} (should be 1 for healthy)"
+    summary: 'Memory backend {{ $labels.backend }} is unhealthy'
+    description: 'Health value: {{ $value }} (should be 1 for healthy)'
 
 # Alert: Memory Backend Slow
 - alert: MemoryBackendSlow
@@ -261,8 +262,8 @@ oneagent_system_health 95
   labels:
     severity: warning
   annotations:
-    summary: "Memory backend {{ $labels.backend }} latency high"
-    description: "Latency: {{ $value }}ms (threshold: 1000ms)"
+    summary: 'Memory backend {{ $labels.backend }} latency high'
+    description: 'Latency: {{ $value }}ms (threshold: 1000ms)'
 
 # Alert: Memory Backend No Capabilities
 - alert: MemoryBackendNoCapabilities
@@ -271,17 +272,19 @@ oneagent_system_health 95
   labels:
     severity: critical
   annotations:
-    summary: "Memory backend {{ $labels.backend }} has no capabilities"
-    description: "Backend may be partially initialized or misconfigured"
+    summary: 'Memory backend {{ $labels.backend }} has no capabilities'
+    description: 'Backend may be partially initialized or misconfigured'
 ```
 
 ### Testing Memory Backend Monitoring
 
 **1. Unit Tests**:
+
 - `tests/monitoring/prometheus-memory-backend.test.ts`: Prometheus metrics exposition
 - `tests/mission-control/anomalyAlertChannel.test.ts`: Anomaly detection rules
 
 **2. Integration Tests**:
+
 - Verify `health_delta` payload includes `memoryService` component
 - Verify `anomaly_alert` emits CRITICAL/WARNING for memory backend issues
 - Verify Prometheus metrics endpoint returns memory backend gauges

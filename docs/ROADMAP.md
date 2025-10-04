@@ -299,6 +299,24 @@ OneAgent v4.4.1 achieves **Orchestration Excellence** with Circuit Breaker Patte
 - Extensions mechanism enables other agents to discover/use GMA capability
 - Memory audit captures full specification lifecycle across agent boundaries
 
+### 5.3 Embeddings Cohesion & Canonical Flow (COMPLETED ✅ v4.4.2)
+
+**Achievement Summary**:
+
+- ✅ **Audit Complete**: Both OneAgent and mem0 are configured to use the canonical OneAgent `/api/v1/embeddings` endpoint for all embeddings.
+- ✅ **Configuration**: `.env` sets `ONEAGENT_EMBEDDINGS_URL` and `ONEAGENT_EMBEDDINGS_SOURCE=node` for mem0; TypeScript and Python both load from this source.
+- ✅ **Documentation**: `ONEAGENT_ARCHITECTURE.md` and `memory-system-architecture.md` updated with a new section on embeddings cohesion, canonical config, startup order, and troubleshooting.
+- ✅ **No Fragmentation**: All config is environment-driven and surfaced in both systems; fallback to OpenAI only if endpoint is unavailable.
+- ✅ **Startup Order Clarified**: Best practice is to start MCP (OneAgent) before mem0 to ensure endpoint availability.
+- ✅ **Troubleshooting**: Checklist and log/error guidance added to docs.
+
+**Next Steps**:
+
+- Phase 4: End-to-end semantic search tests (cross-system memory discoverability)
+- Expand monitoring and anomaly alerting for embeddings health/search quality
+- User-facing testing and documentation for Copilot Chat and semantic search
+- Update CHANGELOG.md with audit and doc changes
+
 ### 5.4 Canonical Cache & Release Automation (COMPLETED ✅ v4.2.2)
 
 - All cross-cutting caches unified (`OneAgentUnifiedBackbone.getInstance().cache`)
