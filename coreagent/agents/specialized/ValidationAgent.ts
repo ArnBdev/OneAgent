@@ -19,7 +19,12 @@ import {
 import { ISpecializedAgent, AgentHealthStatus } from '../base/ISpecializedAgent';
 import { OneAgentMemory } from '../../memory/OneAgentMemory';
 import { UnifiedMetadata, MemoryRecord } from '../../types/oneagent-backbone-types';
-import { generateUnifiedId, getOneAgentMemory } from '../../utils/UnifiedBackboneService';
+import {
+  generateUnifiedId,
+  getOneAgentMemory,
+  createUnifiedTimestamp,
+  unifiedTimeService,
+} from '../../utils/UnifiedBackboneService';
 
 export interface ValidationResult {
   isValid: boolean;
@@ -217,13 +222,14 @@ export class ValidationAgent extends BaseAgent implements ISpecializedAgent {
    */
   private createValidationMemoryRecord(sample: string): MemoryRecord | null {
     try {
+      const ts = createUnifiedTimestamp();
       return {
         id: generateUnifiedId('validation', this.config.id),
         content: sample,
         metadata: {
           type: 'validation_sample',
-          created: new Date().toISOString(),
-          updated: new Date().toISOString(),
+          created: ts.iso,
+          updated: ts.iso,
           tags: ['validation', 'sample'],
         },
       } as unknown as MemoryRecord;
@@ -258,13 +264,14 @@ export class ValidationAgent extends BaseAgent implements ISpecializedAgent {
 
     const overallScore = this.calculateQualityScore(metrics);
 
+    const ts = createUnifiedTimestamp();
     return {
       isValid: overallScore >= 80,
       score: overallScore,
       issues: this.convertMetricsToIssues(metrics),
       recommendations: this.generateImprovementSuggestions(metrics, strictMode),
       metadata: {
-        timestamp: new Date().toISOString(),
+        timestamp: ts.iso,
         validationType: 'code_quality',
         language,
         strictMode: strictMode || false,
@@ -324,6 +331,7 @@ export class ValidationAgent extends BaseAgent implements ISpecializedAgent {
     const overallScore = principles.reduce((sum, p) => sum + p.score, 0) / principles.length;
 
     // Store validation result in memory for learning
+    const ts = createUnifiedTimestamp();
     if (this.config.memoryEnabled && context) {
       await this.storeValidationResult(
         {
@@ -335,7 +343,7 @@ export class ValidationAgent extends BaseAgent implements ISpecializedAgent {
             principles,
             recommendations: this.getConstitutionalRecommendationsEnhanced(principleChecks),
           },
-          timestamp: new Date().toISOString(),
+          timestamp: ts.iso,
         },
         context,
       );
@@ -929,10 +937,10 @@ export class ValidationAgent extends BaseAgent implements ISpecializedAgent {
             },
           },
           contextSnapshot: {
-            timeOfDay: new Date().getHours() < 12 ? 'morning' : 'afternoon',
-            dayOfWeek: new Date().toLocaleDateString('en-US', { weekday: 'long' }),
+            timeOfDay: timestamp.contextual.timeOfDay,
+            dayOfWeek: unifiedTimeService.getContext().context.dayOfWeek,
             businessContext: true,
-            energyContext: 'focused',
+            energyContext: timestamp.contextual.energyLevel,
           },
         },
         analytics: {
@@ -988,7 +996,7 @@ export class ValidationAgent extends BaseAgent implements ISpecializedAgent {
           metadata: {
             validationType: 'constitutional_check',
             agentId: this.id,
-            timestamp: new Date(),
+            timestamp: createUnifiedTimestamp().iso,
             confidence: 0.9,
             constitutionalResult: validationResult,
           },
@@ -1014,7 +1022,7 @@ What would you like me to validate or analyze?`;
           metadata: {
             validationType: 'general_guidance',
             agentId: this.id,
-            timestamp: new Date(),
+            timestamp: createUnifiedTimestamp().iso,
             confidence: 0.8,
           },
         };
@@ -1042,7 +1050,7 @@ What would you like me to validate or analyze?`;
         metadata: {
           validationType: 'error',
           agentId: this.id,
-          timestamp: new Date(),
+          timestamp: createUnifiedTimestamp().iso,
           error: error instanceof Error ? error.message : 'Unknown error',
           confidence: 0.1,
         },

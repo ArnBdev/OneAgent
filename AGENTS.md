@@ -1,5 +1,98 @@
 # OneAgent AGENTS.md — Canonical Agent Instructions
 
+## 🚨 Zero Tolerance Poli- This `AGENTS.md` is intentionally at repo root to be auto-discovered by Copilot coding agent (v1.104+).
+
+- **Auto-Loading**: VS Code v1.104+ automatically loads `AGENTS.md` as context for all chat requests (`chat.useAgentsMdFile` setting).
+- See [docs/IDE_SETUP.md](./docs/IDE_SETUP.md) and [PROMPTING_GUIDE.md](./PROMPTING_GUIDE.md) for Copilot Chat wiring, persona usage, and DX tips.
+- Copilot Chat expects command-based MCP (see `.vscode/mcp.json`). The HTTP endpoint is for tooling/debug only.
+- Create a BMAD story from VS Code: Run the "Create Story (BMAD template)" task and enter a title.
+- Or via npm: `npm run story:new -- "Your Story Title"`
+- Keep issues well-scoped with explicit acceptance criteria and targeted file paths.
+- Use repository-wide instructions here; add optional path-scoped rules in `.github/instructions/**/*.instructions.md` (e.g., tests, Playwright, React) that reference this file.
+- MCP: Use the unified server (`npm run server:unified`); only approved tools per OneAgent docs. Avoid inventing tools.
+- Optional acceleration: Add `copilot-setup-steps.yml` to preinstall dependencies in Copilot's ephemeral env when needed.
+
+### VS Code v1.104+ DevAgent Autonomy Features
+
+**Custom Chat Modes (Personas)**:
+
+- All OneAgent personas are in `.github/chatmodes/` as `.chatmode.md` files.
+- Activate with `/persona-name` in chat (e.g., `/oneagent-dev`, `/oneagent-architect`).
+- See [PROMPTING_GUIDE.md](./PROMPTING_GUIDE.md) for full persona documentation.
+
+**Prompt File Auto-Selection**:
+
+- VS Code auto-suggests personas based on file/task context (see `.vscode/settings.json` → `chat.promptFilesRecommendations`).
+- TypeScript files → DevAgent, Architecture docs → Architect, Test files → ValidationAgent, etc.
+
+**Terminal Auto-Approve** (v1.104):
+
+- DevAgent can auto-approve safe terminal commands (build, test, lint, git status, etc.).
+- Configured in `.vscode/settings.json` → `chat.tools.terminal.autoApprove`.
+- Denies dangerous commands (rm, del, git push, etc.) by default.
+
+**Sensitive File Protection** (v1.104):
+
+- DevAgent asks for confirmation before editing sensitive files (`.env`, `package.json`, `AGENTS.md`, etc.).
+- Configured in `.vscode/settings.json` → `chat.tools.edits.autoApprove`.
+
+**Chat Checkpoints** (v1.103):
+
+- Restore chat conversations and workspace changes to previous states.
+- Enabled by default (`chat.checkpoints.enabled`).
+
+**Todo List Tool** (v1.104):
+
+- DevAgent breaks down complex tasks into smaller todos and reports progress.
+- Enabled by default (`chat.todoList.enabled`).
+
+**Pylance `runCodeSnippet` Tool** (v1.104):
+
+- Execute Python snippets in memory without terminal or temp files.
+- Ideal for testing OneAgent Python code (memory server, MCP server, etc.).
+- Available in Chat view → Add context → Tools → `pylanceRunCodeSnippet`.
+
+**Auto Model Selection** (v1.104 Preview):
+
+- VS Code auto-selects the optimal model (Claude Sonnet 4, GPT-5, GPT-5 mini, GPT-4.1) for each request.
+- Enable "Auto" in Chat view model picker.
+
+**MCP Tool Grouping** (v1.103):
+
+- When tool count exceeds 128, VS Code auto-groups tools and allows model to activate groups dynamically.
+- Threshold configurable via `github.copilot.chat.virtualTools.threshold`.
+
+**For full DevAgent autonomy setup and usage, see**:
+
+- [PROMPTING_GUIDE.md](./PROMPTING_GUIDE.md): Persona usage, auto-selection, testing, best practices
+- [.instructions.md](./.instructions.md): Canonical patterns, zero tolerance, PR checklist
+- [.github/chatmodes/personas.json](./.github/chatmodes/personas.json): Persona manifest and auto-selection rules
+- [.vscode/settings.json](./.vscode/settings.json): VS Code Copilot configurationll violations (major or minor) must be fixed before marking a task, PR, or release as complete. No exceptions, no deferrals, no warnings left behind.\*\*
+
+## Canonical Pattern Audit
+
+- Run a grep/regex audit for forbidden patterns at least monthly and before every release:
+  - `grep -r "new Date()|Date.now()|private memory:|new Map|Math.random|CustomMemoryClass|CustomEventBus" coreagent/`
+- CI must fail if any forbidden pattern is found.
+
+## PR Reviewer Checklist (Strict)
+
+- [ ] No forbidden patterns (see above) anywhere in the diff
+- [ ] All new files using time/ID/memory/cache/comm import canonical utilities
+- [ ] All agents extend `BaseAgent` and implement `ISpecializedAgent`
+- [ ] No warnings or errors in TypeScript or ESLint
+- [ ] All tests for canonical compliance pass
+- [ ] CHANGELOG, ROADMAP, and API_REFERENCE updated if relevant
+- [ ] AGENTS.md referenced for any new architectural pattern
+
+## Green-Before-Done
+
+- Never mark a task or PR complete with any known violation or warning. All must be fixed before completion.
+
+## No Deferred Violations
+
+- All violations must be fixed before closing a task, PR, or release. No exceptions.
+
 > Scope: Repository-wide. This is the single source of truth for agent instructions. Do not create parallel agent instruction files. If path-specific guidance is needed, prefer `.github/instructions/**/*.instructions.md` that reference this file.
 
 ## Project Overview

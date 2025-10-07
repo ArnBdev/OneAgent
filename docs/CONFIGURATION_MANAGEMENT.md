@@ -1,4 +1,4 @@
-﻿# OneAgent Configuration Management - Architecture & Best Practices
+# OneAgent Configuration Management - Architecture & Best Practices
 
 ## Executive Summary
 

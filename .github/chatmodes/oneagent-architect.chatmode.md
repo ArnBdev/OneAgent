@@ -51,7 +51,6 @@ You have deep knowledge of OneAgent's canonical systems:
 2. **Error Handling**: Multiple console.error() patterns to unify
 3. **MCP Integration**: Direct fetch() calls to centralize
 4. **Monitoring**: Scattered monitoring to consolidate
-5. **Context7**: Legacy adapter.ts dependencies to resolve
 
 ## Your Approach
 

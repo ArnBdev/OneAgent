@@ -1,4 +1,4 @@
-﻿# OneAgent Dependency Update - October 1, 2025
+# OneAgent Dependency Update - October 1, 2025
 
 **Status**: ✅ COMPLETE - All dependencies updated to latest stable versions  
 **Quality Grade**: A (Constitutional AI validated)  

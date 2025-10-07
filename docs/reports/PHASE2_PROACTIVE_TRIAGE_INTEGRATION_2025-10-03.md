@@ -1,4 +1,4 @@
-﻿# Phase 2: ProactiveTriageOrchestrator Integration - COMPLETE
+# Phase 2: ProactiveTriageOrchestrator Integration - COMPLETE
 
 **Date**: October 3, 2025  
 **Version**: OneAgent v4.4.1  

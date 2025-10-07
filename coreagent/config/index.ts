@@ -206,9 +206,9 @@ export const oneAgentConfig: ServerConfig = {
   },
 
   // A2A Protocol Configuration
-  a2aProtocolVersion: process.env.ONEAGENT_A2A_PROTOCOL_VERSION || '0.2.5',
+  a2aProtocolVersion: process.env.ONEAGENT_A2A_PROTOCOL_VERSION || '0.3.0',
   a2aBaseUrl: process.env.ONEAGENT_A2A_BASE_URL || 'http://127.0.0.1:8083/a2a',
-  a2aWellKnownPath: process.env.ONEAGENT_A2A_WELL_KNOWN_PATH || '/.well-known/agent.json',
+  a2aWellKnownPath: process.env.ONEAGENT_A2A_WELL_KNOWN_PATH || '/.well-known/agent-card.json',
   a2aTransport: process.env.ONEAGENT_A2A_TRANSPORT || 'JSONRPC',
   a2aSecurityEnabled: process.env.ONEAGENT_A2A_SECURITY_ENABLED === 'true',
   a2aDiscoveryEnabled: process.env.ONEAGENT_A2A_DISCOVERY_ENABLED === 'true',

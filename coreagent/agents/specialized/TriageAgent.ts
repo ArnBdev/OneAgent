@@ -21,7 +21,7 @@ import type { ConstitutionalPrinciple } from '../../types/oneagent-backbone-type
 import { MemoryRecord } from '../../types/oneagent-backbone-types';
 import { proactiveObserverService } from '../../services/ProactiveTriageOrchestrator';
 import { OneAgentMemory } from '../../memory/OneAgentMemory';
-import { getOneAgentMemory } from '../../utils/UnifiedBackboneService';
+import { createUnifiedTimestamp } from '../../utils/UnifiedBackboneService';
 
 interface TaskAnalysis {
   confidence: number;
@@ -79,11 +79,8 @@ interface TriageAnalysis {
 }
 
 export class TriageAgent extends BaseAgent implements ISpecializedAgent {
-  private memory: OneAgentMemory;
-
   constructor(config: AgentConfig, promptConfig?: PromptConfig, memory?: OneAgentMemory) {
-    super(config, promptConfig || TriageAgent.createTriagePromptConfig());
-    this.memory = memory || getOneAgentMemory();
+    super(config, promptConfig || TriageAgent.createTriagePromptConfig(), memory);
   }
 
   /** ISpecializedAgent interface implementation */
@@ -286,7 +283,7 @@ export class TriageAgent extends BaseAgent implements ISpecializedAgent {
       },
       alternatives: this.getAlternativeAgents(selectedAgent),
       metadata: {
-        timestamp: new Date().toISOString(),
+        timestamp: createUnifiedTimestamp().iso,
         taskType: this.categorizeTask(task),
         complexity: this.assessComplexity(task),
       },
@@ -554,11 +551,11 @@ export class TriageAgent extends BaseAgent implements ISpecializedAgent {
 
       // Canonical memory search
 
-      const relevantMemories = (await this.memory.searchMemory({
+      const relevantMemories = ((await this.memoryClient?.searchMemory({
         query: message,
         userId: context.user.id,
         limit: 5,
-      })) as MemoryRecord[];
+      })) || []) as MemoryRecord[];
 
       // Analyze the task/query for routing decisions
       const triageAnalysis = await this.analyzeTaskForTriage(message, relevantMemories);
@@ -568,14 +565,14 @@ export class TriageAgent extends BaseAgent implements ISpecializedAgent {
 
       // Store this routing decision in memory for future reference (canonical signature)
 
-      await this.memory.addMemory({
+      await this.memoryClient?.addMemory({
         content: `Triage Analysis: ${message}\nRouting Decision: ${JSON.stringify(triageAnalysis)}\nResponse: ${response}`,
         metadata: {
           type: 'triage_decision',
           priority: triageAnalysis.priority,
           recommendedAgent: triageAnalysis.recommendedAgent,
           category: triageAnalysis.category,
-          timestamp: new Date().toISOString(),
+          timestamp: createUnifiedTimestamp().iso,
           sessionId: context.sessionId,
         },
       });

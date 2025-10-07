@@ -56,7 +56,7 @@ if (-not $NoBanner) {
     Write-Host "===============================" -ForegroundColor Green
     Write-Host " OneAgent System Startup " -ForegroundColor Green
     Write-Host "===============================" -ForegroundColor Green
-    Write-Host "This script will launch BOTH the memory server and the MCP server in parallel." -ForegroundColor Yellow
+    Write-Host "This script will launch the memory server FIRST, then the MCP server." -ForegroundColor Yellow
     Write-Host "Environment is read from .env at repo root by each server; ensure MEM0_API_KEY is set for authenticated memory ops." -ForegroundColor Yellow
     Write-Host "To stop all servers, close their terminal windows or use Task Manager." -ForegroundColor Yellow
     Write-Host "" 
@@ -67,6 +67,29 @@ $memPort = if ($env:ONEAGENT_MEMORY_PORT) { [int]$env:ONEAGENT_MEMORY_PORT } els
 $mcpPort = if ($env:ONEAGENT_MCP_PORT) { [int]$env:ONEAGENT_MCP_PORT } else { 8083 }
 
 
+# Start Memory Server FIRST (Python/FastAPI/Uvicorn)
+# CRITICAL: Memory server must be running before MCP server starts
+# MCP server depends on memory for agent registration and system initialization
+$pythonPath = if ($env:VIRTUAL_ENV) { 
+    Join-Path $env:VIRTUAL_ENV "Scripts\python.exe" 
+} else { 
+    "python" 
+}
+$memoryServerCmd = "`"$pythonPath`" servers/mem0_fastmcp_server.py"
+Start-ProcessWithBanner -Name "Memory Server (mem0+FastMCP)" -Command $memoryServerCmd -WorkingDirectory "$PSScriptRoot/.."
+
+# Wait for Memory health endpoint before starting MCP server
+$memoryProbeUrl = "http://127.0.0.1:$memPort/mcp"
+Write-Host "[OneAgent] Waiting for Memory server to start (up to 30 seconds)..." -ForegroundColor Yellow
+$memoryReady = Wait-HttpReady -Url $memoryProbeUrl -TimeoutSec 30 -DelayMs 1000
+if ($memoryReady) {
+    Write-Host "[Probe] ✅ Memory server READY" -ForegroundColor Green
+} else {
+    Write-Host "[Probe] ⏱️  Memory server not responding" -ForegroundColor Yellow
+    Write-Host "[OneAgent] Check the Memory server window for errors." -ForegroundColor Cyan
+    Write-Host "[OneAgent] MCP server will start anyway but may have limited functionality." -ForegroundColor Cyan
+}
+
 # Start MCP Server (Node/TypeScript via ts-node/register; no npx/tsx dependency)
 $tsNodeRegister = node -e "try{console.log(require.resolve('ts-node/register'))}catch{process.exit(1)}"
 if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace($tsNodeRegister)) {
@@ -76,70 +99,29 @@ if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace($tsNodeRegister)) {
 $mcpServerCmd = "node -r `"$tsNodeRegister`" coreagent/server/unified-mcp-server.ts"
 Start-ProcessWithBanner -Name "MCP Server (Node/TypeScript)" -Command $mcpServerCmd -WorkingDirectory "$PSScriptRoot/.."
 
-# Wait for MCP health endpoint before starting memory server
+# Wait a few seconds for MCP server to start
+Write-Host "[OneAgent] Waiting for MCP server to start (up to 30 seconds)..." -ForegroundColor Yellow
 $mcpProbeUrl = "http://127.0.0.1:$mcpPort/health"
-Write-Host "[OneAgent] Waiting for MCP server HTTP to start (up to 30 seconds)..." -ForegroundColor Yellow
-$mcpReady = Wait-HttpReady -Url $mcpProbeUrl -TimeoutSec 30
+$mcpReady = Wait-HttpReady -Url $mcpProbeUrl -TimeoutSec 30 -DelayMs 1000
 if ($mcpReady) {
-    Write-Host "[Probe] ✅ MCP HTTP server READY (tools initializing in background)" -ForegroundColor Green
+    Write-Host "[Probe] ✅ MCP server READY" -ForegroundColor Green
 } else {
-    Write-Host "[Probe] ⏱️  MCP HTTP server not responding" -ForegroundColor Yellow
-    Write-Host "[OneAgent] Check the MCP server window for errors." -ForegroundColor Cyan
-    Write-Host "[OneAgent] Memory server will start anyway - both servers work independently." -ForegroundColor Cyan
-}
-
-# Start Memory Server (Python/FastAPI/Uvicorn)
-# Note: Uses old server name for backward compatibility - will be updated to mem0_fastmcp_server.py
-$pythonPath = if ($env:VIRTUAL_ENV) { 
-    Join-Path $env:VIRTUAL_ENV "Scripts\python.exe" 
-} else { 
-    "python" 
-}
-$memoryServerCmd = "`"$pythonPath`" servers/mem0_fastmcp_server.py"
-Start-ProcessWithBanner -Name "Memory Server (mem0+FastMCP)" -Command $memoryServerCmd -WorkingDirectory "$PSScriptRoot/.."
-
-# Optional readiness check for memory server
-# Note: FastMCP's /mcp endpoint returns 406 (Not Acceptable) for simple GET - this is NORMAL
-# We just need to check if the server socket is accepting connections (any response = server up)
-Write-Host "[OneAgent] Waiting for Memory server to become healthy (up to 20 seconds)..." -ForegroundColor Yellow
-$memReady = $false
-$memDeadline = (Get-Date).AddSeconds(20)
-while ((Get-Date) -lt $memDeadline) {
-    try {
-        # Any response (including 406) means server is up
-        $resp = Invoke-WebRequest -Uri "http://127.0.0.1:$memPort/mcp" -Method Get -UseBasicParsing -TimeoutSec 3 -ErrorAction Stop
-        $memReady = $true
-        break
-    } catch [System.Net.WebException] {
-        # 406 Not Acceptable is expected - server is up!
-        if ($_.Exception.Response.StatusCode -eq 406) {
-            $memReady = $true
-            break
-        }
-    } catch {
-        # Server not ready yet, keep trying
-    }
-    Start-Sleep -Milliseconds 500
-}
-if ($memReady) { 
-    Write-Host "[Probe] ✅ Memory server READY (port $memPort)" -ForegroundColor Green 
-} else { 
-    Write-Host "[Probe] ⏱️  Memory server still initializing" -ForegroundColor Yellow 
-    Write-Host "[OneAgent] Check the memory server window - should show 'Uvicorn running' when ready." -ForegroundColor Cyan
+    Write-Host "[Probe] ⏱️  MCP server still initializing" -ForegroundColor Yellow
+    Write-Host "[OneAgent] Check the MCP server window for detailed logs." -ForegroundColor Cyan
 }
 
 # Final status report
 Write-Host ""
-if ($mcpReady -and $memReady) {
+if ($mcpReady -and $memoryReady) {
     Write-Host "===============================" -ForegroundColor Green
     Write-Host " ✅ SYSTEM READY" -ForegroundColor Green
     Write-Host "===============================" -ForegroundColor Green
-    Write-Host "MCP Server:    http://127.0.0.1:$mcpPort" -ForegroundColor Cyan
-    Write-Host "Memory Server: http://127.0.0.1:$memPort" -ForegroundColor Cyan
+    Write-Host "Memory Server: http://127.0.0.1:$memPort/mcp" -ForegroundColor Cyan
+    Write-Host "MCP Server:    http://127.0.0.1:$mcpPort/health" -ForegroundColor Cyan
 } else {
     Write-Host "[OneAgent] ℹ️  Servers are starting in background windows" -ForegroundColor Cyan
     Write-Host "[OneAgent] Check the server windows for detailed progress logs." -ForegroundColor Cyan
-    Write-Host "[OneAgent] Both servers work independently - MCP tools will function even if memory is still starting." -ForegroundColor Cyan
+    Write-Host "[OneAgent] Memory server MUST be ready before MCP server can register agents." -ForegroundColor Yellow
 }
 Write-Host ""
 Write-Host "[OneAgent] To stop servers: Close their terminal windows or use Task Manager." -ForegroundColor DarkGray

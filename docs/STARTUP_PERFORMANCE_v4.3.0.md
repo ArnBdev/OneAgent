@@ -1,4 +1,4 @@
-﻿# OneAgent Startup Performance Optimization (v4.3.0.x)
+# OneAgent Startup Performance Optimization (v4.3.0.x)
 
 > **Created**: October 1, 2025  
 > **Status**: Complete  

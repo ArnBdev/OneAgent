@@ -1,4 +1,4 @@
-﻿# Session Summary: Gemini Migration + Epic 15 Analysis
+# Session Summary: Gemini Migration + Epic 15 Analysis
 
 **Date**: October 1, 2025  
 **Duration**: ~2 hours  

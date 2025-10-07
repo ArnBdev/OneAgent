@@ -1,4 +1,4 @@
-﻿# Google Gemini SDK Migration Summary
+# Google Gemini SDK Migration Summary
 
 **Date**: October 1, 2025  
 **Status**: ✅ COMPLETE  

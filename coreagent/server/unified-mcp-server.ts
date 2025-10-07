@@ -82,6 +82,16 @@ console.log('[TRACE] 🔵 All imports complete, creating Express app...');
 import { Request, Response, NextFunction } from 'express';
 import { createMetricsRouter } from '../api/metricsAPI';
 import { taskDelegationService } from '../services/TaskDelegationService';
+
+// MCP Session Management imports
+console.log('[TRACE] 🔵 Importing MCP session management...');
+import { MCPSessionManager } from './MCPSessionManager';
+import { InMemorySessionStorage, InMemoryEventLog } from './MCPSessionStorage';
+import { createDevCorsMiddleware } from './MCPCorsMiddleware';
+import { createPermissiveSessionMiddleware } from './MCPSessionMiddleware';
+import type { SessionConfig } from '../types/MCPSessionTypes';
+console.log('[TRACE] 🔵 MCP session management imported');
+
 console.log('[TRACE] 🔵 Creating Express app instance...');
 const app = express();
 console.log('[TRACE] 🔵 Express app created');
@@ -108,8 +118,61 @@ app.get('/metrics', (req, res, next) => {
 // REMOVE authentication for /mcp endpoint for local/dev Copilot Chat compatibility
 // app.use('/mcp', passport.authenticate('oauth-bearer', { session: false }));
 
-// Basic CORS headers
+// ============================================================================
+// MCP Session Management Setup
+// ============================================================================
+console.log('[INIT] 🔐 Initializing MCP session management...');
+
+// Session configuration
+const sessionConfig: SessionConfig = {
+  sessionTimeoutMs: 30 * 60 * 1000, // 30 minutes
+  enabled: true,
+  cleanupIntervalMs: 5 * 60 * 1000, // 5 minutes
+  eventLogTTLMs: 60 * 60 * 1000, // 1 hour
+  maxEventsPerSession: 1000,
+};
+
+// Initialize session storage and manager
+const sessionStorage = new InMemorySessionStorage(sessionConfig.cleanupIntervalMs);
+const eventLog = new InMemoryEventLog(sessionConfig.maxEventsPerSession);
+const sessionManager = new MCPSessionManager(sessionStorage, eventLog, sessionConfig);
+
+console.log('[INIT] ✅ Session manager initialized', {
+  sessionTimeoutMs: sessionConfig.sessionTimeoutMs,
+  cleanupIntervalMs: sessionConfig.cleanupIntervalMs,
+  maxEventsPerSession: sessionConfig.maxEventsPerSession,
+});
+
+// Add CORS middleware (FIRST - must be before other middleware)
+console.log('[INIT] 🔐 Adding CORS middleware...');
+app.use(
+  createDevCorsMiddleware([
+    'https://oneagent.io', // Production website (future)
+    'http://localhost:*', // Development (covered by allowLocalhost)
+  ]),
+);
+console.log('[INIT] ✅ CORS middleware added');
+
+// Add session middleware (SECOND - validates sessions)
+console.log('[INIT] 🔐 Adding session middleware...');
+app.use(
+  createPermissiveSessionMiddleware(sessionManager, [
+    '/health',
+    '/health/sessions',
+    '/api/v1/metrics',
+  ]),
+);
+console.log('[INIT] ✅ Session middleware added');
+
+// Basic CORS headers (DEPRECATED - replaced by MCP CORS middleware above)
+// Keeping for backwards compatibility with non-MCP endpoints
 app.use((req: Request, res: Response, next: NextFunction) => {
+  // Skip if CORS headers already set by MCP middleware
+  if (res.getHeader('Access-Control-Allow-Origin')) {
+    next();
+    return;
+  }
+
   res.header('Access-Control-Allow-Origin', '*');
   res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
   res.header(
@@ -243,11 +306,15 @@ async function initializeServer(): Promise<void> {
 /**
  * Handle MCP request and convert to OneAgent format
  */
-async function handleMCPRequest(mcpRequest: MCPRequest): Promise<MCPResponse> {
+async function handleMCPRequest(
+  mcpRequest: MCPRequest,
+  req?: Request,
+  res?: Response,
+): Promise<MCPResponse> {
   try {
     // Handle MCP protocol methods
     if (mcpRequest.method === 'initialize') {
-      return handleInitialize(mcpRequest);
+      return await handleInitialize(mcpRequest, req, res);
     }
 
     if (mcpRequest.method === 'notifications/initialized') {
@@ -357,7 +424,11 @@ function determineRequestType(method: string): OneAgentRequest['type'] {
   return 'tool_call';
 }
 
-function handleInitialize(mcpRequest: MCPRequest): MCPResponse {
+async function handleInitialize(
+  mcpRequest: MCPRequest,
+  req?: Request,
+  res?: Response,
+): Promise<MCPResponse> {
   const params = mcpRequest.params as unknown as MCPInitializeParams;
   if (!params || !params.clientInfo || !params.clientInfo.name) {
     return {
@@ -397,6 +468,31 @@ function handleInitialize(mcpRequest: MCPRequest): MCPResponse {
       },
     },
   };
+
+  // Create MCP session (MCP 2025-06-18 feature)
+  if (sessionConfig.enabled && req && res) {
+    try {
+      const origin = req.headers?.origin || req.headers?.referer || 'unknown';
+      const sessionResult = await sessionManager.createSession(
+        clientInfo.name,
+        origin,
+        MCP_PROTOCOL_VERSION,
+        params.capabilities || {},
+      );
+
+      // Set Mcp-Session-Id header for client
+      res.setHeader('Mcp-Session-Id', sessionResult.sessionId);
+
+      if (!QUIET_MODE) {
+        console.log(
+          `🎫 MCP Session created: ${sessionResult.sessionId.substring(0, 8)}... (expires in ${sessionConfig.sessionTimeoutMs / 1000}s)`,
+        );
+      }
+    } catch (error) {
+      console.error('❌ Failed to create MCP session:', error);
+      // Don't fail initialization if session creation fails
+    }
+  }
 
   return {
     jsonrpc: '2.0',
@@ -875,7 +971,7 @@ app.post('/mcp', async (req: Request, res: Response) => {
       console.log(`📥 MCP Request: ${mcpRequest.method} (ID: ${mcpRequest.id})`);
     }
 
-    const response = await handleMCPRequest(mcpRequest);
+    const response = await handleMCPRequest(mcpRequest, req, res);
     // Add protocol headers for clients
     res.setHeader('X-MCP-Protocol-Version', MCP_PROTOCOL_VERSION);
     res.setHeader('Cache-Control', 'no-store');
@@ -926,7 +1022,7 @@ app.post('/mcp/stream', async (req: Request, res: Response) => {
   try {
     const mcpRequest = req.body as MCPRequest;
     write({ type: 'meta', event: 'start', timestamp: start, id: mcpRequest?.id });
-    const response = await handleMCPRequest(mcpRequest);
+    const response = await handleMCPRequest(mcpRequest, req, res);
     write({ type: 'message', data: response });
     write({ type: 'meta', event: 'end', timestamp: createUnifiedTimestamp().iso });
   } catch (error) {
@@ -1011,6 +1107,119 @@ app.get('/health', async (req: Request, res: Response) => {
       status: 'error',
       error: (error as Error)?.message || 'health_check_failed',
       timestamp: createUnifiedTimestamp().iso,
+    });
+  }
+});
+
+/**
+ * Session health/metrics endpoint (MCP 2025-06-18)
+ */
+app.get('/health/sessions', async (_req: Request, res: Response) => {
+  try {
+    if (!sessionConfig.enabled) {
+      res.status(503).json({
+        jsonrpc: '2.0',
+        error: {
+          code: -32000,
+          message: 'Session management is not enabled',
+        },
+      });
+      return;
+    }
+
+    const sessionMetrics = await sessionManager.getMetrics();
+    const storageMetrics = await sessionStorage.getMetrics();
+    const eventMetrics = await eventLog.getMetrics();
+
+    res.json({
+      timestamp: createUnifiedTimestamp().iso,
+      enabled: sessionConfig.enabled,
+      config: {
+        sessionTimeoutMs: sessionConfig.sessionTimeoutMs,
+        cleanupIntervalMs: sessionConfig.cleanupIntervalMs,
+        maxEventsPerSession: sessionConfig.maxEventsPerSession,
+      },
+      sessions: {
+        active: storageMetrics.activeSessions,
+        total: storageMetrics.totalSessions,
+        expired: storageMetrics.expiredSessions,
+      },
+      events: {
+        total: eventMetrics.totalEvents,
+        sessions: eventMetrics.totalSessions,
+        averagePerSession: eventMetrics.averageEventsPerSession,
+      },
+      overall: sessionMetrics,
+    });
+  } catch (error) {
+    res.status(500).json({
+      jsonrpc: '2.0',
+      error: {
+        code: -32603,
+        message: `Session metrics failed: ${error instanceof Error ? error.message : String(error)}`,
+      },
+    });
+  }
+});
+
+/**
+ * DELETE endpoint for session termination (MCP 2025-06-18)
+ */
+app.delete('/mcp', async (req: Request, res: Response) => {
+  try {
+    if (!sessionConfig.enabled) {
+      res.status(503).json({
+        jsonrpc: '2.0',
+        error: {
+          code: -32000,
+          message: 'Session management is not enabled',
+        },
+      });
+      return;
+    }
+
+    const sessionId = req.headers['mcp-session-id'] as string;
+
+    if (!sessionId) {
+      res.status(400).json({
+        jsonrpc: '2.0',
+        error: {
+          code: -32600,
+          message: 'Mcp-Session-Id header required for session termination',
+        },
+      });
+      return;
+    }
+
+    // Verify session exists before terminating
+    const session = await sessionManager.getSession(sessionId);
+    if (!session) {
+      res.status(404).json({
+        jsonrpc: '2.0',
+        error: {
+          code: -32001,
+          message: 'Session not found or already expired',
+        },
+      });
+      return;
+    }
+
+    // Terminate the session
+    await sessionManager.terminateSession(sessionId);
+
+    if (!QUIET_MODE) {
+      console.log(`🔒 MCP Session terminated: ${sessionId.substring(0, 8)}...`);
+    }
+
+    // Return 204 No Content for successful termination
+    res.status(204).send();
+  } catch (error) {
+    res.status(500).json({
+      jsonrpc: '2.0',
+      error: {
+        code: -32603,
+        message: `Session termination failed: ${error instanceof Error ? error.message : String(error)}`,
+      },
     });
   }
 });
@@ -1247,35 +1456,79 @@ app.get('/.well-known/agent.json', async (_req: Request, res: Response) => {
 
 /**
  * Start the unified MCP server
+ * Supports both HTTP and stdio-only modes:
+ * - HTTP mode: Full Express server with WebSocket (default)
+ * - Stdio-only mode: Pure MCP SDK stdio transport (set ONEAGENT_MCP_STDIO_ONLY=1)
  */
 async function startServer(): Promise<void> {
   try {
     const port = UnifiedBackboneService.config.mcpPort;
     const host = UnifiedBackboneService.config.host;
 
-    // Start HTTP server FIRST - makes /health endpoint available immediately
-    const server = app.listen(port, host, () => {
-      // Canonical startup banner
+    // Detect stdio-only mode (VS Code MCP client launch)
+    const isStdioOnly = process.env.ONEAGENT_MCP_STDIO_ONLY === '1';
+
+    // Start HTTP server ONLY in HTTP mode (skip for stdio-only)
+    let server: ReturnType<typeof app.listen> | undefined;
+    let missionControlWSS: ReturnType<typeof createMissionControlWSS> | undefined;
+
+    if (isStdioOnly) {
+      // Stdio-only mode: Skip HTTP server entirely
       if (!QUIET_MODE) {
         console.log('==============================================');
         console.log(`${SERVER_NAME} v${SERVER_VERSION}`);
-        console.log(`Protocol: HTTP MCP ${MCP_PROTOCOL_VERSION}`);
+        console.log(`Protocol: MCP SDK Stdio ${MCP_PROTOCOL_VERSION}`);
         console.log('==============================================');
-        console.log('🌟 OneAgent HTTP Server Started!');
+        console.log('🌟 OneAgent Stdio-Only Mode!');
         console.log('');
-        console.log('📡 Server Information:');
-        const base = environmentConfig.endpoints.mcp.url.replace(/\/mcp$/, '');
-        console.log(`   • HTTP MCP Endpoint: ${base}/mcp`);
-        console.log(`   • Health Check: ${base}/health (available now)`);
-        console.log(`   • Server Info: ${base}/info`);
-        console.log(
-          `   • Mission Control WS: ${base.replace(/\/$/, '')}${MISSION_CONTROL_WS_PATH}`,
-        );
+        console.log('📡 Transport: stdio (VS Code MCP client)');
+        console.log('📋 HTTP server disabled (no port binding)');
         console.log('');
-        console.log('📋 Note: Engine initialization completed during startup (tools registered)');
-        console.log('✅ All endpoints available - server ready for requests!');
       }
-    });
+    } else {
+      // HTTP mode: Start Express server with WebSocket support
+      server = app.listen(port, host, () => {
+        // Canonical startup banner
+        if (!QUIET_MODE) {
+          console.log('==============================================');
+          console.log(`${SERVER_NAME} v${SERVER_VERSION}`);
+          console.log(`Protocol: HTTP MCP ${MCP_PROTOCOL_VERSION}`);
+          console.log('==============================================');
+          console.log('🌟 OneAgent HTTP Server Started!');
+          console.log('');
+          console.log('📡 Server Information:');
+          const base = environmentConfig.endpoints.mcp.url.replace(/\/mcp$/, '');
+          console.log(`   • HTTP MCP Endpoint: ${base}/mcp`);
+          console.log(`   • Health Check: ${base}/health (available now)`);
+          console.log(`   • Server Info: ${base}/info`);
+          console.log(
+            `   • Mission Control WS: ${base.replace(/\/$/, '')}${MISSION_CONTROL_WS_PATH}`,
+          );
+          console.log('');
+          console.log('📋 Note: Engine initialization completed during startup (tools registered)');
+          console.log('✅ All endpoints available - server ready for requests!');
+        }
+      });
+
+      // Proactive, friendly error handling for common startup issues (HTTP mode only)
+      server.on('error', (err: unknown) => {
+        const anyErr = err as { code?: string; message?: string };
+        if (anyErr && anyErr.code === 'EADDRINUSE') {
+          const base = environmentConfig.endpoints.mcp.url.replace(/\/mcp$/, '');
+          console.error(
+            `\n💥 Port in use: Another process is already listening on ${base}.` +
+              '\nTips:' +
+              '\n • If VS Code Copilot auto-started OneAgent, close the previous window or stop the background process.' +
+              '\n • Or free the port (8083 by default) and retry.' +
+              '\n • Alternatively, change the MCP port via configuration/environment and keep docs/tasks in sync.' +
+              `\nDetails: ${anyErr.message || 'EADDRINUSE'}`,
+          );
+        } else {
+          console.error('\n💥 Server error during startup:', anyErr?.message || err);
+        }
+        process.exit(1);
+      });
+    }
 
     // Initialize OneAgent in background (tools registration takes ~90-120s)
     // HTTP endpoints work immediately, tool operations queue until ready
@@ -1302,102 +1555,104 @@ async function startServer(): Promise<void> {
         console.error('   Server will continue with limited functionality');
       });
 
-    // Use new modular Mission Control WebSocket server with health delta streaming
-    const missionControlWSS = createMissionControlWSS(
-      server,
-      async () => {
-        // Use canonical health aggregation; Mission Control only needs overall.status.
-        type FullHealth = { overall?: { status?: string } } & Record<string, unknown>;
-        const full = (await UnifiedBackboneService.monitoring.getSystemHealth({
-          details: true,
-        })) as unknown as FullHealth;
-        const overallStatus = full.overall?.status || 'unknown';
-        return { overall: { status: overallStatus }, full } as {
-          overall: { status: string };
-          full: FullHealth;
-        };
-      },
-      (count) => {
-        missionControlActiveConnections = count;
-      },
-    );
-    // Channel discovery endpoint (read-only)
-    app.get('/mission-control/channels', (_req, res) => {
-      try {
-        interface RegistryLike {
-          list?: () => string[];
+    // Mission Control WebSocket: Only initialize in HTTP mode
+    if (!isStdioOnly && server) {
+      // Use new modular Mission Control WebSocket server with health delta streaming
+      missionControlWSS = createMissionControlWSS(
+        server,
+        async () => {
+          // Use canonical health aggregation; Mission Control only needs overall.status.
+          type FullHealth = { overall?: { status?: string } } & Record<string, unknown>;
+          const full = (await UnifiedBackboneService.monitoring.getSystemHealth({
+            details: true,
+          })) as unknown as FullHealth;
+          const overallStatus = full.overall?.status || 'unknown';
+          return { overall: { status: overallStatus }, full } as {
+            overall: { status: string };
+            full: FullHealth;
+          };
+        },
+        (count) => {
+          missionControlActiveConnections = count;
+        },
+      );
+      // Channel discovery endpoint (read-only)
+      app.get('/mission-control/channels', (_req, res) => {
+        try {
+          interface RegistryLike {
+            list?: () => string[];
+          }
+          const regLike = (missionControlWSS as unknown as { _registry?: RegistryLike })._registry;
+          const channels = regLike?.list ? regLike.list() : [];
+          res.json({ channels, protocolVersion: 1 });
+        } catch (e) {
+          res.status(500).json({
+            error: 'channel_discovery_failed',
+            detail: e instanceof Error ? e.message : String(e),
+          });
         }
-        const regLike = (missionControlWSS as unknown as { _registry?: RegistryLike })._registry;
-        const channels = regLike?.list ? regLike.list() : [];
-        res.json({ channels, protocolVersion: 1 });
-      } catch (e) {
-        res.status(500).json({
-          error: 'channel_discovery_failed',
-          detail: e instanceof Error ? e.message : String(e),
+      });
+    }
+
+    // Graceful shutdown (handle both HTTP and stdio-only modes)
+    process.on('SIGINT', async () => {
+      if (!QUIET_MODE) console.log('\n🛑 Shutting down OneAgent Unified MCP Server...');
+
+      if (server) {
+        // HTTP mode: close server and WebSocket connections
+        server.close(async () => {
+          // Close WS connections gracefully
+          try {
+            missionControlWSS?.clients.forEach((s) => {
+              try {
+                s.close(1001, 'server_shutdown');
+              } catch {
+                /* ignore */
+              }
+            });
+          } catch {
+            /* ignore */
+          }
+          await oneAgent.shutdown();
+          if (!QUIET_MODE) console.log('✅ Server shutdown complete');
+          process.exit(0);
         });
-      }
-    });
-
-    // Proactive, friendly error handling for common startup issues
-    server.on('error', (err: unknown) => {
-      const anyErr = err as { code?: string; message?: string };
-      if (anyErr && anyErr.code === 'EADDRINUSE') {
-        const base = environmentConfig.endpoints.mcp.url.replace(/\/mcp$/, '');
-        console.error(
-          `\n💥 Port in use: Another process is already listening on ${base}.` +
-            '\nTips:' +
-            '\n • If VS Code Copilot auto-started OneAgent, close the previous window or stop the background process.' +
-            '\n • Or free the port (8083 by default) and retry.' +
-            '\n • Alternatively, change the MCP port via configuration/environment and keep docs/tasks in sync.' +
-            `\nDetails: ${anyErr.message || 'EADDRINUSE'}`,
-        );
       } else {
-        console.error('\n💥 Server error during startup:', anyErr?.message || err);
+        // Stdio-only mode: just shutdown OneAgent
+        await oneAgent.shutdown();
+        if (!QUIET_MODE) console.log('✅ Server shutdown complete');
+        process.exit(0);
       }
-      process.exit(1);
     });
 
-    // Graceful shutdown
-    process.on('SIGINT', () => {
+    process.on('SIGTERM', async () => {
       if (!QUIET_MODE) console.log('\n🛑 Shutting down OneAgent Unified MCP Server...');
-      server.close(async () => {
-        // Close WS connections gracefully
-        try {
-          missionControlWSS.clients.forEach((s) => {
-            try {
-              s.close(1001, 'server_shutdown');
-            } catch {
-              /* ignore */
-            }
-          });
-        } catch {
-          /* ignore */
-        }
+
+      if (server) {
+        // HTTP mode: close server and WebSocket connections
+        server.close(async () => {
+          // Close WS connections gracefully
+          try {
+            missionControlWSS?.clients.forEach((s) => {
+              try {
+                s.close(1001, 'server_shutdown');
+              } catch {
+                /* ignore */
+              }
+            });
+          } catch {
+            /* ignore */
+          }
+          await oneAgent.shutdown();
+          if (!QUIET_MODE) console.log('✅ Server shutdown complete');
+          process.exit(0);
+        });
+      } else {
+        // Stdio-only mode: just shutdown OneAgent
         await oneAgent.shutdown();
         if (!QUIET_MODE) console.log('✅ Server shutdown complete');
         process.exit(0);
-      });
-    });
-
-    process.on('SIGTERM', () => {
-      if (!QUIET_MODE) console.log('\n🛑 Shutting down OneAgent Unified MCP Server...');
-      server.close(async () => {
-        // Close WS connections gracefully
-        try {
-          missionControlWSS.clients.forEach((s) => {
-            try {
-              s.close(1001, 'server_shutdown');
-            } catch {
-              /* ignore */
-            }
-          });
-        } catch {
-          /* ignore */
-        }
-        await oneAgent.shutdown();
-        if (!QUIET_MODE) console.log('✅ Server shutdown complete');
-        process.exit(0);
-      });
+      }
     });
   } catch (error) {
     console.error('💥 Failed to start OneAgent Unified MCP Server:', error);

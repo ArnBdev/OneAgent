@@ -1,4 +1,4 @@
-﻿# OneAgent Memory Architecture - Dependency Analysis
+# OneAgent Memory Architecture - Dependency Analysis
 
 **Date**: October 1, 2025  
 **Python Version**: 3.13.3  

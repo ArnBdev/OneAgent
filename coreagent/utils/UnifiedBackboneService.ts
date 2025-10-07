@@ -154,12 +154,6 @@ export class UnifiedBackboneService {
 
   // ...existing code...
 
-  /**
-   * Canonical Context7 integration (strictly typed, event-driven, memory-driven)
-   * Usage: UnifiedBackboneService.context7
-   */
-  // Context7 integration is now handled via canonical backbone. Legacy references removed.
-
   // Note: Memory system removed from backbone to prevent circular dependency.
   // Use OneAgentMemory.getInstance() directly where needed.
 

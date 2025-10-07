@@ -1,4 +1,4 @@
-﻿# MissionBrief Specification Template
+# MissionBrief Specification Template
 
 > **GMA (Generative Markdown Artifacts) Specification Format v1.0**  
 > This template defines the canonical format for AI agent mission specifications.  

@@ -1,4 +1,4 @@
-﻿# Orchestration Enhancement Guide - v4.4.0
+# Orchestration Enhancement Guide - v4.4.0
 
 > OneAgent Professional Development Platform
 > Version: 4.4.0

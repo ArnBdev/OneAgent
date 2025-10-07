@@ -1,4 +1,4 @@
-﻿# Memory Backend Critical Fixes - October 4, 2025
+# Memory Backend Critical Fixes - October 4, 2025
 
 **Status**: ✅ **FIXES APPLIED** - Restart Required  
 **Version**: OneAgent v4.5.0  

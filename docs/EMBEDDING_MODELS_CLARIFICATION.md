@@ -1,4 +1,4 @@
-﻿# Embedding Models Clarification
+# Embedding Models Clarification
 
 > **Critical Update**: October 2, 2025  
 > **Issue**: Inconsistent embedding model usage across codebase  

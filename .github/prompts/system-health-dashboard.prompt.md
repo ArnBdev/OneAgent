@@ -30,7 +30,6 @@ You are the OneAgent System Health Monitor responsible for tracking canonical sy
 - **Error Handling**: Target 100% (currently 20%)
 - **MCP Integration**: Target 100% (currently 30%)
 - **Monitoring**: Target 100% (currently 10%)
-- **Context7**: Target 100% (currently 25%)
 
 ### System Performance
 
@@ -104,7 +103,6 @@ You are the OneAgent System Health Monitor responsible for tracking canonical sy
 ⚠️  WARNING: Error Handling System (20% canonical)
 ⚠️  WARNING: MCP Integration (30% canonical)
 ⚠️  WARNING: Monitoring System (10% canonical)
-⚠️  WARNING: Context7 System (25% canonical)
 ⚠️  WARNING: Time System (95% canonical)
 ✅ HEALTHY: ID Generation System (100% canonical)
 ✅ HEALTHY: Memory System (100% canonical)

@@ -40,7 +40,6 @@ import { UnifiedWebFetchTool } from './UnifiedWebFetchTool';
 
 // REMOVED: EnhancedAIAssistantTool - maintaining clear separation of concerns
 import { CodeAnalysisTool } from './CodeAnalysisTool';
-// Context7MCPIntegration import removed (deprecated)
 import { ConversationRetrievalTool } from './ConversationRetrievalTool';
 import { ConversationSearchTool } from './ConversationSearchTool';
 import { OneAgentMemorySearchTool } from './OneAgentMemorySearchTool';
@@ -138,19 +137,14 @@ export class ToolRegistry {
     this.initialized = true;
 
     try {
-      console.log('[ToolRegistry] 🔄 Initializing categories...');
       await this.initializeCategories();
-      console.log('[ToolRegistry] ✅ Categories initialized');
-
-      console.log('[ToolRegistry] 🔄 Registering non-memory tools...');
       await this.registerNonMemoryTools();
-      console.log('[ToolRegistry] ✅ Non-memory tools registered');
-
-      console.log('[ToolRegistry] 🔄 Registering memory tools...');
       await this.registerMemoryTools();
-      console.log('[ToolRegistry] ✅ Memory tools registered');
 
-      console.log('[ToolRegistry] 🎉 Initialization complete');
+      // Single summary log
+      if (!(process.env.ONEAGENT_FAST_TEST_MODE === '1' || process.env.NODE_ENV === 'test')) {
+        console.log('[ToolRegistry] 🎉 Initialization complete');
+      }
     } catch (error) {
       // Reset flag on error so next call retries
       this.initialized = false;
@@ -172,14 +166,12 @@ export class ToolRegistry {
    */
   private async initializeCategories(): Promise<void> {
     try {
-      console.log('[ToolRegistry] 📝 Creating category structure...');
       const categories: Record<string, string[]> = {};
       for (const category of Object.values(ToolCategory)) {
         categories[category as ToolCategory] = [];
       }
       // Cache categories (now that cache system is fixed)
       await this.cache.set(this.categoriesKey, categories);
-      console.log('[ToolRegistry] ✅ Categories structure created and cached');
     } catch (error) {
       console.error('[ToolRegistry] ❌ initializeCategories FAILED:', error);
       throw error;
@@ -234,18 +226,6 @@ export class ToolRegistry {
       priority: 6,
       exposeToMCP: true,
     });
-
-    // Context7 documentation tools (now with real integration)
-    // Context7 integration now handled via canonical backbone. Legacy instance removed.
-
-    // Context7 documentation query tool registration removed; use canonical backbone integration only.
-
-    // TODO: Fix UnifiedContext7StoreTool - currently has broken imports/stubs causing undefined registration
-    // this.registerTool(new UnifiedContext7StoreTool(), {
-    //   category: ToolCategory.MEMORY_CONTEXT,
-    //   constitutionalLevel: 'enhanced',
-    //   priority: 7
-    // });
 
     // Development and Professional Tools
     await this.registerTool(new CodeAnalysisTool(), {
@@ -305,26 +285,19 @@ export class ToolRegistry {
    */
   public async registerTool(tool: UnifiedMCPTool, metadata?: Partial<ToolMetadata>): Promise<void> {
     try {
-      console.log(`[ToolRegistry] 📥 Starting registration for: ${tool.name}`);
       await this.ensureInitialized();
-      console.log(`[ToolRegistry] ✅ Registry initialized for: ${tool.name}`);
 
       // Load existing tools and categories from cache (now that cache is fixed)
-      console.log(`[ToolRegistry] 🔄 Loading cache for: ${tool.name}`);
       const tools =
         ((await this.cache.get(this.toolsKey)) as Record<string, ToolRegistration>) || {};
       const categories =
         ((await this.cache.get(this.categoriesKey)) as Record<string, string[]>) || {};
-      console.log(`[ToolRegistry] ✅ Cache loaded for: ${tool.name}`);
 
-      // Check if tool is already registered
+      // Check if tool is already registered (silent skip)
       if (tools[tool.name]) {
-        console.log(`[ToolRegistry] ⏭️  Tool ${tool.name} already registered, skipping`);
-        // Silent skip - tool already registered
         return;
       }
 
-      console.log(`[ToolRegistry] 🔨 Creating registration metadata for: ${tool.name}`);
       const fullMetadata: ToolMetadata = {
         category: metadata?.category || ToolCategory.DEVELOPMENT,
         constitutionalLevel: metadata?.constitutionalLevel || tool.constitutionalLevel,
@@ -337,7 +310,6 @@ export class ToolRegistry {
         description: metadata?.description || tool.description || '',
       };
 
-      console.log(`[ToolRegistry] 📝 Building registration object for: ${tool.name}`);
       const registration: ToolRegistration = {
         tool,
         metadata: fullMetadata,
@@ -353,19 +325,14 @@ export class ToolRegistry {
 
       // Store in cache (now that cache system is fixed)
       await this.cache.set(this.toolsKey, tools);
-      console.log(`[ToolRegistry] ✅ Tools cached successfully for: ${tool.name}`);
-
       await this.cache.set(this.categoriesKey, categories);
-      console.log(`[ToolRegistry] ✅ Categories cached successfully for: ${tool.name}`);
 
-      console.log(`[ToolRegistry] ✅ Cache saved successfully for: ${tool.name}`);
-
+      // Single success log unless in test mode
       if (!(process.env.ONEAGENT_FAST_TEST_MODE === '1' || process.env.NODE_ENV === 'test')) {
         console.log(
-          `[ToolRegistry] Registered ${tool.name} in ${fullMetadata.category} (priority: ${fullMetadata.priority})`,
+          `[ToolRegistry] ✅ Registered ${tool.name} in ${fullMetadata.category} (priority: ${fullMetadata.priority})`,
         );
       }
-      console.log(`[ToolRegistry] 🎉 Registration complete for: ${tool.name}`);
     } catch (error) {
       console.error(`[ToolRegistry] ❌ registerTool FAILED for ${tool.name}:`, error);
       throw error;

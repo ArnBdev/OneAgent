@@ -1,4 +1,4 @@
-﻿# Gemini Migration - v4.3.1
+# Gemini Migration - v4.3.1
 
 **Date**: October 1, 2025  
 **Author**: James (OneAgent DevAgent)  

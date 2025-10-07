@@ -1,4 +1,4 @@
-﻿# OneAgent Memory System Architecture Audit
+# OneAgent Memory System Architecture Audit
 
 **Date**: October 2, 2025  
 **Auditor**: OneAgent DevAgent (James)  

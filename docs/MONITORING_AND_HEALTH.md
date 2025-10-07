@@ -1,4 +1,4 @@
-﻿# OneAgent Monitoring & Health Endpoints
+# OneAgent Monitoring & Health Endpoints
 
 ## Overview
 

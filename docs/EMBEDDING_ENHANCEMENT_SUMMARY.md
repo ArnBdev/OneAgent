@@ -1,4 +1,4 @@
-﻿# Embedding Enhancement Implementation Summary
+# Embedding Enhancement Implementation Summary
 
 > **Date**: 2025-10-02  
 > **Status**: ✅ Complete  

@@ -1,4 +1,4 @@
-﻿# OneAgent Canonical Architecture (v4.3.0)
+# OneAgent Canonical Architecture (v4.3.0)
 
 ## Core Principles
 

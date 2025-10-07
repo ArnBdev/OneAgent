@@ -3,8 +3,8 @@
  * Single Source of Truth for All Metadata
  *
  * This is the foundational metadata system that serves as the base for all
- * OneAgent components, incorporating Context7 enhancements, Constitutional AI
- * validation, and cross-system compatibility.
+ * OneAgent components, incorporating Constitutional AI validation and
+ * cross-system compatibility.
  *
  * Version: 1.0.0
  * Created: 2024-06-18
@@ -284,7 +284,7 @@ export interface OneAgentBaseMetadata {
 
   // Cross-System Integration
   integration: {
-    systemIds: Record<string, string>; // e.g., { 'context7': 'ctx7_123', 'memory': 'mem_456' }
+    systemIds: Record<string, string>; // e.g., { 'memory': 'mem_456' }
     syncStatus: Record<string, 'synced' | 'pending' | 'error' | 'disabled'>;
     lastSyncAt: Record<string, Date>;
     conflicts: Array<{
@@ -331,7 +331,7 @@ export interface OneAgentBaseMetadata {
 // SPECIALIZED METADATA INTERFACES
 // =====================================
 
-// Documentation Metadata (Context7 Enhanced)
+// Documentation Metadata
 export interface DocumentationMetadata extends OneAgentBaseMetadata {
   type: 'documentation';
 
@@ -791,9 +791,8 @@ export interface SyncResult {
  * 3. **Quality Assurance**: Comprehensive quality scoring and validation
  * 4. **Semantic Intelligence**: Rich semantic tagging and relationships
  * 5. **Cross-System Compatibility**: Unified integration across all OneAgent systems
- * 6. **Context7 Enhancement**: Enhanced documentation metadata for superior learning
- * 7. **Extensibility**: Clean extension points for domain-specific needs
- * 8. **Performance**: Optimized for indexing, searching, and retrieval
+ * 6. **Extensibility**: Clean extension points for domain-specific needs
+ * 7. **Performance**: Optimized for indexing, searching, and retrieval
  *
  * This foundation enables the OneAgent ecosystem to achieve true metadata
  * coherence while supporting advanced AI capabilities and quality standards.

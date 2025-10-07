@@ -1,4 +1,4 @@
-﻿# OneAgent Canonical Memory System (v4.2.3)
+# OneAgent Canonical Memory System (v4.2.3)
 
 ## Overview
 

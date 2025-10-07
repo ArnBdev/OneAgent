@@ -1,4 +1,4 @@
-﻿# Memory Health Endpoints Integration Plan
+# Memory Health Endpoints Integration Plan
 
 **Date**: October 3, 2025  
 **Version**: OneAgent v4.4.0+ → v4.4.2  

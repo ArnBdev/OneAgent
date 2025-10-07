@@ -46,8 +46,7 @@ export default [
       'tests/**/*.js',
       'tests/**/*.cjs',
       'tests/**/*.mjs',
-      // Deprecated Context7 and legacy hybrid registry/discovery tests (active duplicates ignored; archived copies retained)
-      'tests/test-context7-*.ts',
+      // Deprecated legacy hybrid registry/discovery tests (active duplicates ignored; archived copies retained)
       'tests/test-hybrid-registry-discovery*.ts',
       'tests/test-memory-driven-fallback.ts',
       'tests/test-simple-docs.ts',

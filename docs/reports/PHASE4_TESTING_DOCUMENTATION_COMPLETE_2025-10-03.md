@@ -1,4 +1,4 @@
-﻿# Phase 4 Complete: Testing & Documentation
+# Phase 4 Complete: Testing & Documentation
 
 **Date**: October 3, 2025  
 **Version**: OneAgent v4.4.2  

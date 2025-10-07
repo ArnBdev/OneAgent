@@ -129,13 +129,14 @@ export class OfficeAgent extends BaseAgent implements ISpecializedAgent {
   }
 
   async getHealthStatus(): Promise<AgentHealthStatus> {
+    const ts = this.unifiedBackbone.getServices().timeService.now();
     return {
       status: 'healthy',
       uptime: process.uptime() * 1000,
       memoryUsage: process.memoryUsage().heapUsed / 1024 / 1024,
       responseTime: 45,
       errorRate: 0,
-      lastActivity: new Date(),
+      lastActivity: new Date(ts.utc),
       errors: undefined,
     };
   }

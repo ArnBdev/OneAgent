@@ -1,4 +1,4 @@
-﻿# OneAgent Health Check Endpoints - Quick Reference
+# OneAgent Health Check Endpoints - Quick Reference
 
 **Version**: 4.4.0  
 **Date**: October 2, 2025

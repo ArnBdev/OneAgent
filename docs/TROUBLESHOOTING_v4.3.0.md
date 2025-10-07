@@ -1,4 +1,4 @@
-﻿# OneAgent v4.3.0 - Startup Troubleshooting Guide
+# OneAgent v4.3.0 - Startup Troubleshooting Guide
 
 > Created: October 1, 2025  
 > For: Windows PowerShell Environment

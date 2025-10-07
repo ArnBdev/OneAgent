@@ -1,4 +1,4 @@
-﻿# UnifiedModelPicker Architecture - Multi-Provider, Capability-Based Model Selection
+# UnifiedModelPicker Architecture - Multi-Provider, Capability-Based Model Selection
 
 **Version**: 4.3.0 (Epic 15 Complete)  
 **Status**: Production Ready  

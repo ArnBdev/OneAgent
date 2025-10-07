@@ -1,4 +1,4 @@
-﻿# OneAgent Enhancement Session - Complete Summary
+# OneAgent Enhancement Session - Complete Summary
 
 **Date**: October 4, 2025  
 **Session Focus**: Memory Backend Investigation, Bug Fix, and Production Certification  

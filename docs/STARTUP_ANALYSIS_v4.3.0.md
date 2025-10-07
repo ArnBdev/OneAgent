@@ -1,4 +1,4 @@
-﻿# OneAgent v4.3.0 Startup Analysis & Verification
+# OneAgent v4.3.0 Startup Analysis & Verification
 
 > Date: 2025-10-01  
 > Analyzed By: James (OneAgent DevAgent)  

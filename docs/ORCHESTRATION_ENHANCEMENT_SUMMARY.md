@@ -1,4 +1,4 @@
-﻿# OneAgent v4.4.0 - Orchestration Enhancement Implementation Summary
+# OneAgent v4.4.0 - Orchestration Enhancement Implementation Summary
 
 **Date**: 2025-10-02  
 **Lead Developer**: James (OneAgent DevAgent)  

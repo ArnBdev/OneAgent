@@ -1,4 +1,4 @@
-﻿# OneAgent v4.2.3 Development Cycle — Complete Architecture Snapshot & Forward Roadmap
+# OneAgent v4.2.3 Development Cycle — Complete Architecture Snapshot & Forward Roadmap
 
 **Date**: October 1, 2025  
 **Version**: 4.2.3  

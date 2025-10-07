@@ -21,14 +21,11 @@ import type { ConstitutionalPrinciple } from '../../types/oneagent-backbone-type
 import { MemoryRecord } from '../../types/oneagent-backbone-types';
 
 import { OneAgentMemory } from '../../memory/OneAgentMemory';
-import { getOneAgentMemory } from '../../utils/UnifiedBackboneService';
+import { createUnifiedTimestamp } from '../../utils/UnifiedBackboneService';
 
 export class FitnessAgent extends BaseAgent implements ISpecializedAgent {
-  private memory: OneAgentMemory;
-
   constructor(config: AgentConfig, promptConfig?: PromptConfig, memory?: OneAgentMemory) {
-    super(config, promptConfig || FitnessAgent.createFitnessPromptConfig());
-    this.memory = memory || getOneAgentMemory();
+    super(config, promptConfig || FitnessAgent.createFitnessPromptConfig(), memory);
   }
 
   // Only domain-specific action handlers below (e.g., createWorkout, trackProgress, provideNutritionAdvice)
@@ -43,23 +40,23 @@ export class FitnessAgent extends BaseAgent implements ISpecializedAgent {
 
       // Canonical memory search
 
-      const relevantMemories = (await this.memory.searchMemory({
+      const relevantMemories = ((await this.memoryClient?.searchMemory({
         query: message,
         userId: context.user.id,
         limit: 5,
-      })) as MemoryRecord[];
+      })) || []) as MemoryRecord[];
 
       // Generate AI response with fitness expertise
       const response = await this.generateFitnessResponse(message, relevantMemories);
 
       // Store this interaction in memory for future reference (canonical signature)
 
-      await this.memory.addMemory({
+      await this.memoryClient?.addMemory({
         content: `Fitness Query: ${message}\nResponse: ${response}`,
         metadata: {
           type: 'fitness_consultation',
           category: this.categorizeQuery(message),
-          timestamp: new Date().toISOString(),
+          timestamp: createUnifiedTimestamp().iso,
           sessionId: context.sessionId,
         },
       });
@@ -372,13 +369,14 @@ Always recommend consulting healthcare professionals for medical concerns.
   }
 
   async getHealthStatus(): Promise<AgentHealthStatus> {
+    const ts = this.unifiedBackbone.getServices().timeService.now();
     return {
       status: 'healthy',
       uptime: process.uptime() * 1000,
       memoryUsage: process.memoryUsage().heapUsed / 1024 / 1024,
       responseTime: 40,
       errorRate: 0,
-      lastActivity: new Date(),
+      lastActivity: new Date(ts.utc),
       errors: undefined,
     };
   }

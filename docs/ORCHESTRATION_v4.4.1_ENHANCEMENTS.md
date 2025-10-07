@@ -1,4 +1,4 @@
-﻿# OneAgent v4.4.1 - Advanced Orchestration Enhancements
+# OneAgent v4.4.1 - Advanced Orchestration Enhancements
 
 **Version**: 4.4.1  
 **Release Date**: 2025-10-02  

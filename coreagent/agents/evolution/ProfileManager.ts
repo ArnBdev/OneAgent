@@ -367,11 +367,11 @@ export class ProfileManager {
 
       // Update metadata for rollback
       restoredProfile.metadata.version = `${restoredProfile.metadata.version}-rollback`;
-      restoredProfile.metadata.lastEvolved = new Date().toISOString();
+      restoredProfile.metadata.lastEvolved = createUnifiedTimestamp().iso;
 
       // Add rollback record
       const rollbackRecord: EvolutionRecord = {
-        timestamp: new Date().toISOString(),
+        timestamp: createUnifiedTimestamp().iso,
         version: restoredProfile.metadata.version,
         trigger: 'manual',
         changes: [
@@ -435,7 +435,7 @@ export class ProfileManager {
 
     // Update usage statistics
     capability.usage.frequency++;
-    capability.usage.lastUsed = new Date().toISOString();
+    capability.usage.lastUsed = createUnifiedTimestamp().iso;
 
     if (success) {
       capability.usage.successRate =
@@ -461,7 +461,7 @@ export class ProfileManager {
   async backupProfile(profile: AgentProfile, backupName: string): Promise<string> {
     try {
       // Create timestamped backup filename
-      const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+      const timestamp = createUnifiedTimestamp().iso.replace(/[:.]/g, '-');
       const backupFilename = `${backupName}-${timestamp}.json`;
       const backupPath = path.join(this.archivePath, backupFilename);
 

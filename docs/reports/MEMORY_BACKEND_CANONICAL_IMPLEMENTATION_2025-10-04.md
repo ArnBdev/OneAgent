@@ -1,4 +1,4 @@
-﻿# Memory Backend Canonical Implementation Report
+# Memory Backend Canonical Implementation Report
 
 **Date**: October 4, 2025  
 **Version**: OneAgent v4.5.0  

@@ -1,4 +1,4 @@
-﻿# Memory Backend Cosmetic Fixes - October 4, 2025
+# Memory Backend Cosmetic Fixes - October 4, 2025
 
 **Date**: October 4, 2025  
 **Version**: OneAgent v4.5.0 → v4.5.1  

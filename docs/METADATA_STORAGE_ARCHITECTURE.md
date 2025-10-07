@@ -1,4 +1,4 @@
-﻿# OneAgent Metadata Storage & Domain Isolation Architecture
+# OneAgent Metadata Storage & Domain Isolation Architecture
 
 ## 🎯 Your Question
 

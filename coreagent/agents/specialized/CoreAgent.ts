@@ -12,6 +12,7 @@
 import { BaseAgent, AgentConfig, AgentContext, AgentResponse } from '../base/BaseAgent';
 import { ISpecializedAgent } from '../base/ISpecializedAgent';
 import { PromptConfig } from '../base/PromptEngine';
+import { createUnifiedTimestamp } from '../../utils/UnifiedBackboneService';
 
 export interface Task {
   id: string;
@@ -70,7 +71,7 @@ export class CoreAgent extends BaseAgent implements ISpecializedAgent {
       metadata: {
         type: 'core_orchestration',
         category: 'system_coordination',
-        timestamp: new Date().toISOString(),
+        timestamp: createUnifiedTimestamp().iso,
         sessionId: context.sessionId,
         userId: context.user.id,
       },
@@ -82,7 +83,7 @@ export class CoreAgent extends BaseAgent implements ISpecializedAgent {
       memories: [],
       metadata: {
         agentId: this.config.id,
-        timestamp: new Date().toISOString(),
+        timestamp: createUnifiedTimestamp().iso,
         systemHealth: await this.getSystemHealth(),
         isRealAgent: true,
       },

@@ -1,4 +1,4 @@
-﻿# OneAgent Server Health Guide
+# OneAgent Server Health Guide
 
 **Version**: OneAgent v4.4.0+  
 **Date**: October 3, 2025  

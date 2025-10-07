@@ -5,7 +5,6 @@ tools:
     'codebase',
     'editFiles',
     'oneagent_memory_search',
-    'oneagent_context7_query',
     'oneagent_enhanced_search',
     'oneagent_constitutional_validate',
     'oneagent_quality_score',
@@ -39,7 +38,7 @@ The Agent Communication System has 8 parallel implementations despite A2A Protoc
 
 ### Phase 2: Canonical Design
 
-5. **Context7 Research**: Query latest A2A Protocol documentation
+5. **Documentation Research**: Query latest A2A Protocol documentation
 6. **Unified Architecture**: Design single canonical communication system
 7. **Constitutional Validation**: Apply AI principles to architecture decisions
 8. **Quality Assessment**: Target 80%+ implementation quality

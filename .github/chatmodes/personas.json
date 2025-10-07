@@ -1,0 +1,128 @@
+﻿{
+  "$schema": "https://json-schema.org/draft-07/schema#",
+  "title": "OneAgent Personas Manifest",
+  "description": "Canonical listing of all OneAgent chat personas/modes for programmatic discovery and switching",
+  "version": "1.0.0",
+  "personas": [
+    {
+      "id": "oneagent-dev",
+      "name": "DevAgent (James)",
+      "file": "oneagent-dev.chatmode.md",
+      "description": "Constitutional AI TypeScript Development with 80%+ Grade A Quality",
+      "role": "Lead Developer & Quality Engineer",
+      "capabilities": [
+        "TypeScript development",
+        "Constitutional AI validation",
+        "BMAD framework analysis",
+        "OneAgent canonical patterns",
+        "Quality scoring and improvement"
+      ],
+      "defaultFor": ["*.ts", "*.tsx", "*.js", "*.jsx"],
+      "inheritsFrom": null,
+      "isDefault": true
+    },
+    {
+      "id": "oneagent-architect",
+      "name": "Architect",
+      "file": "oneagent-architect.chatmode.md",
+      "description": "Anti-Parallel System Architecture & Canonical Consolidation",
+      "role": "System Architect",
+      "capabilities": [
+        "Parallel system detection",
+        "Canonical system design",
+        "Architecture consolidation",
+        "Constitutional AI compliance",
+        "System integration"
+      ],
+      "defaultFor": ["AGENTS.md", "docs/architecture/**"],
+      "inheritsFrom": null,
+      "isDefault": false
+    },
+    {
+      "id": "oneagent-planner",
+      "name": "PlannerAgent (Alex)",
+      "file": "oneagent-planner.chatmode.md",
+      "description": "Strategic Planning & Task Orchestration with BMAD Framework",
+      "role": "Strategic Planner",
+      "capabilities": [
+        "Strategic planning",
+        "Task decomposition",
+        "Agent coordination",
+        "BMAD framework analysis",
+        "Risk management"
+      ],
+      "defaultFor": ["*.md", "ROADMAP.md", "docs/stories/**"],
+      "inheritsFrom": null,
+      "isDefault": false
+    },
+    {
+      "id": "oneagent-triage",
+      "name": "TriageAgent (Morgan)",
+      "file": "oneagent-triage.chatmode.md",
+      "description": "Intelligent Task Routing & System Health Monitoring",
+      "role": "System Orchestrator",
+      "capabilities": [
+        "Task analysis and routing",
+        "Agent capability matching",
+        "System health monitoring",
+        "Load balancing",
+        "Escalation management"
+      ],
+      "defaultFor": [],
+      "inheritsFrom": null,
+      "isDefault": false
+    },
+    {
+      "id": "oneagent-validation",
+      "name": "ValidationAgent (Quinn)",
+      "file": "oneagent-validation.chatmode.md",
+      "description": "Quality Validation & Constitutional AI Compliance",
+      "role": "Quality Validator",
+      "capabilities": [
+        "Constitutional AI compliance validation",
+        "Quality scoring (A-D scale)",
+        "BMAD framework analysis",
+        "OneAgent pattern validation",
+        "Code quality assessment"
+      ],
+      "defaultFor": ["tests/**", "*.test.ts", "*.spec.ts"],
+      "inheritsFrom": null,
+      "isDefault": false
+    },
+    {
+      "id": "constitutional-ai-specialist",
+      "name": "Constitutional AI Specialist",
+      "file": "constitutional-ai-specialist.chatmode.md",
+      "description": "Ethical Development & Quality Assurance Specialist",
+      "role": "Ethics & Quality Guardian",
+      "capabilities": [
+        "Constitutional AI principles enforcement",
+        "Quality assurance and grading",
+        "BMAD framework application",
+        "Ethical development oversight",
+        "Professional standards validation"
+      ],
+      "defaultFor": [],
+      "inheritsFrom": null,
+      "isDefault": false
+    }
+  ],
+  "canonicalSettings": {
+    "chat.promptFilesRecommendations": {
+      "oneagent-dev": "resourceExtname =~ /\\.(ts|tsx|js|jsx)$/",
+      "oneagent-architect": "resourceFilename == 'AGENTS.md' || resourcePath =~ /docs\\/architecture/",
+      "oneagent-planner": "resourceExtname == '.md' || resourceFilename =~ /ROADMAP|CHANGELOG/",
+      "oneagent-validation": "resourcePath =~ /tests?\\// || resourceExtname =~ /\\.(test|spec)\\./",
+      "constitutional-ai-specialist": "resourcePath =~ /docs\\/|README/"
+    },
+    "chat.useAgentsMdFile": true,
+    "chat.checkpoints.enabled": true,
+    "chat.tools.terminal.enableAutoApprove": true
+  },
+  "metadata": {
+    "lastUpdated": "2025-10-04",
+    "schemaVersion": "1.0.0",
+    "canonicalLocation": ".github/chatmodes",
+    "authority": "AGENTS.md at repository root is the single source of truth"
+  }
+}

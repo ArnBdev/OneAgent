@@ -1,5 +1,11 @@
 # OneAgent VS Code Copilot Chat Integration Setup
 
+## 🚨 Zero Tolerance and Canonical Compliance
+
+All VS Code and Copilot Chat development must strictly follow the zero tolerance and canonical system enforcement standards defined in AGENTS.md. No parallel systems, no deferred violations, and all code must use canonical patterns for time, ID, memory, cache, and communication.
+
+**Always reference AGENTS.md as the single source of truth.**
+
 This script configures VS Code settings for optimal OneAgent chatmode experience with Copilot Chat, following the official BMAD Method integration patterns.
 
 ## Installation Instructions

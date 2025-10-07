@@ -1,4 +1,5 @@
 {
+  // === Copilot Chat & Agent Configuration ===
   "github.copilot.chat.enable": true,
   "github.copilot.chat.welcomeMessage": "OneAgent Constitutional AI Development Platform Ready! Use chatmode selector for specialized agents.",
   "github.copilot.enable": {
@@ -18,6 +19,98 @@
       }
     }
   },
+
+  // === VS Code v1.104+ Copilot Features ===
+
+  // AGENTS.md Auto-Loading (v1.104)
+  "chat.useAgentsMdFile": true,
+
+  // Prompt File Suggestions (Experimental, v1.104)
+  "chat.promptFilesRecommendations": {
+    "oneagent-dev": "resourceExtname =~ /\\.(ts|tsx|js|jsx)$/",
+    "oneagent-architect": "resourceFilename == 'AGENTS.md' || resourcePath =~ /docs\\/architecture/",
+    "oneagent-planner": "resourceExtname == '.md' || resourceFilename =~ /ROADMAP|CHANGELOG/",
+    "oneagent-validation": "resourcePath =~ /tests?\\// || resourceExtname =~ /\\.(test|spec)\\./",
+    "constitutional-ai-specialist": "resourcePath =~ /docs\\/|README/"
+  },
+
+  // Chat Checkpoints (v1.103)
+  "chat.checkpoints.enabled": true,
+
+  // Terminal Auto-Approve for Safe OneAgent Commands (v1.104)
+  "chat.tools.terminal.enableAutoApprove": true,
+  "chat.tools.terminal.autoApprove": {
+    // Build & Verify
+    "npm run verify": true,
+    "npm run verify:runtime": true,
+    "npm run lint": true,
+    "npm run build": true,
+    "npm run test": true,
+
+    // TypeScript Checks
+    "tsc --noEmit": true,
+    "tsc -p tsconfig.json --noEmit": true,
+
+    // Git Safe Commands
+    "git status": true,
+    "git log": true,
+    "git diff": true,
+    "git branch": true,
+    "git show": true,
+
+    // File System (Read-Only)
+    "ls": true,
+    "dir": true,
+    "cat": true,
+    "less": true,
+    "more": true,
+    "head": true,
+    "tail": true,
+    "grep": true,
+
+    // Node/NPM (Safe Commands)
+    "node --version": true,
+    "npm --version": true,
+    "npm list": true,
+    "npm outdated": true,
+
+    // Deny Dangerous Commands
+    "/^rm\\s/": false,
+    "/^del\\s/": false,
+    "/^Remove-Item\\s/i": false,
+    "/^git\\s+push/": false,
+    "/^npm\\s+publish/": false,
+    "/^git\\s+reset\\s+--hard/": false
+  },
+
+  // Sensitive File Edit Protection (v1.104)
+  "chat.tools.edits.autoApprove": {
+    "**/.env*": false,
+    "**/package.json": false,
+    "**/tsconfig.json": false,
+    "**/.git/**": false,
+    "**/.vscode/settings.json": false,
+    "**AGENTS.md": false,
+    "**/.instructions.md": false
+  },
+
+  // Todo List Tool (v1.104)
+  "chat.todoList.enabled": true,
+
+  // Math Rendering (v1.104)
+  "chat.math.enabled": true,
+
+  // Model Auto-Selection (v1.104 Preview)
+  "github.copilot.advanced.modelSelection": "auto",
+
+  // Tool Grouping for >128 Tools (v1.103)
+  "github.copilot.chat.virtualTools.threshold": 128,
+
+  // === MCP Configuration ===
+  "chat.mcp.access": "all",
+  "chat.mcp.autostart": "newAndOutdated",
+
+  // === File Associations & Formatting ===
   "files.associations": {
     "*.chatmode.md": "markdown"
   },

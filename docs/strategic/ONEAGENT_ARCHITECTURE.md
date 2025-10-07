@@ -42,7 +42,6 @@ OneAgent is built to be:
 - **mem0**: Canonical memory backend with RESTful API and MCP compliance
 - **OneAgentMemory**: Professional-grade memory client with batch operations, caching, and audit logging
 - **Memory Intelligence**: Semantic search, embeddings, and contextual retrieval
-- **Context7**: Documentation and context management system for technical knowledge
 - **EmbeddingCache**: Performance-optimized caching for semantic operations
 
 ### 2.5 Integration & Tooling
@@ -79,7 +78,6 @@ OneAgent is built to be:
 - **OneAgentMemory**: Professional-grade memory client with batch operations and caching
 - **mem0 Backend**: Persistent memory server on port 8010 with 195+ memories loaded
 - **Memory Intelligence**: Semantic search, embeddings, and contextual retrieval for agent workflows
-- **Context7**: Documentation management with web development sources integration
 - **EmbeddingCache**: Performance-optimized caching for semantic operations
 - **Audit Logging**: Complete memory operation traceability for compliance
 
@@ -174,7 +172,7 @@ Note: The single supported entry point is `coreagent/agents/base/AgentFactory`. 
 ### 5.4 Specialized Agent Types
 
 - **CoreAgent** (12 capabilities): System coordination, agent integration, Constitutional AI, BMAD analysis
-- **DevAgent** (8 capabilities): Development, coding, Context7 integration, learning engine
+- **DevAgent** (8 capabilities): Development, coding, documentation integration, learning engine
 - **OfficeAgent** (4 capabilities): Document processing, calendar management, productivity workflows
 - **FitnessAgent** (4 capabilities): Health tracking, workout planning, nutrition optimization
 - **TriageAgent** (5 capabilities): Health monitoring, system diagnostics, performance analysis
@@ -216,15 +214,7 @@ Note: The single supported entry point is `coreagent/agents/base/AgentFactory`. 
 - **Cross-Conversation Learning**: Pattern recognition and knowledge transfer across sessions
 - **Intelligence Insights**: Automated insight generation from memory patterns
 
-### 6.4 Context7 Integration
-
-- **Documentation Management**: Web development sources integration for technical knowledge
-- **Context Retrieval**: Specialized documentation and context queries
-- **Knowledge Accumulation**: Systematic storage of technical documentation and patterns
-- **Learning Integration**: Automatic context storage for institutional knowledge building
-- **Quality Validation**: Constitutional AI validation for all stored context
-
-### 6.5 Embedding & Caching System
+### 6.4 Embedding & Caching System
 
 - **EmbeddingCache**: Performance-optimized caching for semantic operations
 - **Global Caching**: Singleton pattern for efficient memory usage across agents
@@ -291,7 +281,7 @@ Note: The single supported entry point is `coreagent/agents/base/AgentFactory`. 
 ### 8.2 Tool Categories & Distribution
 
 - **core_system (1 tool)**: System health monitoring and diagnostics
-- **memory_context (5 tools)**: Memory operations (search, add, edit, delete), Context7 queries
+- **memory_context (4 tools)**: Memory operations (search, add, edit, delete)
 - **web_research (3 tools)**: Enhanced search, web content fetching, quality filtering
 - **agent_communication (2 tools)**: Conversation retrieval and search
 - **development (1 tool)**: Code analysis and development support
@@ -302,7 +292,6 @@ Note: The single supported entry point is `coreagent/agents/base/AgentFactory`. 
 - **oneagent_memory_search**: Natural language memory search with semantic matching
 - **oneagent_memory_add**: Memory storage with metadata and temporal integration
 - **oneagent_enhanced_search**: Quality-filtered web search with Constitutional AI validation
-- **oneagent_context7_query**: Documentation and context retrieval system
 - **oneagent_code_analyze**: Code quality, security, and performance analysis
 
 ### 8.4 Tool Execution & Management
@@ -399,7 +388,6 @@ Note: The single supported entry point is `coreagent/agents/base/AgentFactory`. 
 - **OneAgentMemory**: ✅ **FULLY OPERATIONAL** - Professional memory client with batch operations
 - **mem0 Backend**: ✅ **FULLY OPERATIONAL** - 195+ memories loaded and available
 - **Memory Intelligence**: ✅ **ACTIVE** - Semantic search and contextual retrieval
-- **Context7**: ✅ **OPERATIONAL** - Documentation and context management
 - **EmbeddingCache**: ✅ **ACTIVE** - Performance-optimized caching system
 
 ### 10.5 Quality & Compliance Systems
@@ -442,7 +430,6 @@ Note: The single supported entry point is `coreagent/agents/base/AgentFactory`. 
 - **mem0 Backend**: Python-based memory server providing persistent storage with RESTful API
 - **Memory Intelligence**: Semantic search, embeddings, and contextual retrieval system
 - **EmbeddingCache**: Performance-optimized caching for semantic operations
-- **Context7**: Documentation and context management system with web development sources
 
 ### 11.4 Protocol Implementation Details
 
@@ -524,7 +511,7 @@ Note: The single supported entry point is `coreagent/agents/base/AgentFactory`. 
 
 ---
 
-**This document is the single source of truth for OneAgent architecture, vision, and implementation. Updated with OneAgent v5.0.0 NLACS capabilities and complete system architecture. Update as the system evolves.**
+**This document is the single source of truth for OneAgent architecture, vision, and implementation. All legacy, Context7, adapter.ts, and parallel system references have been fully removed. This document reflects the canonical, current system as of October 2025. Update as the system evolves.**
 
 ## 4. Quality, Compliance, and Best Practices
 
@@ -608,7 +595,7 @@ Note: The single supported entry point is `coreagent/agents/base/AgentFactory`. 
 - **HybridAgentDiscovery**: Provides search, filtering, and QuerySkill-based selection across both registries. Supports advanced filtering (health, version, credentials, authorization).
 - **HybridAgentOrchestrator**: Coordinates agent selection, task assignment, and dynamic capability negotiation. Integrates with registry/discovery and enforces credential checks, error handling, and audit logging.
 - **OneAgentMemory**: Canonical memory client for all agents and orchestration flows. Supports CRUD, semantic search, and context retrieval. All memory operations are MCP-compliant and auditable.
-- **Memory Intelligence**: Provides semantic embeddings, context7 queries, and advanced memory analytics. Used for agent context, workflow continuity, and learning.
+- **Memory Intelligence**: Provides semantic embeddings, advanced queries, and advanced memory analytics. Used for agent context, workflow continuity, and learning.
 - **Audit Logging System**: All critical actions, errors, and decisions are logged with backbone metadata for traceability, compliance, and debugging.
 - **Temporal System**: Tracks all time-based events, agent heartbeats, memory updates, and orchestrator actions. Enables time-based queries, scheduling, and historical analysis.
 - **Backbone Metadata System**: Every entity (agent, memory entry, log, event) is tagged with structured metadata: timestamps, agent IDs, version, protocol, context, and lineage. This enables:
@@ -629,7 +616,7 @@ Note: The single supported entry point is `coreagent/agents/base/AgentFactory`. 
 ### 9.3. Memory System Details
 
 - **mem0 Backend**: Persistent, versioned, and auditable memory store. All memory entries are tagged with backbone metadata and temporal information.
-- **Semantic Search & Embeddings**: Memory intelligence layer provides context7 queries, 768-dimensional embeddings, and similarity search for agent workflows.
+- **Semantic Search & Embeddings**: Memory intelligence layer provides 768-dimensional embeddings and similarity search for agent workflows.
 - **Contextual Memory**: Agents and orchestrators retrieve relevant context for tasks, learning, and decision-making. Memory is used for both short-term (session) and long-term (institutional) knowledge.
 - **Audit Trail**: Every memory operation (create, update, delete, query) is logged with full metadata for compliance and debugging.
 

@@ -84,6 +84,10 @@ console.log('[ENGINE] Importing taskDelegationService...');
 import { taskDelegationService } from './services/TaskDelegationService';
 console.log('[ENGINE] ✅ taskDelegationService imported');
 
+console.log('[ENGINE] Importing agentBootstrapService...');
+import { agentBootstrapService } from './services/AgentBootstrapService';
+console.log('[ENGINE] ✅ agentBootstrapService imported');
+
 console.log('[ENGINE] Importing unifiedMonitoringService...');
 import { unifiedMonitoringService } from './monitoring/UnifiedMonitoringService';
 console.log('[ENGINE] ✅ unifiedMonitoringService imported');
@@ -234,6 +238,32 @@ export class OneAgentEngine extends EventEmitter {
     try {
       // Initialize core systems
       await this.initializeMemorySystem();
+
+      console.log('[ENGINE] 🔄 Bootstrapping default agents...');
+      try {
+        const bootstrapResult = await agentBootstrapService.bootstrapDefaultAgents();
+        if (bootstrapResult.success) {
+          console.log(
+            `[ENGINE] ✅ Agent bootstrap successful: ${bootstrapResult.successCount}/${bootstrapResult.totalAgents} agents registered`,
+          );
+        } else {
+          console.warn(
+            `[ENGINE] ⚠️  Agent bootstrap partial success: ${bootstrapResult.successCount}/${bootstrapResult.totalAgents} agents registered`,
+          );
+          if (bootstrapResult.errors.length > 0) {
+            console.warn('[ENGINE]    Errors:', bootstrapResult.errors);
+          }
+        }
+        // Emit bootstrap event for observability
+        this.emit('agents_bootstrapped', bootstrapResult);
+      } catch (error) {
+        console.error('[ENGINE] ❌ Agent bootstrap failed:', error);
+        // Non-fatal: continue initialization even if bootstrap fails
+        // System can still function with manually registered agents
+        this.emit('agents_bootstrap_failed', {
+          error: error instanceof Error ? error.message : String(error),
+        });
+      }
 
       // Skip memory probe if flag is set (for quick startup during development)
       if (process.env.ONEAGENT_SKIP_MEMORY_PROBE !== '1') {

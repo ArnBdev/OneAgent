@@ -2,7 +2,6 @@
  * Advanced Code Analysis Engine for DevAgent
  *
  * Provides sophisticated code analysis capabilities including:
- * - Context7 integration for documentation lookup (canonical only)
  * - Pattern recognition and learning
  * - Memory-driven code insights
  * - Constitutional AI validation for code quality
@@ -39,7 +38,6 @@ export interface CodeAnalysisResult {
     analysisType: string;
     confidence: number;
     processingTime: number;
-    context7Used: boolean; // Only for documentation lookup
     memoryEnhanced: boolean;
   };
 }
@@ -85,7 +83,6 @@ export class AdvancedCodeAnalysisEngine {
     totalAnalyses: 0,
     successfulAnalyses: 0,
     averageQualityScore: 0,
-    context7Usage: 0, // Only for documentation lookup
     memoryEnhancements: 0,
   };
 
@@ -147,7 +144,6 @@ export class AdvancedCodeAnalysisEngine {
           analysisType: request.requestType,
           confidence: this.calculateConfidence(suggestions, documentation, memoryInsights),
           processingTime: createUnifiedTimestamp().unix - startTime,
-          context7Used: documentation.length > 0, // Only for documentation lookup
           memoryEnhanced: memoryInsights.length > 0,
         },
       };
@@ -226,15 +222,13 @@ export class AdvancedCodeAnalysisEngine {
   }
 
   /**
-   * Get relevant documentation via context7 (canonical only)
+   * Get relevant documentation for analysis
    */
   private async getRelevantDocumentation(
     request: CodeAnalysisRequest,
     analysis: string,
   ): Promise<DocumentationResult[]> {
     try {
-      this.analysisMetrics.context7Usage++; // Only for documentation lookup
-
       const queries = [];
 
       // Language-specific documentation
@@ -261,9 +255,7 @@ export class AdvancedCodeAnalysisEngine {
       }
 
       const documentationResults: DocumentationResult[] = [];
-      // Canonical: Use UnifiedBackboneService.context7.queryDocumentation
-      // TODO: Integrate canonical Context7 documentation query utility/service here
-      // Placeholder: documentation retrieval disabled until canonical service is wired
+      // Documentation retrieval placeholder - can be extended with external documentation APIs if needed
 
       return documentationResults.sort((a, b) => b.relevanceScore - a.relevanceScore).slice(0, 5); // Top 5 most relevant
     } catch (error) {
@@ -294,7 +286,7 @@ export class AdvancedCodeAnalysisEngine {
       const existing = existingPatterns.find((p) => p.name === detected.name);
       if (existing) {
         existing.frequency++;
-        existing.lastSeen = new Date();
+        existing.lastSeen = new Date(createUnifiedTimestamp().utc);
         existing.examples.push(detected.example);
       } else {
         patterns.push({
@@ -302,7 +294,7 @@ export class AdvancedCodeAnalysisEngine {
           description: detected.description,
           frequency: 1,
           quality: detected.quality,
-          lastSeen: new Date(),
+          lastSeen: new Date(createUnifiedTimestamp().utc),
           examples: [detected.example],
           relatedDocumentation: [],
         });
@@ -667,7 +659,6 @@ export class AdvancedCodeAnalysisEngine {
         analysisType: request.requestType,
         confidence: 0.3,
         processingTime: 0,
-        context7Used: false, // Only for documentation lookup
         memoryEnhanced: false,
       },
     };
@@ -678,10 +669,6 @@ export class AdvancedCodeAnalysisEngine {
       (this.analysisMetrics.averageQualityScore * (this.analysisMetrics.successfulAnalyses - 1) +
         result.qualityScore) /
       this.analysisMetrics.successfulAnalyses;
-
-    if (result.metadata.context7Used) {
-      this.analysisMetrics.context7Usage++; // Only for documentation lookup
-    }
 
     if (result.metadata.memoryEnhanced) {
       this.analysisMetrics.memoryEnhancements++;
@@ -705,7 +692,6 @@ export class AdvancedCodeAnalysisEngine {
           requestType: request.requestType,
           qualityScore: result.qualityScore,
           patterns: result.patterns.map((p) => p.name),
-          context7Used: result.metadata.context7Used, // Only for documentation lookup
         },
         sessionId: request.sessionId || 'default',
       });

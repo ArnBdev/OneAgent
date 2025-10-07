@@ -611,7 +611,7 @@ export interface DocumentationResult {
 export interface DocumentationSearchResult {
   results: DocumentationResult[];
   totalResults: number;
-  query: string | DocumentationQuery;
+  query: string;
   searchTime: number;
   sources: string[];
   cacheHitRatio?: number;
@@ -621,71 +621,6 @@ export interface DocumentationSearchResult {
   relatedQueries?: string[];
   metadata?: Record<string, unknown>;
 }
-
-// ========================================
-// CONTEXT7 DOCUMENTATION TYPES
-// ========================================
-
-export interface DocumentationSource {
-  id: string;
-  name: string;
-  description: string;
-  baseUrl: string;
-  version: string;
-  isActive: boolean;
-  lastUpdated: Date;
-  categories: string[];
-  searchPaths: string[];
-  indexStatus: 'indexed' | 'indexing' | 'error' | 'pending';
-}
-
-export interface DocumentationQuery {
-  source: string;
-  query: string;
-  context?: string;
-  maxResults?: number;
-  filters?: {
-    categories?: string[];
-    versions?: string[];
-    lastUpdated?: Date;
-  };
-  sessionId?: string;
-  userId?: string;
-}
-
-export interface DocumentationPattern {
-  id: string;
-  pattern: string;
-  description: string;
-  examples: string[];
-  category: string;
-  complexity: 'simple' | 'moderate' | 'complex';
-  frequency: number;
-  lastUsed: Date;
-}
-
-export interface Context7CacheMetrics {
-  totalEntries: number;
-  cacheSize: number;
-  hitRate: number;
-  missRate: number;
-  averageResponseTime: number;
-  lastCleanup: Date;
-  memoryUsage: {
-    used: number;
-    available: number;
-    percentage: number;
-  };
-  performance: {
-    queriesPerSecond: number;
-    avgQueryTime: number;
-    slowQueries: number;
-  };
-}
-
-// ========================================
-// END CONTEXT7 TYPES
-// ========================================
 
 // ========================================
 // VALIDATION AND QUALITY
@@ -843,19 +778,6 @@ export interface IntelligenceInsight {
 // ========================================
 // AGENT SYSTEM TYPES
 // ========================================
-// ========================================
-// CANONICAL A2A PROTOCOL TYPE
-// ========================================
-
-export interface OneAgentA2AProtocol {
-  protocolId: string;
-  sessionId: SessionId;
-  agents: AgentId[];
-  messages: A2AMessage[];
-  createdAt: UnifiedTimestamp;
-  status: 'active' | 'inactive' | 'concluded';
-  metadata?: Record<string, unknown>;
-}
 
 export interface UnifiedAgentCommunicationInterface {
   /**

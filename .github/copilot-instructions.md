@@ -1,5 +1,63 @@
 # OneAgent Professional Development Instructions
 
+## 🚨 Zero Tolerance Policy
+
+**All violations (major or minor) must be fixed before marking a task, PR, or release as complete. No exceptions, no deferrals, no warnings left behind.**
+
+## Canonical System Enforcement
+
+All Copilot/Copilot Chat actions must use canonical OneAgent systems for time, ID, memory, cache, and communication. Creating parallel systems is strictly forbidden.
+
+### Required Canonical Patterns
+
+```typescript
+// Time
+const timestamp = createUnifiedTimestamp();
+// IDs
+const id = createUnifiedId('operation', 'context');
+// Memory
+const memory = OneAgentMemory.getInstance();
+// Cache
+const cache = OneAgentUnifiedBackbone.getInstance().cache;
+// Communication
+const comms = UnifiedAgentCommunicationService.getInstance();
+```
+
+### Forbidden Patterns (Zero Tolerance)
+
+```typescript
+// ❌ Forbidden time/ID/memory/cache/comm patterns
+const timestamp = new Date();
+const timestamp = Date.now();
+const id = Math.random().toString(36);
+const cache = new Map();
+const memory = new CustomMemoryClass();
+const bus = new CustomEventBus();
+private memory: ...
+```
+
+## PR Reviewer Checklist (Strict)
+
+- [ ] No forbidden patterns (see above) anywhere in the diff
+- [ ] All new files using time/ID/memory/cache/comm import canonical utilities
+- [ ] All agents extend `BaseAgent` and implement `ISpecializedAgent`
+- [ ] No warnings or errors in TypeScript or ESLint
+- [ ] All tests for canonical compliance pass
+- [ ] CHANGELOG, ROADMAP, and API_REFERENCE updated if relevant
+- [ ] AGENTS.md referenced for any new architectural pattern
+
+## Green-Before-Done
+
+- Never mark a task or PR complete with any known violation or warning. All must be fixed before completion.
+
+## No Deferred Violations
+
+- All violations must be fixed before closing a task, PR, or release. No exceptions.
+
+## Reference
+
+- Always reference AGENTS.md as the single source of truth for canonical systems and anti-parallel protocol.
+
 > Canonicalization: This repository uses a single root-level `AGENTS.md` as the primary agent instruction file for GitHub Copilot coding agent and other tools. This file complements, but does not override, `AGENTS.md`. If any guidance conflicts, `AGENTS.md` at the repo root is authoritative. Avoid creating parallel instruction files.
 
 ## Project Overview
@@ -20,7 +78,6 @@ OneAgent is a Professional AI Development Platform featuring Constitutional AI, 
 - **Error Handling**: 20% canonical (UnifiedBackboneService.errorHandler)
 - **MCP Integration**: 30% canonical (UnifiedBackboneService.mcp)
 - **Monitoring**: 10% canonical (UnifiedBackboneService.monitoring)
-- **Context7**: 25% canonical (legacy adapter.ts blocking)
 
 ## Mandatory Anti-Parallel System Protocol
 
@@ -83,7 +140,6 @@ const memory = new CustomMemoryClass(); // Creates parallel memory system
 - `oneagent_memory_add`: Add items with metadata
 - `oneagent_system_health`: System health metrics
 - `oneagent_enhanced_search`: Quality-filtered web search
-- `oneagent_context7_query`: Documentation queries
 
 ## Constitutional AI Principles
 
@@ -91,13 +147,6 @@ const memory = new CustomMemoryClass(); // Creates parallel memory system
 2. **Transparency**: Explain reasoning and acknowledge limitations
 3. **Helpfulness**: Provide actionable, relevant guidance
 4. **Safety**: Avoid harmful or misleading recommendations
-
-## Context7 Integration
-
-- **ALWAYS use Context7** for documentation before coding
-- **Auto-memory storage**: Store ALL Context7 retrievals in memory
-- **Build knowledge webs**: Link technologies, versions, best practices
-- **Quality threshold**: 80%+ relevance for long-term storage
 
 ## Critical Mission Priority
 
@@ -112,6 +161,8 @@ Remember: You are working as lead developer, architect, and project manager. Han
 ### Development Tools
 
 - `oneagent_code_analyze`: Analyze code quality, patterns, security, and performance
+- `oneagent_web_search`: Web search with configurable parameters
+- `oneagent_web_fetch`: Fetch and extract content from web pages
 
 ## Development Workflow
 

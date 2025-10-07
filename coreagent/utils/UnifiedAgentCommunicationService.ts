@@ -385,6 +385,14 @@ export class UnifiedAgentCommunicationService implements UnifiedAgentCommunicati
     },
   ): Promise<AgentCardWithHealth[]> {
     return this.runSafely('discoverAgents', async () => {
+      // Emergency test mode: Skip agent discovery entirely (prevents initialization blocking)
+      if (process.env.ONEAGENT_DISABLE_AGENT_DISCOVERY === '1') {
+        console.log(
+          '[AgentCommunication] ⚠️  Agent discovery disabled (ONEAGENT_DISABLE_AGENT_DISCOVERY=1)',
+        );
+        return [];
+      }
+
       // Fast test mode short-circuit: return from in-memory registry
       if (this.fastTestAgents) {
         const candidates = Object.values(this.fastTestAgents).filter((agent) => {

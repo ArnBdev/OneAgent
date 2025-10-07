@@ -1,4 +1,4 @@
-﻿# Known Issues - OneAgent
+# Known Issues - OneAgent
 
 > **Last Updated**: 2025-10-02 (v4.4.0)
 

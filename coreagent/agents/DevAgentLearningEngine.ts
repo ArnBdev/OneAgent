@@ -4,7 +4,6 @@
  * Core learning system that enables DevAgent to:
  * - Store and retrieve learned patterns from interactions
  * - Build a local knowledge base of successful solutions
- * - Learn from context7 documentation and store useful insights (canonical only)
  * - Continuously improve through pattern recognition
  * - Maintain institutional memory across sessions
  *
@@ -14,10 +13,8 @@
  * @created June 14, 2025
  */
 
-import type { DocumentationResult, OneAgentA2AProtocol } from '../types/oneagent-backbone-types';
-// UnifiedContext7MCPIntegration import removed (deprecated)
+import type { DocumentationResult } from '../types/oneagent-backbone-types';
 import { CodeAnalysisResult } from './AdvancedCodeAnalysisEngine';
-import { getEnhancedTimeContext } from '../utils/EnhancedTimeAwareness.js';
 import { OneAgentUnifiedBackbone } from '../utils/UnifiedBackboneService.js';
 import { OneAgentMemory } from '../memory/OneAgentMemory';
 import {
@@ -25,6 +22,7 @@ import {
   unifiedMetadataService,
   getOneAgentMemory,
 } from '../utils/UnifiedBackboneService';
+import { UnifiedAgentCommunicationService } from '../utils/UnifiedAgentCommunicationService';
 
 export interface LearnedPattern {
   id: string;
@@ -58,7 +56,7 @@ export interface LearnedPattern {
   lastUsed: Date;
 
   // Sources
-  learnedFrom: 'context7' | 'user-interaction' | 'analysis-engine' | 'cross-agent'; // Only for documentation learning
+  learnedFrom: 'user-interaction' | 'analysis-engine' | 'cross-agent';
   sourceDetails?: {
     documentationUrl?: string;
     sessionId?: string;
@@ -100,7 +98,7 @@ export interface LearningMetrics {
  * Adaptive Learning Engine for DevAgent
  */
 export class DevAgentLearningEngine {
-  private a2aProtocol: OneAgentA2AProtocol;
+  private comms: UnifiedAgentCommunicationService;
   // context7Integration removed (deprecated)
   private agentId: string;
   private unifiedBackbone: OneAgentUnifiedBackbone;
@@ -149,12 +147,10 @@ export class DevAgentLearningEngine {
     mostUsedPatterns: [],
     emergingPatterns: [],
   };
-  constructor(agentId: string, a2aProtocol: OneAgentA2AProtocol) {
+  constructor(agentId: string) {
     this.agentId = agentId;
-    this.a2aProtocol = a2aProtocol;
-    // context7Integration initialization removed (deprecated)
+    this.comms = UnifiedAgentCommunicationService.getInstance();
     this.unifiedBackbone = OneAgentUnifiedBackbone.getInstance();
-    // Canonical: use getOneAgentMemory() accessor
     this.memoryBridge = getOneAgentMemory();
   }
 
@@ -216,45 +212,6 @@ export class DevAgentLearningEngine {
     } catch (error) {
       console.error('[LearningEngine] Failed to learn from interaction:', error);
       return null;
-    }
-  }
-
-  /**
-   * Learn from context7 documentation (canonical only)
-   */
-  async learnFromDocumentation(
-    documentationResults: DocumentationResult[],
-    language: string,
-    problemContext: string,
-  ): Promise<LearnedPattern[]> {
-    const learnedPatterns: LearnedPattern[] = [];
-
-    try {
-      console.log('[LearningEngine] Learning from context7 documentation...'); // Only for documentation learning
-
-      for (const doc of documentationResults) {
-        if (doc.relevanceScore > 0.7) {
-          // Only learn from highly relevant docs
-          const patterns = await this.extractPatternsFromDocumentation(
-            doc,
-            language,
-            problemContext,
-          );
-
-          for (const pattern of patterns) {
-            const stored = await this.storeNewPattern(pattern);
-            if (stored) {
-              learnedPatterns.push(stored);
-            }
-          }
-        }
-      }
-
-      console.log(`[LearningEngine] Learned ${learnedPatterns.length} patterns from documentation`);
-      return learnedPatterns;
-    } catch (error) {
-      console.error('[LearningEngine] Failed to learn from documentation:', error);
-      return [];
     }
   }
 
@@ -392,6 +349,26 @@ export class DevAgentLearningEngine {
 
   // PRIVATE IMPLEMENTATION METHODS
   /**
+   * Example: Fetch all A2A sessions for this agent (canonical comms)
+   */
+  private async getAgentSessions(): Promise<unknown[]> {
+    // Use canonical comms service to find sessions
+    const sessionResults = await this.comms['memory'].searchMemory({
+      query: `sessions for agent ${this.agentId}`,
+      userId: 'system_learning_engine',
+      limit: 50,
+      filters: { 'sessionData.participants': this.agentId, entityType: 'A2ASession' },
+    });
+    return Array.isArray(sessionResults) ? sessionResults : [];
+  }
+
+  /**
+   * Example: Synthesize NLACS insights for a session (canonical comms)
+   */
+  private async synthesizeSessionInsights(sessionId: string): Promise<unknown> {
+    return this.comms.synthesizeInsights(sessionId);
+  }
+  /**
    * Load existing patterns from persistent memory (canonical format only)
    */
   private async loadExistingPatterns(): Promise<void> {
@@ -502,126 +479,6 @@ export class DevAgentLearningEngine {
     return pattern;
   }
 
-  /**
-   * Extract patterns from context7 documentation (canonical only)
-   */
-  private async extractPatternsFromDocumentation(
-    doc: DocumentationResult,
-    language: string,
-    problemContext: string,
-  ): Promise<LearnedPattern[]> {
-    const patterns: LearnedPattern[] = [];
-
-    // Look for code examples and best practices in documentation
-    const codeBlocks = this.extractCodeBlocks(doc.content);
-    const bestPractices = this.extractBestPractices(doc.content);
-    for (const codeBlock of codeBlocks) {
-      const patternMetadata = await this.unifiedBackbone.getServices().metadataService.create(
-        'context7-pattern', // Only for documentation learning
-        'DevAgentLearningEngine',
-        {
-          content: {
-            category: 'context7-learning', // Only for documentation learning
-            tags: [language, 'context7', 'documentation'], // Only for documentation learning
-            sensitivity: 'internal',
-            relevanceScore: 0.85,
-            contextDependency: 'session',
-          },
-        },
-      );
-      const patternId = patternMetadata.id;
-
-      const pattern: LearnedPattern = {
-        id: patternId,
-        name: `${doc.title} - ${language} Code Pattern`,
-        description: `Code example from ${doc.source} documentation`,
-        category: 'solution',
-        language,
-
-        problem: problemContext,
-        solution: codeBlock,
-        reasoning: `Documented best practice from ${doc.source}`,
-        codeExample: codeBlock,
-
-        confidence: 0.9, // High confidence for official docs
-        successRate: 0.95, // Assume documentation is reliable
-        timesUsed: 0,
-        timesSuccessful: 0,
-
-        contexts: [problemContext],
-        dependencies: this.extractDependencies(codeBlock),
-        complexity: 'intermediate',
-        qualityScore: 90,
-        constitutionallyValid: true,
-        lastValidated: new Date(getEnhancedTimeContext().realTime.utc),
-        lastUsed: new Date(0), // Never used yet
-        learnedFrom: 'context7', // Only for documentation learning
-        ...(doc.url && { sourceDetails: { documentationUrl: doc.url } }),
-
-        relatedPatterns: [],
-        supersedes: [],
-      };
-
-      patterns.push(pattern);
-    }
-
-    // Process best practice patterns - architectural completion
-    for (const bestPractice of bestPractices) {
-      if (bestPractice.trim().length < 20) continue; // Skip short/incomplete practices
-
-      const practiceMetadata = await this.unifiedBackbone.getServices().metadataService.create(
-        'context7-best-practice', // Only for documentation learning
-        'DevAgentLearningEngine',
-        {
-          content: {
-            category: 'context7-learning', // Only for documentation learning
-            tags: [language, 'context7', 'documentation', 'best-practice'], // Only for documentation learning
-            sensitivity: 'internal',
-            relevanceScore: 0.9, // Best practices are highly relevant
-            contextDependency: 'session',
-          },
-        },
-      );
-      const practiceId = practiceMetadata.id;
-
-      const practicePattern: LearnedPattern = {
-        id: practiceId,
-        name: `${doc.title} - ${language} Best Practice`,
-        description: `Best practice guideline from ${doc.source}`,
-        category: 'best-practice',
-        language,
-
-        problem: problemContext,
-        solution: bestPractice.trim(),
-        reasoning: `Best practice recommendation from ${doc.source}`,
-        codeExample: '', // Best practices are textual, not code
-
-        confidence: 0.95, // Very high confidence for documented best practices
-        successRate: 0.9, // Best practices prevent issues
-        timesUsed: 0,
-        timesSuccessful: 0,
-
-        contexts: [problemContext],
-        dependencies: [], // Best practices typically don't have code dependencies
-        complexity: 'beginner', // Best practices are foundational guidelines
-
-        qualityScore: 95, // Best practices have high quality value
-        constitutionallyValid: true,
-        lastValidated: new Date(getEnhancedTimeContext().realTime.utc),
-        lastUsed: new Date(0),
-
-        learnedFrom: 'context7', // Only for documentation learning
-        ...(doc.url && { sourceDetails: { documentationUrl: doc.url } }),
-
-        relatedPatterns: [],
-        supersedes: [],
-      };
-
-      patterns.push(practicePattern);
-    }
-
-    return patterns;
-  }
   /**
    * Store a new pattern in persistent memory
    */

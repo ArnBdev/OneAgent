@@ -1,4 +1,4 @@
-﻿# OneAgent Model Selection Architecture
+# OneAgent Model Selection Architecture
 
 > **Status**: Production-ready (Epic 15 Implementation Complete)  
 > **Last Updated**: 2025-10-01  

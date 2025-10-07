@@ -1,4 +1,4 @@
-﻿# Phase 1: Memory Backend Health Monitoring - Implementation Report
+# Phase 1: Memory Backend Health Monitoring - Implementation Report
 
 **Date**: October 3, 2025  
 **Version**: OneAgent v4.4.0 → v4.4.1  

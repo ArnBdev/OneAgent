@@ -1,4 +1,4 @@
-﻿# Technical Debt Cleanup Report
+# Technical Debt Cleanup Report
 
 > **Date**: October 2, 2025  
 > **Scope**: Complete codebase quality audit and cleanup  

@@ -23,7 +23,6 @@ import { createUnifiedTimestamp, generateUnifiedId } from '../../utils/UnifiedBa
 import type { FeedbackRecord } from '../../types/oneagent-backbone-types';
 import type { MetricLog } from '../../services/MetricsService';
 import { OneAgentMemory } from '../../memory/OneAgentMemory';
-import { getOneAgentMemory } from '../../utils/UnifiedBackboneService';
 import { getModelFor } from '../../config/UnifiedModelPicker';
 import { simpleGit } from 'simple-git';
 import * as fs from 'fs/promises';
@@ -42,7 +41,6 @@ export type ExperienceEntry = {
 };
 
 export class AlitaAgent extends BaseAgent implements ISpecializedAgent {
-  private memory: OneAgentMemory;
   constructor(
     config?: Partial<AgentConfig>,
     promptConfig?: PromptConfig,
@@ -61,8 +59,8 @@ export class AlitaAgent extends BaseAgent implements ISpecializedAgent {
         aiModelName: config?.aiModelName, // premium tier selection handled at call-site later
       },
       promptConfig,
+      opts.memory,
     );
-    this.memory = opts.memory || getOneAgentMemory();
   }
 
   get id(): string {
@@ -93,7 +91,7 @@ export class AlitaAgent extends BaseAgent implements ISpecializedAgent {
       const limit = Number((params?.limit as number) ?? 50);
       const { taskId, prompt } = await this.execute(limit);
       // Store that a reflection was prepared (canonical signature)
-      await this.memory.addMemory({
+      await this.memoryClient?.addMemory({
         content: `ALITA reflection initiated. taskId=${taskId} promptChars=${prompt.length}`,
         metadata: {
           type: 'alita_reflection_prepared',
@@ -136,7 +134,7 @@ export class AlitaAgent extends BaseAgent implements ISpecializedAgent {
       proposal = this.parseStrictJson(text);
     } catch (err) {
       // Store failure breadcrumb and return prompt only (canonical signature)
-      await this.memory.addMemory({
+      await this.memoryClient?.addMemory({
         content: `ALITA LLM analysis failed: ${String(err)}`,
         metadata: { type: 'alita_llm_error', userId: this.config.id },
       });
@@ -148,7 +146,7 @@ export class AlitaAgent extends BaseAgent implements ISpecializedAgent {
     try {
       await this.applyChangeToFile(proposal.targetFile, proposal.suggestedChange, taskId);
       prUrl = await this.createPullRequest({ taskId, ...proposal });
-      await this.memory.addMemory({
+      await this.memoryClient?.addMemory({
         content: `ALITA opened PR: ${prUrl} for ${proposal.targetFile}`,
         metadata: {
           type: 'alita_pr_created',
@@ -158,7 +156,7 @@ export class AlitaAgent extends BaseAgent implements ISpecializedAgent {
         },
       });
     } catch (err) {
-      await this.memory.addMemory({
+      await this.memoryClient?.addMemory({
         content: `ALITA PR creation failed: ${String(err)}`,
         metadata: {
           type: 'alita_pr_error',
@@ -178,10 +176,10 @@ export class AlitaAgent extends BaseAgent implements ISpecializedAgent {
    */
   private async getRecentExperienceEntries(limit: number): Promise<ExperienceEntry[]> {
     // Query canonical memory for feedback + metrics persisted by services
-    const memory = this.memory;
+    const memory = this.memoryClient;
     const [feedbacksRaw, metricsRaw] = await Promise.all([
-      memory.searchMemory({ query: 'feedback_record', userId: 'feedback', limit }),
-      memory.searchMemory({ query: 'metrics_log', userId: 'default-user', limit: limit * 2 }),
+      memory?.searchMemory({ query: 'feedback_record', userId: 'feedback', limit }),
+      memory?.searchMemory({ query: 'metrics_log', userId: 'default-user', limit: limit * 2 }),
     ]);
 
     type AnyRec = {
@@ -438,7 +436,7 @@ OUTPUT: Return ONLY strict JSON with keys: analysis, targetFile, suggestedChange
     if (message.toLowerCase().includes('reflect') || message.toLowerCase().includes('alita')) {
       const { prompt } = await this.execute(50);
       // Store prompt snapshot to memory for traceability
-      await this.memory.addMemory({
+      await this.memoryClient?.addMemory({
         content: `ALITA reflection prepared at ${createUnifiedTimestamp().iso}. Prompt length=${prompt.length}`,
         metadata: { type: 'alita_reflection_prep', userId: context.user.id },
       });

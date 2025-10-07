@@ -318,7 +318,7 @@ export class ALITAAutoEvolution implements IALITAAutoEvolution {
         successCriteria: await this.defineSuccessCriteria(targetImprovements),
         constitutionalSafeguards: await this.createConstitutionalSafeguards(),
         estimatedImpact: await this.estimateImpact(targetImprovements),
-        createdAt: new Date(),
+        createdAt: new Date(createUnifiedTimestamp().utc),
         approvedBy: 'ALITAAutoEvolution',
       };
 
@@ -357,7 +357,7 @@ export class ALITAAutoEvolution implements IALITAAutoEvolution {
           ...safety.requiredSafeguards,
           ...plan.constitutionalSafeguards.map((s) => s.description),
         ],
-        validatedAt: new Date(),
+        validatedAt: new Date(createUnifiedTimestamp().utc),
         validatorSignature: 'ALITA_Constitutional_Validator_v1.0',
       };
 
@@ -366,7 +366,7 @@ export class ALITAAutoEvolution implements IALITAAutoEvolution {
         history.set(plan.planId, plan);
         await this.setEvolutionHistory(history);
         this.activeEvolutions.add(plan.planId);
-        this.lastEvolutionTime = new Date();
+        this.lastEvolutionTime = new Date(createUnifiedTimestamp().utc);
       }
 
       await this.performanceMonitor.recordLatency(
@@ -462,7 +462,7 @@ export class ALITAAutoEvolution implements IALITAAutoEvolution {
         responseCharacteristics: characteristics,
         userSatisfactionScore: avgSatisfaction,
         constitutionalCompliance: 0,
-        discoveredAt: new Date(),
+        discoveredAt: new Date(createUnifiedTimestamp().utc),
         confidence: this.calculateStatisticalConfidence(convos.length, successRate),
       });
     }

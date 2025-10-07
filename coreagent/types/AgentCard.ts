@@ -61,6 +61,8 @@ export interface SecurityScheme {
   in?: string;
   flows?: Record<string, unknown>;
   openIdConnectUrl?: string;
+  // A2A v0.3.0 additions
+  oauth2MetadataUrl?: string;
 }
 
 export interface AgentProvider {
@@ -71,6 +73,13 @@ export interface AgentProvider {
 export interface AgentInterface {
   url: string;
   transport: string;
+}
+
+// A2A v0.3.0 - Digital signature for agent card verification
+export interface AgentCardSignature {
+  algorithm: string; // e.g., "RS256", "ES256"
+  value: string; // Base64-encoded signature
+  keyId?: string; // Optional key identifier
 }
 
 /**
@@ -126,6 +135,10 @@ export interface AgentCard {
   securitySchemes?: { [scheme: string]: SecurityScheme };
   security?: { [scheme: string]: string[] }[];
   supportsAuthenticatedExtendedCard?: boolean;
+
+  // A2A v0.3.0 additions
+  oauth2MetadataUrl?: string; // OAuth2 metadata discovery endpoint
+  signatures?: AgentCardSignature[]; // Digital signatures for verification
 
   // Registry-specific fields
   qualityScore?: number;

@@ -1,4 +1,4 @@
-﻿# Embedding Service Agent Infrastructure Integration
+# Embedding Service Agent Infrastructure Integration
 
 > **Date**: 2025-10-02  
 > **Status**: ✅ Complete & Production-Ready  

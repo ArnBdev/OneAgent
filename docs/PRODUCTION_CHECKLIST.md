@@ -1,4 +1,4 @@
-﻿# Production Checklist for OneAgent
+# Production Checklist for OneAgent
 
 This lightweight checklist captures the minimum steps, env matrix, and required secrets for deploying OneAgent to production.
 

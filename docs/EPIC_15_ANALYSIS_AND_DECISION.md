@@ -1,4 +1,4 @@
-﻿# Epic 15 Analysis & Architectural Decision
+# Epic 15 Analysis & Architectural Decision
 
 **Date**: October 1, 2025  
 **Analyst**: James (OneAgent DevAgent)  

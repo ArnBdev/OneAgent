@@ -1,4 +1,4 @@
-﻿# Phase 3: Mission Control Integration - Implementation Report
+# Phase 3: Mission Control Integration - Implementation Report
 
 **Date**: October 3, 2025  
 **Version**: OneAgent v4.4.1 → v4.4.2  

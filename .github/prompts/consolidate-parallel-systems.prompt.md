@@ -59,7 +59,6 @@ Systematically identify and consolidate parallel systems to prevent architectura
 ### Medium Priority
 
 - **Monitoring**: Scattered monitoring implementations
-- **Context7**: Legacy adapter.ts dependencies
 
 ## Success Criteria
 

@@ -1,4 +1,4 @@
-﻿# OneAgent Server Startup Fix - Complete Summary
+# OneAgent Server Startup Fix - Complete Summary
 
 **Date**: October 1, 2025  
 **Issue**: MCP server (`npm run server:unified`) was hanging/exiting immediately after printing "HealthMonitoringService initialized"

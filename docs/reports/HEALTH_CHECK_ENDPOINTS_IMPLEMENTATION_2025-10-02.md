@@ -1,4 +1,4 @@
-﻿# Health Check Endpoints Implementation Report
+# Health Check Endpoints Implementation Report
 
 **Date**: October 2, 2025  
 **Version**: OneAgent v4.4.0  

@@ -1,4 +1,4 @@
-﻿# OneAgent Embedding Optimization Guide
+# OneAgent Embedding Optimization Guide
 
 > **Status**: Production-ready (Post-Benchmark Analysis)  
 > **Last Updated**: 2025-10-02  

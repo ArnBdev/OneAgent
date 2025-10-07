@@ -1,4 +1,4 @@
-﻿# Mission Control WebSocket Protocol
+# Mission Control WebSocket Protocol
 
 > Canonical reference for the OneAgent Mission Control real-time channel (Phase 4.2.0 streaming foundations).
 

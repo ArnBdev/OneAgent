@@ -6,6 +6,48 @@ applyTo: 'tests/**/*.ts'
 
 > Canonicalization: This file complements, but does not override, the root-level `AGENTS.md`. If guidance conflicts, `AGENTS.md` is authoritative. Avoid duplicating rules; reference canonical systems and patterns.
 
+## 🚨 Zero Tolerance Policy
+
+**All violations (major or minor) must be fixed before marking a task, PR, or release as complete. No exceptions, no deferrals, no warnings left behind.**
+
+## Canonical Compliance Testing
+
+All tests must verify that agents and infrastructure use canonical OneAgent systems for time, ID, memory, cache, and communication. Tests must actively detect and reject any parallel system usage.
+
+### Required Canonical Compliance Tests
+
+- Unit tests must verify use of `createUnifiedTimestamp()`, `createUnifiedId()`, `BaseAgent.memoryClient`, and `UnifiedAgentCommunicationService`.
+- Integration tests must verify A2A + NLACS flows use canonical systems.
+- Smoke tests must verify canonical event flows.
+- Violation detection tests (e.g., grep/regex) must be run in CI and before every release.
+
+### Example Violation Detection Test
+
+```typescript
+import { execSync } from 'child_process';
+const output = execSync(
+  'grep -r "new Date()|Date.now()|private memory:|new Map|Math.random|CustomMemoryClass|CustomEventBus" coreagent/ || true',
+  { encoding: 'utf-8' },
+);
+expect(output.trim()).toBe('');
+```
+
+## PR Reviewer Checklist (Strict)
+
+- [ ] All tests for canonical compliance pass
+- [ ] Violation detection tests pass (no forbidden patterns)
+- [ ] No warnings or errors in test output
+- [ ] CHANGELOG, ROADMAP, and API_REFERENCE updated if relevant
+- [ ] AGENTS.md referenced for any new test pattern
+
+## Green-Before-Done
+
+- Never mark a task or PR complete with any known violation or warning. All must be fixed before completion.
+
+## No Deferred Violations
+
+- All violations must be fixed before closing a task, PR, or release. No exceptions.
+
 ## Canonical System Testing
 
 ### Required Test Patterns
