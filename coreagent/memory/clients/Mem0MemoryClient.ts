@@ -340,15 +340,26 @@ export class Mem0MemoryClient implements IMemoryClient {
   }
 
   /**
-   * Make MCP tool call via HTTP JSON-RPC 2.0 (with session management)
+   * Make MCP tool call via HTTP JSON-RPC 2.0 (with session management and retry logic)
    *
    * Per MCP Specification 2025-06-18:
    * - Ensures session is initialized before making requests
    * - Includes Mcp-Session-Id header if session ID is available
    * - Handles session expiry (HTTP 404) by reinitializing and retrying
    * - Supports both stateful (with session) and stateless (no session) modes
+   * - Automatic retry with exponential backoff for transient network failures
+   *
+   * @param toolName - Name of the MCP tool to call
+   * @param args - Tool arguments
+   * @param retryCount - Current retry attempt (internal use)
    */
-  private async callTool<T = unknown>(toolName: string, args: Record<string, unknown>): Promise<T> {
+  private async callTool<T = unknown>(
+    toolName: string,
+    args: Record<string, unknown>,
+    retryCount: number = 0,
+  ): Promise<T> {
+    const maxRetries = 3; // Retry up to 3 times for network failures
+
     // Ensure session is initialized before making tool calls
     await this.ensureInitialized();
 
@@ -379,60 +390,108 @@ export class Mem0MemoryClient implements IMemoryClient {
         headers['Mcp-Session-Id'] = this.sessionId;
       }
 
-      const response = await fetch(this.baseUrl, {
-        method: 'POST',
-        headers,
-        body: JSON.stringify(request),
-      });
+      // Add timeout for long-running operations (add_memory can take 2+ minutes with LLM processing)
+      // Default: 5 minutes for add_memory, 30 seconds for other operations
+      const timeoutMs = toolName === 'add_memory' ? 5 * 60 * 1000 : 30 * 1000;
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
 
-      // Handle session expiry (HTTP 404) - reinitialize and retry once
-      if (response.status === 404 && this.sessionId) {
-        unifiedLogger.warn('MCP session expired (HTTP 404), reinitializing', {
-          expiredSessionId: this.sessionId.substring(0, 8) + '...',
+      try {
+        const response = await fetch(this.baseUrl, {
+          method: 'POST',
+          headers,
+          body: JSON.stringify(request),
+          signal: controller.signal,
         });
-        this.sessionId = null;
-        this.initializePromise = null;
-        // Retry with new session
-        return this.callTool(toolName, args);
-      }
 
-      if (!response.ok) {
-        // For HTTP 400, try to get the response body for better debugging
-        let errorBody = '';
-        try {
-          errorBody = await response.text();
-        } catch {
-          // Ignore if body can't be read
+        clearTimeout(timeoutId);
+
+        // Handle session expiry (HTTP 404) - reinitialize and retry once
+        if (response.status === 404 && this.sessionId) {
+          unifiedLogger.warn('MCP session expired (HTTP 404), reinitializing', {
+            expiredSessionId: this.sessionId.substring(0, 8) + '...',
+          });
+          this.sessionId = null;
+          this.initializePromise = null;
+          // Retry with new session
+          return this.callTool(toolName, args);
         }
-        const errorMsg = `HTTP ${response.status}: ${response.statusText}${errorBody ? ` - ${errorBody}` : ''}`;
-        unifiedLogger.error(`FastMCP HTTP error: ${toolName}`, {
-          status: response.status,
-          statusText: response.statusText,
-          body: errorBody.substring(0, 500),
-          requestArgs: JSON.stringify(args).substring(0, 500),
-        });
-        throw new Error(errorMsg);
+
+        if (!response.ok) {
+          // For HTTP 400, try to get the response body for better debugging
+          let errorBody = '';
+          try {
+            errorBody = await response.text();
+          } catch {
+            // Ignore if body can't be read
+          }
+          const errorMsg = `HTTP ${response.status}: ${response.statusText}${errorBody ? ` - ${errorBody}` : ''}`;
+          unifiedLogger.error(`FastMCP HTTP error: ${toolName}`, {
+            status: response.status,
+            statusText: response.statusText,
+            body: errorBody.substring(0, 500),
+            requestArgs: JSON.stringify(args).substring(0, 500),
+          });
+          throw new Error(errorMsg);
+        }
+
+        // Parse response (handles both SSE and JSON formats)
+        const data: MCPResponse<T> = await this.parseResponse<T>(response);
+
+        if (data.error) {
+          throw new Error(`MCP Error ${data.error.code}: ${data.error.message}`);
+        }
+
+        // FastMCP wraps tool results in a structured format:
+        // result.structuredContent contains the actual tool return value
+        // result.content contains a text representation
+        // We need to unwrap this to get the actual tool result
+        let toolResult = data.result as T;
+
+        // Check if result has the FastMCP wrapper structure
+        if (toolResult && typeof toolResult === 'object' && 'structuredContent' in toolResult) {
+          toolResult = (toolResult as { structuredContent: T }).structuredContent;
+        }
+
+        return toolResult;
+      } catch (error) {
+        clearTimeout(timeoutId);
+
+        // Handle abort errors (timeout)
+        if (error instanceof Error && error.name === 'AbortError') {
+          const timeoutError = `MCP tool call timeout after ${timeoutMs}ms: ${toolName}`;
+          unifiedLogger.error(timeoutError, {
+            toolName,
+            timeoutMs,
+            args: JSON.stringify(args).substring(0, 500),
+          });
+          throw new Error(timeoutError);
+        }
+
+        // Check if this is a fetch/network error that could be retried
+        const isFetchError =
+          error instanceof Error &&
+          (error.message.includes('fetch failed') ||
+            error.message.includes('ECONNRESET') ||
+            error.message.includes('ECONNREFUSED') ||
+            error.message.includes('socket hang up'));
+
+        if (isFetchError && retryCount < maxRetries) {
+          const retryDelay = Math.pow(2, retryCount) * 1000; // Exponential backoff: 1s, 2s, 4s
+          unifiedLogger.warn(`Fetch failed for ${toolName}, retrying in ${retryDelay}ms (attempt ${retryCount + 1}/${maxRetries})`, {
+            error: error instanceof Error ? error.message : String(error),
+          });
+
+          // Wait before retrying
+          await new Promise((resolve) => setTimeout(resolve, retryDelay));
+
+          // Retry the call
+          return this.callTool(toolName, args, retryCount + 1);
+        }
+
+        // Re-throw other errors or if max retries exceeded
+        throw error;
       }
-
-      // Parse response (handles both SSE and JSON formats)
-      const data: MCPResponse<T> = await this.parseResponse<T>(response);
-
-      if (data.error) {
-        throw new Error(`MCP Error ${data.error.code}: ${data.error.message}`);
-      }
-
-      // FastMCP wraps tool results in a structured format:
-      // result.structuredContent contains the actual tool return value
-      // result.content contains a text representation
-      // We need to unwrap this to get the actual tool result
-      let toolResult = data.result as T;
-
-      // Check if result has the FastMCP wrapper structure
-      if (toolResult && typeof toolResult === 'object' && 'structuredContent' in toolResult) {
-        toolResult = (toolResult as { structuredContent: T }).structuredContent;
-      }
-
-      return toolResult;
     } catch (error) {
       unifiedLogger.error(`MCP tool call failed: ${toolName}`, { error });
       throw error;
@@ -554,9 +613,16 @@ export class Mem0MemoryClient implements IMemoryClient {
       // Complex objects like UnifiedTimestamp must be converted to primitives
       const jsonSafeMetadata = JSON.parse(JSON.stringify(req.metadata));
 
-      // Extract userId from metadata (passed as separate parameter to FastMCP)
-      const userId = jsonSafeMetadata.userId || 'default-user';
+      // Extract userId from request or metadata (priority: req.userId > metadata.userId > default)
+      const userId = req.userId || jsonSafeMetadata.userId || 'default-user';
       delete jsonSafeMetadata.userId; // Remove from metadata to avoid duplication
+
+      // Debug logging to trace userId parameter
+      unifiedLogger.info('[Mem0MemoryClient] Calling add_memory with parameters', {
+        user_id: userId,
+        content_preview: req.content.substring(0, 100),
+        metadata_keys: Object.keys(jsonSafeMetadata),
+      });
 
       const result = await this.callTool<{
         success: boolean;
@@ -584,7 +650,7 @@ export class Mem0MemoryClient implements IMemoryClient {
         (result.memories && result.memories.length > 0 ? result.memories[0]?.id : undefined);
 
       unifiedLogger.info('Memory added successfully', {
-        userId: req.metadata.userId,
+        userId: userId, // ✅ FIXED: Use actual userId variable, not metadata
         memoryId,
         count: result.count,
         verified: result.verified,

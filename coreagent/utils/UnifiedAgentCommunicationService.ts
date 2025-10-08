@@ -342,7 +342,34 @@ export class UnifiedAgentCommunicationService implements UnifiedAgentCommunicati
         this.fastTestAgents[agentId] = agentRecord;
       }
 
-      const content = `Agent Registration: ${agent.name}`;
+      // Create rich, unique content for mem0 LLM to avoid rejection as redundant
+      // mem0's LLM rejects generic content like "Agent Registration: <Name>" as uninformative
+      // We need detailed, unique facts that survive LLM extraction and deduplication
+      const timestamp = createUnifiedTimestamp();
+      const content = `Specialized Agent System Registration
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Agent Identity:
+  • Name: ${agent.name}
+  • Unique ID: ${agentId}
+  • Type: ${agent.metadata?.type || 'specialized'}
+  • Classification: Autonomous AI Agent (A2AAgent)
+
+Operational Capabilities:
+  • Primary Functions: ${agent.capabilities.slice(0, 3).join(', ')}
+  • Total Capabilities: ${agent.capabilities.length} specialized functions
+  • Status: online and ready for task delegation
+  
+System Integration:
+  • Framework: OneAgent Multi-Agent Platform
+  • Communication: Phase 3 A2A Protocol with NLACS
+  • Discovery: Registered in unified agent registry
+  • Registered: ${timestamp.iso}
+
+Metadata:
+  • Description: ${agent.metadata?.description || 'Specialized agent for autonomous task processing'}
+  • Entity Type: A2AAgent (critical for discovery queries)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`;
+
       const metadata = {
         ...unifiedMetadataService.create('agent_registration', 'UnifiedAgentCommunicationService', {
           system: {
@@ -361,7 +388,13 @@ export class UnifiedAgentCommunicationService implements UnifiedAgentCommunicati
         entityType: 'A2AAgent', // Critical for discovery
         agentData: agentRecord, // Store the full agent record
       };
-      const memoryId = await this.memory.addMemory({ content, metadata });
+      // CRITICAL FIX: Use special user_id for agent registrations so they can be discovered
+      // mem0 doesn't support metadata filtering in search, so we use user_id scoping
+      const memoryId = await this.memory.addMemory({
+        content,
+        metadata,
+        userId: 'system_agents', // Special user_id for all agent registrations
+      });
 
       if (!this.silentLogging)
         console.log(
@@ -437,12 +470,15 @@ export class UnifiedAgentCommunicationService implements UnifiedAgentCommunicati
       if (filter.status) {
         filters['agentData.status'] = filter.status;
       }
+      // CRITICAL FIX: Use special user_id for agent discovery
+      // mem0 doesn't support metadata filtering in search, so we rely on user_id scoping
       const searchResults = await this.memory.searchMemory({
         query: filter.capabilities
           ? `agent with capabilities: ${filter.capabilities.join(', ')}`
           : 'discover all agents',
-        userId: 'system_discovery',
+        userId: 'system_agents', // Match the user_id used during registration
         limit: filter.limit || 100,
+        // Note: filters parameter is ignored by mem0 backend, kept for future compatibility
         filters,
       });
       const agents = (Array.isArray(searchResults) ? searchResults : [])

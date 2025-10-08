@@ -316,14 +316,26 @@ export class AgentBootstrapService {
         return status;
       }
 
-      // Step 2: Initialize agent (triggers auto-registration via BaseAgent)
+      // Step 2: Initialize agent
       console.log(`[AgentBootstrap]    Initializing ${agentDef.name}...`);
       await agent.initialize();
       status.initialized = true;
 
-      // Step 3: Verify registration via discovery
-      // Note: BaseAgent.initialize() automatically calls registerAgent()
-      // We verify it succeeded by checking discovery
+      // Step 3: Explicitly register agent with UnifiedAgentCommunicationService
+      // CRITICAL: BaseAgent.initialize() does NOT auto-register, we must do it explicitly!
+      console.log(`[AgentBootstrap]    Registering ${agentDef.name} with communication service...`);
+      await unifiedAgentCommunicationService.registerAgent({
+        id: agentId,
+        name: agentDef.name,
+        capabilities: agentDef.capabilities,
+        metadata: {
+          description: agentDef.description,
+          type: agentDef.type,
+          created: timestamp.iso,
+        },
+      });
+
+      // Step 4: Verify registration via discovery
       console.log(`[AgentBootstrap]    Verifying registration for ${agentDef.name}...`);
 
       // Wait briefly for memory persistence (eventual consistency)

@@ -21,6 +21,7 @@ export interface MemoryQuery {
 export interface MemoryAddRequest {
   content: string;
   metadata: Record<string, unknown>;
+  userId?: string; // Optional user scoping for memory (defaults to "default-user" in backend)
 }
 
 export interface MemoryEditRequest {

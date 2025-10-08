@@ -246,11 +246,15 @@ async def add_memory(
         messages = [{"role": "user", "content": content}]
         
         # Add memory with canonical metadata
-        logger.info(f"[ADD] Calling mem0.add with canonical_id={canonical_id}")
+        # CRITICAL: Use infer=False to disable LLM fact extraction/deduplication
+        # mem0's LLM-based deduplication rejects agent registrations as "redundant"
+        # For system agents, we want exact storage without LLM filtering
+        logger.info(f"[ADD] Calling mem0.add with canonical_id={canonical_id}, infer=False (direct storage)")
         result = memory.add(
             messages=messages,
             user_id=user_id,
-            metadata=mem_metadata
+            metadata=mem_metadata,
+            infer=False  # Bypass LLM - store content directly
         )
         
         memories = result.get("results", [])
