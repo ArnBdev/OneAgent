@@ -114,6 +114,3 @@ Provide coordination guidance, system status updates, or delegate to appropriate
     return 85;
   }
 }
-
-// Export singleton instance for use in the server
-export const coreAgent = new CoreAgent();

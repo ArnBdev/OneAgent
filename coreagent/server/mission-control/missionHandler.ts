@@ -52,21 +52,18 @@ export async function handleMissionStart(
         server: { name: SERVER_NAME, version: SERVER_VERSION },
         payload: { missionId, status: 'planning_started' },
       });
-      const { PlannerAgent } = await import('../../agents/specialized/PlannerAgent');
-      const planner = new PlannerAgent({
+
+      // Use canonical AgentFactory pattern instead of direct instantiation
+      const { AgentFactory } = await import('../../agents/base/AgentFactory');
+      const planner = await AgentFactory.createAgent({
         id: 'planner-mc',
-        name: 'PlannerAgent',
-        description: 'Mission Control Planner',
-        capabilities: ['planning', 'decomposition'],
+        name: 'Mission Control Planner',
+        type: 'planner',
+        description: 'Mission Control strategic planner with GMA integration',
         memoryEnabled: true,
         aiEnabled: true,
       });
-      if (
-        typeof (planner as unknown as { initialize?: () => Promise<void> }).initialize ===
-        'function'
-      ) {
-        await (planner as unknown as { initialize: () => Promise<void> }).initialize();
-      }
+
       const planningSession = await (
         planner as unknown as { createPlanningSession: (c: unknown) => Promise<unknown> }
       ).createPlanningSession({

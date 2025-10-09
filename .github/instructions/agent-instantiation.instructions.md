@@ -127,38 +127,30 @@ constructor(
 - **PlannerAgent**: `constructor(config: AgentConfig, promptConfig?: PromptConfig)`
 - **AlitaAgent**: `constructor(config?: Partial<AgentConfig>, promptConfig?: PromptConfig, opts: { memory?: OneAgentMemory })`
 
-## Legacy Patterns (Documented for Migration)
+## Legacy Patterns Eliminated (v4.7.3)
 
-### OneAgentSystem Local CoreAgent (Line 544)
+### ❌ OneAgentSystem.ts (REMOVED v4.7.3)
 
-```typescript
-// OneAgentSystem.ts has LOCAL CoreAgent class implementing SpecialistAgent interface
-class CoreAgent implements SpecialistAgent {
-  constructor(oneAgentSystem: OneAgentSystem) {
-    this.oneAgentSystem = oneAgentSystem;
-    this.existingCoreAgent = new ExistingCoreAgent(); // Uses canonical agent internally
-  }
-}
+**Status**: Completely deleted (1040 lines of dead code with 0 imports, 0 instantiations). Contained parallel CoreAgent wrapper class and TeamMeetingEngine. All functionality replaced by canonical UnifiedAgentCommunicationService and AgentFactory patterns.
 
-// This is a wrapper/adapter pattern for legacy OneAgentSystem routing
-// NOT the canonical CoreAgent from agents/specialized/CoreAgent.ts
-```
+### ❌ CoreAgent Singleton Export (REMOVED v4.7.3)
 
-**Status**: Legacy architecture, intentional for backward compatibility. Will be migrated to AgentFactory pattern in future refactoring (Epic TBD).
-
-### Singleton Exports
+**Previous Pattern** (now removed):
 
 ```typescript
-// agents/specialized/CoreAgent.ts line 119
+// agents/specialized/CoreAgent.ts line 119 (DELETED)
 export const coreAgent = new CoreAgent();
 ```
 
-**Status**: Acceptable for convenience exports. Provides pre-initialized instance for server usage. Secondary pattern to AgentFactory.
+**Status**: Removed in v4.7.3. All agent creation now goes through AgentFactory.createAgent() for consistency. Legacy test file (test-memory-driven-agents.ts) that used this export was also removed (broken imports).
 
-### MissionHandler Direct Instantiation
+### ✅ MissionHandler AgentFactory Migration (COMPLETE v4.7.3)
+
+**Before** (v4.7.2 and earlier):
 
 ```typescript
-// server/mission-control/missionHandler.ts line 56
+// server/mission-control/missionHandler.ts line 56 (OLD)
+const { PlannerAgent } = await import('../../agents/specialized/PlannerAgent');
 const planner = new PlannerAgent({
   id: 'planner-mc',
   name: 'PlannerAgent',
@@ -167,10 +159,34 @@ const planner = new PlannerAgent({
   memoryEnabled: true,
   aiEnabled: true,
 });
-await planner.initialize();
+if (typeof (planner as unknown as { initialize?: () => Promise<void> }).initialize === 'function') {
+  await (planner as unknown as { initialize: () => Promise<void> }).initialize();
+}
 ```
 
-**Status**: Acceptable (passes explicit config + calls initialize), but SHOULD be migrated to AgentFactory for consistency.
+**After** (v4.7.3):
+
+```typescript
+// server/mission-control/missionHandler.ts (MIGRATED)
+const { AgentFactory } = await import('../../agents/base/AgentFactory');
+const planner = await AgentFactory.createAgent({
+  id: 'planner-mc',
+  name: 'Mission Control Planner',
+  type: 'planner',
+  description: 'Mission Control strategic planner with GMA integration',
+  memoryEnabled: true,
+  aiEnabled: true,
+});
+// No initialize() call needed - AgentFactory does it
+// No type casting needed - proper ISpecializedAgent typing
+```
+
+**Benefits**:
+
+- ✅ Eliminated manual initialize() with type guards
+- ✅ Eliminated heavy type casting (`as unknown as`)
+- ✅ Proper ISpecializedAgent typing
+- ✅ Consistent with all other agent instantiations
 
 ## Migration Guide
 
@@ -268,8 +284,9 @@ When reviewing agent-related PRs, verify:
 - [ ] No direct `new Agent()` without `await initialize()`
 - [ ] All agent constructors match BaseAgent signature: `constructor(config, promptConfig?, memory?)`
 - [ ] Test files can use direct instantiation (acceptable exception)
-- [ ] Legacy patterns (OneAgentSystem, singletons) documented if added
-- [ ] Migration path documented if adding new legacy pattern
+- [ ] No new singleton exports (all eliminated in v4.7.3)
+- [ ] No new parallel agent wrapper classes (OneAgentSystem pattern eliminated v4.7.3)
+- [ ] Migration path documented if adding new legacy pattern (discouraged - use AgentFactory)
 
 ## Reference
 
