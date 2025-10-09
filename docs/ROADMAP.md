@@ -151,7 +151,8 @@ OneAgent v4.4.1 achieves **Orchestration Excellence** with Circuit Breaker Patte
 
 **Next Steps**:
 
-- [ ] Add streaming responses (chunked transfer)
+- [ ] Epic XX: LLM Provider Integration (v4.8.0) - OpenAI/Anthropic integration
+- [ ] Epic 22: Real-Time Streaming UX (v4.9.0) - SSE streaming (prerequisite: Epic XX)
 - [ ] Implement conversation branching
 - [ ] Add agent selection dropdown
 - [ ] Export conversations to JSON/Markdown
@@ -160,7 +161,100 @@ OneAgent v4.4.1 achieves **Orchestration Excellence** with Circuit Breaker Patte
 
 **Status**: ✅ **COMPLETE - Ready for user testing**
 
-### 5.2 Memory Backend Health Monitoring (COMPLETED ✅ v4.4.1)
+---
+
+### 5.2 LLM Provider Integration (PLANNED — v4.8.0) 🚀
+
+**Concept**: Integrate LLM providers (OpenAI, Anthropic, etc.) into ChatAPI to enable AI-powered responses with Constitutional AI validation.
+
+**Priority**: Medium  
+**Effort**: 3-4 hours  
+**Prerequisite**: None (v4.7.0 complete)
+
+**Scope**:
+
+- ✅ **LLM Integration**: Add OpenAI/Anthropic/other LLM providers to ChatAPI
+- ✅ **UnifiedModelPicker**: Use canonical model selection (cost/quality/latency policies)
+- ✅ **Streaming Support**: Token-by-token streaming from LLMs
+- ✅ **Configuration**: LLM config in environment variables (API keys, models, etc.)
+- ✅ **Constitutional AI**: Validate LLM responses against Constitutional AI principles
+
+**Files to Create/Modify**:
+
+- `coreagent/intelligence/LLMProviderService.ts` - New service for LLM integration
+- `coreagent/api/chatAPI.ts` - Add LLM calls with streaming support
+- `coreagent/config/EnvironmentConfig.ts` - Add LLM config (OPENAI_API_KEY, etc.)
+
+**Architecture**:
+
+```typescript
+// ChatAPI calls LLM for response generation
+const llmResponse = await LLMProviderService.generateResponse({
+  messages: conversationHistory,
+  model: UnifiedModelPicker.selectModel({ priority: 'quality' }),
+  stream: true, // Token-by-token streaming
+});
+
+// Constitutional AI validation
+const validated = await ConstitutionalAI.validate(llmResponse);
+```
+
+**Why This First**: Streaming UX (Epic 22) requires LLM integration to stream tokens. Current ChatAPI doesn't call LLMs.
+
+---
+
+### 5.3 Real-Time Streaming UX (PLANNED — v4.9.0) 🚀
+
+**Concept**: Convert `/api/chat` endpoint from synchronous REST to streaming responses (Server-Sent Events) for word-by-word display like modern AI chatbots.
+
+**Priority**: Low (UX enhancement, not critical path)  
+**Effort**: 2-3 hours  
+**Prerequisite**: Epic XX (LLM Provider Integration - v4.8.0)
+
+**Scope**:
+
+- ✅ **SSE Streaming**: Convert POST /api/chat to Server-Sent Events
+- ✅ **Frontend Integration**: Update ChatInterface.tsx to handle EventSource
+- ✅ **Progressive Display**: Show LLM tokens word-by-word as they arrive
+- ✅ **Hybrid Architecture**: Maintain WebSocket for system events (thinking, health)
+- ✅ **Streaming Indicator**: Show progress indicator during streaming
+
+**Architecture**:
+
+```typescript
+// Backend: Stream LLM tokens via SSE
+app.post('/api/chat', (req, res) => {
+  res.setHeader('Content-Type', 'text/event-stream');
+  res.setHeader('Cache-Control', 'no-cache');
+
+  const stream = await llmProvider.streamResponse(message);
+  for await (const token of stream) {
+    res.write(`data: ${JSON.stringify({ token })}\n\n`);
+  }
+  res.end();
+});
+
+// Frontend: Handle SSE stream
+const eventSource = new EventSource('/api/chat');
+eventSource.onmessage = (event) => {
+  const { token } = JSON.parse(event.data);
+  appendTokenToMessage(token); // Incremental display
+};
+```
+
+**Event Separation** (Maintained):
+
+- **SSE Stream**: LLM tokens → Frontend displays incrementally
+- **WebSocket**: System events (agent:thinking, health:update, mission:progress)
+- **Zero Duplication**: SSE for content, WebSocket for system state
+
+**Constitutional AI Grade**: A+ (Expected) - Modern UX with proper architecture
+
+**Why After Epic XX**: Requires LLM provider that streams tokens. Current ChatAPI processes messages internally without LLM calls.
+
+---
+
+### 5.4 Memory Backend Health Monitoring (COMPLETED ✅ v4.4.1)
 
 **Achievement Summary**:
 
