@@ -6,6 +6,7 @@
  *
  * Features:
  * - Complete MCP protocol implementation (JSON-RPC 2.0)
+ * - HTTP connection pooling with keepAlive for performance
  * - Comprehensive error handling with Constitutional AI principles
  * - Audit logging for memory operations
  * - Event subscriptions for memory changes
@@ -17,6 +18,8 @@
  * - Helpfulness: Clear error guidance, retry logic
  * - Safety: User isolation, no credential leakage
  */
+import http from 'http';
+import https from 'https';
 import type { IMemoryClient } from './IMemoryClient';
 import type {
   MemoryClientConfig,
@@ -64,6 +67,13 @@ export class Mem0MemoryClient implements IMemoryClient {
   private sessionId: string | null = null;
   private initializePromise: Promise<void> | null = null;
 
+  /**
+   * HTTP connection pool for improved performance
+   * Reuses TCP connections to reduce handshake overhead (~50-100ms per request)
+   */
+  private httpAgent: http.Agent;
+  private httpsAgent: https.Agent;
+
   constructor(config: MemoryClientConfig) {
     this.config = config;
     // Get canonical memory URL from UnifiedBackboneService config
@@ -71,10 +81,23 @@ export class Mem0MemoryClient implements IMemoryClient {
     const canonicalUrl = UnifiedBackboneService.config?.memoryUrl || 'http://localhost:8010/mcp';
     this.baseUrl = config.apiUrl || canonicalUrl;
 
+    // Initialize connection pool agents
+    const agentConfig = {
+      keepAlive: true,
+      keepAliveMsecs: 1000, // Send keep-alive probes every 1s
+      maxSockets: 10, // Allow up to 10 concurrent connections
+      maxFreeSockets: 5, // Keep 5 idle sockets ready
+      timeout: 60000, // 60s socket timeout
+    };
+
+    this.httpAgent = new http.Agent(agentConfig);
+    this.httpsAgent = new https.Agent(agentConfig);
+
     unifiedLogger.info('Mem0MemoryClient initialized', {
       backend: this.backendName,
       baseUrl: this.baseUrl,
       configSource: config.apiUrl ? 'explicit' : 'canonical',
+      connectionPool: 'enabled',
     });
   }
 
@@ -125,6 +148,8 @@ export class Mem0MemoryClient implements IMemoryClient {
           'MCP-Protocol-Version': '2025-06-18',
         },
         body: JSON.stringify(request),
+        // @ts-expect-error Node.js fetch supports agent option (not in standard Fetch API types)
+        agent: this.baseUrl.startsWith('https') ? this.httpsAgent : this.httpAgent,
       });
 
       if (!response.ok) {
@@ -253,6 +278,8 @@ export class Mem0MemoryClient implements IMemoryClient {
       method: 'POST',
       headers,
       body: JSON.stringify(notification),
+      // @ts-expect-error Node.js fetch supports agent option (not in standard Fetch API types)
+      agent: this.baseUrl.startsWith('https') ? this.httpsAgent : this.httpAgent,
     });
 
     if (!response.ok && response.status !== 202) {
@@ -402,6 +429,8 @@ export class Mem0MemoryClient implements IMemoryClient {
           headers,
           body: JSON.stringify(request),
           signal: controller.signal,
+          // @ts-expect-error Node.js fetch supports agent option (not in standard Fetch API types)
+          agent: this.baseUrl.startsWith('https') ? this.httpsAgent : this.httpAgent,
         });
 
         clearTimeout(timeoutId);
@@ -478,9 +507,12 @@ export class Mem0MemoryClient implements IMemoryClient {
 
         if (isFetchError && retryCount < maxRetries) {
           const retryDelay = Math.pow(2, retryCount) * 1000; // Exponential backoff: 1s, 2s, 4s
-          unifiedLogger.warn(`Fetch failed for ${toolName}, retrying in ${retryDelay}ms (attempt ${retryCount + 1}/${maxRetries})`, {
-            error: error instanceof Error ? error.message : String(error),
-          });
+          unifiedLogger.warn(
+            `Fetch failed for ${toolName}, retrying in ${retryDelay}ms (attempt ${retryCount + 1}/${maxRetries})`,
+            {
+              error: error instanceof Error ? error.message : String(error),
+            },
+          );
 
           // Wait before retrying
           await new Promise((resolve) => setTimeout(resolve, retryDelay));
@@ -533,6 +565,8 @@ export class Mem0MemoryClient implements IMemoryClient {
         method: 'POST',
         headers,
         body: JSON.stringify(request),
+        // @ts-expect-error Node.js fetch supports agent option (not in standard Fetch API types)
+        agent: this.baseUrl.startsWith('https') ? this.httpsAgent : this.httpAgent,
       });
 
       if (!response.ok) {
@@ -844,6 +878,8 @@ export class Mem0MemoryClient implements IMemoryClient {
           headers: {
             'Mcp-Session-Id': this.sessionId,
           },
+          // @ts-expect-error Node.js fetch supports agent option (not in standard Fetch API types)
+          agent: this.baseUrl.startsWith('https') ? this.httpsAgent : this.httpAgent,
         });
 
         if (response.status === 405) {

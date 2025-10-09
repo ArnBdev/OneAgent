@@ -34,10 +34,13 @@ import logging
 # Load environment variables
 load_dotenv()
 
-# Configure logging
+# Configure logging with UTC timestamps (matches TypeScript canonical time system)
+import time
+logging.Formatter.converter = time.gmtime  # Force UTC for consistent cross-system logs
 logging.basicConfig(
     level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    datefmt='%Y-%m-%d %H:%M:%S UTC'  # Explicit UTC label
 )
 logger = logging.getLogger(__name__)
 

@@ -176,7 +176,7 @@ export class AgentBootstrapService {
       return this.registrationResults!;
     }
 
-    const registrationStatuses: AgentRegistrationStatus[] = [];
+    // Removed registrationStatuses[] declaration - will be created by Promise.all()
     const errors: Array<{ agent: string; error: string }> = [];
     let successCount = 0;
     let failureCount = 0;
@@ -197,11 +197,36 @@ export class AgentBootstrapService {
       return this.createFailureResult(startTime, errorMsg);
     }
 
-    // Step 2: Register each default agent
-    for (const agentConfig of DEFAULT_AGENTS) {
-      const status = await this.registerAgent(agentConfig);
-      registrationStatuses.push(status);
+    // Step 2: Register all agents in parallel for faster startup
+    // Memory backend (mem0) safely handles concurrent writes via Qdrant vector DB
+    // Each agent has unique ID and metadata, so no risk of conflicts
+    console.log('[AgentBootstrap] 🚀 Registering agents in parallel...');
 
+    const registrationPromises = DEFAULT_AGENTS.map((agentConfig) =>
+      this.registerAgent(agentConfig).catch((error) => {
+        // Catch individual registration failures to prevent Promise.all() abort
+        console.error(
+          `[AgentBootstrap] ❌ Exception during ${agentConfig.name} registration:`,
+          error,
+        );
+        return {
+          agentId: createUnifiedId('agent', agentConfig.name),
+          agentType: agentConfig.type,
+          name: agentConfig.name,
+          capabilities: agentConfig.capabilities,
+          registered: false,
+          initialized: false,
+          verifiedInMemory: false,
+          timestamp: createUnifiedTimestamp().iso,
+          error: error instanceof Error ? error.message : String(error),
+        } as AgentRegistrationStatus;
+      }),
+    );
+
+    const registrationStatuses = await Promise.all(registrationPromises);
+
+    // Count successes and failures
+    for (const status of registrationStatuses) {
       if (status.registered && status.initialized && status.verifiedInMemory) {
         successCount++;
         console.log(

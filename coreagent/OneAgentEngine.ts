@@ -256,6 +256,21 @@ export class OneAgentEngine extends EventEmitter {
         }
         // Emit bootstrap event for observability
         this.emit('agents_bootstrapped', bootstrapResult);
+
+        // Start health monitoring AFTER agents exist (prevents premature discovery searches)
+        if (!process.env.ONEAGENT_DISABLE_AUTO_MONITORING) {
+          console.log('[ENGINE] 🏥 Starting health monitoring (post-bootstrap)...');
+          try {
+            await UnifiedBackboneService.monitoring.startMonitoring();
+            console.log('[ENGINE] ✅ Health monitoring started');
+          } catch (error) {
+            console.warn(
+              '[ENGINE] ⚠️  Health monitoring start failed:',
+              error instanceof Error ? error.message : String(error),
+            );
+            // Non-fatal - continue without health monitoring
+          }
+        }
       } catch (error) {
         console.error('[ENGINE] ❌ Agent bootstrap failed:', error);
         // Non-fatal: continue initialization even if bootstrap fails

@@ -82,6 +82,7 @@ console.log('[TRACE] 🔵 All imports complete, creating Express app...');
 import { Request, Response, NextFunction } from 'express';
 import { createMetricsRouter } from '../api/metricsAPI';
 import { taskDelegationService } from '../services/TaskDelegationService';
+import { ChatAPI } from '../api/chatAPI';
 
 // MCP Session Management imports
 console.log('[TRACE] 🔵 Importing MCP session management...');
@@ -1223,6 +1224,37 @@ app.delete('/mcp', async (req: Request, res: Response) => {
     });
   }
 });
+
+// ============================================================================
+// CHAT API ENDPOINTS - OneAgent Conversational Interface
+// ============================================================================
+console.log('[INIT] 💬 Initializing ChatAPI...');
+const chatAPI = new ChatAPI(); // Uses canonical OneAgentMemory singleton
+console.log('[INIT] ✅ ChatAPI initialized');
+
+/**
+ * POST /api/chat - Main chat endpoint
+ * Accepts user messages and returns AI responses with Constitutional AI validation
+ */
+app.post('/api/chat', async (req: Request, res: Response) => {
+  await chatAPI.handleChatMessage(req, res);
+});
+
+/**
+ * GET /api/chat/history/:userId - Retrieve chat history for a user
+ */
+app.get('/api/chat/history/:userId', async (req: Request, res: Response) => {
+  await chatAPI.getChatHistory(req, res);
+});
+
+/**
+ * DELETE /api/chat/history/:userId - Clear chat history for a user
+ */
+app.delete('/api/chat/history/:userId', async (req: Request, res: Response) => {
+  await chatAPI.clearChatHistory(req, res);
+});
+
+console.log('[INIT] ✅ Chat API endpoints registered');
 
 /**
  * Server info endpoint

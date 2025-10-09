@@ -1,6 +1,6 @@
 {
   "name": "oneagent-core",
-  "version": "4.6.5",
+  "version": "4.7.0",
   "description": "OneAgent CoreAgent - Modulær AI-agentplattform with UI",
   "private": true,
   "main": "dist/coreagent/main.js",
