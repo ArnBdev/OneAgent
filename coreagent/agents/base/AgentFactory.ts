@@ -401,7 +401,7 @@ export class AgentFactory {
         agent = new PlannerAgent(agentConfig, promptConfig);
         break;
       case 'validator':
-        agent = new ValidationAgent(agentConfig);
+        agent = new ValidationAgent(agentConfig, promptConfig);
         break;
       case 'general':
         // Optionally implement a GeneralAgent if needed, or throw for now

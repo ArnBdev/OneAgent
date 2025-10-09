@@ -17,6 +17,7 @@ import {
   AgentAction,
 } from '../base/BaseAgent';
 import { ISpecializedAgent, AgentHealthStatus } from '../base/ISpecializedAgent';
+import { PromptConfig } from '../base/PromptEngine';
 import { OneAgentMemory } from '../../memory/OneAgentMemory';
 import { UnifiedMetadata, MemoryRecord } from '../../types/oneagent-backbone-types';
 import {
@@ -89,8 +90,8 @@ interface BMADPoint {
 export class ValidationAgent extends BaseAgent implements ISpecializedAgent {
   private memory: OneAgentMemory;
 
-  constructor(config: AgentConfig, memory?: OneAgentMemory) {
-    super(config);
+  constructor(config: AgentConfig, promptConfig?: PromptConfig, memory?: OneAgentMemory) {
+    super(config, promptConfig, memory);
     this.memory = memory || getOneAgentMemory();
   }
 

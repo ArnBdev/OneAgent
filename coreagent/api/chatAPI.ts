@@ -51,7 +51,8 @@ import {
   createUnifiedTimestamp,
   createUnifiedId,
 } from '../utils/UnifiedBackboneService';
-import { CoreAgent } from '../agents/specialized/CoreAgent';
+import { AgentFactory } from '../agents/base/AgentFactory';
+import type { ISpecializedAgent } from '../agents/base/ISpecializedAgent';
 // Removed unused import for OneAgentMemory
 
 interface ChatRequest {
@@ -94,7 +95,7 @@ export class ChatAPI {
   private memoryClient: OneAgentMemory;
   private timeService: OneAgentUnifiedTimeService;
   private metadataService: OneAgentUnifiedMetadataService;
-  private coreAgent: CoreAgent;
+  private coreAgent?: ISpecializedAgent; // Use interface, lazy-initialized via AgentFactory
 
   constructor(
     memoryClient?: OneAgentMemory,
@@ -104,12 +105,27 @@ export class ChatAPI {
     this.memoryClient = memoryClient || getOneAgentMemory();
     this.timeService = timeService || OneAgentUnifiedTimeService.getInstance();
     this.metadataService = metadataService || OneAgentUnifiedMetadataService.getInstance();
-    // Initialize CoreAgent with real LLM integration
-    this.coreAgent = new CoreAgent();
-    // Initialize agent asynchronously (non-blocking)
-    void this.coreAgent.initialize().catch((err) => {
-      console.error('[ChatAPI] Failed to initialize CoreAgent:', err);
-    });
+    // Lazy-initialize CoreAgent using AgentFactory for canonical pattern
+    void this.initializeCoreAgent();
+  }
+
+  /**
+   * Initialize CoreAgent using canonical AgentFactory pattern
+   */
+  private async initializeCoreAgent(): Promise<void> {
+    try {
+      // Use AgentFactory for canonical agent creation with proper config, promptConfig, unified context
+      this.coreAgent = await AgentFactory.createAgent({
+        id: 'chatapi-core-agent',
+        name: 'ChatAPI Core Agent',
+        type: 'core',
+        description: 'Core orchestrator agent for ChatAPI',
+        memoryEnabled: true,
+        aiEnabled: true,
+      });
+    } catch (err) {
+      console.error('[ChatAPI] Failed to initialize CoreAgent via AgentFactory:', err);
+    }
   }
 
   /**
@@ -395,6 +411,14 @@ export class ChatAPI {
         conversationHistory: [],
         memoryContext: Array.isArray(memoryResponse) ? memoryResponse : [],
       };
+
+      // Ensure CoreAgent is initialized before processing
+      if (!this.coreAgent) {
+        await this.initializeCoreAgent();
+        if (!this.coreAgent) {
+          throw new Error('Failed to initialize CoreAgent');
+        }
+      }
 
       const agentResponse = await this.coreAgent.processMessage(agentContext, message);
 

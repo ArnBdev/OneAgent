@@ -51,21 +51,22 @@ OneAgent v4.4.1 achieves **Orchestration Excellence** with Circuit Breaker Patte
 
 ## 4. Release Train & High-Level Timeline (Indicative, v4.4.1+)
 
-| Release | Target Window | Theme Focus                                     | Exit Criteria                                                                                                            |
-| ------- | ------------- | ----------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------ |
-| v4.7.1  | 2025-10-09    | **LLM Integration COMPLETE** ✅                 | **ChatAPI → CoreAgent → BaseAgent → Real LLM (Gemini/OpenAI), Constitutional AI, memory persistence, no echo logic** ✅ |
-| v4.7.0  | 2025-10-09    | **Chat Interface Implementation** ✅            | **Interactive chat UI (React + WebSocket + REST), split-screen layout, Constitutional AI badges, memory persistence** ✅ |
-| v4.4.2  | 2025-01-04    | Agent Systems Canonical Compliance ✅           | ✅ All violations fixed: 7 agents (24) + utilities (10) = 34 → 0 violations, 100% compliance, TemplateAgent ready        |
-| v4.4.1  | 2025-10-03    | Memory Backend Health Monitoring ✅             | ✅ Phase 1 & 2: HealthMonitoringService, ProactiveTriageOrchestrator, TriageAgent integration complete                   |
-| v4.5.0  | 2025-10-05    | **Epic 18 Phase 1: GMA Consolidation** ✅       | **PlannerAgent GMA integrated, GMACompilerService operational, PlannerAgentGMA consolidated** ✅                         |
-| v4.6.0  | 2025-10-07    | **MCP SDK Integration + A2A v0.3.0** ✅         | **Official MCP SDK adopted, hybrid architecture, unified cache, stdio transport, A2A v0.3.0 complete** ✅                |
-| v4.3.0  | +12 weeks     | Reactive Observability & Event-Driven Streaming | Live dashboard auto-refresh, metrics_tick integration, health_delta banner, reconnect strategy, event-driven arch        |
-| v4.4.0  | +16 weeks     | PlannerAgent Strategic Layer (Classic)          | Task decomposition, dynamic replanning, memory-driven optimization                                                       |
-| v4.8.0  | 2025-11-25    | **MCP OAuth2/mTLS + Async Operations** 🚀       | **OAuth2/mTLS enterprise auth, async operations, server discovery, stateless scaling** 🚀                                |
-| v5.0    | +32 weeks     | Hybrid Intelligence Launch                      | Full NLACS + GMA + Planner integration, cross-session learning reports, stability SLA                                    |
-| v5.1    | +40 weeks     | Extensibility & Plugin SDK                      | Signed plugin packages, sandbox execution policies, marketplace seed                                                     |
-| v5.2    | +48 weeks     | Scale & Multi-Instance                          | Cluster orchestration, shared memory index, distributed monitoring                                                       |
-| v6.0    | 2026 H1       | Enterprise Platform                             | Compliance packs, advanced anomaly detection, multi-tenant isolation, governance workflows                               |
+| Release | Target Window | Theme Focus                                     | Exit Criteria                                                                                                               |
+| ------- | ------------- | ----------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------- |
+| v4.7.2  | 2025-10-09    | **Agent Architecture Canonical Compliance** ✅  | **ValidationAgent promptConfig fix, ChatAPI AgentFactory migration, agent instantiation documentation, 100% compliance** ✅ |
+| v4.7.1  | 2025-10-09    | **LLM Integration COMPLETE** ✅                 | **ChatAPI → CoreAgent → BaseAgent → Real LLM (Gemini/OpenAI), Constitutional AI, memory persistence, no echo logic** ✅     |
+| v4.7.0  | 2025-10-09    | **Chat Interface Implementation** ✅            | **Interactive chat UI (React + WebSocket + REST), split-screen layout, Constitutional AI badges, memory persistence** ✅    |
+| v4.4.2  | 2025-01-04    | Agent Systems Canonical Compliance ✅           | ✅ All violations fixed: 7 agents (24) + utilities (10) = 34 → 0 violations, 100% compliance, TemplateAgent ready           |
+| v4.4.1  | 2025-10-03    | Memory Backend Health Monitoring ✅             | ✅ Phase 1 & 2: HealthMonitoringService, ProactiveTriageOrchestrator, TriageAgent integration complete                      |
+| v4.5.0  | 2025-10-05    | **Epic 18 Phase 1: GMA Consolidation** ✅       | **PlannerAgent GMA integrated, GMACompilerService operational, PlannerAgentGMA consolidated** ✅                            |
+| v4.6.0  | 2025-10-07    | **MCP SDK Integration + A2A v0.3.0** ✅         | **Official MCP SDK adopted, hybrid architecture, unified cache, stdio transport, A2A v0.3.0 complete** ✅                   |
+| v4.3.0  | +12 weeks     | Reactive Observability & Event-Driven Streaming | Live dashboard auto-refresh, metrics_tick integration, health_delta banner, reconnect strategy, event-driven arch           |
+| v4.4.0  | +16 weeks     | PlannerAgent Strategic Layer (Classic)          | Task decomposition, dynamic replanning, memory-driven optimization                                                          |
+| v4.8.0  | 2025-11-25    | **MCP OAuth2/mTLS + Async Operations** 🚀       | **OAuth2/mTLS enterprise auth, async operations, server discovery, stateless scaling** 🚀                                   |
+| v5.0    | +32 weeks     | Hybrid Intelligence Launch                      | Full NLACS + GMA + Planner integration, cross-session learning reports, stability SLA                                       |
+| v5.1    | +40 weeks     | Extensibility & Plugin SDK                      | Signed plugin packages, sandbox execution policies, marketplace seed                                                        |
+| v5.2    | +48 weeks     | Scale & Multi-Instance                          | Cluster orchestration, shared memory index, distributed monitoring                                                          |
+| v6.0    | 2026 H1       | Enterprise Platform                             | Compliance packs, advanced anomaly detection, multi-tenant isolation, governance workflows                                  |
 
 ## 5. Thematic Backlogs & Acceptance Criteria (v4.4.1+)
 
