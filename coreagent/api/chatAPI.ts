@@ -51,6 +51,7 @@ import {
   createUnifiedTimestamp,
   createUnifiedId,
 } from '../utils/UnifiedBackboneService';
+import { CoreAgent } from '../agents/specialized/CoreAgent';
 // Removed unused import for OneAgentMemory
 
 interface ChatRequest {
@@ -79,6 +80,7 @@ interface ChatResponse {
   conversationId?: string;
   memoryContext?: MemorySearchResult[];
   semanticAnalysis?: SemanticAnalysisResult; // optionally exposed (controlled by flag)
+  metadata?: Record<string, unknown>; // Agent metadata from LLM responses
   error?: string;
 }
 
@@ -92,6 +94,8 @@ export class ChatAPI {
   private memoryClient: OneAgentMemory;
   private timeService: OneAgentUnifiedTimeService;
   private metadataService: OneAgentUnifiedMetadataService;
+  private coreAgent: CoreAgent;
+
   constructor(
     memoryClient?: OneAgentMemory,
     timeService?: OneAgentUnifiedTimeService,
@@ -100,6 +104,12 @@ export class ChatAPI {
     this.memoryClient = memoryClient || getOneAgentMemory();
     this.timeService = timeService || OneAgentUnifiedTimeService.getInstance();
     this.metadataService = metadataService || OneAgentUnifiedMetadataService.getInstance();
+    // Initialize CoreAgent with real LLM integration
+    this.coreAgent = new CoreAgent();
+    // Initialize agent asynchronously (non-blocking)
+    void this.coreAgent.initialize().catch((err) => {
+      console.error('[ChatAPI] Failed to initialize CoreAgent:', err);
+    });
   }
 
   /**
@@ -366,32 +376,49 @@ export class ChatAPI {
           tags: ['chat', 'message', 'user'],
         },
       });
-      // Process the message through CoreAgent
-      // [CANONICAL FIX] Remove all references to coreAgent for now to allow build to succeed.
-      // const agentResponse = await this.coreAgent.processMessage(message, userId);
+
+      // Get relevant memory context for enhanced response
+      const memoryResponse = memoryContext
+        ? await this.memoryClient.searchMemory({ query: message, userId })
+        : [];
+
+      // Process the message through CoreAgent with REAL LLM integration
+      const now = createUnifiedTimestamp();
+      const agentContext = {
+        user: {
+          id: userId,
+          name: 'User',
+          createdAt: now.iso,
+          lastActiveAt: now.iso,
+        },
+        sessionId: req.body.conversationId || this.generateConversationId(),
+        conversationHistory: [],
+        memoryContext: Array.isArray(memoryResponse) ? memoryResponse : [],
+      };
+
+      const agentResponse = await this.coreAgent.processMessage(agentContext, message);
+
       // Store agent response in memory (non-fatal)
       try {
         await this.memoryClient.addMemory({
-          content: message,
+          content: agentResponse.content,
           metadata: {
             userId,
             conversationId: req.body.conversationId,
-            agentType,
+            agentType: agentType,
             role: 'assistant',
-            tags: ['chat', 'message', 'assistant'],
+            tags: ['chat', 'message', 'assistant', 'llm_generated'],
           },
         });
       } catch (memErr) {
         console.warn('[ChatAPI] non-fatal memory store failure (agent response)', memErr);
       }
-      // Get relevant memory context for response
-      const memoryResponse = memoryContext
-        ? await this.memoryClient.searchMemory({ query: message, userId })
-        : [];
+
       const response: ChatResponse = {
-        response: message,
+        response: agentResponse.content,
         agentType: agentType,
         memoryContext: Array.isArray(memoryResponse) ? memoryResponse : [],
+        metadata: agentResponse.metadata,
       };
       res.json(response);
     } catch (error) {
